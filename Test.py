@@ -174,9 +174,11 @@ class Widget(object):
     def bind_current_index(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()
-    def __get_focused(self):
+    @property
+    def focused(self):
         return self.__focused
-    def __set_focused(self, focused):
+    @focused.setter
+    def focused(self, focused):
         global focused_widget
         if self.__focused != focused:
             if focused and focused_widget != self:
@@ -186,7 +188,6 @@ class Widget(object):
             self.__focused = focused
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
-    focused = property(__get_focused, __set_focused)
     def drag(self, mime_data, thumbnail_data, drag_finished_fn):
         drag_finished_fn("none")
     def set_cursor_shape(self, cursor_shape):
@@ -248,11 +249,11 @@ class ItemModelController:
             self.children.remove(item)
         def child(self, index):
             return self.children[index]
-        def __get_row(self):
+        @property
+        def row(self):
             if self.parent:
                 return self.parent.children.index(self)
             return -1
-        row = property(__get_row)
     def __init__(self):
         self.__next_id = 0
         self.root = self.create_item()
@@ -515,44 +516,44 @@ class KeyboardModifiers(object):
         self.__meta = meta
         self.__keypad = keypad
     # shift
-    def __get_shift(self):
+    @property
+    def shift(self):
         return self.__shift
-    shift = property(__get_shift)
-    def __get_only_shift(self):
+    @property
+    def only_shift(self):
         return self.__shift and not self.__control and not self.__alt and not self.__meta
-    only_shift = property(__get_only_shift)
     # control (command key on mac)
-    def __get_control(self):
+    @property
+    def control(self):
         return self.__control
-    control = property(__get_control)
-    def __get_only_control(self):
+    @property
+    def only_control(self):
         return self.__control and not self.__shift and not self.__alt and not self.__meta
-    only_control = property(__get_only_control)
     # alt (option key on mac)
-    def __get_alt(self):
+    @property
+    def alt(self):
         return self.__alt
-    alt = property(__get_alt)
-    def __get_only_alt(self):
+    @property
+    def only_alt(self):
         return self.__alt and not self.__control and not self.__shift and not self.__meta
-    only_alt = property(__get_only_alt)
     # option (alt key on windows)
-    def __get_option(self):
+    @property
+    def option(self):
         return self.__alt
-    option = property(__get_option)
-    def __get_only_option(self):
+    @property
+    def only_option(self):
         return self.__alt and not self.__control and not self.__shift and not self.__meta
-    only_option = property(__get_only_option)
     # meta (control key on mac)
-    def __get_meta(self):
+    @property
+    def meta(self):
         return self.__meta
-    meta = property(__get_meta)
-    def __get_only_meta(self):
+    @property
+    def only_meta(self):
         return self.__meta and not self.__control and not self.__shift and not self.__alt
-    only_meta = property(__get_only_meta)
     # keypad
-    def __get_keypad(self):
+    @property
+    def keypad(self):
         return self.__keypad
-    keypad = property(__get_keypad)
-    def __get_only_keypad(self):
+    @property
+    def only_keypad(self):
         return self.__keypad
-    only_keypad = property(__get_only_keypad)

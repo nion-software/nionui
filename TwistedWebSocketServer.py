@@ -102,7 +102,10 @@ class TwistedWebSocketServer(object):
                     print("finish")
 
         def put_message(message):
-            message_queue.put(message)
+            if sys.version < '3':
+                message_queue.put(message)
+            else:
+                message_queue.put(bytes(message, "utf8"))
 
         def draw(drawing_context, drawing_context_storage):
             put_message(json.dumps({"message": "draw", "js": drawing_context.to_js()}))

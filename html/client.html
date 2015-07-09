@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+   <head>
+        <style>
+/* see http://stackoverflow.com/questions/7059039/prevent-accidental-select-drag-highlight */
+.unselectable {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+        </style>
+      <script src="http://code.jquery.com/jquery-2.0.2.min.js"></script>
+      <script type="text/javascript">
+        // see http://stackoverflow.com/questions/1134586/how-can-you-find-the-height-of-text-on-an-html-canvas
+        var getTextHeight = function(font) {
+
+          var text = $('<span>Hg</span>').css({ fontFamily: font });
+          var block = $('<div style="display: inline-block; width: 1px; height: 0px;"></div>');
+
+          var div = $('<div></div>');
+          div.append(text, block);
+
+          var body = $('body');
+          body.append(div);
+
+          try {
+
+            var result = {};
+
+            block.css({ verticalAlign: 'baseline' });
+            result.ascent = block.offset().top - text.offset().top;
+
+            block.css({ verticalAlign: 'bottom' });
+            result.height = block.offset().top - text.offset().top;
+
+            result.descent = result.height - result.ascent;
+
+          } finally {
+            div.remove();
+          }
+
+          return result;
+        };
+         var socket = null
+         window.onload = function() {
+            var graphic_canvas = $('#graphic_canvas')
+             graphic_canvas.mouseenter(function(mouse_event) {
+                var event = { "type": "mouse_enter", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             })
+             graphic_canvas.mouseleave(function(mouse_event) {
+                var event = { "type": "mouse_leave", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             })
+             graphic_canvas.mousedown(function(mouse_event) {
+                var event = { "type": "mouse_down", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             })
+             graphic_canvas.mouseup(function(mouse_event) {
+                var event = { "type": "mouse_up", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             })
+             graphic_canvas.mousemove(function(mouse_event) {
+                var event = { "type": "mouse_move", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             })
+             graphic_canvas[0].onclick = function(mouse_event) {
+                var event = { "type": "click", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                console.log(JSON.stringify(event))
+             }
+             graphic_canvas[0].ondblclick = function(mouse_event) {
+                var event = { "type": "double_click", "x": mouse_event.offsetX, "y": mouse_event.offsetY };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             }
+             graphic_canvas[0].onkeypress = function(keypress_event) {
+                var event = { "type": "keypress", "charCode": keypress_event.charCode };
+                socket.send(JSON.stringify(event))
+                // console.log(JSON.stringify(event))
+             }
+            canvas = graphic_canvas[0]
+            canvas.onselectstart = function() { return false; };  // prevent accidental selections in IE < 10
+            var ctx = canvas.getContext('2d')
+            socket = new WebSocket("ws://127.0.0.1:9000")
+            socket.onmessage = function(e) {
+               var msg = JSON.parse(e.data);
+               if (msg.message == "draw") {
+                   eval(msg.js)
+                   console.log("Text message received: " + msg.js)
+               }
+               else if (msg.message == "measure") {
+                   ctx.font = msg.font;
+                   m = ctx.measureText(msg.text);
+                   width = m.width;
+                   m2 = getTextHeight(msg.font);
+                   var event = { "type": "measure_text", "width": width, "height": m2.height, "ascent": m2.ascent, "descent": m2.descent };
+                   socket.send(JSON.stringify(event))
+               }
+            }
+         }
+      </script>
+   </head>
+   <body class="unselectable">
+      <p style="font: normal 15px sans-serif">Open your browser's JavaScript console to see what's happening (hit F12).</p>
+      <canvas id="graphic_canvas" width="640" height="480"></canvas>
+   </body>
+</html>

@@ -12,7 +12,7 @@ import numbers
 # None
 
 # local libraries
-from nion.ui import Observable
+from . import Observable
 
 
 class IndexedSelection(object):

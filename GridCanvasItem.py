@@ -17,8 +17,8 @@ from __future__ import division
 # none
 
 # local libraries
-from nion.ui import CanvasItem
-from nion.ui import Geometry
+from . import CanvasItem
+from . import Geometry
 
 
 class GridCanvasItem(CanvasItem.AbstractCanvasItem):

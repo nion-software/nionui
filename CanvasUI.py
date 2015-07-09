@@ -24,9 +24,9 @@ else:
 # None
 
 # local libraries
-from nion.ui import DrawingContext
-from nion.ui import Geometry
-from nion.ui import Unicode
+from . import DrawingContext
+from . import Geometry
+from . import Unicode
 
 class KeyboardModifiers(object):
     def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):

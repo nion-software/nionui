@@ -6,7 +6,7 @@ import unittest
 # None
 
 # local libraries
-from nion.ui import Binding
+# None
 
 
 class TestBindingClass(unittest.TestCase):

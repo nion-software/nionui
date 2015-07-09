@@ -22,10 +22,10 @@ import weakref
 # None
 
 # local libraries
-from nion.ui import Geometry
-from nion.ui import ThreadPool
-from nion.ui import Observable
-from nion.ui import Test
+from . import Geometry
+from . import ThreadPool
+from . import Observable
+from . import Test
 
 
 DEFAULT_MAX_FRAME_RATE = 40

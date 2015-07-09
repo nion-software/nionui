@@ -12,7 +12,7 @@ from __future__ import absolute_import
 # none
 
 # local libraries
-from nion.ui import Observable
+from . import Observable
 
 
 class Binding(Observable.Observable):

@@ -14,7 +14,7 @@ import weakref
 # none
 
 # local libraries
-from nion.ui import Observable
+from . import Observable
 
 
 class ListModel(collections.MutableSequence, Observable.Observable):

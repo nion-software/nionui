@@ -9,7 +9,7 @@ import logging
 import numpy
 
 # local libraries
-from nion.ui import DrawingContext
+from . import DrawingContext
 
 
 focused_widget = None  # simulate focus handling at the widget level

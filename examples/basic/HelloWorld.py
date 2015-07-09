@@ -1,9 +1,13 @@
 # standard libraries
 import gettext
+import os
 import sys
 
 # third party libraries
 # None
+
+# make nion.ui available
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../..')))
 
 # local libraries
 from nion.ui import Application

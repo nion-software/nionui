@@ -414,31 +414,31 @@ class DrawingContext(object):
 
     def fill_text(self, text, x, y, max_width=None):
         self.commands.append(("fillText", Unicode.u(text), float(x), float(y), float(max_width) if max_width else 0))
-
-    def __get_fill_style(self):
+    
+    @property
+    def fill_style(self):
         raise NotImplementedError()
-
-    def __set_fill_style(self, a):
+    
+    @fill_style.setter
+    def fill_style(self, a):
         if isinstance(a, DrawingContext.LinearGradient):
             self.commands.extend(a.commands)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
         else:
             self.commands.append(("fillStyle", str(a)))
 
-    fill_style = property(__get_fill_style, __set_fill_style)
-
-    def __get_font(self):
+    @property
+    def font(self):
         raise NotImplementedError()
 
-    def __set_font(self, a):
+    @font.setter
+    def font(self, a):
         """
             Set the text font.
 
             Supports 'normal', 'bold', 'italic', size specific as '14px', and font-family.
         """
         self.commands.append(("font", str(a)))
-
-    font = property(__get_font, __set_font)
 
     def __get_text_align(self):
         raise NotImplementedError()

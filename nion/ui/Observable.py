@@ -82,7 +82,7 @@ class Publisher(object):
         self.on_subscribe = None
 
     def close(self):
-        pass
+        self.on_subscribe = None
 
     @property
     def _subscriptions(self):

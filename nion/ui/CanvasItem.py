@@ -2345,7 +2345,7 @@ class TwistDownCanvasItem(CellCanvasItem):
 
     def close(self):
         self.on_button_clicked = None
-        super(BitmapButtonCanvasItem, self).close()
+        super(TwistDownCanvasItem, self).close()
 
     def mouse_entered(self):
         self._mouse_inside = True

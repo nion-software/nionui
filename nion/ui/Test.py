@@ -214,6 +214,8 @@ class DocumentWindow:
         self.has_event_loop = False
         self.widget = None
     def close(self):
+        if self.widget:
+            self.widget.close()
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None

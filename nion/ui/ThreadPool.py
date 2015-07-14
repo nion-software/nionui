@@ -53,6 +53,7 @@ class ThreadDispatcher(object):
             self.__thread_break = True
             self.__thread_event.set()
         self.__thread_ended_event.wait()
+        self.__thread.join()
         self.__thread = None
         self.__fn = None
 

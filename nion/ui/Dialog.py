@@ -50,7 +50,7 @@ class OkCancelDialog(object):
             def on_cancel_clicked():
                 if self.on_reject:
                     self.on_reject()
-                self.document_window.close()
+                self.document_window.request_close()
                 self.document_window = None
 
             cancel_title = cancel_title if cancel_title else _("Cancel")
@@ -63,7 +63,7 @@ class OkCancelDialog(object):
             def on_ok_clicked():
                 if self.on_accept:
                     self.on_accept()
-                self.document_window.close()
+                self.document_window.request_close()
                 self.document_window = None
 
             ok_title = ok_title if ok_title else _("OK")
@@ -137,7 +137,7 @@ class ActionDialog(object):
     def add_button(self, title, on_clicked_fn):
         def on_clicked():
             on_clicked_fn()
-            self.document_window.close()
+            self.document_window.request_close()
             self.document_window = None
 
         button = self.ui.create_push_button_widget(title, properties={"min-width": 100})

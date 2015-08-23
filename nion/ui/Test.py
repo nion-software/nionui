@@ -35,6 +35,7 @@ class Widget(object):
         self.widget = None
         self.focusable = False
         self.content_section = None
+        self.text = None
     def close(self):
         if self.__binding:
             self.__binding.close()
@@ -216,12 +217,17 @@ class DocumentWindow:
     def close(self):
         if self.widget:
             self.widget.close()
+            self.widget = None
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
+    def request_close(self):
+        if self.on_about_to_close:
+            self.on_about_to_close(str(), str())
+        self.close()
     def attach(self, widget):
         self.widget = widget
     def create_dock_widget(self, widget, panel_id, title, positions, position):
@@ -232,6 +238,8 @@ class DocumentWindow:
         pass
     def add_menu(self, title):
         return Menu()
+    def show(self):
+        pass
 
 
 class ItemModelController:
@@ -402,6 +410,8 @@ class UserInterface(object):
     def __init__(self):
         self.popup = None
         self.popup_pos = None
+    def close(self):
+        pass
     def create_mime_data(self):
         return MimeData()
     def create_item_model_controller(self, keys):
@@ -461,7 +471,7 @@ class UserInterface(object):
     def set_persistent_string(self, key, value):
         pass
     def get_persistent_object(self, key, default_value=None):
-        pass
+        return default_value
     def set_persistent_object(self, key, value):
         pass
     def remove_persistent_key(self, key):

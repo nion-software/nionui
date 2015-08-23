@@ -15,7 +15,6 @@ import operator
 import sys
 import threading
 import time
-import types
 import weakref
 
 # third party libraries
@@ -339,6 +338,7 @@ class AbstractCanvasItem(object):
         self.on_focus_changed = None
         self.on_layout_updated = None
         self.__cursor_shape = None
+        self.__tool_tip = None
 
     def close(self):
         """ Close the canvas object. """
@@ -435,6 +435,14 @@ class AbstractCanvasItem(object):
             root_container = self.root_container
             if root_container:
                 root_container.focused_item = None
+
+    @property
+    def tool_tip(self):
+        return self.__tool_tip
+
+    @tool_tip.setter
+    def tool_tip(self, value):
+        self.__tool_tip = value
 
     @property
     def cursor_shape(self):
@@ -655,6 +663,18 @@ class AbstractCanvasItem(object):
         self.mouse_position_changed(midpoint[1], midpoint[0], modifiers)
         self.mouse_position_changed(p2[1], p2[0], modifiers)
         self.mouse_released(p2[1], p2[0], modifiers)
+
+    def simulate_press(self, p, modifiers=None):
+        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        self.mouse_pressed(p[1], p[0], modifiers)
+
+    def simulate_move(self, p, modifiers=None):
+        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        self.mouse_position_changed(p[1], p[0], modifiers)
+
+    def simulate_release(self, p, modifiers=None):
+        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        self.mouse_released(p[1], p[0], modifiers)
 
 
 class CanvasItemAbstractLayout(object):
@@ -2009,6 +2029,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__mouse_tracking = False
         self.__mouse_tracking_canvas_item = None
         self.__canvas_widget.set_cursor_shape(None)
+        self.__canvas_widget.tool_tip = None
 
     def __mouse_canvas_item_at_point(self, x, y):
         if self.__mouse_canvas_item:
@@ -2047,6 +2068,7 @@ class RootCanvasItem(CanvasItemComposition):
             if self.__mouse_tracking_canvas_item:
                 self.__mouse_tracking_canvas_item.mouse_entered()
                 self.__canvas_widget.set_cursor_shape(self.__mouse_tracking_canvas_item.cursor_shape)
+                self.__canvas_widget.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
         if self.__mouse_tracking_canvas_item:
             self.__mouse_canvas_item = self.__mouse_tracking_canvas_item
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
@@ -2065,21 +2087,31 @@ class RootCanvasItem(CanvasItemComposition):
 
     def __mouse_position_changed(self, x, y, modifiers):
         if not self.__mouse_tracking:
+            # handle case where mouse is suddenly within this canvas item but it never entered. this can happen when
+            # the user activates the application.
             self.mouse_entered()
         if self.__mouse_tracking and not self.__mouse_tracking_canvas_item:
+            # find the existing canvas item that is or wants to track the mouse. if it's new, call entered and update
+            # the cursor.
             self.__mouse_tracking_canvas_item = self.__mouse_canvas_item_at_point(x, y)
             if self.__mouse_tracking_canvas_item:
                 self.__mouse_tracking_canvas_item.mouse_entered()
                 self.__canvas_widget.set_cursor_shape(self.__mouse_tracking_canvas_item.cursor_shape)
+                self.__canvas_widget.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
         new_mouse_canvas_item = self.__mouse_canvas_item_at_point(x, y)
         if self.__mouse_tracking_canvas_item != new_mouse_canvas_item:
+            # if the mouse tracking canvas item changes, exit the old one and enter the new one.
             if self.__mouse_tracking_canvas_item:
                 self.__mouse_tracking_canvas_item.mouse_exited()
                 self.__canvas_widget.set_cursor_shape(None)
+                self.__canvas_widget.tool_tip = None
             self.__mouse_tracking_canvas_item = new_mouse_canvas_item
             if self.__mouse_tracking_canvas_item:
                 self.__mouse_tracking_canvas_item.mouse_entered()
                 self.__canvas_widget.set_cursor_shape(self.__mouse_tracking_canvas_item.cursor_shape)
+                self.__canvas_widget.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
+        # finally, send out the actual position changed message to the (possibly new) current mouse tracking canvas
+        # item. also make note of the last time the cursor changed for tool tip tracking.
         if self.__mouse_tracking_canvas_item:
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_tracking_canvas_item)
             self.__mouse_tracking_canvas_item.mouse_position_changed(canvas_item_point.x, canvas_item_point.y, modifiers)
@@ -2812,3 +2844,13 @@ class RadioButtonGroup(object):
         for button in self.__buttons:
             button.on_button_clicked = None
         self.on_current_index_changed = None
+
+    @property
+    def current_index(self):
+        return self.__current_index
+
+    @current_index.setter
+    def current_index(self, value):
+        self.__current_index = value
+        for index, button in enumerate(self.__buttons):
+            button.checked = index == self.__current_index

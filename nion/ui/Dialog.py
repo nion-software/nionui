@@ -31,6 +31,7 @@ class OkCancelDialog(object):
         self.on_accept = None
 
         self.document_window = self.ui.create_document_window()
+        self.document_window.window_style = "dialog"
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)

@@ -1842,6 +1842,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_mouse_pressed = self.__mouse_pressed
         self.__canvas_widget.on_mouse_released = self.__mouse_released
         self.__canvas_widget.on_mouse_position_changed = self.__mouse_position_changed
+        self.__canvas_widget.on_grabbed_mouse_position_changed = self.__grabbed_mouse_position_changed
         self.__canvas_widget.on_wheel_changed = self.wheel_changed
         self.__canvas_widget.on_context_menu_event = self.__context_menu_event
         self.__canvas_widget.on_key_pressed = self.__key_pressed
@@ -1867,6 +1868,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__mouse_tracking_canvas_item = None
         self.__drag_tracking = False
         self.__drag_tracking_canvas_item = None
+        self.__grab_canvas_item = None
         self._set_canvas_origin(Geometry.IntPoint())
         # metrics
         self._metric_update_event = Observable.Event()
@@ -1877,6 +1879,9 @@ class RootCanvasItem(CanvasItemComposition):
             self.__drawing_context_storage = None
         self.__repaint_thread.close()
         self.__repaint_thread = None
+        self.__mouse_tracking_canvas_item = None
+        self.__drag_tracking_canvas_item = None
+        self.__grab_canvas_item = None
         self.__canvas_widget.on_size_changed = None
         self.__canvas_widget.on_mouse_clicked = None
         self.__canvas_widget.on_mouse_double_clicked = None
@@ -1885,6 +1890,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_mouse_pressed = None
         self.__canvas_widget.on_mouse_released = None
         self.__canvas_widget.on_mouse_position_changed = None
+        self.__canvas_widget.on_grabbed_mouse_position_changed = None
         self.__canvas_widget.on_wheel_changed = None
         self.__canvas_widget.on_context_menu_event = None
         self.__canvas_widget.on_key_pressed = None
@@ -2020,6 +2026,12 @@ class RootCanvasItem(CanvasItemComposition):
         if item == self.__mouse_tracking_canvas_item:
             self.__canvas_widget.set_cursor_shape(self.__mouse_tracking_canvas_item.cursor_shape)
 
+    def _restore_cursor_shape(self):
+        # if self.__mouse_tracking_canvas_item:
+        #     self.__canvas_widget.set_cursor_shape(self.__mouse_tracking_canvas_item.cursor_shape)
+        # else:
+        self.__canvas_widget.set_cursor_shape(None)
+
     def __mouse_entered(self):
         self.__mouse_tracking = True
 
@@ -2116,6 +2128,10 @@ class RootCanvasItem(CanvasItemComposition):
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_tracking_canvas_item)
             self.__mouse_tracking_canvas_item.mouse_position_changed(canvas_item_point.x, canvas_item_point.y, modifiers)
 
+    def __grabbed_mouse_position_changed(self, dx, dy, modifiers):
+        if self.__grab_canvas_item:
+            self.__grab_canvas_item.grabbed_mouse_position_changed(dx, dy, modifiers)
+
     def __context_menu_event(self, x, y, gx, gy):
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in canvas_items:
@@ -2180,6 +2196,15 @@ class RootCanvasItem(CanvasItemComposition):
     def ungrab_gesture(self, gesture_type):
         """ Ungrab gesture """
         self.__canvas_widget.ungrab_gesture(gesture_type)
+
+    def grab_mouse(self, grabbed_canvas_item):
+        self.__canvas_widget.grab_mouse()
+        self.__grab_canvas_item = grabbed_canvas_item
+
+    def release_mouse(self):
+        self.__canvas_widget.release_mouse()
+        self._restore_cursor_shape()
+        self.__grab_canvas_item = None
 
 
 class BackgroundCanvasItem(AbstractCanvasItem):
@@ -2467,6 +2492,7 @@ class BitmapCell(object):
             drawing_context.fill()
         # draw the bitmap
         bitmap_data = self.rgba_bitmap_data
+        assert bitmap_data is not None
         image_size = bitmap_data.shape
         if image_size[0] > 0 and image_size[1] > 0:
             display_rect = Geometry.fit_to_size(rect, image_size)
@@ -2723,11 +2749,13 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         self.__mouse_inside = False
         self.__mouse_pressed = False
         self.__check_state = "unchecked"
+        self.on_checked_changed = None
         self.on_check_state_changed = None
         self.sizing.set_fixed_width(20)
         self.sizing.set_fixed_height(20)
 
     def close(self):
+        self.on_checked_changed = None
         self.on_check_state_changed = None
         super(CheckBoxCanvasItem, self).close()
 
@@ -2748,6 +2776,14 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
     def check_state(self, value):
         self.__check_state = value
         self.update()
+
+    @property
+    def checked(self):
+        return self.check_state == "checked"
+
+    @checked.setter
+    def checked(self, value):
+        self.check_state = "checked" if value else "unchecked"
 
     def mouse_entered(self):
         self.__mouse_inside = True
@@ -2771,9 +2807,19 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
                 self.check_state = "checked"
             else:
                 self.check_state = "unchecked"
+            if self.on_checked_changed:
+                self.on_checked_changed(self.check_state == "checked")
             if self.on_check_state_changed:
                 self.on_check_state_changed(self.check_state)
         return True
+
+    @property
+    def _mouse_inside(self):
+        return self.__mouse_inside
+
+    @property
+    def _mouse_pressed(self):
+        return self.__mouse_pressed
 
     def _repaint(self, drawing_context):
         canvas_size = self.canvas_size

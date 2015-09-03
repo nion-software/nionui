@@ -52,4 +52,4 @@ class DocumentController(object):
         self.__periodic_set.perform_tasks()
 
     def handle_quit(self):
-        self.app.deinitialize()
+        self.app.exit()

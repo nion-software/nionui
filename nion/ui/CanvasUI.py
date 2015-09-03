@@ -238,6 +238,7 @@ class CanvasCanvasWidget(CanvasWidget):
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_size_changed = None
@@ -260,6 +261,7 @@ class CanvasCanvasWidget(CanvasWidget):
             self.on_mouse_pressed = None
             self.on_mouse_released = None
             self.on_mouse_position_changed = None
+            self.on_grabbed_mouse_position_changed = None
             self.on_wheel_changed = None
             self.on_key_pressed = None
             self.on_size_changed = None
@@ -329,6 +331,10 @@ class CanvasCanvasWidget(CanvasWidget):
     def handle_mouse_position_changed(self, x, y, modifiers):
         if self.on_mouse_position_changed:
             self.on_mouse_position_changed(x, y, modifiers)
+
+    def handle_grabbed_mouse_position_changed(self, dx, dy, modifiers):
+        if self.on_grabbed_mouse_position_changed:
+            self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
 
     def handle_wheel_changed(self, dx, dy, is_horizontal):
         if self.on_wheel_changed:
@@ -501,7 +507,7 @@ class CanvasUserInterface(object):
                 traceback.print_exc()
                 traceback.print_stack()
 
-    def create_document_window(self):
+    def create_document_window(self, title=None):
         document_window = CanvasDocumentWindow(self)
         self.__document_windows.append(document_window)
         document_window.handle_size_changed(Geometry.IntSize(height=800, width=1200))

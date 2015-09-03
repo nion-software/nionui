@@ -83,6 +83,7 @@ class Widget(object):
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_paint = None
@@ -418,7 +419,7 @@ class UserInterface(object):
         return ItemModelController()
     def create_list_model_controller(self, keys):
         return ListModelController()
-    def create_document_window(self):
+    def create_document_window(self, title):
         return DocumentWindow()
     def destroy_document_window(self, document_window):
         pass

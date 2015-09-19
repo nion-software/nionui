@@ -290,6 +290,14 @@ class IntSize(object):
         other = IntSize.make(other)
         return IntSize(self.__height - other.height, self.__width - other.width)
 
+    def __mul__(self, multiplicand):
+        multiplicand = float(multiplicand)
+        return IntSize(self.__height * multiplicand, self.__width * multiplicand)
+
+    def __rmul__(self, multiplicand):
+        multiplicand = float(multiplicand)
+        return IntSize(self.__height * multiplicand, self.__width * multiplicand)
+
     def __getitem__(self, index):
         return (self.__height, self.__width)[index]
 
@@ -563,6 +571,14 @@ class FloatSize(object):
     def __sub__(self, other):
         other = FloatSize.make(other)
         return FloatSize(self.__height - other.height, self.__width - other.width)
+
+    def __mul__(self, multiplicand):
+        multiplicand = float(multiplicand)
+        return FloatSize(self.__height * multiplicand, self.__width * multiplicand)
+
+    def __rmul__(self, multiplicand):
+        multiplicand = float(multiplicand)
+        return FloatSize(self.__height * multiplicand, self.__width * multiplicand)
 
     def __getitem__(self, index):
         return (self.__height, self.__width)[index]

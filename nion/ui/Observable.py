@@ -405,15 +405,24 @@ class ManagedRelationship(object):
 
 
 class ManagedObjectContext(object):
+    """ Manages a collection of persistent objects.
 
-    """
-        Manages a collection of managed objects.
+        Each top level managed object must be associated with persistent storage handler. Objects that are added to the
+        context as an item or as part of a relationship will inherit the persistent storage handler of their parent.
 
-        All objects participating in the document model should register themselves
-        with this context. Other objects can then subscribe and unsubscribe to
-        know when a particular object (identified by uuid) becomes available or
-        unavailable. This facilitates lazy connections between objects.
-    """
+        The persistent storage handler must implement the persistent storage interface:
+
+            properties
+            insert_item(parent, name, before_index, item)
+            remove_item(parent, name, item_index, item)
+            set_item(parent, name, item)
+            set_value(object, name, value)
+
+        Subclasses of this class may have additional requirements for persistent storage.
+
+        All objects participating in the document model should register themselves with this context. Other objects can
+        then subscribe and unsubscribe to know when a particular object (identified by uuid) becomes available or
+        unavailable. This facilitates lazy connections between objects. """
 
     def __init__(self):
         self.__subscriptions = dict()
@@ -430,6 +439,7 @@ class ManagedObjectContext(object):
             collected.
         """
         object_uuid = object.uuid
+
         def remove_object(weak_object):
             object = self.__objects[object_uuid]
             for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
@@ -437,6 +447,7 @@ class ManagedObjectContext(object):
                     unregistered(object)
             del self.__objects[object_uuid]
             self.__subscriptions.pop(object_uuid, None)  # delete if it exists
+
         weak_object = weakref.ref(object, remove_object)
         self.__objects[object_uuid] = weak_object
         for registered, unregistered in self.__subscriptions.get(object_uuid, list()):
@@ -459,44 +470,52 @@ class ManagedObjectContext(object):
         if object is not None:
             registered(object)
 
-    def set_persistent_storage_for_object(self, object, persistent_storage):
+    def _set_persistent_storage_for_object(self, object, persistent_storage):
+        """ Set the persistent storage object associated with the object. """
         def remove_object(weak_object):
             del self.__persistent_storages[weak_object]
         weak_object = weakref.ref(object, remove_object)
         self.__persistent_storages[weak_object] = persistent_storage
 
-    def get_persistent_storage_for_object(self, object):
+    def _get_persistent_storage_for_object(self, object):
+        """ Return the persistent storage object associated with the object. """
         weak_object = weakref.ref(object)
         if weak_object in self.__persistent_storages:
             return self.__persistent_storages[weak_object]
         managed_parent = object.managed_parent
         if managed_parent:
-            return self.get_persistent_storage_for_object(managed_parent.parent)
+            return self._get_persistent_storage_for_object(managed_parent.parent)
         return None
 
     def get_properties(self, object):
-        persistent_storage = self.get_persistent_storage_for_object(object)
+        """ Return a copy of the properties for the object as a dict. """
+        persistent_storage = self._get_persistent_storage_for_object(object)
         return copy.deepcopy(persistent_storage.properties)
 
     def item_inserted(self, parent, name, before_index, item):
-        persistent_storage = self.get_persistent_storage_for_object(parent)
+        """ Call this to notify this context that the item before before_index has just been inserted into the parent in
+        the relationship with the given name. """
+        persistent_storage = self._get_persistent_storage_for_object(parent)
         persistent_storage.insert_item(parent, name, before_index, item)
 
     def item_removed(self, parent, name, item_index, item):
-        persistent_storage = self.get_persistent_storage_for_object(parent)
+        """ Call this to notify this context that the item at item_index has been removed from the parent in the
+        relationship with the given name. """
+        persistent_storage = self._get_persistent_storage_for_object(parent)
         persistent_storage.remove_item(parent, name, item_index, item)
 
     def item_set(self, parent, name, item):
-        persistent_storage = self.get_persistent_storage_for_object(parent)
+        """ Call this to notify this context that an item with name has been set on the parent. """
+        persistent_storage = self._get_persistent_storage_for_object(parent)
         persistent_storage.set_item(parent, name, item)
 
     def property_changed(self, object, name, value):
-        persistent_storage = self.get_persistent_storage_for_object(object)
-        persistent_storage.set_value(object, name, value)
+        """ Call this to notify this context that a property with name has changed to value on object. """
+        persistent_storage = self._get_persistent_storage_for_object(object)
+        persistent_storage.set_property(object, name, value)
 
 
 class ManagedParent(object):
-
     """ Track the parent of a managed object. """
 
     def __init__(self, parent, relationship_name=None, item_name=None):
@@ -504,17 +523,22 @@ class ManagedParent(object):
         self.relationship_name = relationship_name
         self.item_name = item_name
 
-    def __get_parent(self):
+    @property
+    def parent(self):
         return self.__weak_parent()
-    parent = property(__get_parent)
 
 
 class ManagedObject(object):
-
     """
-        Base class for objects participating in the document model.
+        Base class for objects being stored in a ManagedObjectContext.
 
-        Subclasses can define properties and relationships.
+        Subclasses can define properties, items, and relationships. Changes to those items will
+        be persisted to the ManagedObjectContext.
+
+        Keeps track of modified field automatically.
+
+        Properties are single values, items are a one-to-one between objects, relationships are
+        one-to-many between objects.
 
         Properties can have validators, converters, change notifications, and more.
         They are created using the define_property method.
@@ -525,17 +549,22 @@ class ManagedObject(object):
         Relationships have change notifications and more. They are created using
         the define_relationship method.
 
-        Subclasses MUST set the writer_version, optionally, the uuid
-        after init. Those values should not be changed at other times.
+        Subclasses can set the uuid after init. It should not be changed at other times.
 
-        The managed object context will be valid in these cases:
+        The managed_object_context property must be set explicitly for top level objects of the
+        ManagedObjectContext. Objects contained in the items and relationships will be have
+        their managed_object_context managed when they are inserted into or removed from another
+        managed object.
 
-        When the object is read from a managed object context. It is not valid while
-        reading; but only after the object has been fully read. After reading, an object
-        may immediately update itself to a newer version on disk using the managed object
+        It is an error to add an object as an item or relationship more than once. Items can be
+        removed and added again, though.
+
+        Objects must be able to read from and write themselves to a dict.
+
+        The managed_object_context property will be valid after (but not during) reading.
+
+        After reading, an object may immediately update itself to a newer version using the managed object
         context.
-
-        When the object is inserted into another object with a managed object context.
     """
 
     def __init__(self):
@@ -550,7 +579,6 @@ class ManagedObject(object):
         self.uuid = uuid.uuid4()
         self.__modified_count = 0
         self.__modified = datetime.datetime.utcnow()
-        self.writer_version = 0
         self.managed_parent = None
 
     def __deepcopy__(self, memo):

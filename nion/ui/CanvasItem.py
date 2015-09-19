@@ -21,11 +21,10 @@ import weakref
 # None
 
 # local libraries
+from . import Event
 from . import Geometry
 from . import ThreadPool
-from . import Observable
 from . import Test
-
 
 DEFAULT_MAX_FRAME_RATE = 40
 
@@ -1871,7 +1870,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__grab_canvas_item = None
         self._set_canvas_origin(Geometry.IntPoint())
         # metrics
-        self._metric_update_event = Observable.Event()
+        self._metric_update_event = Event.Event()
 
     def close(self):
         if self.__drawing_context_storage:
@@ -2349,7 +2348,7 @@ class TwistDownCell(object):
 
     def __init__(self):
         super(TwistDownCell, self).__init__()
-        self.update_event = Observable.Event()
+        self.update_event = Event.Event()
 
     def paint_cell(self, drawing_context, rect, style):
 
@@ -2430,7 +2429,7 @@ class BitmapCell(object):
         self.__rgba_bitmap_data = rgba_bitmap_data
         self.__background_color = background_color
         self.__border_color = border_color
-        self.update_event = Observable.Event()
+        self.update_event = Event.Event()
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data, trigger_update=True):
         self.__rgba_bitmap_data = rgba_bitmap_data

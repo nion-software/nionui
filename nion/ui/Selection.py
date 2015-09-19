@@ -12,13 +12,13 @@ import numbers
 # None
 
 # local libraries
-from . import Observable
+from . import Event
 
 
 class IndexedSelection(object):
     def __init__(self):
         super(IndexedSelection, self).__init__()
-        self.__changed_event = Observable.Event()
+        self.__changed_event = Event.Event()
         self.__indexes = set()
         self.__anchor_index = None
 

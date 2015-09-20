@@ -96,6 +96,14 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
         column_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=12)
         column_canvas_item.add_canvas_item(text_row_canvas_item)
         column_canvas_item.add_canvas_item(BrownSquareCanvasItem())
+        progress_bar_row = CanvasItem.CanvasItemComposition()
+        progress_bar_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
+        progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
+        progress_bar_canvas_item.progress = 0
+        progress_bar_canvas_item.sizing.set_fixed_width(500)
+        progress_bar_row.add_canvas_item(progress_bar_canvas_item)
+        progress_bar_row.add_stretch()
+        progress_bar_row.sizing.copy_from(progress_bar_canvas_item.sizing)
         check_box_row = CanvasItem.CanvasItemComposition()
         check_box_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
@@ -104,6 +112,7 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
         check_box_row.add_canvas_item(check_box_canvas_item)
         check_box_row.add_stretch()
         check_box_row.sizing.set_fixed_height(20)
+        column_canvas_item.add_canvas_item(progress_bar_row)
         column_canvas_item.add_canvas_item(check_box_row)
         column_canvas_item.add_stretch()
 
@@ -123,6 +132,7 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
             hello_world_button.size_to_content(ui.get_font_metrics)
             hello_world_canvas_item.sizing.copy_from(hello_world_button.sizing)
             text_row_canvas_item.refresh_layout()
+            progress_bar_canvas_item.progress += 0.1
         hello_world_button.on_button_clicked = button_clicked
 
 

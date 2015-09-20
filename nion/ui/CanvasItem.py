@@ -2899,3 +2899,72 @@ class RadioButtonGroup(object):
         self.__current_index = value
         for index, button in enumerate(self.__buttons):
             button.checked = index == self.__current_index
+
+
+class ProgressBarCanvasItem(AbstractCanvasItem):
+    def __init__(self):
+        super(ProgressBarCanvasItem, self).__init__()
+        self.__enabled = True
+        self.__progress = 0.0  # out of 1.0
+        self.sizing.set_fixed_height(20)
+
+    def close(self):
+        self.on_check_state_changed = None
+        super(ProgressBarCanvasItem, self).close()
+
+    @property
+    def enabled(self):
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, value):
+        self.__enabled = value
+        self.update()
+
+    @property
+    def progress(self):
+        return self.__progress
+
+    @progress.setter
+    def progress(self, value):
+        self.__progress = value if value < 1 else 1
+        self.update()
+
+    def _repaint(self, drawing_context):
+        canvas_size = self.canvas_size
+        canvas_bounds_center = self.canvas_bounds.center
+
+        drawing_context.save()
+        drawing_context.begin_path()
+        cx = canvas_size.width * 0.5
+        cy = canvas_size.height * 0.5
+        size = 14.0
+        size_half = size * 0.5
+        drawing_context.round_rect(0, 0, canvas_size.width, canvas_size.height, 4.0)
+        drawing_context.close_path()
+        drawing_context.stroke()
+        
+        if canvas_size.width * self.progress >= 1:
+            drawing_context.begin_path()
+            drawing_context.fill_style = "#08F"
+            drawing_context.round_rect(3, 3, (canvas_size.width - 6) * self.progress, canvas_size.height - 6, 2.0)
+            drawing_context.fill()
+            drawing_context.close_path()
+            drawing_context.stroke()
+        
+        progress_text = str(self.progress * 100) + "%"
+        
+        if canvas_size.width * self.progress >= 50: # TODO: use font metrics to find length of text
+            drawing_context.begin_path()
+            drawing_context.font = "12px sans-serif"
+            drawing_context.text_align = 'center'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = "#fff"
+            drawing_context.line_width = 2
+            drawing_context.fill_text(progress_text, (canvas_size.width - 6) * self.progress - 19, canvas_bounds_center.y + 1)
+            drawing_context.fill();
+            drawing_context.close_path()
+        
+        drawing_context.restore()
+
+        super(ProgressBarCanvasItem, self)._repaint(drawing_context)

@@ -481,6 +481,10 @@ class CanvasUserInterface(object):
                 event_type = event_dict.get("type")
                 document_window = self.__document_windows[0] if len(self.__document_windows) > 0 else None
                 root_widget = document_window.root_widget if document_window else None
+
+                if event_type == "quit":
+                    return 0
+
                 if root_widget:
                     if event_type == "mouse_enter":
                         root_widget.handle_mouse_entered()

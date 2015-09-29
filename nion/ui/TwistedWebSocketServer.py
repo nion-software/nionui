@@ -46,12 +46,14 @@ class TwistedWebSocketServer(object):
 
             def __init__(self):
                 self.send_my_messages()
+                self.alive = True
+                super(MyServerProtocol, self).__init__()
 
             def onConnect(self, request):
                 print("Client connecting: {0}".format(request.peer))
 
             def send_my_messages(self):
-                while not message_queue.empty():
+                while not message_queue.empty() and self.alive:
                     message = message_queue.get()
                     self.sendMessage(message)
                     message_queue.task_done()
@@ -68,6 +70,10 @@ class TwistedWebSocketServer(object):
 
             def onOpen(self):
                 event.set()
+
+            def onClose(self, wasClean, code, reason):
+                self.alive = False
+                event_queue.put({"type":"quit"})
 
         def stop_thread(*args):
             print("Stopping Ctrl-C")
@@ -121,4 +127,3 @@ class TwistedWebSocketServer(object):
         self.event_queue = event_queue
         self.draw = draw
         self.get_font_metrics = get_font_metrics
-

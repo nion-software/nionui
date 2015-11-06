@@ -1929,16 +1929,14 @@ class RootCanvasItem(CanvasItemComposition):
         if self.canvas_size is not None:
             drawing_context = self.__canvas_widget.create_drawing_context(self.__drawing_context_storage)
             self.__drawing_context_storage.mark()
-            drawing_context.save()
-            try:
-                self._repaint(drawing_context)
-            except Exception as e:
-                import traceback
-                logging.debug("CanvasItem Repaint Error: %s", e)
-                traceback.print_exc()
-                traceback.print_stack()
-            finally:
-                drawing_context.restore()
+            with drawing_context.saver():
+                try:
+                    self._repaint(drawing_context)
+                except Exception as e:
+                    import traceback
+                    logging.debug("CanvasItem Repaint Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
             self.__canvas_widget.draw(drawing_context, self.__drawing_context_storage)
             self.__drawing_context_storage.clean()
         else:  # this may happen if thread gets triggered before layout is called. try again.

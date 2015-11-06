@@ -343,7 +343,7 @@ class PersistentObject(object):
     def define_type(self, type):
         self.__type = type
 
-    def define_property(self, name, value=None, make=None, read_only=False, hidden=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+    def define_property(self, name: str, value=None, make=None, read_only: bool=False, hidden: bool=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
         self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, validate, converter, changed, key, reader, writer)
 
@@ -509,6 +509,12 @@ class PersistentObject(object):
         self.__update_modified(datetime.datetime.utcnow())
         self._update_persistent_object_context_property(name)
 
+    def _update_persistent_property(self, name: str, value) -> None:
+        """ Subclasses can call this to notify that a custom property was updated. """
+        self.__update_modified(datetime.datetime.utcnow())
+        if self.persistent_object_context:
+            self.persistent_object_context.property_changed(self, name, value)
+
     def __getattr__(self, name):
         # Handle property objects that are not hidden.
         property = self.__properties.get(name)
@@ -608,3 +614,13 @@ class PersistentObject(object):
         """ Append multiple items and add to persistent storage. """
         for item in items:
             self.append_item(name, item)
+
+    def item_count(self, name: str) -> int:
+        """Return the count of items in the relationship specified by name."""
+        relationship = self.__relationships[name]
+        return len(relationship.values)
+
+    def item_index(self, name: str, item: object) -> int:
+        """Return the index of item within the relationship specified by name."""
+        relationship = self.__relationships[name]
+        return relationship.values.index(item)

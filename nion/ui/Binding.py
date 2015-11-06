@@ -238,7 +238,7 @@ class PropertyBinding(Binding):
         The owner should call close on this object.
     """
 
-    def __init__(self, source, property_name, converter=None, fallback=None):
+    def __init__(self, source, property_name: str, converter=None, fallback=None):
         super(PropertyBinding, self).__init__(source, converter)
         self.__property_name = property_name
         self.source_setter = lambda value: setattr(self.source, self.__property_name, value)

@@ -39,6 +39,10 @@ class EventListener(object):
 
 class Event(object):
 
+    # TODO: add events to this object itself to indicate a listener being added or removed
+    # this would facilitate the ability to only listen to _another_ object if the object embedding
+    # this event had listeners.
+
     def __init__(self):
         self.__weak_listeners = []
         self.__weak_listeners_mutex = threading.RLock()

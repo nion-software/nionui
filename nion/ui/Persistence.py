@@ -54,11 +54,13 @@ class PersistentProperty(object):
         if self.changed:
             self.changed(self.name, value)
 
-    def __get_json_value(self):
+    @property
+    def json_value(self):
         return self.convert_get_fn(self.value)
-    def __set_json_value(self, json_value):
+
+    @json_value.setter
+    def json_value(self, json_value):
         self.set_value(self.convert_set_fn(json_value))
-    json_value = property(__get_json_value, __set_json_value)
 
     def read_from_dict(self, properties):
         if self.reader:
@@ -307,10 +309,13 @@ class PersistentObject(object):
         """ Subclasses can override this to be notified when the persistent object context changes. """
         pass
 
-    def __get_persistent_object_context(self):
+    @property
+    def persistent_object_context(self):
         """ Return the persistent object context. """
         return self.__persistent_object_context
-    def __set_persistent_object_context(self, persistent_object_context):
+
+    @persistent_object_context.setter
+    def persistent_object_context(self, persistent_object_context):
         """ Set the persistent object context and propagate it to contained objects. """
         assert self.__persistent_object_context is None or persistent_object_context is None  # make sure persistent object context is handled cleanly
         self.__persistent_object_context = persistent_object_context
@@ -324,7 +329,6 @@ class PersistentObject(object):
         if persistent_object_context:
             persistent_object_context.register(self)
         self.persistent_object_context_changed()
-    persistent_object_context = property(__get_persistent_object_context, __set_persistent_object_context)
 
     def get_accessor_in_parent(self):
         persistent_object_parent = self.persistent_object_parent
@@ -358,17 +362,17 @@ class PersistentObject(object):
     def undefine_relationships(self):
         self.__relationships.clear()
 
-    def __get_property_names(self):
+    @property
+    def property_names(self):
         return list(self.__properties.keys())
-    property_names = property(__get_property_names)
 
-    def __get_key_names(self):
+    @property
+    def key_names(self):
         return [property.key for property in self.__properties.values()]
-    key_names = property(__get_key_names)
 
-    def __get_type(self):
+    @property
+    def type(self):
         return self.__type
-    type = property(__get_type)
 
     @property
     def modified(self):
@@ -383,13 +387,13 @@ class PersistentObject(object):
         self.__update_modified(modified)
         self.persistent_object_context.property_changed(self, "uuid", str(self.uuid))  # dummy write
 
-    def __get_item_names(self):
+    @property
+    def item_names(self):
         return list(self.__items.keys())
-    item_names = property(__get_item_names)
 
-    def __get_relationship_names(self):
+    @property
+    def relationship_names(self):
         return list(self.__relationships.keys())
-    relationship_names = property(__get_relationship_names)
 
     def begin_reading(self):
         self._is_reading = True

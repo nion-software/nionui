@@ -230,9 +230,9 @@ class Observable(object):
     def get_observer_count(self, observer):
         return self.__weak_observers.count(weakref.ref(observer))
 
-    def __get_observers(self):
+    @property
+    def observers(self):
         return [weak_observer() for weak_observer in self.__weak_observers]
-    observers = property(__get_observers)
 
     def notify_set_property(self, key, value):
         for weak_observer in set(self.__weak_observers):  # call each observer only once
@@ -307,6 +307,6 @@ class ReferenceCounted(object):
 
     # Return the reference count, which should represent the number
     # of places that this DataItem is stored by a caller.
-    def __get_ref_count(self):
+    @property
+    def ref_count(self):
         return self.__ref_count
-    ref_count = property(__get_ref_count)

@@ -296,9 +296,9 @@ class PersistentObject(object):
 
     def deepcopy_from(self, item, memo):
         for key in self.__properties.keys():
-            value = item._get_persistent_property(key)
+            value = item._get_persistent_property_value(key)
             new_value = copy.deepcopy(value)
-            self._set_persistent_property(key, new_value)
+            self._set_persistent_property_value(key, new_value)
         for key in self.__items.keys():
             self.set_item(key, copy.deepcopy(getattr(item, key)))
         for key in self.__relationships.keys():
@@ -499,10 +499,14 @@ class PersistentObject(object):
             parent.__update_modified(modified)
 
     def _get_persistent_property(self, name):
+        """ Subclasses can call this to get a property descriptor. """
+        return self.__properties[name]
+
+    def _get_persistent_property_value(self, name):
         """ Subclasses can call this to get a hidden property. """
         return self.__properties[name].value
 
-    def _set_persistent_property(self, name, value):
+    def _set_persistent_property_value(self, name, value):
         """ Subclasses can call this to set a hidden property. """
         property = self.__properties[name]
         property.set_value(value)

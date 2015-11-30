@@ -437,7 +437,7 @@ class UserInterface(object):
         return Widget()
     def create_scroll_area_widget(self, properties=None):
         return Widget()
-    def create_combo_box_widget(self, items=None, properties=None):
+    def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
         return Widget()
     def create_push_button_widget(self, text=None, properties=None):
         return Widget()

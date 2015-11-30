@@ -1253,13 +1253,10 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _repaint(self, drawing_context):
         super(CanvasItemComposition, self)._repaint(drawing_context)
         for canvas_item in self.__canvas_items:
-            drawing_context.save()
-            try:
+            with drawing_context.saver():
                 canvas_item_rect = canvas_item.canvas_rect
                 drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
                 canvas_item._repaint(drawing_context)
-            finally:
-                drawing_context.restore()
 
     def canvas_items_at_point(self, x, y):
         canvas_items = []
@@ -2481,6 +2478,8 @@ class BitmapCell(object):
 
         rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
 
+        bitmap_data = self.rgba_bitmap_data
+
         # draw the background
         if background_color:
             drawing_context.begin_path()
@@ -2488,17 +2487,16 @@ class BitmapCell(object):
             drawing_context.fill_style = background_color
             drawing_context.fill()
         # draw the bitmap
-        bitmap_data = self.rgba_bitmap_data
-        assert bitmap_data is not None
-        image_size = bitmap_data.shape
-        if image_size[0] > 0 and image_size[1] > 0:
-            display_rect = Geometry.fit_to_size(rect, image_size)
-            display_height = display_rect[1][1]
-            display_width = display_rect[1][0]
-            if display_rect and display_width > 0 and display_height > 0:
-                display_top = display_rect[0][1]
-                display_left = display_rect[0][0]
-                drawing_context.draw_image(bitmap_data, display_top, display_left, display_height, display_width)
+        if bitmap_data is not None:
+            image_size = bitmap_data.shape
+            if image_size[0] > 0 and image_size[1] > 0:
+                display_rect = Geometry.fit_to_size(rect, image_size)
+                display_height = display_rect[1][1]
+                display_width = display_rect[1][0]
+                if display_rect and display_width > 0 and display_height > 0:
+                    display_top = display_rect[0][1]
+                    display_left = display_rect[0][0]
+                    drawing_context.draw_image(bitmap_data, display_top, display_left, display_height, display_width)
         # draw the overlay style
         if overlay_color:
             drawing_context.begin_path()

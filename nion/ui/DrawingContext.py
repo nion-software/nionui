@@ -342,8 +342,10 @@ class DrawingContext(object):
     @contextmanager
     def saver(self):
         self.save()
-        yield
-        self.restore()
+        try:
+            yield
+        finally:
+           self.restore()
 
     def save(self):
         self.commands.append(("save", ))
@@ -414,11 +416,11 @@ class DrawingContext(object):
 
     def fill_text(self, text, x, y, max_width=None):
         self.commands.append(("fillText", Unicode.u(text), float(x), float(y), float(max_width) if max_width else 0))
-    
+
     @property
     def fill_style(self):
         raise NotImplementedError()
-    
+
     @fill_style.setter
     def fill_style(self, a):
         if isinstance(a, DrawingContext.LinearGradient):
@@ -536,8 +538,10 @@ class DrawingContext(object):
     @contextmanager
     def layer(self, layer_id):
         self.begin_layer(layer_id)
-        yield
-        self.end_layer(layer_id)
+        try:
+            yield
+        finally:
+            self.end_layer(layer_id)
 
     def create_layer(self):
         if self.__storage is not None:

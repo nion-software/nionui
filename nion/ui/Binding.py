@@ -12,10 +12,10 @@ from __future__ import absolute_import
 # none
 
 # local libraries
-from . import Observable
+# none
 
 
-class Binding(Observable.Observable):
+class Binding(object):
 
     """
         Binds two objects, a source and target, together. Typically,
@@ -54,7 +54,7 @@ class Binding(Observable.Observable):
         self.source_getter = None
         self.source_setter = None
         self.target_setter = None
-        self.source = source
+        self.__source = source
 
     # not thread safe
     def close(self):
@@ -62,22 +62,12 @@ class Binding(Observable.Observable):
             Closes the binding. Subclasses can use this to perform any shutdown
             related actions. Not thread safe.
         """
-        self.source = None
+        self.__source = None
 
     @property
     def source(self):
         """ Return the source of the binding. Thread safe. """
         return self.__source
-
-    @source.setter
-    def source(self, source):
-        """ Set the source of the binding. Source must be Observable. Thread safe. """
-        if self.__source is not None:
-            self.__source.remove_observer(self)
-        self.__source = source
-        if self.__source is not None:
-            self.__source.add_observer(self)
-        self.notify_set_property("source", self.__source)
 
     @property
     def converter(self):
@@ -188,35 +178,25 @@ class ListBinding(Binding):
         self.inserter = None
         self.remover = None
 
-    # not thread safe. private method.
-    def __insert_item(self, item, before_index):
-        """
-            This method gets called on the main thread and then
-            calls the inserter function, typically on the target.
-        """
-        if self.inserter:
-            self.inserter(item, before_index)
+        # thread safe
+        def item_inserted(key, item, before_index):
+            if key == self.__key_name and callable(self.inserter):
+                self.inserter(item, before_index)
 
-    # not thread safe. private method.
-    def __remove_item(self, index):
-        """
-            This method gets called on the main thread and then
-            calls the remover function, typically on the target.
-        """
-        if self.remover:
-            self.remover(index)
+        # thread safe
+        def item_removed(key, item, index):
+            if key == self.__key_name and callable(self.remover):
+                self.remover(index)
 
-    # thread safe
-    def item_inserted(self, sender, key, item, before_index):
-        """ This message comes from the source since this object is an observer. Handled by calling __insert_item. """
-        if sender == self.source and key == self.__key_name:
-            self.__insert_item(item, before_index)
+        self.__item_inserted_listener = source.item_inserted_event.listen(item_inserted)
+        self.__item_removed_listener = source.item_removed_event.listen(item_removed)
 
-    # thread safe
-    def item_removed(self, sender, key, item, index):
-        """ This message comes from the source since this object is an observer. Handled by calling __remove_item. """
-        if sender == self.source and key == self.__key_name:
-            self.__remove_item(index)
+    def close(self):
+        self.__item_inserted_listener.close()
+        self.__item_inserted_listener = None
+        self.__item_removed_listener.close()
+        self.__item_removed_listener = None
+        super(ListBinding, self).close()
 
     @property
     def items(self):
@@ -241,17 +221,23 @@ class PropertyBinding(Binding):
     def __init__(self, source, property_name: str, converter=None, fallback=None):
         super(PropertyBinding, self).__init__(source, converter)
         self.__property_name = property_name
+        self.__property_changed_listener = source.property_changed_event.listen(self.__property_changed)
         self.source_setter = lambda value: setattr(self.source, self.__property_name, value)
         self.source_getter = lambda: getattr(self.source, self.__property_name)
 
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+        super(PropertyBinding, self).close()
+
     # thread safe
-    def property_changed(self, sender, property_name, value):
+    def __property_changed(self, property_name, value):
         """
             This message comes from the source since this object is an observer.
             Updates the target using update_target or update_target_direct with
             the fallback value if value is None.
         """
-        if sender == self.source and property_name == self.__property_name:
+        if property_name == self.__property_name:
             if value is not None:
                 self.update_target(value)
             else:
@@ -276,6 +262,7 @@ class TuplePropertyBinding(Binding):
         super(TuplePropertyBinding, self).__init__(source, converter=converter, fallback=fallback)
         self.__property_name = property_name
         self.__tuple_index = tuple_index
+        self.__property_changed_listener = source.property_changed_event.listen(self.__property_changed)
         def source_setter(value):  # pylint: disable=missing-docstring
             tuple_as_list = list(getattr(self.source, self.__property_name))
             tuple_as_list[self.__tuple_index] = value
@@ -286,14 +273,19 @@ class TuplePropertyBinding(Binding):
         self.source_setter = source_setter
         self.source_getter = source_getter
 
+    def close(self):
+        self.__property_changed_listener.close()
+        self.__property_changed_listener = None
+        super(TuplePropertyBinding, self).close()
+
     # thread safe
-    def property_changed(self, sender, property_name, value):
+    def __property_changed(self, property_name, value):
         """
             This message comes from the source since this object is an observer.
             Updates the target using update_target or update_target_direct with the
             fallback value if value is None.
         """
-        if sender == self.source and property_name == self.__property_name:
+        if property_name == self.__property_name:
             # perform on the main thread
             if value is not None:
                 self.update_target(value[self.__tuple_index])

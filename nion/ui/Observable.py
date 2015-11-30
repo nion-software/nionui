@@ -15,7 +15,7 @@ import weakref
 # None
 
 # local libraries
-# None
+from . import Event
 
 
 class Broadcaster(object):
@@ -212,57 +212,26 @@ class Observable(object):
 
     def __init__(self):
         super(Observable, self).__init__()
-        self.__weak_observers = list()
-
-    def add_observer(self, observer):
-        def remove_observer(weak_observer):
-            self.__weak_observers.remove(weak_observer)
-        weak_observer = weakref.ref(observer, remove_observer)
-        # an observer can be added more than once
-        self.__weak_observers.append(weak_observer)
-
-    def remove_observer(self, observer):
-        weak_observer = weakref.ref(observer)
-        # when removing an observer, it should already be in the list
-        assert weak_observer in self.__weak_observers
-        self.__weak_observers.remove(weak_observer)
-
-    def get_observer_count(self, observer):
-        return self.__weak_observers.count(weakref.ref(observer))
-
-    @property
-    def observers(self):
-        return [weak_observer() for weak_observer in self.__weak_observers]
+        self.property_changed_event = Event.Event()
+        self.item_set_event = Event.Event()
+        self.item_cleared_event = Event.Event()
+        self.item_inserted_event = Event.Event()
+        self.item_removed_event = Event.Event()
 
     def notify_set_property(self, key, value):
-        for weak_observer in set(self.__weak_observers):  # call each observer only once
-            observer = weak_observer()
-            if observer and getattr(observer, "property_changed", None):
-                observer.property_changed(self, key, value)
+        self.property_changed_event.fire(key, value)
 
     def notify_set_item(self, key, item):
-        for weak_observer in set(self.__weak_observers):  # call each observer only once
-            observer = weak_observer()
-            if observer and getattr(observer, "item_set", None):
-                observer.item_set(self, key, item)
+        self.item_set_event.fire(key, item)
 
     def notify_clear_item(self, key):
-        for weak_observer in set(self.__weak_observers):  # call each observer only once
-            observer = weak_observer()
-            if observer and getattr(observer, "item_cleared", None):
-                observer.item_cleared(self, key)
+        self.item_clear_event.fire(key)
 
     def notify_insert_item(self, key, value, before_index):
-        for weak_observer in set(self.__weak_observers):  # call each observer only once
-            observer = weak_observer()
-            if observer and getattr(observer, "item_inserted", None):
-                observer.item_inserted(self, key, value, before_index)
+        self.item_inserted_event.fire(key, value, before_index)
 
     def notify_remove_item(self, key, value, index):
-        for weak_observer in set(self.__weak_observers):  # call each observer only once
-            observer = weak_observer()
-            if observer and getattr(observer, "item_removed", None):
-                observer.item_removed(self, key, value, index)
+        self.item_removed_event.fire(key, value, index)
 
 
 class ReferenceCounted(object):

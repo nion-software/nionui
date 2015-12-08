@@ -33,7 +33,7 @@ class TestCanvasItemClass(unittest.TestCase):
         pass
 
     def simulate_drag(self, root_canvas_item, p1, p2, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = CanvasItem.KeyboardModifiers() if not modifiers else modifiers
         root_canvas_item.canvas_widget.on_mouse_pressed(p1[1], p1[0], modifiers)
         root_canvas_item.canvas_widget.on_mouse_position_changed(p1[1], p1[0], modifiers)
         midp = Geometry.midpoint(p1, p2)
@@ -425,7 +425,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(canvas_item1.focused)
         self.assertFalse(canvas_item2.focused)
         # click in item 1 and check that focus was updated and changed
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         self.assertTrue(canvas_item1.focused)
         self.assertTrue(canvas_item1 in focus_changed_set)
@@ -449,7 +449,7 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.wants_mouse_events = True
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         # check assumptions
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         self.assertIsNone(root_canvas.focused_item)
         self.assertFalse(root_canvas.focused)
         root_canvas.canvas_widget.on_mouse_clicked(320, 240, modifiers)
@@ -473,7 +473,7 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.add_canvas_item(canvas_item2)
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         # click in item 1, then 2 and check key goes to 2nd item
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas.canvas_widget.on_mouse_clicked(160, 240, modifiers)
         root_canvas.canvas_widget.on_mouse_clicked(160 + 320, 240, modifiers)
         # check assumptions
@@ -632,7 +632,7 @@ class TestCanvasItemClass(unittest.TestCase):
         container_canvas_item.add_canvas_item(test_canvas_item)
         root_canvas.add_canvas_item(container_canvas_item)
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
         # run test
@@ -652,7 +652,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
         root_canvas.add_canvas_item(test_canvas_item)
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
         # run test
@@ -675,7 +675,7 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.add_canvas_item(test_canvas_item)
         root_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
         # run test
@@ -707,7 +707,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_drag_tracking_from_one_item_to_another(self):
         ui = Test.UserInterface()
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas = CanvasItem.RootCanvasItem(ui)
         container_canvas_item = CanvasItem.CanvasItemComposition()
         container_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -741,7 +741,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_mouse_tracking_after_drag_from_one_item_to_another(self):
         ui = Test.UserInterface()
-        modifiers = Test.KeyboardModifiers()
+        modifiers = CanvasItem.KeyboardModifiers()
         root_canvas = CanvasItem.RootCanvasItem(ui)
         container_canvas_item = CanvasItem.CanvasItemComposition()
         container_canvas_item.layout = CanvasItem.CanvasItemRowLayout()

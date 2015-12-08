@@ -24,7 +24,6 @@ import weakref
 from . import Event
 from . import Geometry
 from . import ThreadPool
-from . import Test
 
 DEFAULT_MAX_FRAME_RATE = 40
 
@@ -301,6 +300,69 @@ class Sizing(object):
         else:
             constraint.preferred = None
         return constraint
+
+
+class KeyboardModifiers(object):
+    def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):
+        self.__shift = shift
+        self.__control = control
+        self.__alt = alt
+        self.__meta = meta
+        self.__keypad = keypad
+
+    # shift
+    @property
+    def shift(self):
+        return self.__shift
+
+    @property
+    def only_shift(self):
+        return self.__shift and not self.__control and not self.__alt and not self.__meta
+
+    # control (command key on mac)
+    @property
+    def control(self):
+        return self.__control
+
+    @property
+    def only_control(self):
+        return self.__control and not self.__shift and not self.__alt and not self.__meta
+
+    # alt (option key on mac)
+    @property
+    def alt(self):
+        return self.__alt
+
+    @property
+    def only_alt(self):
+        return self.__alt and not self.__control and not self.__shift and not self.__meta
+
+    # option (alt key on windows)
+    @property
+    def option(self):
+        return self.__alt
+
+    @property
+    def only_option(self):
+        return self.__alt and not self.__control and not self.__shift and not self.__meta
+
+    # meta (control key on mac)
+    @property
+    def meta(self):
+        return self.__meta
+
+    @property
+    def only_meta(self):
+        return self.__meta and not self.__control and not self.__shift and not self.__alt
+
+    # keypad
+    @property
+    def keypad(self):
+        return self.__keypad
+
+    @property
+    def only_keypad(self):
+        return self.__keypad
 
 
 class AbstractCanvasItem(object):
@@ -650,12 +712,12 @@ class AbstractCanvasItem(object):
         return False
 
     def simulate_click(self, p, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = KeyboardModifiers() if not modifiers else modifiers
         self.mouse_pressed(p[1], p[0], modifiers)
         self.mouse_released(p[1], p[0], modifiers)
 
     def simulate_drag(self, p1, p2, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = KeyboardModifiers() if not modifiers else modifiers
         self.mouse_pressed(p1[1], p1[0], modifiers)
         self.mouse_position_changed(p1[1], p1[0], modifiers)
         midpoint = Geometry.midpoint(p1, p2)
@@ -664,15 +726,15 @@ class AbstractCanvasItem(object):
         self.mouse_released(p2[1], p2[0], modifiers)
 
     def simulate_press(self, p, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = KeyboardModifiers() if not modifiers else modifiers
         self.mouse_pressed(p[1], p[0], modifiers)
 
     def simulate_move(self, p, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = KeyboardModifiers() if not modifiers else modifiers
         self.mouse_position_changed(p[1], p[0], modifiers)
 
     def simulate_release(self, p, modifiers=None):
-        modifiers = Test.KeyboardModifiers() if not modifiers else modifiers
+        modifiers = KeyboardModifiers() if not modifiers else modifiers
         self.mouse_released(p[1], p[0], modifiers)
 
 

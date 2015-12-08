@@ -349,7 +349,7 @@ class Key(object):
     def __init__(self, text, key, modifiers):
         self.text = text
         self.key = key
-        self.modifiers = modifiers if modifiers else KeyboardModifiers()
+        self.modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
 
     @property
     def is_delete(self):
@@ -511,7 +511,7 @@ class UserInterface(object):
                 meta = True
             elif modifiers_id == "keypad":
                 keypad = True
-        return KeyboardModifiers(shift, control, alt, meta, keypad)
+        return CanvasItem.KeyboardModifiers(shift, control, alt, meta, keypad)
     def create_offscreen_drawing_context(self):
         return DrawingContext.DrawingContext()
     def get_font_metrics(self, font, text):
@@ -528,54 +528,3 @@ class UserInterface(object):
         return menu
     def create_sub_menu(self, document_window):
         return Menu()
-
-
-class KeyboardModifiers(object):
-    def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):
-        self.__shift = shift
-        self.__control = control
-        self.__alt = alt
-        self.__meta = meta
-        self.__keypad = keypad
-    # shift
-    @property
-    def shift(self):
-        return self.__shift
-    @property
-    def only_shift(self):
-        return self.__shift and not self.__control and not self.__alt and not self.__meta
-    # control (command key on mac)
-    @property
-    def control(self):
-        return self.__control
-    @property
-    def only_control(self):
-        return self.__control and not self.__shift and not self.__alt and not self.__meta
-    # alt (option key on mac)
-    @property
-    def alt(self):
-        return self.__alt
-    @property
-    def only_alt(self):
-        return self.__alt and not self.__control and not self.__shift and not self.__meta
-    # option (alt key on windows)
-    @property
-    def option(self):
-        return self.__alt
-    @property
-    def only_option(self):
-        return self.__alt and not self.__control and not self.__shift and not self.__meta
-    # meta (control key on mac)
-    @property
-    def meta(self):
-        return self.__meta
-    @property
-    def only_meta(self):
-        return self.__meta and not self.__control and not self.__shift and not self.__alt
-    # keypad
-    @property
-    def keypad(self):
-        return self.__keypad
-    @property
-    def only_keypad(self):
-        return self.__keypad

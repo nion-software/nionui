@@ -1827,9 +1827,9 @@ class RootCanvasItem(CanvasItemComposition):
         which specific canvas item is the focus in this root canvas item's hierarchy.
     """
 
-    def __init__(self, ui, properties=None, max_frame_rate=None):
+    def __init__(self, ui, properties=None, max_frame_rate=None, canvas_widget=None):
         super(RootCanvasItem, self).__init__()
-        self.__canvas_widget = ui.create_canvas_widget(properties)
+        self.__canvas_widget = canvas_widget if canvas_widget else ui.create_canvas_widget(properties)
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked
         self.__canvas_widget.on_mouse_double_clicked = self.__mouse_double_clicked

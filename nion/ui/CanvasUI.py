@@ -277,6 +277,10 @@ class CanvasCanvasWidget(CanvasWidget):
             self.on_periodic()
 
     @property
+    def canvas_item(self):
+        return self
+
+    @property
     def canvas_size(self):
         return (self.height, self.width)
 
@@ -522,6 +526,9 @@ class CanvasUserInterface(object):
             self.__document_windows.remove(document_window)
 
     def create_canvas_widget(self, properties=None):
+        return CanvasCanvasWidget(properties)
+
+    def create_canvas_widget_new(self, properties=None):
         return CanvasCanvasWidget(properties)
 
     def get_font_metrics(self, font, text):

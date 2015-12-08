@@ -9,6 +9,7 @@ import logging
 import numpy
 
 # local libraries
+from . import CanvasItem
 from . import DrawingContext
 
 
@@ -36,6 +37,7 @@ class Widget(object):
         self.focusable = False
         self.content_section = None
         self.text = None
+        self.canvas_item = None
     def close(self):
         if self.__binding:
             self.__binding.close()
@@ -49,6 +51,9 @@ class Widget(object):
         if self.widget:
             self.widget.close()
             self.widget = None
+        if self.canvas_item:
+            self.canvas_item.close()
+            self.canvas_item = None
         self.delegate = None
         self.item_getter = None
         self.items = []
@@ -453,6 +458,10 @@ class UserInterface(object):
         return Widget()
     def create_canvas_widget(self, properties=None):
         return Widget()
+    def create_canvas_widget_new(self, properties=None):
+        widget = Widget()
+        widget.canvas_item = CanvasItem.RootCanvasItem(None, properties={"height": 20, "width": 20}, canvas_widget=widget)
+        return widget
     def create_tree_widget(self, properties=None):
         return Widget()
     def create_list_widget(self, properties=None):

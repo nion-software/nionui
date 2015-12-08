@@ -1433,6 +1433,10 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         content.on_layout_updated = self.__content_layout_updated
         self.refresh_layout()
 
+    @property
+    def visible_rect(self) -> Geometry.IntRect:
+        return Geometry.IntRect(origin=-Geometry.IntPoint.make(self.__content.canvas_origin), size=Geometry.IntSize.make(self.canvas_size))
+
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """Override from abstract canvas item.
 

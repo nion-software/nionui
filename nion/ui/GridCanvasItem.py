@@ -84,6 +84,16 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         item_rows = (self.__delegate.item_count + items_per_row - 1) // items_per_row
         return item_rows * item_height
 
+    def __rect_for_index(self, index: int) -> Geometry.IntRect:
+        canvas_bounds = self.canvas_bounds
+        items_per_row = 4
+        item_width = canvas_bounds.width // items_per_row
+        item_height = item_width
+        row = index // items_per_row
+        column = index - row * items_per_row
+        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_height, x=column * item_width),
+                                size=Geometry.IntSize(width=item_width, height=item_height))
+
     def update(self):
         if self.canvas_origin is not None and self.canvas_size is not None:
             if self.__calculate_layout_height(self.canvas_size.width) != self.canvas_size.height:
@@ -195,6 +205,25 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super(GridCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
+    def __make_selection_visible(self, top):
+        selected_indexes = self.__delegate.selected_indexes
+        if len(selected_indexes) > 0:
+            min_index = min(selected_indexes)
+            max_index = max(selected_indexes)
+            min_rect = self.__rect_for_index(min_index)
+            max_rect = self.__rect_for_index(max_index)
+            visible_rect = self.container.visible_rect
+            if top:
+                if min_rect.top < visible_rect.top:
+                    self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=self.canvas_origin.x), self.canvas_size)
+                elif min_rect.bottom > visible_rect.bottom:
+                    self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
+            else:
+                if max_rect.bottom > visible_rect.bottom:
+                    self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
+                elif max_rect.top < visible_rect.top:
+                    self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
+
     def key_pressed(self, key):
         if key.is_delete:
             if self.__delegate.on_delete_pressed:
@@ -216,6 +245,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__selection.extend(new_index)
                 else:
                     self.__selection.set(new_index)
+            self.__make_selection_visible(top=True)
             return True
         if key.is_down_arrow:
             new_index = None
@@ -230,6 +260,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__selection.extend(new_index)
                 else:
                     self.__selection.set(new_index)
+            self.__make_selection_visible(top=False)
             return True
         if key.is_left_arrow:
             new_index = None
@@ -243,6 +274,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__selection.extend(new_index)
                 else:
                     self.__selection.set(new_index)
+            self.__make_selection_visible(top=True)
             return True
         if key.is_right_arrow:
             new_index = None
@@ -256,6 +288,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__selection.extend(new_index)
                 else:
                     self.__selection.set(new_index)
+            self.__make_selection_visible(top=False)
             return True
         return super(GridCanvasItem, self).key_pressed(key)
 

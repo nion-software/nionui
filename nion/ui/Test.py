@@ -108,7 +108,8 @@ class Widget(object):
         pass
     def send(self, text):
         pass
-    def count(self):
+    @property
+    def child_count(self):
         return len(self.children)
     def add(self, widget, fill=False, alignment=None):
         self.insert(widget, len(self.children), fill, alignment)

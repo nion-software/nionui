@@ -241,6 +241,7 @@ class CanvasCanvasWidget(CanvasWidget):
         self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
+        self.on_key_released = None
         self.on_size_changed = None
         self.on_drag_enter = None
         self.on_drag_leave = None
@@ -264,6 +265,7 @@ class CanvasCanvasWidget(CanvasWidget):
             self.on_grabbed_mouse_position_changed = None
             self.on_wheel_changed = None
             self.on_key_pressed = None
+            self.on_key_released = None
             self.on_size_changed = None
             self.on_drag_enter = None
             self.on_drag_leave = None
@@ -353,6 +355,11 @@ class CanvasCanvasWidget(CanvasWidget):
     def handle_key_pressed(self, key):
         if self.on_key_pressed:
             return self.on_key_pressed(key)
+        return False
+
+    def handle_key_released(self, key):
+        if self.on_key_released:
+            return self.on_key_released(key)
         return False
 
     def handle_drag_enter_event(self, mime_data):

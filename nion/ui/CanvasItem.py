@@ -691,6 +691,10 @@ class AbstractCanvasItem(object):
         """ Handle a key pressed while this canvas item has focus. Return True if handled. """
         return False
 
+    def key_released(self, key):
+        """ Handle a key released while this canvas item has focus. Return True if handled. """
+        return False
+
     def drag_enter(self, mime_data):
         """ Handle a drag event entering this canvas item. Return action if handled. """
         return "ignore"
@@ -1908,6 +1912,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_wheel_changed = self.wheel_changed
         self.__canvas_widget.on_context_menu_event = self.__context_menu_event
         self.__canvas_widget.on_key_pressed = self.__key_pressed
+        self.__canvas_widget.on_key_released = self.__key_released
         self.__canvas_widget.on_focus_changed = self.__focus_changed
         self.__canvas_widget.on_drag_enter = self.__drag_enter
         self.__canvas_widget.on_drag_leave = self.__drag_leave
@@ -1956,6 +1961,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_wheel_changed = None
         self.__canvas_widget.on_context_menu_event = None
         self.__canvas_widget.on_key_pressed = None
+        self.__canvas_widget.on_key_released = None
         self.__canvas_widget.on_focus_changed = None
         self.__canvas_widget.on_drag_enter = None
         self.__canvas_widget.on_drag_leave = None
@@ -2203,6 +2209,11 @@ class RootCanvasItem(CanvasItemComposition):
     def __key_pressed(self, key):
         if self.focused_item:
             return self.focused_item.key_pressed(key)
+        return False
+
+    def __key_released(self, key):
+        if self.focused_item:
+            return self.focused_item.key_released(key)
         return False
 
     def __drag_enter(self, mime_data):

@@ -83,6 +83,7 @@ class Widget(object):
         self.on_item_key_pressed = None
         self.on_item_size = None
         self.on_key_pressed = None
+        self.on_key_released = None
         self.on_mouse_clicked = None
         self.on_mouse_double_clicked = None
         self.on_mouse_entered = None

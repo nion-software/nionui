@@ -23,6 +23,8 @@ class TestCanvasItem(CanvasItem.AbstractCanvasItem):
         self._mouse_released = True
     def key_pressed(self, key):
         self.key = key
+    def key_released(self, key):
+        self.key_r = key
 
 class TestCanvasItemClass(unittest.TestCase):
 

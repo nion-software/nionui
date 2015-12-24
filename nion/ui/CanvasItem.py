@@ -41,8 +41,8 @@ class Constraint(object):
         self.maximum = None
         self.preferred = None
 
-    def __str__(self):
-        return "{0} (min={1}, max={2}, pref={3})".format(super(Constraint, self).__str__(), self.minimum, self.maximum, self.preferred)
+    def __repr__(self):
+        return "Constraint (min={0}, max={1}, pref={2})".format(self.minimum, self.maximum, self.preferred)
 
 
 class SolverItem(object):
@@ -52,141 +52,125 @@ class SolverItem(object):
         self.is_constrained = False
 
 
-class Solver(object):
-
+def constraint_solve(canvas_origin, canvas_size, canvas_item_constraints, spacing=0):
     """
-        A helper object to solve a layout of items.
-
-        Caller must pass in the canvas origin as an IntPoint, the canvas size
-        as an IntSize, the canvas item constraints as a list of Constraint objects,
-        and the spacing as an int.
-
-        After calling the solve method, the sizes and origins fields will be set
-        and can be used to position the items.
+        Solve the layout by assigning space and enforcing constraints.
     """
 
-    def __init__(self, canvas_origin, canvas_size, canvas_item_constraints, spacing=0):
-        self.canvas_origin = canvas_origin
-        self.canvas_size = canvas_size
-        self.canvas_item_constraints = canvas_item_constraints
-        self.spacing = spacing
-        self.sizes = None
-        self.origins = None
+    # setup information from each item
+    solver_items = [SolverItem(constraint) for constraint in canvas_item_constraints]
 
-    def solve(self):
-        """
-            Solve the layout by assigning space and enforcing constraints.
-        """
-        # setup information from each item
-        solver_items = [SolverItem(constraint) for constraint in self.canvas_item_constraints]
+    # assign preferred size, if any, to each item. items with preferred size are still
+    # free to change as long as they don't become constrained.
+    for solver_item in solver_items:
+        if solver_item.constraint.preferred is not None:
+            solver_item.size = solver_item.constraint.preferred
+            if solver_item.size < solver_item.constraint.minimum:
+                solver_item.size = solver_item.constraint.minimum
+                solver_item.is_constrained = True
+            if solver_item.size > solver_item.constraint.maximum:
+                solver_item.size = solver_item.constraint.maximum
+                solver_item.is_constrained = True
 
-        # assign preferred size, if any, to each item. items with preferred size are still
-        # free to change as long as they don't become constrained.
+    # put these here to avoid linter warnings
+    remaining_canvas_size = canvas_size
+    remaining_count = len(solver_items)
+
+    # assign the free space to the remaining items. first figure out how much space is left
+    # and how many items remain. then divide the space up.
+    finished = False
+    while not finished:
+        finished = True
+        remaining_canvas_size = canvas_size
+        remaining_count = len(solver_items)
+        # reset the items that we can, i.e. those that aren't already constrained and don't have a preferred size
         for solver_item in solver_items:
-            if not solver_item.is_constrained and solver_item.constraint.preferred is not None:
-                solver_item.size = solver_item.constraint.preferred
-                if solver_item.size < solver_item.constraint.minimum:
-                    solver_item.size = solver_item.constraint.minimum
-                    solver_item.is_constrained = True
-                if solver_item.size > solver_item.constraint.maximum:
-                    solver_item.size = solver_item.constraint.maximum
-                    solver_item.is_constrained = True
-
-        # assign the free space to the remaining items. first figure out how much space is left
-        # and how many items remain. then divide the space up.
-        finished = False
-        while not finished:
-            finished = True
-            remaining_canvas_size = self.canvas_size
-            remaining_count = len(solver_items)
-            # reset the items that we can
-            for solver_item in solver_items:
-                if not solver_item.is_constrained and solver_item.constraint.preferred is None:
-                    solver_item.size = None
-            # figure out how many free range items there are
-            for solver_item in solver_items:
-                if solver_item.size is not None:
-                    remaining_canvas_size -= solver_item.size
-                    remaining_count -= 1
-            # again attempt to assign sizes
-            for solver_item in solver_items:
-                if solver_item.size is None:
-                    size = remaining_canvas_size // remaining_count
-                    if size < solver_item.constraint.minimum:
-                        size = solver_item.constraint.minimum
-                        solver_item.is_constrained = True
-                        finished = False
-                    if size > solver_item.constraint.maximum:
-                        size = solver_item.constraint.maximum
-                        solver_item.is_constrained = True
-                        finished = False
-                    solver_item.size = size
-                    remaining_canvas_size -= size
-                    remaining_count -= 1
-                if not finished:
-                    break
-
-        # go through again and assign any remaining space
+            if not solver_item.is_constrained and solver_item.constraint.preferred is None:
+                solver_item.size = None
+        # figure out how many free range items there are, i.e. those that don't already have a size assigned
+        for solver_item in solver_items:
+            if solver_item.size is not None:
+                remaining_canvas_size -= solver_item.size
+                remaining_count -= 1
+        # again attempt to assign sizes
         for solver_item in solver_items:
             if solver_item.size is None:
-                solver_item.size = remaining_canvas_size // remaining_count
+                size = remaining_canvas_size // remaining_count
+                if size < solver_item.constraint.minimum:
+                    size = solver_item.constraint.minimum
+                    solver_item.is_constrained = True
+                    finished = False
+                if size > solver_item.constraint.maximum:
+                    size = solver_item.constraint.maximum
+                    solver_item.is_constrained = True
+                    finished = False
+                solver_item.size = size
+                remaining_canvas_size -= size
+                remaining_count -= 1
+            if not finished:
+                break
 
-        # check if we're oversized. if so divide among unconstrained items, but honor minimum size.
-        finished = False
-        while not finished:
-            finished = True
-            actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
-            if actual_canvas_size > self.canvas_size:
-                remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])
-                remaining_canvas_size = actual_canvas_size - self.canvas_size
-                if remaining_count > 0:
-                    for solver_item in solver_items:
-                        if not solver_item.is_constrained:
-                            size = solver_item.size - remaining_canvas_size // remaining_count
-                            if size < solver_item.constraint.minimum:
-                                size = solver_item.constraint.minimum
-                                solver_item.is_constrained = True
-                                finished = False
-                            adjustment = solver_item.size - size
-                            solver_item.size = size
-                            remaining_canvas_size -= adjustment
-                            remaining_count -= 1
-                        if not finished:
-                            break
+    # go through again and assign any remaining space
+    for solver_item in solver_items:
+        if solver_item.size is None:
+            solver_item.size = remaining_canvas_size // remaining_count
 
-        # check if we're undersized. if so add among unconstrained items, but honor maximum size.
-        finished = False
-        while not finished:
-            finished = True
-            actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
-            if actual_canvas_size < self.canvas_size:
-                remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])
-                remaining_canvas_size = self.canvas_size - actual_canvas_size
-                if remaining_count > 0:
-                    for solver_item in solver_items:
-                        if not solver_item.is_constrained:
-                            size = solver_item.size + remaining_canvas_size // remaining_count
-                            if size > solver_item.constraint.maximum:
-                                size = solver_item.constraint.maximum
-                                solver_item.is_constrained = True
-                                finished = False
-                            adjustment = size - solver_item.size
-                            solver_item.size = size
-                            remaining_canvas_size -= adjustment
-                            remaining_count -= 1
-                        if not finished:
-                            break
+    # check if we're oversized. if so divide among unconstrained items, but honor minimum size.
+    finished = False
+    while not finished:
+        finished = True
+        actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
+        if actual_canvas_size > canvas_size:
+            remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])
+            remaining_canvas_size = actual_canvas_size - canvas_size
+            if remaining_count > 0:
+                for solver_item in solver_items:
+                    if not solver_item.is_constrained:
+                        size = solver_item.size - remaining_canvas_size // remaining_count
+                        if size < solver_item.constraint.minimum:
+                            size = solver_item.constraint.minimum
+                            solver_item.is_constrained = True
+                            finished = False
+                        adjustment = solver_item.size - size
+                        solver_item.size = size
+                        remaining_canvas_size -= adjustment
+                        remaining_count -= 1
+                    if not finished:
+                        break
 
-        #logging.debug([solver_item.size for solver_item in solver_items])
-        #logging.debug([solver_item.is_constrained for solver_item in solver_items])
+    # check if we're undersized. if so add among unconstrained items, but honor maximum size.
+    finished = False
+    while not finished:
+        finished = True
+        actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
+        if actual_canvas_size < canvas_size:
+            remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])
+            remaining_canvas_size = canvas_size - actual_canvas_size
+            if remaining_count > 0:
+                for solver_item in solver_items:
+                    if not solver_item.is_constrained:
+                        size = solver_item.size + remaining_canvas_size // remaining_count
+                        if size > solver_item.constraint.maximum:
+                            size = solver_item.constraint.maximum
+                            solver_item.is_constrained = True
+                            finished = False
+                        adjustment = size - solver_item.size
+                        solver_item.size = size
+                        remaining_canvas_size -= adjustment
+                        remaining_count -= 1
+                    if not finished:
+                        break
 
-        # assign layouts
-        self.sizes = [solver_item.size for solver_item in solver_items]
-        canvas_origin = self.canvas_origin
-        self.origins = list()
-        for index in range(len(self.canvas_item_constraints)):
-            self.origins.append(canvas_origin)
-            canvas_origin += self.sizes[index] + self.spacing
+    # assign layouts
+    # TODO: allow for various justification options (start - default, end, center, space-between, space-around)
+    # see https://css-tricks.com/snippets/css/a-guide-to-flexbox/
+    sizes = [solver_item.size for solver_item in solver_items]
+    origins = list()
+    for index in range(len(canvas_item_constraints)):
+        origins.append(canvas_origin)
+        canvas_origin += sizes[index] + spacing
+
+    return origins, sizes
 
 
 class Sizing(object):
@@ -214,10 +198,9 @@ class Sizing(object):
         self.maximum_aspect_ratio = None
         self.collapsible = False
 
-    def __str__(self):
-        format_str = "{0} (min_w={1}, max_w={2}, pref_w={3}, min_h={4}, max_h={5}, pref_h={6}, min_a={7}, max_a={8}, pref_a={9}, collapsible={10})"
-        return format_str.format(super(Sizing, self).__str__(),
-                                 self.minimum_width, self.maximum_width, self.preferred_width,
+    def __repr__(self):
+        format_str = "Sizing (min_w={0}, max_w={1}, pref_w={2}, min_h={3}, max_h={4}, pref_h={5}, min_a={6}, max_a={7}, pref_a={8}, collapsible={9})"
+        return format_str.format(self.minimum_width, self.maximum_width, self.preferred_width,
                                  self.minimum_height, self.maximum_height, self.preferred_height,
                                  self.minimum_aspect_ratio, self.maximum_aspect_ratio, self.preferred_aspect_ratio,
                                  self.collapsible)
@@ -233,6 +216,16 @@ class Sizing(object):
         self.maximum_height = other.maximum_height
         self.maximum_aspect_ratio = other.maximum_aspect_ratio
         self.collapsible = other.collapsible
+
+    def clear_height_constraint(self):
+        self.preferred_height = None
+        self.minimum_height = None
+        self.maximum_height = None
+
+    def clear_width_constraint(self):
+        self.preferred_width = None
+        self.minimum_width = None
+        self.maximum_width = None
 
     def set_fixed_height(self, height):
         self.preferred_height = height
@@ -301,6 +294,20 @@ class Sizing(object):
             constraint.preferred = None
         return constraint
 
+    def get_unrestrained_width(self, maximum_width):
+        if self.maximum_width is not None:
+            if isinstance(self.maximum_width, float) and self.maximum_width < 1.0:
+                return self.maximum_width * maximum_width
+            return min(self.maximum_width, maximum_width)
+        return maximum_width
+
+    def get_unrestrained_height(self, maximum_height):
+        if self.maximum_height is not None:
+            if isinstance(self.maximum_height, float) and self.maximum_height < 1.0:
+                return self.maximum_height * maximum_height
+            return min(self.maximum_height, maximum_height)
+        return maximum_height
+
 
 class KeyboardModifiers(object):
     def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):
@@ -366,25 +373,44 @@ class KeyboardModifiers(object):
 
 
 class AbstractCanvasItem(object):
+    """An item drawn on a canvas supporting mouse and keyboard actions.
 
-    """
-        Represents an object to be drawn on a canvas.
+    CONTAINERS
 
-        The canvas object is responsible for drawing its content after which it tells its container that it has updated
-        content. The container will send the updated content to the ui canvas which will schedule it to be drawn by the
-        ui.
+    A canvas item should be added to a container. It is an error to add a particular canvas item to more than one
+    container. The container in which the canvas item resides is accessible via the ``container`` property.
 
-        This is an abstract class and must be subclassed to be used properly.
+    LAYOUT
 
-        Canvas items are only meant to be placed within a single container and the caller has access to that container
-        if this item is so placed.
+    The container is responsible for layout and will set the canvas bounds of this canvas item as a function of the
+    container layout algorithm and this canvas item's sizing information.
 
-        Canvas items keep track of the canvas widget in which they are placed. The canvas widget is used for drawing.
+    The ``sizing`` property is the intrinsic sizing constraints of this canvas item.
 
-        Canvas items will take up their maximum allowed space unless otherwise configured. There are typically two ways
-        that sizing is managed. One in which the top level container determines the overall space available and one
-        where the content determines the size of the top level container. Combinations of the two methods might be used,
-        for example a fixed container size but  an area inside the container that is sized to its contents.
+    The ``layout_sizing`` property is a the sizing information used by the container layout algorithm.
+
+    If this canvas item is non-composite, then ``layout_sizing`` will be identical to this canvas item's ``sizing``.
+
+    However, if this canvas item is composite, then ``layout_sizing`` is determined by the layout algorithm and then
+    additionally constrained by this canvas item's ``sizing``. In this way, by leaving ``sizing`` unconstrained, the
+    layout can determine the sizing of this canvas item. Alternively, by adding a constraint to ``sizing``, the layout
+    can be constrained. This corresponds to the contents determining the size of the container vs. the container
+    determining the size of the layout.
+
+    Unpredictable layout may occur if an unconstrained item is placed into an unrestrained container. Be sure to
+    either restrain (implicitly or explicitly) the content or the container.
+
+    Layout occurs when the structure of the item hierarchy changes, such as when a new canvas item is added to a
+    container. Clients can also call ``refresh_layout`` or ``layout`` explicitly as needed.
+
+    UPDATES AND DRAWING
+
+    Update is the mechanism by which the container is notified that one of its child canvas items needs updating.
+    The update message will ultimately end up at the root container at which point the root container will trigger a
+    repaint on a thread.
+
+    Subclasses should override _repaint or _repaint_visible to implement drawing. Drawing should take place within the
+    canvas bounds.
     """
 
     def __init__(self):
@@ -449,6 +475,7 @@ class AbstractCanvasItem(object):
     @container.setter
     def container(self, container):
         """ Set container. """
+        assert self.__container is None or container is None
         self.__container = container
 
     @property
@@ -756,34 +783,23 @@ class CanvasItemAbstractLayout(object):
         self.margins = margins if margins is not None else Geometry.Margins(0, 0, 0, 0)
         self.spacing = spacing if spacing else 0
 
-    @classmethod
-    def calculate_layout(cls, canvas_origin, canvas_size, canvas_item_constraints, spacing):
-        """
-            Calculate the layout within the canvas for the given item constraints and spacing.
-
-            Returns the origins and sizes for each item.
-        """
-        solver = Solver(canvas_origin, canvas_size, canvas_item_constraints, spacing)
-        solver.solve()
-        return solver.origins, solver.sizes
-
     def calculate_row_layout(self, canvas_origin, canvas_size, canvas_items):
-        """ Use calculate_layout to return the positions of canvas items as if they are in a row. """
+        """ Use constraint_solve to return the positions of canvas items as if they are in a row. """
         canvas_item_count = len(canvas_items)
         spacing_count = canvas_item_count - 1
         content_left = canvas_origin.x + self.margins.left
         content_width = canvas_size.width - self.margins.left - self.margins.right - self.spacing * spacing_count
         constraints = [canvas_item.layout_sizing.get_width_constraint(content_width) for canvas_item in canvas_items]
-        return CanvasItemAbstractLayout.calculate_layout(content_left, content_width, constraints, self.spacing)
+        return constraint_solve(content_left, content_width, constraints, self.spacing)
 
     def calculate_column_layout(self, canvas_origin, canvas_size, canvas_items):
-        """ Use calculate_layout to return the positions of canvas items as if they are in a column. """
+        """ Use constraint_solve to return the positions of canvas items as if they are in a column. """
         canvas_item_count = len(canvas_items)
         spacing_count = canvas_item_count - 1
         content_top = canvas_origin.y + self.margins.top
         content_height = canvas_size.height - self.margins.top - self.margins.bottom - self.spacing * spacing_count
         constraints = [canvas_item.layout_sizing.get_height_constraint(content_height) for canvas_item in canvas_items]
-        return CanvasItemAbstractLayout.calculate_layout(content_top, content_height, constraints, self.spacing)
+        return constraint_solve(content_top, content_height, constraints, self.spacing)
 
     def update_canvas_item_layout(self, canvas_item_origin, canvas_item_size, canvas_item, trigger_update=True):
         """ Given a container box, adjust a single canvas item within the box according to aspect_ratio constraints. """
@@ -811,7 +827,7 @@ class CanvasItemAbstractLayout(object):
                 canvas_item_size = Geometry.IntSize(width=widths[index], height=heights[index])
                 self.update_canvas_item_layout(canvas_item_origin, canvas_item_size, canvas_item, trigger_update)
 
-    def _update_sizing_property(self, sizing, canvas_item_sizing, property, combiner, clear_if_missing=False):
+    def _combine_sizing_property(self, sizing, canvas_item_sizing, property, combiner, clear_if_missing=False):
         """ Utility method for updating the property of the sizing object using the combiner function and the canvas_item_sizing. """
         canvas_item_value = getattr(canvas_item_sizing, property)
         value = getattr(sizing, property)
@@ -829,20 +845,20 @@ class CanvasItemAbstractLayout(object):
             Does not include spacing or margins.
         """
         sizing = Sizing()
-        sizing.maximum_width = MAX_VALUE
-        sizing.maximum_height = MAX_VALUE
+        sizing.maximum_width = 0
+        sizing.maximum_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)  # if any minimum_width is present, take the maximum one
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_width", min, True)  # if all maximum_widths are present, take the minimum one
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_height", min, True)
-        if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)  # if any minimum_width is present, take the maximum one
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", max, True)
+        if sizing.maximum_width == 0 or len(canvas_items) == 0:
             sizing.maximum_width = None
-        if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
+        if sizing.maximum_height == 0 or len(canvas_items) == 0:
             sizing.maximum_height = None
         return sizing
 
@@ -852,18 +868,18 @@ class CanvasItemAbstractLayout(object):
             Does not include spacing or margins.
         """
         sizing = Sizing()
-        sizing.maximum_width = MAX_VALUE
+        sizing.maximum_width = 0
         sizing.maximum_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_width", min, True)
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
-        if sizing.maximum_width == MAX_VALUE:
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
+        if sizing.maximum_width == 0:
             sizing.maximum_width = None
         if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
             sizing.maximum_height = None
@@ -876,19 +892,19 @@ class CanvasItemAbstractLayout(object):
         """
         sizing = Sizing()
         sizing.maximum_width = 0
-        sizing.maximum_height = MAX_VALUE
+        sizing.maximum_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
-                self._update_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
-                self._update_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add, True)
-                self._update_sizing_property(sizing, canvas_item_sizing, "maximum_height", min, True)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add, True)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", max, True)
         if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
             sizing.maximum_width = None
-        if sizing.maximum_height == MAX_VALUE:
+        if sizing.maximum_height == 0:
             sizing.maximum_height = None
         return sizing
 
@@ -989,7 +1005,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
         # calculate the vertical placement
         y_positions, heights = self.calculate_column_layout(canvas_origin, canvas_size, canvas_items)
         x_positions = [canvas_origin.x + self.margins.left] * len(canvas_items)
-        widths = [canvas_size.width - self.margins.left - self.margins.right] * len(canvas_items)
+        widths = [canvas_item.layout_sizing.get_unrestrained_width(canvas_size.width - self.margins.left - self.margins.right) for canvas_item in canvas_items]
         self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, trigger_update)
 
     def get_sizing(self, canvas_items):
@@ -999,14 +1015,13 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
 
     def create_spacing_item(self, spacing):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.minimum_height = spacing
-        spacing_item.sizing.maximum_height = spacing
+        spacing_item.sizing.set_fixed_height(spacing)
+        spacing_item.sizing.set_fixed_width(0)
         return spacing_item
 
     def create_stretch_item(self):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.minimum_width = 0.0
-        spacing_item.sizing.minimum_width = 0.0
+        spacing_item.sizing.set_fixed_width(0)
         return spacing_item
 
 
@@ -1025,7 +1040,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
         # calculate the vertical placement
         x_positions, widths = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
         y_positions = [canvas_origin.y + self.margins.top] * len(canvas_items)
-        heights = [canvas_size.height - self.margins.top - self.margins.bottom] * len(canvas_items)
+        heights = [canvas_item.layout_sizing.get_unrestrained_height(canvas_size.height - self.margins.top - self.margins.bottom) for canvas_item in canvas_items]
         self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, trigger_update)
 
     def get_sizing(self, canvas_items):
@@ -1035,14 +1050,13 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
 
     def create_spacing_item(self, spacing):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.minimum_width = spacing
-        spacing_item.sizing.maximum_width = spacing
+        spacing_item.sizing.set_fixed_width(spacing)
+        spacing_item.sizing.set_fixed_height(0)
         return spacing_item
 
     def create_stretch_item(self):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.minimum_height = 0.0
-        spacing_item.sizing.maximum_height = 0.0
+        spacing_item.sizing.set_fixed_height(0)
         return spacing_item
 
 
@@ -1088,7 +1102,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             sizing = self._get_overlap_sizing([self.__columns[x][y] for y in range(self.__size.height)])
             constraints.append(sizing.get_width_constraint(content_width))
         # run the layout engine
-        x_positions, widths = CanvasItemAbstractLayout.calculate_layout(content_left, content_width, constraints, self.spacing)
+        x_positions, widths = constraint_solve(content_left, content_width, constraints, self.spacing)
         # calculate the vertical placement
         # calculate the sizing (y, height) for each row
         canvas_item_count = self.__size.height
@@ -1099,7 +1113,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             sizing = self._get_overlap_sizing([self.__columns[x][y] for x in range(self.__size.width)])
             constraints.append(sizing.get_height_constraint(content_height))
         # run the layout engine
-        y_positions, heights = CanvasItemAbstractLayout.calculate_layout(content_top, content_height, constraints, self.spacing)
+        y_positions, heights = constraint_solve(content_top, content_height, constraints, self.spacing)
         # do the layout
         combined_xs = list()
         combined_ys = list()
@@ -1129,18 +1143,24 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             canvas_items = [self.__columns[x][y] for y in range(self.__size.height)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items))
         for canvas_item_sizing in canvas_item_sizings:
-            self._update_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
-            self._update_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
-            self._update_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add)
         # the heights
         canvas_item_sizings = list()
         for y in range(self.__size.height):
             canvas_items = [self.__columns[x][y] for x in range(self.__size.width)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items))
         for canvas_item_sizing in canvas_item_sizings:
-            self._update_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
-            self._update_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
-            self._update_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add)
+        if sizing.minimum_width is not None and sizing.maximum_width is not None:
+            sizing.maximum_width = max(sizing.maximum_width, sizing.minimum_width)
+        if sizing.minimum_width is not None and sizing.preferred_width is not None:
+            sizing.preferred_width = max(sizing.minimum_width, sizing.preferred_width)
+        if sizing.maximum_width is not None and sizing.preferred_width is not None:
+            sizing.preferred_width = min(sizing.maximum_width, sizing.preferred_width)
         self._adjust_sizing(sizing, self.spacing * (self.__size.width - 1), self.spacing * (self.__size.height - 1))
         return sizing
 
@@ -1189,7 +1209,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     # override sizing information. let layout provide it.
     @property
     def layout_sizing(self):
-        sizing = super(CanvasItemComposition, self).sizing
+        sizing = self.sizing
         layout_sizing = self.layout.get_sizing(self.__canvas_items)
         if sizing.minimum_width is not None:
             layout_sizing.minimum_width = sizing.minimum_width
@@ -1540,9 +1560,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             content_origin = Geometry.IntPoint.make(canvas_origin).x
             content_size = Geometry.IntSize.make(canvas_size).width
             constraints = [sizing.get_width_constraint(content_size) for sizing in self.sizings]
-        solver = Solver(content_origin, content_size, constraints)
-        solver.solve()
-        return solver.origins, solver.sizes
+        return constraint_solve(content_origin, content_size, constraints)
 
     @property
     def splits(self):
@@ -1596,11 +1614,13 @@ class SplitterCanvasItem(CanvasItemComposition):
         if self.orientation == "horizontal":
             for canvas_item, size in zip(self.canvas_items, sizes):
                 canvas_item.sizing.set_fixed_height(size)
+                canvas_item.sizing.clear_width_constraint()
             for sizing, size in zip(self.sizings, sizes):
                 sizing.preferred_height = size
         else:
             for canvas_item, size in zip(self.canvas_items, sizes):
                 canvas_item.sizing.set_fixed_width(size)
+                canvas_item.sizing.clear_height_constraint()
             for sizing, size in zip(self.sizings, sizes):
                 sizing.preferred_width = size
         # have the abstract canvas item do its layout thing with the constraints imposed above.
@@ -2739,11 +2759,8 @@ class StaticTextCanvasItem(AbstractCanvasItem):
 
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
 
-        self.sizing.minimum_width = font_metrics.width + 2 * horizontal_padding
-        self.sizing.maximum_width = self.sizing.minimum_width
-
-        self.sizing.minimum_height = font_metrics.height + 2 * vertical_padding
-        self.sizing.maximum_height = self.sizing.minimum_height
+        self.sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding)
+        self.sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
 
     def _repaint(self, drawing_context):
         canvas_bounds_center = self.canvas_bounds.center

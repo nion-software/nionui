@@ -144,7 +144,7 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.canvas_items[2].sizing.minimum_width = 48
         root_canvas.canvas_items[2].sizing.maximum_height = 36
         self.assertEqual(root_canvas.layout_sizing.minimum_width, 16 + 32 + 48 + 2 * 7 + 8 + 10)  # includes margins and spacing
-        self.assertEqual(root_canvas.layout_sizing.maximum_height, 12 + 4 + 6)  # includes margins only
+        self.assertEqual(root_canvas.layout_sizing.maximum_height, 36 + 4 + 6)  # includes margins only
 
     def test_column_layout_sizing_includes_margins_and_spacing(self):
         ui = Test.UserInterface()
@@ -179,7 +179,7 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.canvas_items[2].sizing.minimum_width = 48
         root_canvas.canvas_items[2].sizing.maximum_height = 36
         self.assertEqual(root_canvas.layout_sizing.minimum_width, 32 + 48 + 1 * 7 + 8 + 10)  # includes margins only
-        self.assertEqual(root_canvas.layout_sizing.maximum_height, 12 + 36 + 1 * 7 + 4 + 6)  # includes margins and spacing
+        self.assertEqual(root_canvas.layout_sizing.maximum_height, 24 + 36 + 1 * 7 + 4 + 6)  # includes margins and spacing
 
 #        for i, canvas_item in enumerate(root_canvas.canvas_items):
 #            logging.debug("%s %s %s", i, canvas_item.canvas_origin, canvas_item.canvas_size)
@@ -314,7 +314,10 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(root_canvas.canvas_items[1].canvas_origin, Geometry.IntPoint(x=540, y=0))
         self.assertEqual(root_canvas.canvas_items[1].canvas_size, Geometry.IntSize(width=100, height=480))
 
-    def test_layout_splits_three_with_maximum_making_room_for_minimized_item(self):
+    def disabled_test_layout_splits_three_with_maximum_making_room_for_minimized_item(self):
+        # this should work, but the particular solver has trouble in this specific case because it reaches
+        # the minimum value of 230 on the first pass before it processes the maximum value of 100 and it
+        # should be able to go back and raise the 230 to 270 once it sees it has extra space.
         ui = Test.UserInterface()
         # test row layout
         root_canvas = CanvasItem.RootCanvasItem(ui)
@@ -325,15 +328,72 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.canvas_items[0].sizing.minimum_width = 230
         root_canvas.canvas_items[1].sizing.maximum_width = 100
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
-        if False:
-            for i, canvas_item in enumerate(root_canvas.canvas_items):
-                logging.debug("%s %s %s", i, canvas_item.canvas_origin, canvas_item.canvas_size)
-            self.assertEqual(root_canvas.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
-            self.assertEqual(root_canvas.canvas_items[0].canvas_size, Geometry.IntSize(width=270, height=480))
-            self.assertEqual(root_canvas.canvas_items[1].canvas_origin, Geometry.IntPoint(x=270, y=0))
-            self.assertEqual(root_canvas.canvas_items[1].canvas_size, Geometry.IntSize(width=100, height=480))
-            self.assertEqual(root_canvas.canvas_items[1].canvas_origin, Geometry.IntPoint(x=370, y=0))
-            self.assertEqual(root_canvas.canvas_items[1].canvas_size, Geometry.IntSize(width=270, height=480))
+        for i, canvas_item in enumerate(root_canvas.canvas_items):
+            print("{} {} {}".format(i, canvas_item.canvas_origin, canvas_item.canvas_size))
+        self.assertEqual(root_canvas.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
+        self.assertEqual(root_canvas.canvas_items[0].canvas_size, Geometry.IntSize(width=270, height=480))
+        self.assertEqual(root_canvas.canvas_items[1].canvas_origin, Geometry.IntPoint(x=270, y=0))
+        self.assertEqual(root_canvas.canvas_items[1].canvas_size, Geometry.IntSize(width=100, height=480))
+        self.assertEqual(root_canvas.canvas_items[2].canvas_origin, Geometry.IntPoint(x=370, y=0))
+        self.assertEqual(root_canvas.canvas_items[2].canvas_size, Geometry.IntSize(width=270, height=480))
+
+    def test_column_with_child_with_fixed_size_does_not_expand_child_horizontally(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout()
+        root_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
+        root_canvas.add_stretch()
+        root_canvas.canvas_items[0].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(root_canvas.canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
+
+    def test_row_layout_with_stretch_inside_column_layout_results_in_correct_vertical_positions(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout()
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        row.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
+        row.add_stretch()
+        root_canvas.add_canvas_item(row)
+        root_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
+        root_canvas.add_stretch()
+        root_canvas.canvas_items[0].canvas_items[0].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.canvas_items[1].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(root_canvas.canvas_items[0].canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
+        self.assertEqual(root_canvas.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 0, 40, 30))
+
+    def test_row_layout_with_stretch_inside_column_layout_results_in_correct_row_height(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout()
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        row.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
+        row.add_stretch()
+        root_canvas.add_canvas_item(row)
+        root_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
+        root_canvas.canvas_items[0].canvas_items[0].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.canvas_items[1].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(root_canvas.canvas_items[0].canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
+        self.assertEqual(root_canvas.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 0, 40, 30))
+
+    def test_row_layout_with_stretch_on_each_side_centers_content(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout()
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        row.add_stretch()
+        content_item = CanvasItem.BackgroundCanvasItem("#F00")
+        content_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        row.add_canvas_item(content_item)
+        row.add_stretch()
+        root_canvas.add_canvas_item(row)
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(content_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 305, 20, 335))
 
     def test_grid_layout_2x2_works(self):
         ui = Test.UserInterface()

@@ -1261,8 +1261,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _remove_canvas_item_direct(self, canvas_item):
         self.__canvas_items.remove(canvas_item)
 
-    def remove_canvas_item(self, canvas_item):
-        """ Remove canvas item from layout. Canvas item is closed. """
+    def _remove_canvas_item(self, canvas_item, refresh_layout=True):
         canvas_item.close()
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
@@ -1274,6 +1273,18 @@ class CanvasItemComposition(AbstractCanvasItem):
             # container gets refreshed. Alternatively, one could walk up
             # the container hierarchy and see where the layout_sizing changed
             # and stop when the layout_sizing does not change.
+            root_container.refresh_layout()
+
+    def remove_canvas_item(self, canvas_item):
+        """ Remove canvas item from layout. Canvas item is closed. """
+        self._remove_canvas_item(canvas_item)
+
+    def remove_all_canvas_items(self):
+        """ Remove all canvas items from layout. Canvas items are closed. """
+        for canvas_item in copy.copy(self.__canvas_items):
+            self._remove_canvas_item(canvas_item, refresh_layout=False)
+        root_container = self.root_container
+        if root_container:
             root_container.refresh_layout()
 
     def replace_canvas_item(self, old_canvas_item, new_canvas_item, container=None):

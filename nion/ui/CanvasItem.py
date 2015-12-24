@@ -1336,6 +1336,7 @@ class CanvasItemComposition(AbstractCanvasItem):
                 canvas_item._repaint(drawing_context)
 
     def canvas_items_at_point(self, x, y):
+        """Returns list of canvas items under x, y, ordered from back to front."""
         canvas_items = []
         point = Geometry.IntPoint(x=x, y=y)
         for canvas_item in reversed(self.__canvas_items):

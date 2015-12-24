@@ -91,6 +91,21 @@ class PersistentProperty(object):
                 properties[self.key] = self.json_value
 
 
+class PersistentPropertySpecial(PersistentProperty):
+
+    def __init__(self, name, value=None, make=None, read_only=False, hidden=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+        super().__init__(name, value, make, read_only, hidden, validate, converter, changed, key, reader, writer)
+        self.__value = value
+
+    @property
+    def value(self):
+        return copy.deepcopy(self.__value)
+
+    @value.setter
+    def value(self, value):
+        self.__value = value
+
+
 class PersistentItem(object):
 
     def __init__(self, name, factory, item_changed=None):
@@ -343,9 +358,12 @@ class PersistentObject(object):
     def define_type(self, type):
         self.__type = type
 
-    def define_property(self, name: str, value=None, make=None, read_only: bool=False, hidden: bool=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
+    def define_property(self, name: str, value=None, make=None, read_only: bool=False, hidden: bool=False, copy_on_read: bool=False, validate=None, converter=None, changed=None, key=None, reader=None, writer=None):
         """ key is what is stored on disk; name is what is used when accessing the property from code. """
-        self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, validate, converter, changed, key, reader, writer)
+        if copy_on_read:
+            self.__properties[name] = PersistentPropertySpecial(name, value, make, read_only, hidden, validate, converter, changed, key, reader, writer)
+        else:
+            self.__properties[name] = PersistentProperty(name, value, make, read_only, hidden, validate, converter, changed, key, reader, writer)
 
     def define_item(self, name, factory, item_changed=None):
         self.__items[name] = PersistentItem(name, factory, item_changed)

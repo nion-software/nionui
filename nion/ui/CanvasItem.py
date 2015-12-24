@@ -55,6 +55,8 @@ class SolverItem(object):
 def constraint_solve(canvas_origin, canvas_size, canvas_item_constraints, spacing=0):
     """
         Solve the layout by assigning space and enforcing constraints.
+
+        Returns origins, sizes tuple.
     """
 
     # setup information from each item
@@ -184,6 +186,8 @@ class Sizing(object):
         respective maximum.
 
         Preferred values are only used when free sizing.
+
+        Collapsible items collapse to fixed size of 0 if they don't have children.
     """
 
     def __init__(self):
@@ -1544,10 +1548,6 @@ class SplitterCanvasItem(CanvasItemComposition):
         super(SplitterCanvasItem, self).__init__()
         self.orientation = orientation if orientation else "vertical"
         self.wants_mouse_events = True
-        if self.orientation == "horizontal":
-            self.layout = CanvasItemColumnLayout()
-        else:
-            self.layout = CanvasItemRowLayout()
         self.sizings = []
         self.__tracking = False
 
@@ -1605,26 +1605,26 @@ class SplitterCanvasItem(CanvasItemComposition):
         super(SplitterCanvasItem, self).remove_canvas_item(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
-        """Override from abstract canvas item.
-
-        Attempt to use existing layout techniques for each of the canvas items, but put fixed size
-        constraints on each item before allowing it to layout.
-        """
-        _, sizes = self.__calculate_layout(canvas_origin, canvas_size)
+        origins, sizes = self.__calculate_layout(canvas_origin, canvas_size)
         if self.orientation == "horizontal":
-            for canvas_item, size in zip(self.canvas_items, sizes):
-                canvas_item.sizing.set_fixed_height(size)
-                canvas_item.sizing.clear_width_constraint()
+            for canvas_item, (origin, size) in zip(self.canvas_items, zip(origins, sizes)):
+                canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
+                canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
+                canvas_item.update_layout(canvas_item_origin, canvas_item_size, trigger_update)
             for sizing, size in zip(self.sizings, sizes):
                 sizing.preferred_height = size
         else:
-            for canvas_item, size in zip(self.canvas_items, sizes):
-                canvas_item.sizing.set_fixed_width(size)
-                canvas_item.sizing.clear_height_constraint()
+            for canvas_item, (origin, size) in zip(self.canvas_items, zip(origins, sizes)):
+                canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
+                canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
+                canvas_item.update_layout(canvas_item_origin, canvas_item_size, trigger_update)
             for sizing, size in zip(self.sizings, sizes):
                 sizing.preferred_width = size
-        # have the abstract canvas item do its layout thing with the constraints imposed above.
-        super(SplitterCanvasItem, self).update_layout(canvas_origin, canvas_size, trigger_update)
+        # instead of calling the canvas item composition, call the one for abstract canvas item.
+        self._set_canvas_origin(canvas_origin)
+        self._set_canvas_size(canvas_size)
+        if self.on_layout_updated:
+            self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None

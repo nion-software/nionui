@@ -878,6 +878,58 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=256, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=256, y=0), size=Geometry.IntSize(width=640-256, height=480)))
 
+    def test_resizing_splitter_in_splitter_results_in_correct_layout(self):
+        # setup canvas
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        splitter = CanvasItem.SplitterCanvasItem()
+        splitter_in = CanvasItem.SplitterCanvasItem("horizontal")
+        canvas_item1 = TestCanvasItem()
+        canvas_item2 = TestCanvasItem()
+        canvas_item3 = TestCanvasItem()
+        splitter_in.add_canvas_item(canvas_item1)
+        splitter_in.add_canvas_item(canvas_item3)
+        splitter.add_canvas_item(splitter_in)
+        splitter.add_canvas_item(canvas_item2)
+        splitter_in.splits = [0.5, 0.5]
+        splitter.splits = [0.5, 0.5]
+        root_canvas.add_canvas_item(splitter)
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=240)))
+        self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
+        self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=240), size=Geometry.IntSize(width=320, height=240)))
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=640))
+        self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=320)))
+        self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=640)))
+        self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=320), size=Geometry.IntSize(width=320, height=320)))
+
+    def test_splitters_within_splitter_result_in_correct_origins(self):
+        # setup canvas
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        splitter = CanvasItem.SplitterCanvasItem()
+        splitter_l = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter_r = CanvasItem.SplitterCanvasItem("horizontal")
+        canvas_item1 = TestCanvasItem()
+        canvas_item2 = TestCanvasItem()
+        canvas_item3 = TestCanvasItem()
+        canvas_item4 = TestCanvasItem()
+        splitter_l.add_canvas_item(canvas_item1)
+        splitter_l.add_canvas_item(canvas_item2)
+        splitter_r.add_canvas_item(canvas_item3)
+        splitter_r.add_canvas_item(canvas_item4)
+        splitter.add_canvas_item(splitter_l)
+        splitter.add_canvas_item(splitter_r)
+        splitter_l.splits = [0.5, 0.5]
+        splitter_r.splits = [0.5, 0.5]
+        splitter.splits = [0.5, 0.5]
+        root_canvas.add_canvas_item(splitter)
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=200, height=200))
+        self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=100)))
+        self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=100), size=Geometry.IntSize(width=100, height=100)))
+        self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=100)))
+        self.assertEqual(canvas_item4.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=100), size=Geometry.IntSize(width=100, height=100)))
+
     def test_dragging_splitter_enforces_minimum_size(self):
         # setup canvas
         ui = Test.UserInterface()

@@ -224,6 +224,9 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 elif max_rect.top < visible_rect.top:
                     self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
 
+    def make_selection_visible(self):
+        self.__make_selection_visible(True)
+
     def key_pressed(self, key):
         if key.is_delete:
             if self.__delegate.on_delete_pressed:

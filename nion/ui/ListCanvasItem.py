@@ -170,7 +170,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __make_selection_visible(self, top):
         selected_indexes = self.__delegate.selected_indexes
-        if len(selected_indexes) > 0:
+        if len(selected_indexes) > 0 and self.canvas_bounds is not None:  # 2nd part for testing
             min_index = min(selected_indexes)
             max_index = max(selected_indexes)
             min_rect = self.__rect_for_index(min_index)
@@ -186,6 +186,9 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
                 elif max_rect.top < visible_rect.top:
                     self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
+
+    def make_selection_visible(self):
+        self.__make_selection_visible(True)
 
     def key_pressed(self, key):
         if key.is_delete:

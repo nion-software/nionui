@@ -332,6 +332,20 @@ class IntRect(object):
         origin = center - IntSize(height=size.height * 0.5, width=size.width * 0.5)
         return IntRect(origin, size)
 
+    @classmethod
+    def from_tlbr(cls, top, left, bottom, right):
+        """ Make an IntRect from a center, size. """
+        origin = IntPoint(y=top, x=left)
+        size = IntSize(height=bottom - top, width=right - left)
+        return IntRect(origin, size)
+
+    @classmethod
+    def from_tlhw(cls, top, left, height, width):
+        """ Make an IntRect from a center, size. """
+        origin = IntPoint(y=top, x=left)
+        size = IntSize(height=height, width=width)
+        return IntRect(origin, size)
+
     def __str__(self):
         return "({}, {})".format(self.__origin, self.__size)
 
@@ -612,6 +626,20 @@ class FloatRect(object):
         center = FloatPoint.make(center)
         size = FloatSize.make(size)
         origin = center - FloatSize(height=size.height * 0.5, width=size.width * 0.5)
+        return FloatRect(origin, size)
+
+    @classmethod
+    def from_tlbr(cls, top, left, bottom, right):
+        """ Make an FloatRect from a center, size. """
+        origin = FloatPoint(y=top, x=left)
+        size = FloatSize(height=bottom - top, width=right - left)
+        return FloatRect(origin, size)
+
+    @classmethod
+    def from_tlhw(cls, top, left, height, width):
+        """ Make an FloatRect from a center, size. """
+        origin = FloatPoint(y=top, x=left)
+        size = FloatSize(height=height, width=width)
         return FloatRect(origin, size)
 
     def __str__(self):

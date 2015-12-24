@@ -20,7 +20,7 @@ if sys.version < '3':
         return bytes(s)
 else:
     def u(x=None):
-        return str(x if x is not None else str())
+        return str(x) if x is not None else str()
 
     def is_bytes_type(itype):
         return itype == bytes

@@ -138,11 +138,11 @@ class CanvasWidget(object):
 
     @property
     def focused(self):
-        return self.__root_container.is_focused(self)
+        return self.__root_container.is_focused
 
     @focused.setter
     def focused(self, focused):
-        self.__root_container.set_focused(self, focused)
+        self.__root_container.is_focused = focused
 
     @property
     def visible(self):
@@ -405,6 +405,7 @@ class CanvasDocumentWindow(object):
         self.on_clear_task = None
         self.on_about_to_show = None  # when code shows the window
         self.on_about_to_close = None  # when user closes the window
+        self.is_focused = True  # always focused
         self.__title = Unicode.u()
 
     def close(self):

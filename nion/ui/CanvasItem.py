@@ -2345,7 +2345,7 @@ class CellCanvasItem(AbstractCanvasItem):
 
     The style parameter passed to paint_cell is a list with zero or one strings from each of the aspects below:
         disabled (default is enabled)
-        checked, indeterminate (default is unchecked)
+        checked, partial (default is unchecked)
         hover, active (default is none)
     """
 
@@ -2461,7 +2461,7 @@ class TwistDownCell(object):
     def paint_cell(self, drawing_context, rect, style):
 
         # disabled (default is enabled)
-        # checked, indeterminate (default is unchecked)
+        # checked, partial (default is unchecked)
         # hover, active (default is none)
 
         if "checked" in style:
@@ -2754,33 +2754,28 @@ class StaticTextCanvasItem(AbstractCanvasItem):
 
     def size_to_content(self, get_font_metrics_fn, horizontal_padding=None, vertical_padding=None):
         """ Size the canvas item to the text content. """
-
         if horizontal_padding is None:
             horizontal_padding = 4
-
         if vertical_padding is None:
             vertical_padding = 4
-
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
-
         self.sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding)
         self.sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
 
     def _repaint(self, drawing_context):
         canvas_bounds_center = self.canvas_bounds.center
-        drawing_context.save()
-        drawing_context.font = self.__font
-        drawing_context.text_align = 'center'
-        drawing_context.text_baseline = 'middle'
-        drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
-        drawing_context.fill_text(self.__text, canvas_bounds_center.x, canvas_bounds_center.y + 1)
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.font = self.__font
+            drawing_context.text_align = 'center'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
+            drawing_context.fill_text(self.__text, canvas_bounds_center.x, canvas_bounds_center.y + 1)
 
 
 class TextButtonCanvasItem(StaticTextCanvasItem):
 
     def __init__(self, text=None):
-        super(TextButtonCanvasItem, self).__init__(text)
+        super().__init__(text)
         self.wants_mouse_events = True
         self.__border_enabled = True
         self.__mouse_inside = False
@@ -2789,7 +2784,7 @@ class TextButtonCanvasItem(StaticTextCanvasItem):
 
     def close(self):
         self.on_button_clicked = None
-        super(TextButtonCanvasItem, self).close()
+        super().close()
 
     @property
     def border_enabled(self):
@@ -2825,44 +2820,44 @@ class TextButtonCanvasItem(StaticTextCanvasItem):
 
     def _repaint(self, drawing_context):
         canvas_size = self.canvas_size
-        drawing_context.save()
-        drawing_context.begin_path()
-
-        # drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-        drawing_context.round_rect(1.0, 1.0, canvas_size.width - 2.0, canvas_size.height - 2.0, 4)
-
-        if self.enabled and self.__mouse_inside and self.__mouse_pressed:
-            drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
-            drawing_context.fill()
-        elif self.enabled and self.__mouse_inside:
-            drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
-            drawing_context.fill()
-        if self.border_enabled:
-            drawing_context.stroke_style = "#000"
-            drawing_context.line_width = 1.0
-            drawing_context.stroke()
-        drawing_context.restore()
-        super(TextButtonCanvasItem, self)._repaint(drawing_context)
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            # drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+            drawing_context.round_rect(1.0, 1.0, canvas_size.width - 2.0, canvas_size.height - 2.0, 4)
+            if self.enabled and self.__mouse_inside and self.__mouse_pressed:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
+                drawing_context.fill()
+            elif self.enabled and self.__mouse_inside:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
+                drawing_context.fill()
+            if self.border_enabled:
+                drawing_context.stroke_style = "#000"
+                drawing_context.line_width = 1.0
+                drawing_context.stroke()
+        super()._repaint(drawing_context)
 
 
 class CheckBoxCanvasItem(AbstractCanvasItem):
 
-    def __init__(self):
-        super(CheckBoxCanvasItem, self).__init__()
+    def __init__(self, text=None):
+        super().__init__()
         self.wants_mouse_events = True
         self.__enabled = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
         self.__check_state = "unchecked"
+        self.__tristate = False
+        self.__text = text if text is not None else str()
+        self.__text_color = "#000"
+        self.__text_disabled_color = "#888"
+        self.__font = "12px"
         self.on_checked_changed = None
         self.on_check_state_changed = None
-        self.sizing.set_fixed_width(20)
-        self.sizing.set_fixed_height(20)
 
     def close(self):
         self.on_checked_changed = None
         self.on_check_state_changed = None
-        super(CheckBoxCanvasItem, self).close()
+        super().close()
 
     @property
     def enabled(self):
@@ -2874,11 +2869,26 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         self.update()
 
     @property
+    def tristate(self):
+        return self.__tristate
+
+    @tristate.setter
+    def tristate(self, value):
+        self.__tristate = value
+        if not self.__tristate:
+            self.checked = self.check_state == "checked"
+        self.update()
+
+    @property
     def check_state(self):
         return self.__check_state
 
     @check_state.setter
     def check_state(self, value):
+        if self.tristate and value not in ("unchecked", "checked", "partial"):
+            value = "unchecked"
+        elif not self.tristate and value not in ("unchecked", "checked"):
+            value = "unchecked"
         self.__check_state = value
         self.update()
 
@@ -2889,6 +2899,46 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
     @checked.setter
     def checked(self, value):
         self.check_state = "checked" if value else "unchecked"
+
+    @property
+    def text(self):
+        return self.__text
+
+    @text.setter
+    def text(self, value):
+        if self.__text != value:
+            self.__text = value
+            self.update()
+
+    @property
+    def text_color(self):
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value):
+        if self.__text_color != value:
+            self.__text_color = value
+            self.update()
+
+    @property
+    def text_disabled_color(self):
+        return self.__text_disabled_color
+
+    @text_disabled_color.setter
+    def text_disabled_color(self, value):
+        if self.__text_disabled_color != value:
+            self.__text_disabled_color = value
+            self.update()
+
+    @property
+    def font(self):
+        return self.__font
+
+    @font.setter
+    def font(self, value):
+        if self.__font != value:
+            self.__font = value
+            self.update()
 
     def mouse_entered(self):
         self.__mouse_inside = True
@@ -2907,16 +2957,19 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         self.update()
 
     def mouse_clicked(self, x, y, modifiers):
+        self._toggle_checked()
+        return True
+
+    def _toggle_checked(self):
         if self.enabled:
-            if self.check_state == "unchecked":
-                self.check_state = "checked"
-            else:
+            if self.check_state == "checked":
                 self.check_state = "unchecked"
+            else:
+                self.check_state = "checked"
             if self.on_checked_changed:
                 self.on_checked_changed(self.check_state == "checked")
             if self.on_check_state_changed:
                 self.on_check_state_changed(self.check_state)
-        return True
 
     @property
     def _mouse_inside(self):
@@ -2926,42 +2979,58 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
     def _mouse_pressed(self):
         return self.__mouse_pressed
 
+    def size_to_content(self, get_font_metrics_fn):
+        """ Size the canvas item to the text content. """
+        horizontal_padding = 4
+        vertical_padding = 3
+        font_metrics = get_font_metrics_fn(self.__font, self.__text)
+        self.sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
+        self.sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+
     def _repaint(self, drawing_context):
         canvas_size = self.canvas_size
-
-        drawing_context.save()
-        drawing_context.begin_path()
-        cx = canvas_size.width * 0.5
-        cy = canvas_size.height * 0.5
-        size = 14.0
-        size_half = size * 0.5
-        drawing_context.round_rect(cx - size_half, cy - size_half, size, size, 4.0)
-
-        if self.check_state == "checked":
-            drawing_context.fill_style = "#FFF"
-            drawing_context.fill()
-        if self.enabled and self.__mouse_inside and self.__mouse_pressed:
-            drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
-            drawing_context.fill()
-        elif self.enabled and self.__mouse_inside:
-            drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
-            drawing_context.fill()
-        drawing_context.stroke_style = "#000"
-        drawing_context.line_width = 1.0
-        drawing_context.stroke()
-        drawing_context.restore()
-        if self.check_state == "checked":
-            drawing_context.save()
+        with drawing_context.saver():
             drawing_context.begin_path()
-            drawing_context.move_to(cx - 3, cy - 2)
-            drawing_context.line_to(cx + 0, cy + 2)
-            drawing_context.line_to(cx + 8, cy - 9)
+            tx = 4 + 14 + 4
+            cx = 4 + 7
+            cy = canvas_size.height * 0.5
+            size = 14
+            size_half = 7
+            drawing_context.round_rect(4, cy - size_half, size, size, 4.0)
+            if self.check_state in ("checked", "partial"):
+                drawing_context.fill_style = "#FFF"
+                drawing_context.fill()
+            if self.enabled and self.__mouse_inside and self.__mouse_pressed:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
+                drawing_context.fill()
+            elif self.enabled and self.__mouse_inside:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
+                drawing_context.fill()
             drawing_context.stroke_style = "#000"
-            drawing_context.line_width = 2.0
+            drawing_context.line_width = 1.0
             drawing_context.stroke()
-            drawing_context.restore()
+            if self.check_state == "checked":
+                drawing_context.begin_path()
+                drawing_context.move_to(cx - 3, cy - 2)
+                drawing_context.line_to(cx + 0, cy + 2)
+                drawing_context.line_to(cx + 8, cy - 9)
+                drawing_context.stroke_style = "#000"
+                drawing_context.line_width = 2.0
+                drawing_context.stroke()
+            elif self.check_state == "partial":
+                drawing_context.begin_path()
+                drawing_context.move_to(cx - 5, cy)
+                drawing_context.line_to(cx + 5, cy)
+                drawing_context.stroke_style = "#000"
+                drawing_context.line_width = 2.0
+                drawing_context.stroke()
+            drawing_context.font = self.__font
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
+            drawing_context.fill_text(self.__text, tx, cy + 1)
 
-        super(CheckBoxCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
 
 
 class EmptyCanvasItem(AbstractCanvasItem):

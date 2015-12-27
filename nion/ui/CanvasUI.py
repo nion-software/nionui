@@ -7,76 +7,19 @@ from __future__ import absolute_import
 from __future__ import division
 
 # standard libraries
-import collections
 import copy
-import json
+import queue
 import threading
 import time
-
-# conditional imports
-import sys
-if sys.version < '3':
-    import Queue as queue
-else:
-    import queue
 
 # third party libraries
 # None
 
 # local libraries
+from . import CanvasItem
 from . import DrawingContext
 from . import Geometry
 from . import Unicode
-
-class KeyboardModifiers(object):
-    def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):
-        self.__shift = shift
-        self.__control = control
-        self.__alt = alt
-        self.__meta = meta
-        self.__keypad = keypad
-    # shift
-    @property
-    def shift(self):
-        return self.__shift
-    @property
-    def only_shift(self):
-        return self.__shift and not self.__control and not self.__alt and not self.__meta
-    # control (command key on mac)
-    @property
-    def control(self):
-        return self.__control
-    @property
-    def only_control(self):
-        return self.__control and not self.__shift and not self.__alt and not self.__meta
-    # alt (option key on mac)
-    @property
-    def alt(self):
-        return self.__alt
-    @property
-    def only_alt(self):
-        return self.__alt and not self.__control and not self.__shift and not self.__meta
-    # option (alt key on windows)
-    @property
-    def option(self):
-        return self.__alt
-    @property
-    def only_option(self):
-        return self.__alt and not self.__control and not self.__shift and not self.__meta
-    # meta (control key on mac)
-    @property
-    def meta(self):
-        return self.__meta
-    @property
-    def only_meta(self):
-        return self.__meta and not self.__control and not self.__shift and not self.__alt
-    # keypad
-    @property
-    def keypad(self):
-        return self.__keypad
-    @property
-    def only_keypad(self):
-        return self.__keypad
 
 
 class CanvasWidget(object):
@@ -503,15 +446,15 @@ class CanvasUserInterface(object):
                     elif event_type == "mouse_leave":
                         root_widget.handle_mouse_exited()
                     elif event_type == "mouse_down":
-                        root_widget.handle_mouse_pressed(event_dict.get("x", 0.0), event_dict.get("y", 0.0), KeyboardModifiers())
+                        root_widget.handle_mouse_pressed(event_dict.get("x", 0.0), event_dict.get("y", 0.0), CanvasItem.KeyboardModifiers())
                     elif event_type == "mouse_up":
-                        root_widget.handle_mouse_released(event_dict.get("x", 0.0), event_dict.get("y", 0.0), KeyboardModifiers())
+                        root_widget.handle_mouse_released(event_dict.get("x", 0.0), event_dict.get("y", 0.0), CanvasItem.KeyboardModifiers())
                     elif event_type == "mouse_move":
-                        root_widget.handle_mouse_position_changed(event_dict.get("x", 0.0), event_dict.get("y", 0.0), KeyboardModifiers())
+                        root_widget.handle_mouse_position_changed(event_dict.get("x", 0.0), event_dict.get("y", 0.0), CanvasItem.KeyboardModifiers())
                     elif event_type == "click":
-                        root_widget.handle_mouse_clicked(event_dict.get("x", 0.0), event_dict.get("y", 0.0), KeyboardModifiers())
+                        root_widget.handle_mouse_clicked(event_dict.get("x", 0.0), event_dict.get("y", 0.0), CanvasItem.KeyboardModifiers())
                     elif event_type == "double_click":
-                        root_widget.handle_mouse_double_clicked(event_dict.get("x", 0.0), event_dict.get("y", 0.0), KeyboardModifiers())
+                        root_widget.handle_mouse_double_clicked(event_dict.get("x", 0.0), event_dict.get("y", 0.0), CanvasItem.KeyboardModifiers())
                 event_queue.task_done()
             except queue.Empty as e:
                 pass

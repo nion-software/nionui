@@ -358,8 +358,67 @@ class TestCanvasItemClass(unittest.TestCase):
         root_canvas.add_canvas_item(canvas_item)
         root_canvas.add_stretch()
         root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
-        print(canvas_item.canvas_rect)
         self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 305, 250, 335))
+
+    def test_column_with_fixed_size_child_aligns_start(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout(alignment="start")
+        root_canvas.add_stretch()
+        canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
+        canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.add_canvas_item(canvas_item)
+        root_canvas.add_stretch()
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 0, 250, 30))
+
+    def test_column_with_fixed_size_child_aligns_end(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemColumnLayout(alignment="end")
+        root_canvas.add_stretch()
+        canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
+        canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.add_canvas_item(canvas_item)
+        root_canvas.add_stretch()
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 610, 250, 640))
+
+    def test_row_with_fixed_size_child_centers_horizontally_by_default(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemRowLayout()
+        root_canvas.add_stretch()
+        canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
+        canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.add_canvas_item(canvas_item)
+        root_canvas.add_stretch()
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 305, 250, 335))
+
+    def test_row_with_fixed_size_child_aligns_start(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemRowLayout(alignment="start")
+        root_canvas.add_stretch()
+        canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
+        canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.add_canvas_item(canvas_item)
+        root_canvas.add_stretch()
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 305, 20, 335))
+
+    def test_row_with_fixed_size_child_aligns_end(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        root_canvas.layout = CanvasItem.CanvasItemRowLayout(alignment="end")
+        root_canvas.add_stretch()
+        canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
+        canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        root_canvas.add_canvas_item(canvas_item)
+        root_canvas.add_stretch()
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(460, 305, 480, 335))
 
     def test_row_layout_with_stretch_inside_column_layout_results_in_correct_vertical_positions(self):
         ui = Test.UserInterface()

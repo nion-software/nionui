@@ -1002,16 +1002,21 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
         Pass margins and spacing.
     """
 
-    def __init__(self, margins=None, spacing=None):
+    def __init__(self, margins=None, spacing=None, alignment=None):
         super(CanvasItemColumnLayout, self).__init__(margins, spacing)
+        self.alignment = alignment
 
     def layout(self, canvas_origin, canvas_size, canvas_items, trigger_update=True):
         # calculate the vertical placement
         y_positions, heights = self.calculate_column_layout(canvas_origin, canvas_size, canvas_items)
         widths = [canvas_item.layout_sizing.get_unrestrained_width(canvas_size.width - self.margins.left - self.margins.right) for canvas_item in canvas_items]
-        # TODO: add alignment options to column layout
         available_width = canvas_size.width - self.margins.left - self.margins.right
-        x_positions = [canvas_origin.x + self.margins.left + (available_width - width) * 0.5 for width in widths]
+        if self.alignment == "start":
+            x_positions = [canvas_origin.x + self.margins.left for width in widths]
+        elif self.alignment == "end":
+            x_positions = [canvas_origin.x + self.margins.left + (available_width - width) for width in widths]
+        else:
+            x_positions = [canvas_origin.x + self.margins.left + (available_width - width) * 0.5 for width in widths]
         self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, trigger_update)
 
     def get_sizing(self, canvas_items):
@@ -1039,16 +1044,21 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
         Pass margins and spacing.
     """
 
-    def __init__(self, margins=None, spacing=None):
+    def __init__(self, margins=None, spacing=None, alignment=None):
         super(CanvasItemRowLayout, self).__init__(margins, spacing)
+        self.alignment = alignment
 
     def layout(self, canvas_origin, canvas_size, canvas_items, trigger_update=True):
         # calculate the vertical placement
         x_positions, widths = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
         heights = [canvas_item.layout_sizing.get_unrestrained_height(canvas_size.height - self.margins.top - self.margins.bottom) for canvas_item in canvas_items]
-        # TODO: add alignment options to row layout
         available_height = canvas_size.height - self.margins.top - self.margins.bottom
-        y_positions = [canvas_origin.y + self.margins.top + (available_height - height) * 0.5 for height in heights]
+        if self.alignment == "start":
+            y_positions = [canvas_origin.y + self.margins.top for width in widths]
+        elif self.alignment == "end":
+            y_positions = [canvas_origin.y + self.margins.top + (available_height - height) for height in heights]
+        else:
+            y_positions = [canvas_origin.y + self.margins.top + (available_height - height) * 0.5 for height in heights]
         self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, trigger_update)
 
     def get_sizing(self, canvas_items):

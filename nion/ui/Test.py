@@ -432,9 +432,9 @@ class UserInterface(object):
         pass
     def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
         pass
-    def create_row_widget(self, properties=None):
+    def create_row_widget(self, alignment=None, properties=None):
         return Widget()
-    def create_column_widget(self, properties=None):
+    def create_column_widget(self, alignment=None, properties=None):
         return Widget()
     def create_splitter_widget(self, orientation="vertical", properties=None):
         return Widget()

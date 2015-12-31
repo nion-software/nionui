@@ -474,8 +474,6 @@ class UserInterface(object):
         return widget
     def create_output_widget(self, properties=None):
         return Widget()
-    def create_console_widget(self, properties=None):
-        return Widget()
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)
     def get_persistent_string(self, key, default_value=None):

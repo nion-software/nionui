@@ -29,7 +29,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         item_count: the number of items to be displayed
 
     Methods:
-        get_item_thumbnail(index): return the thumbnail for the given index
+        paint_item(drawing_context, index, rect, is_selected): paint the cell for index at the position
         is_item_selected(index): return whether the given index is selected
         extend_selection(index): extend the selection to the given index
         toggle_selection(index): toggle the selection at the given index
@@ -119,7 +119,6 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                         rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_height, x=column * item_width),
                                                 size=Geometry.IntSize(width=item_width, height=item_height))
                         if rect.intersects_rect(visible_rect):
-                            thumbnail_data = self.__delegate.get_item_thumbnail(index)
                             is_selected = self.__selection.contains(index)
                             if is_selected:
                                 drawing_context.save()
@@ -128,11 +127,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                                 drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
                                 drawing_context.fill()
                                 drawing_context.restore()
-                            if thumbnail_data is not None:
-                                draw_rect = rect.inset(6)
-                                draw_rect = Geometry.fit_to_size(draw_rect, thumbnail_data.shape)
-                                drawing_context.draw_image(thumbnail_data, draw_rect[0][1], draw_rect[0][0],
-                                                           draw_rect[1][1], draw_rect[1][0])
+                            self.__delegate.paint_item(drawing_context, index, rect, is_selected)
         finally:
             drawing_context.restore()
 

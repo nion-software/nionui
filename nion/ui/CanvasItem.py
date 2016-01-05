@@ -430,6 +430,8 @@ class AbstractCanvasItem(object):
         self.on_layout_updated = None
         self.__cursor_shape = None
         self.__tool_tip = None
+        self.__background_color = None
+        self.__border_color = None
 
     def close(self):
         """ Close the canvas object. """
@@ -486,6 +488,24 @@ class AbstractCanvasItem(object):
     def root_container(self):
         """ Return the root container, if any. """
         return self.__container.root_container if self.__container else None
+
+    @property
+    def background_color(self):
+        return self.__background_color
+
+    @background_color.setter
+    def background_color(self, background_color):
+        self.__background_color = background_color
+        self.update()
+
+    @property
+    def border_color(self):
+        return self.__border_color
+
+    @border_color.setter
+    def border_color(self, border_color):
+        self.__border_color = border_color
+        self.update()
 
     @property
     def focusable(self):
@@ -656,6 +676,28 @@ class AbstractCanvasItem(object):
             The drawing should take place within the canvas_bounds.
         """
         assert self.canvas_size is not None
+
+    def _draw_background(self, drawing_context):
+        """Draw the background. Subclasses can call this."""
+        background_color = self.__background_color
+        if background_color:
+            rect = self.canvas_bounds
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+                drawing_context.fill_style = background_color
+                drawing_context.fill()
+
+    def _draw_border(self, drawing_context):
+        """Draw the border. Subclasses can call this."""
+        border_color = self.__border_color
+        if border_color:
+            rect = self.canvas_bounds
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(rect[0][1], rect[0][0], rect[1][1], rect[1][0])
+                drawing_context.stroke_style = border_color
+                drawing_context.stroke()
 
     def _repaint_visible(self, drawing_context, visible_rect):
         """
@@ -1367,11 +1409,13 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
         super(CanvasItemComposition, self)._repaint(drawing_context)
+        self._draw_background(drawing_context)
         for canvas_item in self.__canvas_items:
             with drawing_context.saver():
                 canvas_item_rect = canvas_item.canvas_rect
                 drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
                 canvas_item._repaint(drawing_context)
+        self._draw_border(drawing_context)
 
     def canvas_items_at_point(self, x, y):
         """Returns list of canvas items under x, y, ordered from back to front."""
@@ -1531,14 +1575,11 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
 
     def _repaint(self, drawing_context):
         super(ScrollAreaCanvasItem, self)._repaint(drawing_context)
-        drawing_context.save()
-        try:
+        with drawing_context.saver():
             drawing_context.clip_rect(self.canvas_origin[1], self.canvas_origin[0], self.canvas_size[1], self.canvas_size[0])
             drawing_context.translate(self.__content.canvas_origin[1], self.__content.canvas_origin[0])
             visible_rect = Geometry.IntRect(origin=-Geometry.IntPoint.make(self.__content.canvas_origin), size=Geometry.IntSize.make(self.canvas_size))
             self.__content._repaint_visible(drawing_context, visible_rect)
-        finally:
-            drawing_context.restore()
 
     def canvas_items_at_point(self, x, y):
         canvas_items = []

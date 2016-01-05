@@ -30,10 +30,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     Methods:
         paint_item(drawing_context, index, rect, is_selected): paint the cell for index at the position
-        is_item_selected(index): return whether the given index is selected
-        extend_selection(index): extend the selection to the given index
-        toggle_selection(index): toggle the selection at the given index
-        set_selection(index): set the selection to the given index
 
     Optional methods:
         on_content_menu_event(index, x, y, gx, gy): called when user wants context menu for given index
@@ -177,7 +173,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __make_selection_visible(self, top):
         if self.__delegate:
-            selected_indexes = self.__delegate.selected_indexes
+            selected_indexes = list(self.__selection.indexes)
             if len(selected_indexes) > 0 and self.canvas_bounds is not None:  # 2nd part for testing
                 min_index = min(selected_indexes)
                 max_index = max(selected_indexes)

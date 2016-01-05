@@ -107,7 +107,7 @@ class ActionDialog(object):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui):
+    def __init__(self, ui, title=None):
         super(ActionDialog, self).__init__()
 
         self.ui = ui
@@ -115,7 +115,7 @@ class ActionDialog(object):
         self.on_reject = None
         self.on_accept = None
 
-        self.document_window = self.ui.create_document_window()
+        self.document_window = self.ui.create_document_window(title=title)
         self.document_window.on_periodic = lambda: self.periodic()
         self.document_window.on_about_to_show = lambda: self.about_to_show()
         self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
@@ -129,6 +129,7 @@ class ActionDialog(object):
 
         self.button_row = self.ui.create_row_widget()
 
+        self.button_row.add_spacing(13)
         self.button_row.add_stretch()
 
         content_column.add(self.button_row)
@@ -137,9 +138,10 @@ class ActionDialog(object):
 
     def add_button(self, title, on_clicked_fn):
         def on_clicked():
-            on_clicked_fn()
-            self.document_window.request_close()
-            self.document_window = None
+            do_close = on_clicked_fn()
+            if do_close:
+                self.document_window.request_close()
+                self.document_window = None
 
         button = self.ui.create_push_button_widget(title, properties={"min-width": 100})
         button.on_clicked = on_clicked

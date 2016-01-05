@@ -37,7 +37,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         on_drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
 
-    def __init__(self, delegate, selection):
+    def __init__(self, delegate, selection, item_height=80):
         super().__init__()
         # store parameters
         self.__delegate = delegate
@@ -51,7 +51,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
-        self.__item_height = 80
+        self.__item_height = item_height
 
     def close(self):
         self.__selection_changed_listener.close()

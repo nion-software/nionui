@@ -1606,13 +1606,13 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.sizings = []
         self.__tracking = False
 
-    def __calculate_layout(self, canvas_origin, canvas_size):
+    def __calculate_layout(self, canvas_size):
         if self.orientation == "horizontal":
-            content_origin = Geometry.IntPoint.make(canvas_origin).y
+            content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).height
             constraints = [sizing.get_height_constraint(content_size) for sizing in self.sizings]
         else:
-            content_origin = Geometry.IntPoint.make(canvas_origin).x
+            content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).width
             constraints = [sizing.get_width_constraint(content_size) for sizing in self.sizings]
         return constraint_solve(content_origin, content_size, constraints)
@@ -1625,7 +1625,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 content_size = Geometry.IntSize.make(self.canvas_size).height
             else:
                 content_size = Geometry.IntSize.make(self.canvas_size).width
-            _, sizes = self.__calculate_layout(self.canvas_origin, self.canvas_size)
+            _, sizes = self.__calculate_layout(self.canvas_size)
             return [float(size) / content_size for size in sizes]
         return None
 
@@ -1660,7 +1660,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         super(SplitterCanvasItem, self).remove_canvas_item(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
-        origins, sizes = self.__calculate_layout(canvas_origin, canvas_size)
+        origins, sizes = self.__calculate_layout(canvas_size)
         if self.orientation == "horizontal":
             for canvas_item, (origin, size) in zip(self.canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
@@ -1683,7 +1683,7 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_origin, self.canvas_size)
+        origins, _ = self.__calculate_layout(self.canvas_size)
         if self.orientation == "horizontal":
             for origin in origins[1:]:  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -1697,7 +1697,7 @@ class SplitterCanvasItem(CanvasItemComposition):
     def _repaint(self, drawing_context):
         super(SplitterCanvasItem, self)._repaint(drawing_context)
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_origin, self.canvas_size)
+        origins, _ = self.__calculate_layout(self.canvas_size)
         drawing_context.save()
         try:
             drawing_context.begin_path()
@@ -1715,7 +1715,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             drawing_context.restore()
 
     def __hit_test(self, x, y, modifiers):
-        origins, _ = self.__calculate_layout(self.canvas_origin, self.canvas_size)
+        origins, _ = self.__calculate_layout(self.canvas_size)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -1728,7 +1728,7 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def mouse_pressed(self, x, y, modifiers):
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_origin, self.canvas_size)
+        origins, _ = self.__calculate_layout(self.canvas_size)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:

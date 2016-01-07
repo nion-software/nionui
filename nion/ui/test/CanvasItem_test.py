@@ -913,6 +913,24 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(test_canvas_item1.mouse_pos, (160, 160))
         self.assertEqual(test_canvas_item2.mouse_pos, None)
 
+    def test_layout_splitter_within_splitter(self):
+        ui = Test.UserInterface()
+        root_canvas = CanvasItem.RootCanvasItem(ui)
+        splitter_outer = CanvasItem.SplitterCanvasItem()
+        splitter_inner = CanvasItem.SplitterCanvasItem()
+        canvas_item1 = TestCanvasItem()
+        canvas_item2 = TestCanvasItem()
+        canvas_item3 = TestCanvasItem()
+        splitter_inner.add_canvas_item(canvas_item2)
+        splitter_inner.add_canvas_item(canvas_item3)
+        splitter_outer.add_canvas_item(canvas_item1)
+        splitter_outer.add_canvas_item(splitter_inner)
+        root_canvas.add_canvas_item(splitter_outer)
+        root_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 480, 320))
+        self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 480, 160))
+        self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect.from_tlbr(0, 160, 480, 320))
+
     def test_dragging_splitter_resizes_children(self):
         # setup canvas
         ui = Test.UserInterface()

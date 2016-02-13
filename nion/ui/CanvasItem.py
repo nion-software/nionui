@@ -1235,6 +1235,8 @@ class CanvasItemComposition(AbstractCanvasItem):
         All canvas messages are passed to children appropriately.
 
         Access child canvas items using canvas_items.
+
+        Child canvas items with higher indexes are considered to be foremost.
     """
 
     def __init__(self):
@@ -1408,6 +1410,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.refresh_layout()
 
     def _repaint(self, drawing_context):
+        """Paint items from back to front."""
         super(CanvasItemComposition, self)._repaint(drawing_context)
         self._draw_background(drawing_context)
         for canvas_item in self.__canvas_items:

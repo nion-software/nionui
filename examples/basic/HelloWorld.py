@@ -66,7 +66,7 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
         super(HelloWorldDocumentController, self).__init__(ui, app)
 
         # first create a root canvas item in which the rest of the user interface will go
-        root_canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        canvas_widget = ui.create_canvas_widget()
 
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#FFF")
 
@@ -117,11 +117,11 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
         column_canvas_item.add_stretch()
 
         # finally add the column to the root canvas item.
-        root_canvas_item.add_canvas_item(background_canvas_item)
-        root_canvas_item.add_canvas_item(column_canvas_item)
+        canvas_widget.canvas_item.add_canvas_item(background_canvas_item)
+        canvas_widget.canvas_item.add_canvas_item(column_canvas_item)
 
         # attach the root canvas item to the document window
-        self.document_window.attach(root_canvas_item.canvas_widget)
+        self.document_window.attach(canvas_widget)
 
         # configure what happens when the button is pressed
         click_count_ref = [0]

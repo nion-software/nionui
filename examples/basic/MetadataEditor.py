@@ -100,7 +100,7 @@ class MetadataEditorDocumentController(DocumentController.DocumentController):
         super(MetadataEditorDocumentController, self).__init__(ui, app)
 
         # first create a root canvas item in which the rest of the user interface will go
-        root_canvas_item = CanvasItem.RootCanvasItem(self.ui)
+        canvas_widget = ui.create_canvas_widget()
 
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#FFF")
 
@@ -111,11 +111,11 @@ class MetadataEditorDocumentController(DocumentController.DocumentController):
         metadata_editor_canvas_item.reconstruct()
 
         # finally add the column to the root canvas item.
-        root_canvas_item.add_canvas_item(background_canvas_item)
-        root_canvas_item.add_canvas_item(metadata_editor_canvas_item)
+        canvas_widget.canvas_item.add_canvas_item(background_canvas_item)
+        canvas_widget.canvas_item.add_canvas_item(metadata_editor_canvas_item)
 
         # attach the root canvas item to the document window
-        self.document_window.attach(root_canvas_item.canvas_widget)
+        self.document_window.attach(canvas_widget)
 
 
 if __name__ == '__main__':

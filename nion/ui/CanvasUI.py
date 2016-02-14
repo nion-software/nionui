@@ -479,9 +479,6 @@ class CanvasUserInterface(object):
     def create_canvas_widget(self, properties=None):
         return CanvasCanvasWidget(properties)
 
-    def create_canvas_widget_new(self, properties=None):
-        return CanvasCanvasWidget(properties)
-
     def get_font_metrics(self, font, text):
         return self.__get_font_metrics_fn(font, text)
 

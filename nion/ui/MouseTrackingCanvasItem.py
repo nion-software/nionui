@@ -58,7 +58,7 @@ class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
         if not self.__document_window:
             self.__document_window = ui.create_document_window()
             self.__document_window.window_style = "popup"
-            self.__root_canvas = CanvasItem.RootCanvasItem(ui)
+            self.__canvas_widget = ui.create_canvas_widget(properties={"height": 18, "width": 18})
             def close():
                 self.release_mouse()
                 self.__document_window.request_close()
@@ -68,8 +68,8 @@ class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
                 if not activated:
                     close()
             self.__document_window.on_activation_changed = activation_changed
-            self.__root_canvas.add_canvas_item(self)
-            self.__document_window.attach(self.__root_canvas.canvas_widget)
+            self.__canvas_widget.canvas_item.add_canvas_item(self)
+            self.__document_window.attach(self.__canvas_widget)
             self.__document_window.show(size=size, position=gp - Geometry.IntPoint(x=size.width, y=size.height / 2))
             self.request_focus()
             self.grab_mouse()

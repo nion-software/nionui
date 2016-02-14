@@ -2,10 +2,6 @@
     CanvasItem module contains classes related to canvas items.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import collections
 import copy
@@ -27,10 +23,7 @@ from . import ThreadPool
 
 DEFAULT_MAX_FRAME_RATE = 40
 
-if sys.version < '3':
-    MAX_VALUE = sys.maxint
-else:
-    MAX_VALUE = sys.maxsize
+MAX_VALUE = sys.maxsize
 
 class Constraint(object):
 

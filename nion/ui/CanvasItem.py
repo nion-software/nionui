@@ -2091,9 +2091,6 @@ class RootCanvasItem(CanvasItemComposition):
                     traceback.print_stack()
             self.__canvas_widget.draw(drawing_context, self.__drawing_context_storage)
             self.__drawing_context_storage.clean()
-        else:  # this may happen if thread gets triggered before layout is called. try again.
-            with self.__needs_repaint_lock:
-                self.__needs_repaint = True
 
     @property
     def canvas_widget(self):

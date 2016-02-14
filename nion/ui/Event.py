@@ -23,7 +23,7 @@ class EventListener(object):
         self.__listener_fn = listener_fn
         # the call function is very performance critical; make it fast by using a property
         # instead of a method lookup.
-        if listener_fn:
+        if callable(listener_fn):
             self.call = self.__listener_fn
         else:
             def void(*args, **kwargs):

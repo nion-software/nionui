@@ -21,7 +21,7 @@ from . import Event
 from . import Geometry
 from . import ThreadPool
 
-DEFAULT_MAX_FRAME_RATE = 40
+DEFAULT_MAX_FRAME_RATE = 25
 
 MAX_VALUE = sys.maxsize
 
@@ -2012,7 +2012,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__last_focused_item = None
         self.__needs_repaint = True
         self.__needs_repaint_lock = threading.RLock()
-        self.__last_repaint = None
+        self.__last_repaint = 0
         self.__mouse_canvas_item = None  # not None when the mouse is pressed
         self.__mouse_tracking = False
         self.__mouse_tracking_canvas_item = None
@@ -2067,7 +2067,7 @@ class RootCanvasItem(CanvasItemComposition):
         # Check to see if needs repaint has been set. trigger drawing on a thread if so.
         with self.__needs_repaint_lock:
             now = time.time()
-            if self.__last_repaint is None or now - self.__last_repaint > 1 / self.__max_frame_rate:
+            if now - self.__last_repaint > 1 / self.__max_frame_rate:
                 needs_repaint = self.__needs_repaint
                 self.__needs_repaint = False
                 self.__last_repaint = now

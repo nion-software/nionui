@@ -229,6 +229,7 @@ class DocumentWindow:
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
+        self.on_clear_task = None
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
@@ -238,6 +239,10 @@ class DocumentWindow:
         self.close()
     def attach(self, widget):
         self.widget = widget
+    def detach(self):
+        assert self.widget is not None
+        self.widget.close()
+        self.widget = None
     def create_dock_widget(self, widget, panel_id, title, positions, position):
         dock_widget = Widget()
         dock_widget.add(widget)

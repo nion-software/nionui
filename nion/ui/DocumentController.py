@@ -36,7 +36,7 @@ class DocumentController(object):
         pass
 
     def about_to_close(self, geometry, state):
-        pass
+        self.close()
 
     def add_task(self, key, task):
         self.__periodic_set.add_task(key + str(id(self)), task)

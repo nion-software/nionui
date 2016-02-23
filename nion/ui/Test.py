@@ -1,6 +1,3 @@
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import collections
 import logging
@@ -204,15 +201,16 @@ class Widget(object):
 
 
 class Menu:
+    MenuItem = collections.namedtuple("MenuItem", ["title", "callback", "key_sequence", "role", "menu", "is_separator"])
     def __init__(self):
         self.on_popup = None
         self.items = list()
     def add_menu_item(self, title, callback, key_sequence=None, role=None):
-        self.items.append(callback)
+        self.items.append(Menu.MenuItem(title, callback, key_sequence, role, None, False))
     def add_sub_menu(self, title, menu):
-        self.items.append(menu)
+        self.items.append(Menu.MenuItem(title, None, None, None, menu, False))
     def add_separator(self):
-        self.items.append(None)
+        self.items.append(Menu.MenuItem(None, None, None, None, None, True))
     def popup(self, gx, gy):
         if self.on_popup:
             self.on_popup(self, gx, gy)

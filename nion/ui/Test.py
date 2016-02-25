@@ -198,6 +198,12 @@ class Widget(object):
         drag_finished_fn("none")
     def set_cursor_shape(self, cursor_shape):
         self.cursor_shape = cursor_shape
+    def append_text(self, value):
+        pass
+    def insert_text(self, value):
+        pass
+    def move_cursor_position(self, operation, mode=None, n=1):
+        pass
 
 
 class Menu:

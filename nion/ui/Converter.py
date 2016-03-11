@@ -2,12 +2,10 @@
     Converter classes. Useful for bindings.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import re
 import locale
+import uuid
 
 # third party libraries
 # none
@@ -102,3 +100,13 @@ class CheckedToCheckStateConverter(object):
     def convert_back(self, value):
         """ Convert checked or unchecked string to bool """
         return value == "checked"
+
+
+class UuidToStringConverter(object):
+    def convert(self, value):
+        return str(value) if value else None
+    def convert_back(self, value):
+        if re.fullmatch("[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}",
+                        value.strip(), re.IGNORECASE) is not None:
+            return uuid.UUID(value.strip())
+        return None

@@ -27,18 +27,24 @@ class Widget(object):
         self.current_index = -1
         self.viewport = ((0, 0), (480, 640))
         self.__focused = False
+        self.on_editing_finished = None
         self.on_focus_changed = None
+        self.on_text_edited = None
+        self.__text_binding = None
         self.__binding = None
         self.content = None
         self.widget = None
         self.focusable = False
         self.content_section = None
-        self.text = None
+        self.__text = None
         self.canvas_item = None
     def close(self):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
         for child in self.children:
             child.close()
         self.children = []
@@ -154,10 +160,18 @@ class Widget(object):
         pass
     def select_all(self):
         pass
+    @property
+    def text(self):
+        return self.__text
+    @text.setter
+    def text(self, value):
+        if self.__text != value:
+            self.__text = value
     def bind_text(self, binding):
-        self.__binding = binding
-        self.text = self.__binding.get_target_value()
-        self.__binding.target_setter = lambda t: setattr(self, "text", t)
+        self.__text_binding = binding
+        self.__text = self.__text_binding.get_target_value()
+        self.__text_binding.target_setter = lambda t: setattr(self, "text", t)
+        self.on_editing_finished = lambda text: self.__text_binding.update_source(text)
     def bind_check_state(self, binding):
         self.__binding = binding
         self.check_state = self.__binding.get_target_value()

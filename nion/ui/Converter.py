@@ -66,16 +66,20 @@ class FloatToStringConverter(object):
             return locale.atof(formatted_value)
 
 
-class FloatTo100Converter(object):
+class FloatToScaledIntegerConverter(object):
     """ Convert between float value and int (float * 100). """
+    def __init__(self, n: int, value_min: float=0, value_max: float=1):
+        self.n = n
+        self.value_min = value_min
+        self.value_max = value_max
 
     def convert(self, value):
         """ Convert float between 0, 1 to percentage int """
-        return int(value * 100)
+        return int(self.n * (value - self.value_min) / (self.value_max - self.value_min))
 
-    def convert_back(self, value100):
+    def convert_back(self, value_int):
         """ Convert int percentage value to float """
-        return value100 / 100.0
+        return value_int * (self.value_max - self.value_min) / self.n - self.value_min
 
 
 class FloatToPercentStringConverter(object):

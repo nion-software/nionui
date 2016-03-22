@@ -2032,6 +2032,8 @@ class RootCanvasItem(CanvasItemComposition):
         self.__mouse_tracking_canvas_item = None
         self.__drag_tracking_canvas_item = None
         self.__grab_canvas_item = None
+        self.__focused_item = None
+        self.__last_focused_item = None
         self.__canvas_widget.on_size_changed = None
         self.__canvas_widget.on_mouse_clicked = None
         self.__canvas_widget.on_mouse_double_clicked = None

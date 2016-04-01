@@ -5,10 +5,6 @@
     produce javascript or svg to do the drawing.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import base64
 import collections
@@ -17,6 +13,7 @@ import copy
 import io
 import logging
 import math
+import time
 import threading
 import uuid
 import xml.sax.saxutils
@@ -410,6 +407,9 @@ class DrawingContext(object):
 
     def sleep(self, duration):
         self.commands.append(("sleep", duration))
+
+    def mark_latency(self):
+        self.commands.append(("latency", time.perf_counter()))
 
     def fill(self):
         self.commands.append(("fill", ))

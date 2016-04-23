@@ -189,3 +189,10 @@ class ThreadPool(object):
             self.__queue.task_done()
             if not task:
                 break
+
+    def run_one(self):
+        if not self.__queue.empty():
+            task = self.__queue.get()
+            if task and not self.__closed:
+                task.execute()
+            self.__queue.task_done()

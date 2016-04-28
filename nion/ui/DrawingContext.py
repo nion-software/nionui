@@ -23,7 +23,7 @@ import numpy
 import scipy.misc
 
 # local libraries
-from nion.ui import Unicode
+from nion.utils import Unicode
 
 # pylint: disable=star-args
 

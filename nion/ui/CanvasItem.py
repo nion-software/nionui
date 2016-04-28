@@ -17,9 +17,9 @@ import weakref
 # None
 
 # local libraries
-from . import Event
-from . import Geometry
-from . import ThreadPool
+from nion.utils import Event
+from nion.utils import Geometry
+from nion.utils import ThreadPool
 
 DEFAULT_MAX_FRAME_RATE = 25
 

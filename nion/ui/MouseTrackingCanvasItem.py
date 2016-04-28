@@ -1,5 +1,5 @@
 from nion.ui import CanvasItem
-from nion.ui import Geometry
+from nion.utils import Geometry
 
 class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
 

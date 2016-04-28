@@ -9,7 +9,7 @@ from __future__ import absolute_import
 # None
 
 # local libraries
-from . import Process
+from nion.utils import Process
 
 
 class DocumentController(object):

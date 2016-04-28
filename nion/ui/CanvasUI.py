@@ -18,8 +18,8 @@ import time
 # local libraries
 from . import CanvasItem
 from . import DrawingContext
-from . import Geometry
-from . import Unicode
+from nion.utils import Geometry
+from nion.utils import Unicode
 
 
 class CanvasWidget(object):

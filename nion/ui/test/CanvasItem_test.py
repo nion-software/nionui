@@ -7,8 +7,8 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasItem
-from nion.ui import Geometry
 from nion.ui import Test
+from nion.utils import Geometry
 
 
 class TestCanvasItem(CanvasItem.AbstractCanvasItem):

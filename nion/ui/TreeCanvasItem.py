@@ -11,7 +11,7 @@ import json
 
 # local libraries
 from . import CanvasItem
-from . import Geometry
+from nion.utils import Geometry
 
 
 class TreeCanvasItem(CanvasItem.CanvasItemComposition):

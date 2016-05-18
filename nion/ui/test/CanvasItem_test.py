@@ -7,7 +7,7 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasItem
-from nion.ui import Test
+from nion.ui import TestUI
 from nion.utils import Geometry
 
 
@@ -44,7 +44,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget.on_mouse_released(p2[1], p2[0], modifiers)
 
     def test_drag_inside_bounds(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         canvas_widget.canvas_item.add_canvas_item(canvas_item)
@@ -53,7 +53,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertTrue(canvas_item._mouse_released)
 
     def test_drag_outside_bounds(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         canvas_widget.canvas_item.add_canvas_item(canvas_item)
@@ -62,7 +62,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertTrue(canvas_item._mouse_released)
 
     def test_drag_within_composition(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         container = CanvasItem.CanvasItemComposition()
@@ -73,7 +73,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertTrue(canvas_item._mouse_released)
 
     def test_drag_within_composition_but_outside_bounds(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         container = CanvasItem.CanvasItemComposition()
@@ -84,7 +84,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertTrue(canvas_item._mouse_released)
 
     def test_layout_uses_minimum_aspect_ratio(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -95,7 +94,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=640, height=320))
 
     def test_layout_uses_maximum_aspect_ratio(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -106,7 +104,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=480, height=480))
 
     def test_composition_layout_uses_preferred_aspect_ratio(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -119,7 +116,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=480, height=480))
 
     def test_composition_layout_sizing_includes_margins_but_not_spacing(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout.margins = Geometry.Margins(top=4, bottom=6, left=8, right=10)
@@ -130,7 +126,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 24 + 4 + 6)
 
     def test_row_layout_sizing_includes_margins_and_spacing(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=7, margins=Geometry.Margins(top=4, bottom=6, left=8, right=10))
@@ -147,7 +142,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 36 + 4 + 6)  # includes margins only
 
     def test_column_layout_sizing_includes_margins_and_spacing(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=7, margins=Geometry.Margins(top=4, bottom=6, left=8, right=10))
@@ -164,7 +158,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 12 + 24 + 36 + 2 * 7 + 4 + 6)  # includes margins and spacing
 
     def test_grid_layout_sizing_includes_margins_and_spacing(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), spacing=7, margins=Geometry.Margins(top=4, bottom=6, left=8, right=10))
@@ -182,7 +175,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 24 + 36 + 1 * 7 + 4 + 6)  # includes margins and spacing
 
     def test_layout_splits_evening_between_two_items(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -205,7 +197,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_size, Geometry.IntSize(width=640, height=240))
 
     def test_layout_splits_evening_between_three_items_with_spacing_and_margins(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(spacing=10, margins=Geometry.Margins(top=3, left=5, bottom=7, right=11))
@@ -234,7 +225,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[2].canvas_size, Geometry.IntSize(width=624, height=150))
 
     def test_layout_splits_two_with_first_one_minimum_size(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -259,7 +249,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_size, Geometry.IntSize(width=640, height=180))
 
     def test_layout_splits_two_with_second_one_minimum_size(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -284,7 +273,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_size, Geometry.IntSize(width=640, height=300))
 
     def test_layout_splits_two_with_first_one_maximum_size(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -298,7 +286,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_size, Geometry.IntSize(width=540, height=480))
 
     def test_layout_splits_two_with_second_one_maximum_size(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -315,7 +302,6 @@ class TestCanvasItemClass(unittest.TestCase):
         # this should work, but the particular solver has trouble in this specific case because it reaches
         # the minimum value of 230 on the first pass before it processes the maximum value of 100 and it
         # should be able to go back and raise the 230 to 270 once it sees it has extra space.
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -335,7 +321,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[2].canvas_size, Geometry.IntSize(width=270, height=480))
 
     def test_column_with_child_with_fixed_size_does_not_expand_child_horizontally(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
@@ -346,7 +331,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_bounds, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
 
     def test_column_with_fixed_size_child_centers_horizontally_by_default(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_stretch()
@@ -358,7 +342,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 305, 250, 335))
 
     def test_column_with_fixed_size_child_aligns_start(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout(alignment="start")
         canvas_item.add_stretch()
@@ -370,7 +353,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 0, 250, 30))
 
     def test_column_with_fixed_size_child_aligns_end(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout(alignment="end")
         canvas_item.add_stretch()
@@ -382,7 +364,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 610, 250, 640))
 
     def test_row_with_fixed_size_child_centers_horizontally_by_default(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_stretch()
@@ -394,7 +375,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(230, 305, 250, 335))
 
     def test_row_with_fixed_size_child_aligns_start(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(alignment="start")
         canvas_item.add_stretch()
@@ -406,7 +386,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 305, 20, 335))
 
     def test_row_with_fixed_size_child_aligns_end(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(alignment="end")
         canvas_item.add_stretch()
@@ -418,7 +397,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(background_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(460, 305, 480, 335))
 
     def test_row_layout_with_stretch_inside_column_layout_results_in_correct_vertical_positions(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         row = CanvasItem.CanvasItemComposition()
@@ -435,7 +413,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 305, 40, 335))
 
     def test_row_layout_with_stretch_inside_column_layout_results_in_correct_row_height(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         row = CanvasItem.CanvasItemComposition()
@@ -451,7 +428,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 305, 40, 335))
 
     def test_row_layout_with_stretch_on_each_side_centers_content(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         row = CanvasItem.CanvasItemComposition()
@@ -466,7 +442,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(content_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 305, 20, 335))
 
     def test_grid_layout_2x2_works(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2))
@@ -485,7 +460,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[3].canvas_size, Geometry.IntSize(width=320, height=240))
 
     def test_grid_layout_splits_with_one_min_size_specified(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2))
@@ -506,7 +480,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[3].canvas_size, Geometry.IntSize(width=500, height=180))
 
     def test_grid_layout_within_column_layout(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -535,7 +508,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_focus_changed_messages_sent_when_focus_changes(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -576,7 +549,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_root_canvas_item_loses_focus_too_when_canvas_widget_loses_focus(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.focusable = True
@@ -596,7 +569,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_keys_go_to_focused_item(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -628,7 +601,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertIsNone(canvas_item2.key)
 
     def test_composition_layout_sizing_has_infinite_maximum_if_first_child_is_finite_and_one_is_infinite(self):
-        ui = Test.UserInterface()
         composition = CanvasItem.CanvasItemComposition()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
@@ -639,7 +611,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertIsNone(composition.layout_sizing.maximum_height)
 
     def test_composition_layout_sizing_has_infinite_maximum_if_last_child_is_finite_and_one_is_infinite(self):
-        ui = Test.UserInterface()
         composition = CanvasItem.CanvasItemComposition()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
@@ -650,7 +621,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertIsNone(composition.layout_sizing.maximum_height)
 
     def test_column_layout_sizing_has_infinite_maximum_if_one_child_is_finite_and_one_is_infinite(self):
-        ui = Test.UserInterface()
         composition = CanvasItem.CanvasItemComposition()
         composition.layout = CanvasItem.CanvasItemColumnLayout()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
@@ -662,7 +632,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertIsNone(composition.layout_sizing.maximum_height)
 
     def test_grid_layout_sizing_has_infinite_maximum_if_one_child_is_finite_and_one_is_infinite(self):
-        ui = Test.UserInterface()
         grid_canvas = CanvasItem.CanvasItemComposition()
         grid_canvas.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2))
         grid_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"), Geometry.IntPoint(x=0, y=0))
@@ -680,7 +649,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertIsNone(grid_canvas.layout_sizing.maximum_width)
 
     def test_height_constraint_inside_layout_with_another_height_constraint_results_in_proper_layout(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -701,7 +669,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[1].canvas_size, Geometry.IntSize(width=640, height=470))
 
     def test_grid_layout_2x2_canvas_item_at_point(self):
-        ui = Test.UserInterface()
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(2, 2), spacing=20, margins=Geometry.Margins(top=10, bottom=10, left=10, right=10))
@@ -758,7 +725,7 @@ class TestCanvasItemClass(unittest.TestCase):
             return "copy"
 
     def test_mouse_tracking_on_topmost_non_overlapped_canvas_item(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         # test row layout
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
@@ -780,7 +747,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(test_canvas_item.mouse_inside)
 
     def test_mouse_tracking_on_container_with_non_overlapped_canvas_item(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         # test row layout
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
@@ -803,7 +770,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_mouse_tracking_on_container_with_two_overlapped_canvas_items(self):
         # tests case where container contains a mouse tracking canvas item with a non-mouse
         # tracking canvas item overlayed.
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         # test row layout
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
@@ -825,7 +792,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(test_canvas_item.mouse_inside)
 
     def test_drag_tracking_on_topmost_non_overlapped_canvas_item(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         container_canvas_item = CanvasItem.CanvasItemComposition()
@@ -845,7 +812,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(test_canvas_item.drag_inside)
 
     def test_drag_tracking_from_one_item_to_another(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         modifiers = CanvasItem.KeyboardModifiers()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
@@ -880,7 +847,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.canvas_widget.on_mouse_released(160, 160, modifiers)
 
     def test_mouse_tracking_after_drag_from_one_item_to_another(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         modifiers = CanvasItem.KeyboardModifiers()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
@@ -920,7 +887,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(test_canvas_item2.mouse_pos, None)
 
     def test_layout_splitter_within_splitter(self):
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter_outer = CanvasItem.SplitterCanvasItem()
         splitter_inner = CanvasItem.SplitterCanvasItem()
@@ -939,7 +905,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_dragging_splitter_resizes_children(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         splitter = CanvasItem.SplitterCanvasItem()
@@ -961,7 +927,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_setting_splitter_initial_values_results_in_correct_layout(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         canvas_item1 = TestCanvasItem()
@@ -978,7 +943,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_splitter_in_splitter_results_in_correct_layout(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         splitter_in = CanvasItem.SplitterCanvasItem("horizontal")
@@ -1003,7 +967,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_splitters_within_splitter_result_in_correct_origins(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         splitter_l = CanvasItem.SplitterCanvasItem("horizontal")
@@ -1030,7 +993,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_dragging_splitter_enforces_minimum_size(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         splitter = CanvasItem.SplitterCanvasItem()
@@ -1051,7 +1014,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_splitter_keeps_relative_sizes(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         canvas_item1 = TestCanvasItem()
@@ -1071,7 +1033,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_splitter_slowly_keeps_relative_sizes(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         canvas_item1 = TestCanvasItem()
@@ -1092,7 +1053,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_dragging_splitter_with_three_children_resizes_third_child(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         splitter = CanvasItem.SplitterCanvasItem()
@@ -1119,7 +1080,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_dragging_splitter_with_three_children_should_only_resize_the_two_items_involved(self):
         # problem occurred when resizing to minimum; it pulled space from uninvolved item
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         splitter = CanvasItem.SplitterCanvasItem()
@@ -1145,7 +1106,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_scroll_area_content_gets_added_at_offset_zero(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         content = TestCanvasItem()
         content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
@@ -1156,7 +1116,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_scroll_bar_thumb_rect_disappears_when_visible_larger_than_content(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         content = TestCanvasItem()
@@ -1172,7 +1131,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_scroll_bar_can_adjust_full_range_of_content(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -1193,7 +1152,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_scroll_bar_can_adjust_full_range_of_content_when_thumb_is_minimum_size(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -1214,7 +1173,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_scroll_area_with_scroll_bar_adjusts_thumb_rect(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -1235,7 +1194,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_scroll_area_with_scroll_bar_adjusts_thumb_rect_when_canvas_is_offset_already(self):
         # setup canvas
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
@@ -1257,7 +1216,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_scroll_area_content_with_adjusts_thumb_rect(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         content = TestCanvasItem()
@@ -1277,7 +1235,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_resizing_scroll_area_content_with_scroll_bar_adjusts_content_position(self):
         # setup canvas
-        ui = Test.UserInterface()
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         content = TestCanvasItem()
@@ -1297,7 +1254,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-250), size=Geometry.IntSize(width=100, height=750)))
 
     def test_removing_item_from_layout_causes_container_to_relayout(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
@@ -1316,7 +1273,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(empty1.canvas_bounds.height, 100)
 
     def test_removing_item_from_collapsible_layout_that_gets_resized_causes_container_to_relayout(self):
-        ui = Test.UserInterface()
+        ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()

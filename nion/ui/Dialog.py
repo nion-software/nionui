@@ -2,11 +2,11 @@
     Dialog classes.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 import gettext
+
+# typing
+from typing import Callable
 
 # third party libraries
 # none
@@ -18,12 +18,12 @@ import gettext
 _ = gettext.gettext
 
 
-class OkCancelDialog(object):
+class OkCancelDialog:
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, include_ok=True, include_cancel=True, ok_title=None, cancel_title=None):
-        super(OkCancelDialog, self).__init__()
+    def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None):
+        super().__init__()
 
         self.ui = ui
 
@@ -77,7 +77,7 @@ class OkCancelDialog(object):
 
         self.document_window.attach(content_column)
 
-    def close(self):
+    def close(self) -> None:
         # recognize when we're running as test and finish out periodic operations
         if not self.document_window.has_event_loop:
             self.periodic()
@@ -85,30 +85,30 @@ class OkCancelDialog(object):
         self.on_accept = None
         self.document_window = None
 
-    def periodic(self):
+    def periodic(self) -> None:
         pass
 
-    def about_to_show(self):
+    def about_to_show(self) -> None:
         pass
 
-    def about_to_close(self, geometry, state):
+    def about_to_close(self, geometry: str, state: str) -> None:
         if self.on_reject:
             self.on_reject()
         self.close()
 
-    def activation_changed(self, activated):
+    def activation_changed(self, activated: bool) -> None:
         pass
 
-    def show(self):
+    def show(self) -> None:
         self.document_window.show()
 
 
-class ActionDialog(object):
+class ActionDialog:
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, title=None):
-        super(ActionDialog, self).__init__()
+    def __init__(self, ui, title: str=None):
+        super().__init__()
 
         self.ui = ui
 
@@ -136,7 +136,30 @@ class ActionDialog(object):
 
         self.document_window.attach(content_column)
 
-    def add_button(self, title, on_clicked_fn):
+    def close(self) -> None:
+        # recognize when we're running as test and finish out periodic operations
+        if not self.document_window.has_event_loop:
+            self.periodic()
+        self.on_reject = None
+        self.on_accept = None
+        self.document_window = None
+
+    def periodic(self) -> None:
+        pass
+
+    def about_to_show(self) -> None:
+        pass
+
+    def about_to_close(self, geometry: str, state: str) -> None:
+        self.close()
+
+    def activation_changed(self, activated: bool) -> None:
+        pass
+
+    def show(self) -> None:
+        self.document_window.show()
+
+    def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> None:
         def on_clicked():
             do_close = on_clicked_fn()
             if do_close:
@@ -147,26 +170,3 @@ class ActionDialog(object):
         button.on_clicked = on_clicked
         self.button_row.add(button)
         self.button_row.add_spacing(13)
-
-    def close(self):
-        # recognize when we're running as test and finish out periodic operations
-        if not self.document_window.has_event_loop:
-            self.periodic()
-        self.on_reject = None
-        self.on_accept = None
-        self.document_window = None
-
-    def periodic(self):
-        pass
-
-    def about_to_show(self):
-        pass
-
-    def about_to_close(self, geometry, state):
-        self.close()
-
-    def activation_changed(self, activated):
-        pass
-
-    def show(self):
-        self.document_window.show()

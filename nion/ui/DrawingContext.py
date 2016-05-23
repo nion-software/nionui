@@ -376,8 +376,8 @@ class DrawingContext(object):
     def line_to(self, x, y):
         self.commands.append(("lineTo", float(x), float(y)))
 
-    def rect(self, a, b, c, d):
-        self.commands.append(("rect", float(a), float(b), float(c), float(d)))
+    def rect(self, l, t, w, h):
+        self.commands.append(("rect", float(l), float(t), float(w), float(h)))
 
     def round_rect(self, x, y, w, h, r):
         self.move_to(x + r, y)

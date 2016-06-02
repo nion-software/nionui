@@ -19,7 +19,6 @@ import time
 from . import CanvasItem
 from . import DrawingContext
 from nion.utils import Geometry
-from nion.utils import Unicode
 
 
 class CanvasWidget(object):
@@ -349,7 +348,7 @@ class CanvasDocumentWindow(object):
         self.on_about_to_show = None  # when code shows the window
         self.on_about_to_close = None  # when user closes the window
         self.is_focused = True  # always focused
-        self.__title = Unicode.u()
+        self.__title = str()
 
     def close(self):
         self.root_widget.close()

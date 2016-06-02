@@ -23,7 +23,7 @@ import numpy
 import scipy.misc
 
 # local libraries
-from nion.utils import Unicode
+# None
 
 # pylint: disable=star-args
 
@@ -415,7 +415,8 @@ class DrawingContext(object):
         self.commands.append(("fill", ))
 
     def fill_text(self, text, x, y, max_width=None):
-        self.commands.append(("fillText", Unicode.u(text), float(x), float(y), float(max_width) if max_width else 0))
+        text = str(text) if text is not None else str()
+        self.commands.append(("fillText", text, float(x), float(y), float(max_width) if max_width else 0))
 
     @property
     def fill_style(self):

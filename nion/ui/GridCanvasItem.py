@@ -66,7 +66,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         Adjust the canvas height based on the constraints.
         """
         canvas_size = Geometry.IntSize.make(canvas_size)
-        canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(canvas_size.width),
+        canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(canvas_size),
                                        width=canvas_size.width)
         super().update_layout(canvas_origin, canvas_size, trigger_update)
 
@@ -76,48 +76,49 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update_layout(new_canvas_origin, self.canvas_size)
         self.update()
 
-    def __calculate_layout_height(self, width):
-        items_per_row = 4
-        item_width = width // items_per_row
-        item_height = item_width
+    def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
+        target_size = 80
+        item_width = int(canvas_size.width / (((canvas_size.width + target_size // 4) // target_size)))
+        return Geometry.IntSize(item_width, item_width)
+
+    def __calculate_layout_height(self, canvas_size: Geometry.IntSize) -> int:
+        item_size = self.__calculate_item_size(canvas_size)
+        items_per_row = int(canvas_size.width / item_size.width)
         item_count = self.__delegate.item_count if self.__delegate else 0
         item_rows = (item_count + items_per_row - 1) // items_per_row
-        return item_rows * item_height
+        return item_rows * item_size.height
 
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
-        canvas_bounds = self.canvas_bounds
-        items_per_row = 4
-        item_width = canvas_bounds.width // items_per_row
-        item_height = item_width
+        canvas_size = self.canvas_size
+        item_size = self.__calculate_item_size(canvas_size)
+        items_per_row = int(canvas_size.width / item_size)
         row = index // items_per_row
         column = index - row * items_per_row
-        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_height, x=column * item_width),
-                                size=Geometry.IntSize(width=item_width, height=item_height))
+        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
+                                size=Geometry.IntSize(width=item_size.width, height=item_size.height))
 
     def update(self):
         if self.canvas_origin is not None and self.canvas_size is not None:
-            if self.__calculate_layout_height(self.canvas_size.width) != self.canvas_size.height:
+            if self.__calculate_layout_height(self.canvas_size) != self.canvas_size.height:
                 self.refresh_layout()
         super().update()
 
     def _repaint_visible(self, drawing_context, visible_rect):
         if self.__delegate:
-            canvas_bounds = self.canvas_bounds
-
-            items_per_row = 4
-            item_width = canvas_bounds.width // items_per_row
-            item_height = item_width
+            canvas_size = self.canvas_size
+            item_size = self.__calculate_item_size(canvas_size)
+            items_per_row = int(canvas_size.width / item_size.width)
 
             with drawing_context.saver():
                 max_index = self.__delegate.item_count
-                top_visible_row = visible_rect.top // item_height
-                bottom_visible_row = visible_rect.bottom // item_height
+                top_visible_row = visible_rect.top // item_size.height
+                bottom_visible_row = visible_rect.bottom // item_size.height
                 for row in range(top_visible_row, bottom_visible_row + 1):
                     for column in range(items_per_row):
                         index = row * items_per_row + column
                         if index < max_index:
-                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_height, x=column * item_width),
-                                                    size=Geometry.IntSize(width=item_width, height=item_height))
+                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
+                                                    size=Geometry.IntSize(width=item_size.width, height=item_size.height))
                             if rect.intersects_rect(visible_rect):
                                 is_selected = self.__selection.contains(index)
                                 if is_selected:
@@ -134,14 +135,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def context_menu_event(self, x, y, gx, gy):
         if self.__delegate:
-            canvas_bounds = self.canvas_bounds
-            items_per_row = 4
-            item_width = canvas_bounds.width // items_per_row
-            item_height = item_width
+            mouse_index = self.__get_item_index_at(x, y)
             max_index = self.__delegate.item_count
-            mouse_row = y // item_height
-            mouse_column = x // item_width
-            mouse_index = mouse_row * items_per_row + mouse_column
             if mouse_index >= 0 and mouse_index < max_index:
                 if not self.__selection.contains(mouse_index):
                     self.__selection.set(mouse_index)
@@ -154,14 +149,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def mouse_pressed(self, x, y, modifiers):
         if self.__delegate:
-            canvas_bounds = self.canvas_bounds
-            items_per_row = 4
-            item_width = canvas_bounds.width // items_per_row
-            item_height = item_width
+            mouse_index = self.__get_item_index_at(x, y)
             max_index = self.__delegate.item_count
-            mouse_row = y // item_height
-            mouse_column = x // item_width
-            mouse_index = mouse_row * items_per_row + mouse_column
             if mouse_index >= 0 and mouse_index < max_index:
                 if modifiers.shift:
                     self.__selection.extend(mouse_index)
@@ -174,6 +163,15 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__mouse_index = mouse_index
                 return True
             return super().mouse_pressed(x, y, modifiers)
+
+    def __get_item_index_at(self, x, y):
+        canvas_size = self.canvas_size
+        item_size = self.__calculate_item_size(canvas_size)
+        items_per_row = int(canvas_size.width / item_size.width)
+        mouse_row = y // item_size.height
+        mouse_column = x // item_size.width
+        mouse_index = mouse_row * items_per_row + mouse_column
+        return mouse_index
 
     def mouse_released(self, x, y, modifiers):
         self.__mouse_pressed = False
@@ -217,6 +215,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__make_selection_visible(True)
 
     def key_pressed(self, key):
+        canvas_size = self.canvas_size
+        item_size = self.__calculate_item_size(canvas_size)
         if self.__delegate:
             if key.is_delete:
                 if self.__delegate.on_delete_pressed:
@@ -227,7 +227,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
             if key.is_up_arrow:
                 new_index = None
-                items_per_row = 4
+                items_per_row = int(canvas_size.width / item_size.width)
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
                     new_index = max(min(indexes) - items_per_row, 0)
@@ -242,7 +242,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
             if key.is_down_arrow:
                 new_index = None
-                items_per_row = 4
+                items_per_row = int(canvas_size.width / item_size.width)
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
                     new_index = min(max(indexes) + items_per_row, self.__delegate.item_count - 1)

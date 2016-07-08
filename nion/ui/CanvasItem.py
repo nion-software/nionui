@@ -2262,7 +2262,12 @@ class RootCanvasItem(CanvasItemComposition):
         if self.__mouse_tracking_canvas_item != new_mouse_canvas_item:
             # if the mouse tracking canvas item changes, exit the old one and enter the new one.
             if self.__mouse_tracking_canvas_item:
-                self.__mouse_tracking_canvas_item.mouse_exited()
+                # there may be a case where the mouse has moved outside the canvas item and the canvas
+                # item has also been closed. for instance, context menu item which closes the canvas item.
+                # so double check whether the mouse tracking canvas item is still in the hierarchy by checking
+                # its container. only call mouse existed if the item is still in the hierarchy.
+                if self.__mouse_tracking_canvas_item.container:
+                    self.__mouse_tracking_canvas_item.mouse_exited()
                 self.__canvas_widget.set_cursor_shape(None)
                 self.__canvas_widget.tool_tip = None
             self.__mouse_tracking_canvas_item = new_mouse_canvas_item

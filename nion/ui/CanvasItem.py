@@ -2655,12 +2655,12 @@ class BitmapCell(object):
             image_size = bitmap_data.shape
             if image_size[0] > 0 and image_size[1] > 0:
                 display_rect = Geometry.fit_to_size(rect, image_size)
-                display_height = display_rect[1][1]
-                display_width = display_rect[1][0]
+                display_height = display_rect.height
+                display_width = display_rect.width
                 if display_rect and display_width > 0 and display_height > 0:
-                    display_top = display_rect[0][1]
-                    display_left = display_rect[0][0]
-                    drawing_context.draw_image(bitmap_data, display_top, display_left, display_height, display_width)
+                    display_top = display_rect.top
+                    display_left = display_rect.left
+                    drawing_context.draw_image(bitmap_data, display_left, display_top, display_width, display_height)
         # draw the overlay style
         if overlay_color:
             drawing_context.begin_path()

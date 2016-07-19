@@ -393,14 +393,14 @@ class DrawingContext(object):
     def arc_to(self, x1, y1, x2, y2, r):
         self.commands.append(("arcTo", float(x1), float(y1), float(x2), float(y2), float(r)))
 
-    def draw_image(self, img, a, b, c, d):
+    def draw_image(self, img, x, y, width, height):
         # img should be rgba pack, uint32
         assert img.dtype == numpy.uint32
         with DrawingContext.__image_id_lock:
             DrawingContext.__image_id += 1
             image_id = DrawingContext.__image_id
         self.commands.append(
-            ("image", img.shape[1], img.shape[0], img, int(image_id), float(a), float(b), float(c), float(d)))
+            ("image", img.shape[1], img.shape[0], img, int(image_id), float(x), float(y), float(width), float(height)))
 
     def stroke(self):
         self.commands.append(("stroke", ))

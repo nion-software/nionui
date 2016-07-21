@@ -455,6 +455,8 @@ class UserInterface(object):
         pass
     def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
         pass
+    def create_button_group(self):
+        return Widget()
     def create_row_widget(self, alignment=None, properties=None):
         return Widget()
     def create_column_widget(self, alignment=None, properties=None):
@@ -470,6 +472,8 @@ class UserInterface(object):
     def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
         return Widget()
     def create_push_button_widget(self, text=None, properties=None):
+        return Widget()
+    def create_radio_button_widget(self, text=None, properties=None):
         return Widget()
     def create_check_box_widget(self, text=None, properties=None):
         return Widget()

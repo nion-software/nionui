@@ -11,6 +11,7 @@ import operator
 import sys
 import threading
 import time
+import warnings
 import weakref
 
 # third party libraries
@@ -428,6 +429,10 @@ class AbstractCanvasItem(object):
 
     def close(self):
         """ Close the canvas object. """
+        if threading.current_thread() != threading.main_thread():
+            warnings.warn('CanvasItem closed on non-UI thread')
+            import traceback
+            traceback.print_stack()
         self.__container = None
         self.on_focus_changed = None
         self.on_layout_updated = None

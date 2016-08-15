@@ -46,8 +46,10 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_item = None
         self.__selected_value_paths = set()
         self.layout = CanvasItem.CanvasItemColumnLayout()
+        self.on_content_height_changed = None
 
     def close(self):
+        self.on_content_height_changed = None
         super().close()
 
     def __is_selected(self, value_path):
@@ -59,16 +61,18 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         indent_size = 16
         canvas_bounds = self.canvas_bounds
         item_width = int(canvas_bounds.width) if canvas_bounds else None
+        canvas_height = 0
+        ITEM_HEIGHT = 18
         for canvas_item, item_type, is_expanded, value_path in self.__delegate.build_items(
                 self.__get_font_metrics_fn, item_width):
             indent = (len(value_path) - 1) * indent_size
             item_row = CanvasItem.CanvasItemComposition()
-            item_row.sizing.set_fixed_height(18)
+            item_row.sizing.set_fixed_height(ITEM_HEIGHT)
             item_row.layout = CanvasItem.CanvasItemRowLayout()
             item_row.add_spacing(indent)
             if item_type == "parent":
                 twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
-                twist_down_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=18, width=16))
+                twist_down_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=ITEM_HEIGHT, width=16))
                 twist_down_canvas_item.checked = is_expanded
 
                 def twist_down_clicked(toggle_value_path):
@@ -80,10 +84,12 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
                 item_row.add_spacing(indent_size)
             item_row.add_canvas_item(canvas_item)
             item_row.add_stretch()
-            item_row.__value_path = value_path
+            item_row.value_path = value_path
             self.add_canvas_item(item_row)
-        self.add_stretch()
+            canvas_height += ITEM_HEIGHT
         self.update()
+        if callable(self.on_content_height_changed):
+            self.on_content_height_changed(canvas_height)
 
     def __set_selection(self, value_path):
         self.__selected_value_paths.clear()
@@ -117,7 +123,8 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __value_path_at_point(self, p):
         for canvas_item in self.canvas_items_at_point(p.x, p.y):
-            return canvas_item.__value_path
+            if hasattr(canvas_item, "value_path"):
+                return canvas_item.value_path
         return None
 
     def context_menu_event(self, x, y, gx, gy):

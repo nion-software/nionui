@@ -8,6 +8,7 @@ import numpy
 # local libraries
 from . import CanvasItem
 from . import DrawingContext
+from nion.utils import Geometry
 
 
 focused_widget = None  # simulate focus handling at the widget level
@@ -26,6 +27,7 @@ class Widget(object):
         self.parent_id = 0
         self.current_index = -1
         self.viewport = ((0, 0), (480, 640))
+        self.size = Geometry.IntSize(16, 16)
         self.__focused = False
         self.on_editing_finished = None
         self.on_focus_changed = None

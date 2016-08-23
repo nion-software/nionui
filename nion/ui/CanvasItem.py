@@ -2360,8 +2360,8 @@ class RootCanvasItem(CanvasItemComposition):
         """ Ungrab gesture """
         self.__canvas_widget.ungrab_gesture(gesture_type)
 
-    def grab_mouse(self, grabbed_canvas_item):
-        self.__canvas_widget.grab_mouse()
+    def grab_mouse(self, grabbed_canvas_item, gx, gy):
+        self.__canvas_widget.grab_mouse(gx, gy)
         self.__grab_canvas_item = grabbed_canvas_item
 
     def release_mouse(self):

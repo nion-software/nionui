@@ -49,13 +49,16 @@ class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
         return True
 
     def grab_mouse(self, gx, gy):
+        self.__discard_first = True
         self.root_container.grab_mouse(self, gx, gy)
 
     def release_mouse(self):
         self.root_container.release_mouse()
 
     def grabbed_mouse_position_changed(self, dx, dy, modifiers):
-        self.on_mouse_position_changed_by(Geometry.IntPoint(x=dx, y=dy))
+        if not self.__discard_first:
+            self.on_mouse_position_changed_by(Geometry.IntPoint(x=dx, y=dy))
+        self.__discard_first = False
         return True
 
 

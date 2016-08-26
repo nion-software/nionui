@@ -196,6 +196,7 @@ class Widget(object):
     def bind_current_index(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()
+        self.current_item = self.items[self.value]
     @property
     def focused(self):
         return self.__focused
@@ -472,7 +473,9 @@ class UserInterface(object):
     def create_scroll_area_widget(self, properties=None):
         return Widget()
     def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
-        return Widget()
+        widget = Widget()
+        widget.items = items
+        return widget
     def create_push_button_widget(self, text=None, properties=None):
         return Widget()
     def create_radio_button_widget(self, text=None, properties=None):

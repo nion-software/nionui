@@ -138,22 +138,26 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def mouse_pressed(self, x, y, modifiers):
         if self.__delegate:
-            max_index = self.__delegate.item_count
             mouse_index = y // self.__item_height
+            max_index = self.__delegate.item_count
             if mouse_index >= 0 and mouse_index < max_index:
-                if modifiers.shift:
-                    self.__selection.extend(mouse_index)
-                elif modifiers.control:
-                    self.__selection.toggle(mouse_index)
-                else:
-                    self.__selection.set(mouse_index)
+                self.__mouse_index = mouse_index
+                if not modifiers.shift and not modifiers.control:
                     self.__mouse_pressed = True
                     self.__mouse_position = Geometry.IntPoint(y=y, x=x)
-                    self.__mouse_index = mouse_index
                 return True
         return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
+        mouse_index = self.__mouse_index
+        max_index = self.__delegate.item_count
+        if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
+            if modifiers.shift:
+                self.__selection.extend(mouse_index)
+            elif modifiers.control:
+                self.__selection.toggle(mouse_index)
+            else:
+                self.__selection.set(mouse_index)
         self.__mouse_pressed = False
         self.__mouse_index = None
         self.__mouse_position = None
@@ -165,6 +169,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
                 self.__mouse_dragging = True
                 if self.__delegate and self.__delegate.on_drag_started:
+                    self.root_container.bypass_request_focus()
                     self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.mouse_released(x, y, modifiers)

@@ -91,7 +91,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_size = self.canvas_size
         item_size = self.__calculate_item_size(canvas_size)
-        items_per_row = int(canvas_size.width / item_size)
+        items_per_row = int(canvas_size.width / item_size.width)
         row = index // items_per_row
         column = index - row * items_per_row
         return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
@@ -147,23 +147,6 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     return self.__delegate.on_context_menu_event(None, x, y, gx, gy)
         return False
 
-    def mouse_pressed(self, x, y, modifiers):
-        if self.__delegate:
-            mouse_index = self.__get_item_index_at(x, y)
-            max_index = self.__delegate.item_count
-            if mouse_index >= 0 and mouse_index < max_index:
-                if modifiers.shift:
-                    self.__selection.extend(mouse_index)
-                elif modifiers.control:
-                    self.__selection.toggle(mouse_index)
-                else:
-                    self.__selection.set(mouse_index)
-                    self.__mouse_pressed = True
-                    self.__mouse_position = Geometry.IntPoint(y=y, x=x)
-                    self.__mouse_index = mouse_index
-                return True
-            return super().mouse_pressed(x, y, modifiers)
-
     def __get_item_index_at(self, x, y):
         canvas_size = self.canvas_size
         item_size = self.__calculate_item_size(canvas_size)
@@ -173,7 +156,28 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         mouse_index = mouse_row * items_per_row + mouse_column
         return mouse_index
 
+    def mouse_pressed(self, x, y, modifiers):
+        if self.__delegate:
+            mouse_index = self.__get_item_index_at(x, y)
+            max_index = self.__delegate.item_count
+            if mouse_index >= 0 and mouse_index < max_index:
+                self.__mouse_index = mouse_index
+                if not modifiers.shift and not modifiers.control:
+                    self.__mouse_pressed = True
+                    self.__mouse_position = Geometry.IntPoint(y=y, x=x)
+                return True
+            return super().mouse_pressed(x, y, modifiers)
+
     def mouse_released(self, x, y, modifiers):
+        mouse_index = self.__mouse_index
+        max_index = self.__delegate.item_count
+        if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
+            if modifiers.shift:
+                self.__selection.extend(mouse_index)
+            elif modifiers.control:
+                self.__selection.toggle(mouse_index)
+            else:
+                self.__selection.set(mouse_index)
         self.__mouse_pressed = False
         self.__mouse_index = None
         self.__mouse_position = None
@@ -185,6 +189,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
                 self.__mouse_dragging = True
                 if self.__delegate and self.__delegate.on_drag_started:
+                    self.root_container.bypass_request_focus()
                     self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.mouse_released(x, y, modifiers)

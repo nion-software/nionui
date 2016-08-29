@@ -2237,18 +2237,24 @@ class RootCanvasItem(CanvasItemComposition):
         if self.__mouse_tracking_canvas_item:
             self.__mouse_canvas_item = self.__mouse_tracking_canvas_item
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
-            self.__request_focus(self.__mouse_canvas_item)
+            self.__request_focus_canvas_item = self.__mouse_canvas_item
             return self.__mouse_canvas_item.mouse_pressed(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
 
     def __mouse_released(self, x, y, modifiers):
         if self.__mouse_canvas_item:
+            if self.__request_focus_canvas_item:
+                self.__request_focus(self.__request_focus_canvas_item)
+                self.__request_focus_canvas_item = None
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
             self.__mouse_canvas_item = None
             self.__mouse_position_changed(x, y, modifiers)
             return result
         return False
+
+    def bypass_request_focus(self):
+        self.__request_focus_canvas_item = None
 
     def __mouse_position_changed(self, x, y, modifiers):
         if not self.__mouse_tracking:

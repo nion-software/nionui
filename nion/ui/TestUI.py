@@ -177,6 +177,9 @@ class Widget(object):
     def bind_check_state(self, binding):
         self.__binding = binding
         self.check_state = self.__binding.get_target_value()
+    def editing_finished(self, text):
+        if self.on_editing_finished:
+            self.on_editing_finished(text)
     def insert_item(self, item, before_index):
         item_row = self.create_list_item_widget(item)
         if not self.content_section:

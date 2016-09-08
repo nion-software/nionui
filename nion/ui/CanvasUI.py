@@ -2,10 +2,6 @@
 Provides a user interface object that can render to an HTML canvas.
 """
 
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
 import copy
 import queue
@@ -21,7 +17,7 @@ from . import DrawingContext
 from nion.utils import Geometry
 
 
-class CanvasWidget(object):
+class CanvasWidget:
 
     def __init__(self, properties):
         self.properties = properties if properties else {}
@@ -140,7 +136,7 @@ class CanvasWidget(object):
             self.on_focus_changed(False)
 
 
-class DrawingContextStorage(object):
+class DrawingContextStorage:
 
     def __init__(self):
         self.__storage = dict()
@@ -171,7 +167,7 @@ class DrawingContextStorage(object):
 class CanvasCanvasWidget(CanvasWidget):
 
     def __init__(self, properties):
-        super(CanvasCanvasWidget, self).__init__(properties)
+        super().__init__(properties)
         self.on_periodic = None
         self.on_mouse_entered = None
         self.on_mouse_exited = None
@@ -193,9 +189,13 @@ class CanvasCanvasWidget(CanvasWidget):
         self.height = 0
         self.__focusable = False
         self.__draw_mutex = threading.Lock()  # don't delete while drawing
+        self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
     def close(self):
         with self.__draw_mutex:
+            if self.__canvas_item:
+                self.__canvas_item.close()
+                self.__canvas_item = None
             self.on_periodic = None
             self.on_mouse_entered = None
             self.on_mouse_exited = None
@@ -213,16 +213,16 @@ class CanvasCanvasWidget(CanvasWidget):
             self.on_drag_leave = None
             self.on_drag_move = None
             self.on_drop = None
-            super(CanvasCanvasWidget, self).close()
+            super().close()
 
     def periodic(self):
-        super(CanvasCanvasWidget, self).periodic()
+        super().periodic()
         if self.on_periodic:
             self.on_periodic()
 
     @property
     def canvas_item(self):
-        return self
+        return self.__canvas_item
 
     @property
     def canvas_size(self):
@@ -335,7 +335,7 @@ class CanvasCanvasWidget(CanvasWidget):
             self.on_pan_gesture(delta_x, delta_y)
 
 
-class CanvasDocumentWindow(object):
+class CanvasDocumentWindow:
 
     def __init__(self, ui):
         self.ui = ui
@@ -416,7 +416,7 @@ class CanvasDocumentWindow(object):
                 self.root_widget.handle_size_changed(size.width, size.height)
 
 
-class CanvasUserInterface(object):
+class CanvasUserInterface:
 
     def __init__(self, draw_fn, get_font_metrics_fn):
         self.__draw_fn = draw_fn

@@ -36,3 +36,16 @@ class Application(object):
     def start(self):
         """The start method should create a document window that will be the focus of the UI."""
         raise NotImplemented()
+
+
+def make_ui(bootstrap_args):
+    if "proxy" in bootstrap_args:
+        from nion.ui import UserInterface
+        proxy = bootstrap_args["proxy"]
+        return UserInterface.QtUserInterface(proxy)
+    elif "server" in bootstrap_args:
+        from nion.ui import CanvasUI
+        server = bootstrap_args["server"]
+        return CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
+    else:
+        return None

@@ -2,9 +2,6 @@
 A basic class to serve as the document controller of a typical one window application.
 """
 
-# futures
-from __future__ import absolute_import
-
 # standard libraries
 # None
 
@@ -12,7 +9,7 @@ from __future__ import absolute_import
 from nion.utils import Process
 
 
-class DocumentController(object):
+class DocumentController:
 
     def __init__(self, ui, app=None):
         self.ui = ui
@@ -24,7 +21,6 @@ class DocumentController(object):
         self.document_window.on_clear_task = self.clear_task
         self.document_window.on_about_to_show = self.about_to_show
         self.document_window.on_about_to_close = self.about_to_close
-        self.document_window.title = "Hello World"
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
 

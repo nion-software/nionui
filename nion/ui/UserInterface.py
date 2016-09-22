@@ -1252,6 +1252,7 @@ class QtLineEditWidget(QtWidget):
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
+        self.on_key_pressed = None
         self.on_text_edited = None
         self.proxy.LineEdit_connect(self.widget, self)
         self.__binding = None
@@ -1310,6 +1311,12 @@ class QtLineEditWidget(QtWidget):
         if self.on_return_pressed:
             self.on_return_pressed()
             return True
+        return False
+
+    def keyPressed(self, text, key, raw_modifiers):
+        on_key_pressed = self.on_key_pressed
+        if callable(on_key_pressed):
+            return on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
     def text_edited(self, text):
@@ -1426,6 +1433,12 @@ class QtTextEditWidget(QtWidget):
             self.proxy.TextEdit_setTextColor(self.widget, 0, 255, 0)
         elif color == "blue":
             self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 255)
+        elif color == "orange":
+            self.proxy.TextEdit_setTextColor(self.widget, 255, 128, 0)
+        elif color == "purple":
+            self.proxy.TextEdit_setTextColor(self.widget, 128, 0, 128)
+        elif color == "brown":
+            self.proxy.TextEdit_setTextColor(self.widget, 150, 75, 0)
         elif color == "black":
             self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 0)
         else:

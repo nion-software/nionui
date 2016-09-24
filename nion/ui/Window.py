@@ -3,6 +3,8 @@ A basic class to serve as the document controller of a typical one window applic
 """
 
 # standard libraries
+import asyncio
+import logging
 import typing
 
 # local libraries
@@ -26,8 +28,21 @@ class Window:
         self.__document_window.on_activation_changed = self.activation_changed
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
+        # configure the event loop object
+        logger = logging.getLogger()
+        old_level = logger.level
+        logger.setLevel(logging.INFO)
+        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
+        logger.setLevel(old_level)
 
     def close(self):
+        # give cancelled tasks a chance to finish
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
+        self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
+        # now close
+        self.__event_loop.close()
+        self.__event_loop = None
         self.ui.destroy_document_window(self.__document_window)
         self.__document_window = None
         self.__periodic_queue = None
@@ -49,6 +64,12 @@ class Window:
     def periodic(self) -> None:
         self.__periodic_queue.perform_tasks()
         self.__periodic_set.perform_tasks()
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
     def attach_widget(self, widget):
         self.__document_window.attach(widget)

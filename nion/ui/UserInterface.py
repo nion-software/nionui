@@ -2,9 +2,6 @@
 Provides a user interface object that can render to an Qt host.
 """
 
-# typing
-from typing import Any, List
-
 # standard libraries
 import binascii
 import collections
@@ -14,6 +11,7 @@ import os
 import pickle
 import threading
 import time
+import typing
 import weakref
 
 # third party libraries
@@ -25,11 +23,11 @@ from nion.ui import DrawingContext
 from nion.utils import Geometry
 
 
-def notnone(s: Any) -> str:
+def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
 
 
-class QtKeyboardModifiers(object):
+class QtKeyboardModifiers:
     def __init__(self, raw_modifiers):
         self.raw_modifiers = raw_modifiers
 
@@ -92,7 +90,7 @@ class QtKeyboardModifiers(object):
         return self.raw_modifiers == 0x20000000
 
 
-class QtKey(object):
+class QtKey:
     def __init__(self, text, key, raw_modifiers):
         self.text = text
         self.key = key
@@ -127,24 +125,33 @@ class QtKey(object):
         return self.key == 0x1000015
 
 
-class QtMimeData(object):
+class QtMimeData:
     def __init__(self, proxy, mime_data=None):
         self.proxy = proxy
         self.raw_mime_data = mime_data if mime_data else self.proxy.MimeData_create()
-    def __get_formats(self):
+
+    @property
+    def formats(self):
         return self.proxy.MimeData_formats(self.raw_mime_data)
-    formats = property(__get_formats)
+
     def has_format(self, format):
         return format in self.formats
-    def __get_has_urls(self):
+
+    @property
+    def has_urls(self):
         return "text/uri-list" in self.formats
-    has_urls = property(__get_has_urls)
-    has_file_paths = property(__get_has_urls)
-    def __get_urls(self):
+
+    @property
+    def has_file_paths(self):
+        return "text/uri-list" in self.formats
+
+    @property
+    def urls(self):
         raw_urls = self.data_as_string("text/uri-list")
         return raw_urls.splitlines() if raw_urls and len(raw_urls) > 0 else []
-    urls = property(__get_urls)
-    def __get_file_paths(self):
+
+    @property
+    def file_paths(self):
         urls = self.urls
         file_paths = []
         for url in urls:
@@ -152,15 +159,16 @@ class QtMimeData(object):
             if file_path and len(file_path) > 0 and os.path.exists(file_path) and os.path.isfile(file_path):
                 file_paths.append(file_path)
         return file_paths
-    file_paths = property(__get_file_paths)
+
     def data_as_string(self, format):
         return self.proxy.MimeData_dataAsString(self.raw_mime_data, format)
+
     def set_data_as_string(self, format, text):
         self.proxy.MimeData_setDataAsString(self.raw_mime_data, format, text)
 
 
 # pobj
-class QtItemModelController(object):
+class QtItemModelController:
 
     NONE = 0
     COPY = 1
@@ -170,38 +178,48 @@ class QtItemModelController(object):
     DRAG = 1
     DROP = 2
 
-    class Item(object):
+    class Item:
         def __init__(self, data=None):
             self.id = None
             self.data = data if data else {}
             self.weak_parent = None
             self.children = []
+
         def __str__(self):
             return "Item %i (row %i parent %s)" % (self.id, self.row, self.parent)
+
         def remove_all_children(self):
             self.children = []
+
         def append_child(self, item):
             item.parent = self
             self.children.append(item)
+
         def insert_child(self, before_index, item):
             item.parent = self
             self.children.insert(before_index, item)
+
         def remove_child(self, item):
             item.parent = None
             self.children.remove(item)
+
         def child(self, index):
             return self.children[index]
-        def __get_row(self):
+
+        @property
+        def row(self):
             parent = self.weak_parent() if self.weak_parent else None
             if parent:
                 return parent.children.index(self)
             return -1
-        row = property(__get_row)
-        def __get_parent(self):
+
+        @property
+        def parent(self):
             return self.weak_parent() if self.weak_parent else None
-        def __set_parent(self, parent):
+
+        @parent.setter
+        def parent(self, parent):
             self.weak_parent = weakref.ref(parent) if parent else None
-        parent = property(__get_parent, __set_parent)
 
     def __init__(self, proxy, keys):
         self.proxy = proxy
@@ -352,7 +370,7 @@ class QtItemModelController(object):
 
 # pobj
 # supported drop actions are what is allowed for a drag originated with this item and dropped into another item.
-class QtListModelController(object):
+class QtListModelController:
 
     NONE = 0
     COPY = 1
@@ -423,7 +441,7 @@ class QtListModelController(object):
         self.proxy.ListModel_dataChanged(self.py_list_model)
 
 
-class QtDrag(object):
+class QtDrag:
     def __init__(self, proxy, widget, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
         self.proxy = proxy
         self.__raw_drag = self.proxy.Drag_create(widget, mime_data.raw_mime_data)
@@ -448,7 +466,7 @@ class QtDrag(object):
             self.on_drag_finished(action)
 
 
-class QtWidget(object):
+class QtWidget:
     def __init__(self, proxy, widget_type, properties):
         self.proxy = proxy
         self.properties = properties if properties else {}
@@ -948,23 +966,27 @@ class QtPushButtonWidget(QtWidget):
         self.on_clicked = None
         super(QtPushButtonWidget, self).close()
 
-    def __get_text(self):
+    @property
+    def text(self) -> str:
         return self.__text
-    def __set_text(self, text):
+
+    @text.setter
+    def text(self, text: str) -> None:
         self.__text = self.proxy.encode_text(text)
         self.proxy.PushButton_setText(self.widget, self.__text)
-    text = property(__get_text, __set_text)
 
-    def __get_icon(self):
+    @property
+    def icon(self):
         return self.__icon
-    def __set_icon(self, rgba_image):
+
+    @icon.setter
+    def icon(self, rgba_image) -> None:
+        # rgba_image should be a uint32 numpy array with the pixel order bgra
         self.__icon = rgba_image
         self.__width = rgba_image.shape[1] if rgba_image is not None else 0
         self.__height = rgba_image.shape[0] if rgba_image is not None else 0
         rgba_data = self.proxy.encode_data(rgba_image)
         self.proxy.PushButton_setIcon(self.widget, self.__width, self.__height, rgba_data)
-    # bgra
-    icon = property(__get_icon, __set_icon)
 
     def clicked(self):
         if self.on_clicked:
@@ -984,23 +1006,27 @@ class QtRadioButtonWidget(QtWidget):
         self.on_clicked = None
         super(QtRadioButtonWidget, self).close()
 
-    def __get_text(self):
+    @property
+    def text(self) -> str:
         return self.__text
-    def __set_text(self, text):
+
+    @text.setter
+    def text(self, text: str) -> None:
         self.__text = self.proxy.encode_text(text)
         self.proxy.RadioButton_setText(self.widget, self.__text)
-    text = property(__get_text, __set_text)
 
-    def __get_icon(self):
+    @property
+    def icon(self):
         return self.__icon
-    def __set_icon(self, rgba_image):
+
+    @icon.setter
+    def icon(self, rgba_image) -> None:
+        # rgba_image should be a uint32 numpy array with the pixel order bgra
         self.__icon = rgba_image
         self.__width = rgba_image.shape[1] if rgba_image is not None else 0
         self.__height = rgba_image.shape[0] if rgba_image is not None else 0
         rgba_data = self.proxy.encode_data(rgba_image)
         self.proxy.RadioButton_setIcon(self.widget, self.__width, self.__height, rgba_data)
-    # bgra
-    icon = property(__get_icon, __set_icon)
 
     @property
     def checked(self):
@@ -1504,7 +1530,7 @@ class QtTextEditWidget(QtWidget):
         self.on_text_changed = None
 
 
-class QtDrawingContextStorage(object):
+class QtDrawingContextStorage:
 
     def __init__(self):
         self.__storage = dict()
@@ -2041,7 +2067,7 @@ class QtAction:
         self.proxy.Action_setEnabled(self.native_action, enabled)
 
 
-class QtMenu(object):
+class QtMenu:
 
     def __init__(self, proxy, document_window, native_menu):
         self.proxy = proxy
@@ -2098,7 +2124,7 @@ class QtMenu(object):
         self.proxy.Menu_popup(self.native_menu, gx, gy)
 
 
-class QtDocumentWindow(object):
+class QtDocumentWindow:
 
     def __init__(self, proxy, title):
         self.proxy = proxy
@@ -2160,7 +2186,7 @@ class QtDocumentWindow(object):
         if self.on_clear_task:
             self.on_clear_task(key + str(id(self)))
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (List[str], str, str):
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
         selected_filter = selected_filter if selected_filter else str()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory
@@ -2242,7 +2268,7 @@ class QtDocumentWindow(object):
         self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
 
 
-class QtDockWidget(object):
+class QtDockWidget:
 
     def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
         self.proxy = proxy
@@ -2285,7 +2311,7 @@ class QtDockWidget(object):
 QtFontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
 
-class QtUserInterface(object):
+class QtUserInterface:
 
     def __init__(self, proxy):
         self.proxy = proxy

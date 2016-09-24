@@ -12,30 +12,23 @@ from typing import Callable
 # none
 
 # local libraries
-# none
+from nion.ui import DocumentController
 
 
 _ = gettext.gettext
 
 
-class OkCancelDialog:
+class OkCancelDialog(DocumentController.DocumentController):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
     def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None):
-        super().__init__()
+        super().__init__(ui)
 
-        self.ui = ui
+        self.document_window.window_style = "dialog"
 
         self.on_reject = None
         self.on_accept = None
-
-        self.document_window = self.ui.create_document_window()
-        self.document_window.window_style = "dialog"
-        self.document_window.on_periodic = lambda: self.periodic()
-        self.document_window.on_about_to_show = lambda: self.about_to_show()
-        self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
-        self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
 
         self.content = self.ui.create_column_widget()
 
@@ -51,8 +44,7 @@ class OkCancelDialog:
             def on_cancel_clicked():
                 if self.on_reject:
                     self.on_reject()
-                self.document_window.request_close()
-                self.document_window = None
+                self.request_close()
 
             cancel_title = cancel_title if cancel_title else _("Cancel")
             cancel_button = self.ui.create_push_button_widget(cancel_title, properties={"min-width": 100})
@@ -64,8 +56,7 @@ class OkCancelDialog:
             def on_ok_clicked():
                 if self.on_accept:
                     self.on_accept()
-                self.document_window.request_close()
-                self.document_window = None
+                self.request_close()
 
             ok_title = ok_title if ok_title else _("OK")
             ok_button = self.ui.create_push_button_widget(ok_title, properties={"min-width": 100})
@@ -83,7 +74,7 @@ class OkCancelDialog:
             self.periodic()
         self.on_reject = None
         self.on_accept = None
-        self.document_window = None
+        super().close()
 
     def periodic(self) -> None:
         pass
@@ -94,7 +85,7 @@ class OkCancelDialog:
     def about_to_close(self, geometry: str, state: str) -> None:
         if self.on_reject:
             self.on_reject()
-        self.close()
+        super().about_to_close(geometry, state)
 
     def activation_changed(self, activated: bool) -> None:
         pass
@@ -103,23 +94,17 @@ class OkCancelDialog:
         self.document_window.show()
 
 
-class ActionDialog:
+class ActionDialog(DocumentController.DocumentController):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
     def __init__(self, ui, title: str=None):
-        super().__init__()
-
-        self.ui = ui
+        super().__init__(ui)
 
         self.on_reject = None
         self.on_accept = None
 
-        self.document_window = self.ui.create_document_window(title=title)
-        self.document_window.on_periodic = lambda: self.periodic()
-        self.document_window.on_about_to_show = lambda: self.about_to_show()
-        self.document_window.on_about_to_close = lambda geometry, state: self.about_to_close(geometry, state)
-        self.document_window.on_activation_changed = lambda activated: self.activation_changed(activated)
+        self.document_window.title = title
 
         self.content = self.ui.create_column_widget()
 
@@ -142,29 +127,13 @@ class ActionDialog:
             self.periodic()
         self.on_reject = None
         self.on_accept = None
-        self.document_window = None
-
-    def periodic(self) -> None:
-        pass
-
-    def about_to_show(self) -> None:
-        pass
-
-    def about_to_close(self, geometry: str, state: str) -> None:
-        self.close()
-
-    def activation_changed(self, activated: bool) -> None:
-        pass
-
-    def show(self) -> None:
-        self.document_window.show()
+        super().close()
 
     def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> None:
         def on_clicked():
             do_close = on_clicked_fn()
             if do_close:
-                self.document_window.request_close()
-                self.document_window = None
+                self.request_close()
 
         button = self.ui.create_push_button_widget(title, properties={"min-width": 100})
         button.on_clicked = on_clicked

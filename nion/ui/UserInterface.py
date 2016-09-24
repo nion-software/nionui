@@ -2252,7 +2252,6 @@ class QtDocumentWindow:
     def aboutToClose(self, geometry, state):
         if self.on_about_to_close:
             self.on_about_to_close(geometry, state)
-        self.close()
 
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
@@ -2342,7 +2341,7 @@ class QtUserInterface:
         return QtDocumentWindow(self.proxy, title)
 
     def destroy_document_window(self, document_window):
-        pass
+        document_window.close()
 
     # user interface elements
 

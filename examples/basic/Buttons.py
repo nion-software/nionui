@@ -6,7 +6,7 @@ import numpy
 
 # local libraries
 from nion.ui import Application
-from nion.ui import DocumentController
+from nion.ui import Window
 from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Model
@@ -21,13 +21,13 @@ class ButtonsApplication(Application.Application):
 
     def start(self):
         # the start method should create a document window that will be the focus of the ui
-        self.document_controller = ButtonsDocumentController(self.ui, app=self)
-        self.document_controller.title = "Buttons"
-        self.document_controller.show()
+        self.window = ButtonsWindow(self.ui, app=self)
+        self.window.title = "Buttons"
+        self.window.show()
         return True
 
 
-class ButtonsDocumentController(DocumentController.DocumentController):
+class ButtonsWindow(Window.Window):
 
     def __init__(self, ui, app=None):
         super().__init__(ui, app)

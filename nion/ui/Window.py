@@ -9,7 +9,7 @@ import typing
 from nion.utils import Process
 
 
-class DocumentController:
+class Window:
 
     def __init__(self, ui, app=None, window_style=None):
         self.ui = ui
@@ -112,13 +112,20 @@ class DocumentController:
     def restore(self, geometry: str, state: str) -> None:
         self.__document_window.restore(geometry, state)
 
+    # tasks can be added in two ways, queued or added
+    # queued tasks are guaranteed to be executed in the order queued.
+    # added tasks are only executed if not replaced before execution.
+    # added tasks do not guarantee execution order or execution at all.
+
     def add_task(self, key, task):
+        assert task
         self.__periodic_set.add_task(key + str(id(self)), task)
 
     def clear_task(self, key):
         self.__periodic_set.clear_task(key + str(id(self)))
 
     def queue_task(self, task):
+        assert task
         self.__periodic_queue.put(task)
 
     def handle_quit(self):

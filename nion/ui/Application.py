@@ -24,7 +24,7 @@ class Application(object):
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
         logger.addHandler(logging.StreamHandler())
-        self.document_controller = None
+        self.window = None
 
     def initialize(self):
         """Initialize. Separate from __init__ so that overridden methods can be called."""

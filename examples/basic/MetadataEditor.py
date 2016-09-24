@@ -8,10 +8,10 @@ import sys
 
 # local libraries
 from nion.ui import Application
-from nion.ui import DocumentController
 from nion.ui import CanvasItem
 from nion.ui import CanvasUI
 from nion.ui import TreeCanvasItem
+from nion.ui import Window
 
 _ = gettext.gettext
 
@@ -22,8 +22,8 @@ class MetadataEditorApplication(Application.Application):
 
     def start(self):
         # the start method should create a document window that will be the focus of the ui
-        self.document_controller = MetadataEditorDocumentController(self.ui, app=self)
-        self.document_controller.show()
+        self.window = MetadataEditorWindow(self.ui, app=self)
+        self.window.show()
 
 
 class MetadataEditorTreeDelegate:
@@ -94,10 +94,10 @@ class MetadataEditorTreeDelegate:
         return items
 
 
-class MetadataEditorDocumentController(DocumentController.DocumentController):
+class MetadataEditorWindow(Window.Window):
 
     def __init__(self, ui, app=None):
-        super(MetadataEditorDocumentController, self).__init__(ui, app)
+        super().__init__(ui, app)
 
         # first create a root canvas item in which the rest of the user interface will go
         canvas_widget = ui.create_canvas_widget()

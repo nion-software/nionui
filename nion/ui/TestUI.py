@@ -459,8 +459,6 @@ class UserInterface(object):
         return DocumentWindow()
     def destroy_document_window(self, document_window):
         pass
-    def tabify_dock_widgets(self, document_controller, dock_widget1, dock_widget2):
-        pass
     def create_button_group(self):
         return Widget()
     def create_row_widget(self, alignment=None, properties=None):

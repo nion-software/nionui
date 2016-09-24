@@ -8,9 +8,9 @@ import sys
 
 # local libraries
 from nion.ui import Application
-from nion.ui import DocumentController
 from nion.ui import CanvasItem
 from nion.ui import CanvasUI
+from nion.ui import Window
 
 _ = gettext.gettext
 
@@ -21,8 +21,8 @@ class HelloWorldApplication(Application.Application):
 
     def start(self):
         # the start method should create a document window that will be the focus of the ui
-        self.document_controller = HelloWorldDocumentController(self.ui, app=self)
-        self.document_controller.show()
+        self.window = HelloWorldWindow(self.ui, app=self)
+        self.window.show()
 
 
 class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -60,10 +60,10 @@ class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.restore()
 
 
-class HelloWorldDocumentController(DocumentController.DocumentController):
+class HelloWorldWindow(Window.Window):
 
     def __init__(self, ui, app=None):
-        super(HelloWorldDocumentController, self).__init__(ui, app)
+        super().__init__(ui, app)
 
         # first create a root canvas item in which the rest of the user interface will go
         canvas_widget = ui.create_canvas_widget()

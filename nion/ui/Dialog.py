@@ -12,13 +12,13 @@ from typing import Callable
 # none
 
 # local libraries
-from nion.ui import DocumentController
+from nion.ui import Window
 
 
 _ = gettext.gettext
 
 
-class OkCancelDialog(DocumentController.DocumentController):
+class OkCancelDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
@@ -78,7 +78,7 @@ class OkCancelDialog(DocumentController.DocumentController):
         super().about_to_close(geometry, state)
 
 
-class ActionDialog(DocumentController.DocumentController):
+class ActionDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """

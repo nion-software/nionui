@@ -23,9 +23,7 @@ class OkCancelDialog(DocumentController.DocumentController):
         Present a modeless dialog with Ok and Cancel buttons.
     """
     def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None):
-        super().__init__(ui)
-
-        self.document_window.window_style = "dialog"
+        super().__init__(ui, window_style="dialog")
 
         self.on_reject = None
         self.on_accept = None
@@ -66,32 +64,18 @@ class OkCancelDialog(DocumentController.DocumentController):
 
         content_column.add(button_row)
 
-        self.document_window.attach(content_column)
+        self.attach_widget(content_column)
 
     def close(self) -> None:
-        # recognize when we're running as test and finish out periodic operations
-        if not self.document_window.has_event_loop:
-            self.periodic()
+        self.finish_periodic()  # required to finish periodic operations during tests
         self.on_reject = None
         self.on_accept = None
         super().close()
-
-    def periodic(self) -> None:
-        pass
-
-    def about_to_show(self) -> None:
-        pass
 
     def about_to_close(self, geometry: str, state: str) -> None:
         if self.on_reject:
             self.on_reject()
         super().about_to_close(geometry, state)
-
-    def activation_changed(self, activated: bool) -> None:
-        pass
-
-    def show(self) -> None:
-        self.document_window.show()
 
 
 class ActionDialog(DocumentController.DocumentController):
@@ -104,7 +88,7 @@ class ActionDialog(DocumentController.DocumentController):
         self.on_reject = None
         self.on_accept = None
 
-        self.document_window.title = title
+        self.title = title
 
         self.content = self.ui.create_column_widget()
 
@@ -119,12 +103,10 @@ class ActionDialog(DocumentController.DocumentController):
 
         content_column.add(self.button_row)
 
-        self.document_window.attach(content_column)
+        self.attach_widget(content_column)
 
     def close(self) -> None:
-        # recognize when we're running as test and finish out periodic operations
-        if not self.document_window.has_event_loop:
-            self.periodic()
+        self.finish_periodic()  # required to finish periodic operations during tests
         self.on_reject = None
         self.on_accept = None
         super().close()

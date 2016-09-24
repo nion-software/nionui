@@ -22,7 +22,7 @@ class HelloWorldApplication(Application.Application):
     def start(self):
         # the start method should create a document window that will be the focus of the ui
         self.document_controller = HelloWorldDocumentController(self.ui, app=self)
-        self.document_controller.document_window.show()
+        self.document_controller.show()
 
 
 class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -127,7 +127,7 @@ class HelloWorldDocumentController(DocumentController.DocumentController):
         canvas_widget.canvas_item.add_canvas_item(column_canvas_item)
 
         # attach the root canvas item to the document window
-        self.document_window.attach(canvas_widget)
+        self.attach_widget(canvas_widget)
 
         # configure what happens when the button is pressed
         click_count_ref = [0]

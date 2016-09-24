@@ -23,7 +23,7 @@ class MetadataEditorApplication(Application.Application):
     def start(self):
         # the start method should create a document window that will be the focus of the ui
         self.document_controller = MetadataEditorDocumentController(self.ui, app=self)
-        self.document_controller.document_window.show()
+        self.document_controller.show()
 
 
 class MetadataEditorTreeDelegate:
@@ -115,7 +115,7 @@ class MetadataEditorDocumentController(DocumentController.DocumentController):
         canvas_widget.canvas_item.add_canvas_item(metadata_editor_canvas_item)
 
         # attach the root canvas item to the document window
-        self.document_window.attach(canvas_widget)
+        self.attach_widget(canvas_widget)
 
 
 if __name__ == '__main__':

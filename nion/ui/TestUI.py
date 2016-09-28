@@ -187,6 +187,8 @@ class Widget(object):
         self.content_section.insert(item_row, before_index)
     def remove_item(self, index):
         pass
+    def remove_all_items(self):
+        pass
     def bind_items(self, binding):
         self.__binding = binding
         self.__binding.inserter = self.insert_item

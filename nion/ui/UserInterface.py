@@ -1993,6 +1993,10 @@ class QtNewListWidget(QtColumnWidget):
         self.content_section.remove(index)
         self.__sync_header()
 
+    def remove_all_items(self):
+        self.content_section.remove_all()
+        self.__sync_header()
+
     def __sync_header(self):
         # select the right header item
         has_content = self.content_section.child_count > 0

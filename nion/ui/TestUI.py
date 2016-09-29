@@ -186,9 +186,16 @@ class Widget(object):
             self.content_section = Widget()
         self.content_section.insert(item_row, before_index)
     def remove_item(self, index):
-        pass
+        self.content_section.children.pop(index)
+    @property
+    def list_item_count(self):
+        return self.content_section.child_count if self.content_section else 0
+    @property
+    def list_items(self):
+        return self.content_section.children
     def remove_all_items(self):
-        pass
+        while self.list_item_count > 0:
+            self.remove_item(0)
     def bind_items(self, binding):
         self.__binding = binding
         self.__binding.inserter = self.insert_item

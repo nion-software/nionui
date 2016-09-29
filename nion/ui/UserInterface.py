@@ -1368,7 +1368,9 @@ class QtLineEditWidget(QtWidget):
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
 
     def unbind_text(self):
-        self.__binding = None
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.on_editing_finished = None
 
 
@@ -1982,6 +1984,14 @@ class QtNewListWidget(QtColumnWidget):
         self.header_for_empty_list_widget = None
         self.create_list_item_widget = None
         super(QtNewListWidget, self).close()
+
+    @property
+    def list_items(self):
+        return self.content_section.children
+
+    @property
+    def list_item_count(self):
+        return self.content_section.child_count
 
     def insert_item(self, item, before_index):
         if self.create_list_item_widget:  # item may be closed while this call is pending on main thread.

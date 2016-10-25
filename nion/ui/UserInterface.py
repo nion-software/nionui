@@ -1389,6 +1389,7 @@ class QtTextEditWidget(QtWidget):
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_key_pressed = None
+        self.on_insert_mime_data = None
         self.proxy.TextEdit_connect(self.widget, self)
         self.__binding = None
         self.__in_update = False
@@ -1398,7 +1399,10 @@ class QtTextEditWidget(QtWidget):
             self.__binding.close()
             self.__binding = None
         self.clear_task("update_text")
-        self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
         super(QtTextEditWidget, self).close()
 
     @property
@@ -1504,6 +1508,13 @@ class QtTextEditWidget(QtWidget):
         if callable(on_key_pressed):
             return on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
+
+    def insertFromMimeData(self, raw_mime_data):
+        mime_data = QtMimeData(self.proxy, raw_mime_data)
+        if callable(self.on_insert_mime_data):
+            self.on_insert_mime_data(mime_data)
+        else:
+            self.insert_text(mime_data.data_as_string("text/plain"))
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):

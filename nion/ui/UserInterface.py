@@ -105,6 +105,10 @@ class QtKey:
         return len(self.text) == 1 and (ord(self.text[0]) == 3 or ord(self.text[0]) == 13)
 
     @property
+    def is_tab(self):
+        return self.key == 0x1000001
+
+    @property
     def is_arrow(self):
         return self.key in (0x1000012, 0x1000013, 0x1000014, 0x1000015)
 

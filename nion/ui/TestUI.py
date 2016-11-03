@@ -400,6 +400,10 @@ class Key(object):
         return self.key == "enter" or self.key == "return"
 
     @property
+    def is_tab(self):
+        return self.key == "tab"
+
+    @property
     def is_arrow(self):
         return self.is_left_arrow or self.is_up_arrow or self.is_right_arrow or self.is_down_arrow
 

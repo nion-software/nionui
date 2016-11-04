@@ -1297,6 +1297,89 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(empty1.canvas_bounds.height, 100)
         self.assertEqual(row.canvas_bounds.height, 0)
 
+    def test_preferred_size_in_overlap_does_not_limit_sibling_sizes(self):
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        canvas_item = canvas_widget.canvas_item
+        container = CanvasItem.CanvasItemComposition()  # overlap layout
+        item1 = CanvasItem.CanvasItemComposition()
+        item2 = CanvasItem.CanvasItemComposition()
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        row.add_stretch()
+        row.add_spacing(8)
+        column.add_stretch()
+        column.add_canvas_item(row)
+        column.add_spacing(8)
+        item1.add_canvas_item(column)
+        container.add_canvas_item(item1)
+        container.add_canvas_item(item2)
+        canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        canvas_item.add_canvas_item(container)
+        canvas_item.add_stretch()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        # check that items use full container (due to item2 not having preferred size)
+        self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_height)
+        self.assertEqual(item1.canvas_size.width, 100)
+        self.assertEqual(item1.canvas_size.height, 50)  # vertical is shared evenly between item1 and stretch
+        self.assertEqual(item2.canvas_size.width, 100)
+        self.assertEqual(item2.canvas_size.height, 50)  # vertical is shared evenly between item2 and stretch
+
+    def test_preferred_width_in_column_does_not_limit_sibling_sizes(self):
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        canvas_item = canvas_widget.canvas_item
+        container = CanvasItem.CanvasItemComposition()  # column layout
+        container.layout = CanvasItem.CanvasItemColumnLayout()
+        item1 = CanvasItem.CanvasItemComposition()
+        item2 = CanvasItem.CanvasItemComposition()
+        row = CanvasItem.CanvasItemComposition()
+        row.layout = CanvasItem.CanvasItemRowLayout()
+        row.add_stretch()
+        row.add_spacing(8)
+        item1.add_canvas_item(row)
+        container.add_canvas_item(item1)
+        container.add_canvas_item(item2)
+        canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        canvas_item.add_canvas_item(container)
+        canvas_item.add_stretch()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        # check that items use full container width (due to item2 not having preferred width)
+        self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_width)
+        self.assertEqual(item1.canvas_size.width, 50)
+        self.assertEqual(item1.canvas_size.height, 50)  # vertical is shared evenly between item1 and stretch
+        self.assertEqual(item2.canvas_size.width, 50)
+        self.assertEqual(item2.canvas_size.height, 50)  # vertical is shared evenly between item2 and stretch
+
+    def test_preferred_height_in_row_does_not_limit_sibling_sizes(self):
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        canvas_item = canvas_widget.canvas_item
+        container = CanvasItem.CanvasItemComposition()  # row layout
+        container.layout = CanvasItem.CanvasItemRowLayout()
+        item1 = CanvasItem.CanvasItemComposition()
+        item2 = CanvasItem.CanvasItemComposition()
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        column.add_stretch()
+        column.add_spacing(8)
+        item1.add_canvas_item(column)
+        container.add_canvas_item(item1)
+        container.add_canvas_item(item2)
+        canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        canvas_item.add_canvas_item(container)
+        canvas_item.add_stretch()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        # check that items use full container width (due to item2 not having preferred width)
+        self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_width)
+        self.assertEqual(item1.canvas_size.width, 50)
+        self.assertEqual(item1.canvas_size.height, 50)  # vertical is shared evenly between item1 and stretch
+        self.assertEqual(item2.canvas_size.width, 50)
+        self.assertEqual(item2.canvas_size.height, 50)  # vertical is shared evenly between item2 and stretch
+
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

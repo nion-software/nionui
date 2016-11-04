@@ -891,11 +891,14 @@ class CanvasItemAbstractLayout(object):
         sizing = Sizing()
         sizing.maximum_width = 0
         sizing.maximum_height = 0
+        sizing.preferred_width = 0
+        sizing.preferred_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
+                old_sizing = copy.deepcopy(sizing)
                 canvas_item_sizing = canvas_item.layout_sizing
-                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
-                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max, True)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)  # if any minimum_width is present, take the maximum one
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
@@ -904,6 +907,10 @@ class CanvasItemAbstractLayout(object):
             sizing.maximum_width = None
         if sizing.maximum_height == 0 or len(canvas_items) == 0:
             sizing.maximum_height = None
+        if sizing.preferred_width == 0 or len(canvas_items) == 0:
+            sizing.preferred_width = None
+        if sizing.preferred_height == 0 or len(canvas_items) == 0:
+            sizing.preferred_height = None
         return sizing
 
     def _get_column_sizing(self, canvas_items):
@@ -914,17 +921,21 @@ class CanvasItemAbstractLayout(object):
         sizing = Sizing()
         sizing.maximum_width = 0
         sizing.maximum_height = 0
+        sizing.preferred_width = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
-                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max)
+                # print(canvas_item_sizing)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
-        if sizing.maximum_width == 0:
+        if sizing.maximum_width == 0 or len(canvas_items) == 0:
             sizing.maximum_width = None
+        if sizing.preferred_width == 0 or len(canvas_items) == 0:
+            sizing.preferred_width = None
         if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
             sizing.maximum_height = None
         return sizing
@@ -937,19 +948,22 @@ class CanvasItemAbstractLayout(object):
         sizing = Sizing()
         sizing.maximum_width = 0
         sizing.maximum_height = 0
+        sizing.preferred_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
-                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max)
+                self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", max)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", max, True)
         if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
             sizing.maximum_width = None
-        if sizing.maximum_height == 0:
+        if sizing.maximum_height == 0 or len(canvas_items) == 0:
             sizing.maximum_height = None
+        if sizing.preferred_height == 0 or len(canvas_items) == 0:
+            sizing.preferred_height = None
         return sizing
 
     def _adjust_sizing(self, sizing, x_spacing, y_spacing):

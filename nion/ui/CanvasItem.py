@@ -925,7 +925,6 @@ class CanvasItemAbstractLayout(object):
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
-                # print(canvas_item_sizing)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", max)

@@ -92,6 +92,9 @@ class Window:
     def activation_changed(self, activated: bool) -> None:
         pass
 
+    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y):
+        self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+
     @property
     def title(self) -> str:
         return self.__document_window.title

@@ -87,6 +87,10 @@ class Window:
         self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
         self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
 
+        self._file_menu.on_about_to_show = self._file_menu_about_to_show
+        self._edit_menu.on_about_to_show = self._edit_menu_about_to_show
+        self._window_menu.on_about_to_show = self._window_menu_about_to_show
+
     def _request_exit(self) -> None:
         if self.app:
             self.app.exit()
@@ -194,6 +198,25 @@ class Window:
         self.app.exit()
 
     # standarad menu items
+
+    def _file_menu_about_to_show(self):
+        self._close_action.enabled = True
+        self._page_setup_action.enabled = False
+        self._print_action.enabled = False
+        self._quit_action.enabled = True
+
+    def _edit_menu_about_to_show(self):
+        self._undo_action.enabled = False
+        self._redo_action.enabled = False
+        self._cut_action.enabled = False
+        self._copy_action.enabled = False
+        self._paste_action.enabled = False
+        self._delete_action.enabled = False
+        self._select_all_action.enabled = False
+
+    def _window_menu_about_to_show(self):
+        self._minimize_action.enabled = False
+        self._zoom_action.enabled = False
 
     def _page_setup(self):
         pass

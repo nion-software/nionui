@@ -82,8 +82,8 @@ class ActionDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, title: str=None):
-        super().__init__(ui)
+    def __init__(self, ui, title: str=None, app=None):
+        super().__init__(ui, app=app)
 
         self.on_reject = None
         self.on_accept = None

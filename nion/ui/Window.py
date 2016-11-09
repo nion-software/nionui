@@ -4,11 +4,15 @@ A basic class to serve as the document controller of a typical one window applic
 
 # standard libraries
 import asyncio
+import gettext
 import logging
 import typing
 
 # local libraries
 from nion.utils import Process
+
+
+_ = gettext.gettext
 
 
 class Window:
@@ -56,6 +60,36 @@ class Window:
     def _document_window(self):
         # for testing only
         return self.__document_window
+
+    def _create_menus(self):
+        self._file_menu = self.add_menu(_("File"))
+        self._edit_menu = self.add_menu(_("Edit"))
+        self._window_menu = self.add_menu(_("Window"))
+        self._help_menu = self.add_menu(_("Help"))
+
+        self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
+        self._file_menu.add_separator()
+        self._page_setup_action = self._file_menu.add_menu_item(_("Page Setup"), self._page_setup)
+        self._print_action = self._file_menu.add_menu_item(_("Print"), self._print, key_sequence="Ctrl+P")
+        self._file_menu.add_separator()
+        self._quit_action = self._file_menu.add_menu_item(_("Exit"), self._request_exit, key_sequence="quit", role="quit")
+
+        self._undo_action = self._edit_menu.add_menu_item(_("Undo"), self._undo, key_sequence="undo")
+        self._redo_action = self._edit_menu.add_menu_item(_("Redo"), self._redo, key_sequence="redo")
+        self._edit_menu.add_separator()
+        self._cut_action = self._edit_menu.add_menu_item(_("Cut"), self._cut, key_sequence="cut")
+        self._copy_action = self._edit_menu.add_menu_item(_("Copy"), self._copy, key_sequence="copy")
+        self._paste_action = self._edit_menu.add_menu_item(_("Paste"), self._paste, key_sequence="paste")
+        self._delete_action = self._edit_menu.add_menu_item(_("Delete"), self._delete, key_sequence="delete")
+        self._select_all_action = self._edit_menu.add_menu_item(_("Select All"), self._select_all, key_sequence="select-all")
+        self._edit_menu.add_separator()
+
+        self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
+        self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
+
+    def _request_exit(self) -> None:
+        if self.app:
+            self.app.exit()
 
     def request_close(self) -> None:
         self.__document_window.request_close()
@@ -158,3 +192,38 @@ class Window:
 
     def handle_quit(self):
         self.app.exit()
+
+    # standarad menu items
+
+    def _page_setup(self):
+        pass
+
+    def _print(self):
+        pass
+
+    def _cut(self):
+        pass
+
+    def _copy(self):
+        pass
+
+    def _paste(self):
+        pass
+
+    def _delete(self):
+        pass
+
+    def _select_all(self):
+        pass
+
+    def _undo(self):
+        pass
+
+    def _redo(self):
+        pass
+
+    def _minimize(self):
+        pass
+
+    def _zoom(self):
+        pass

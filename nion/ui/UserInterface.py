@@ -9,6 +9,7 @@ import copy
 import numbers
 import os
 import pickle
+import sys
 import threading
 import time
 import typing
@@ -80,6 +81,14 @@ class QtKeyboardModifiers:
     def only_meta(self):
         return self.raw_modifiers == 0x10000000
 
+    # control key (all platforms)
+    @property
+    def native_control(self):
+        if sys.platform == "win32":
+            return self.control
+        else:
+            return self.meta
+
     # keypad
     @property
     def keypad(self):
@@ -105,8 +114,36 @@ class QtKey:
         return len(self.text) == 1 and (ord(self.text[0]) == 3 or ord(self.text[0]) == 13)
 
     @property
+    def is_escape(self):
+        return self.key == 0x1000000
+
+    @property
     def is_tab(self):
         return self.key == 0x1000001
+
+    @property
+    def is_insert(self):
+        return self.key == 0x1000006
+
+    @property
+    def is_home(self):
+        return self.key == 0x1000010
+
+    @property
+    def is_end(self):
+        return self.key == 0x1000011
+
+    @property
+    def is_move_to_start_of_line(self):
+        return self.is_home or (self.is_left_arrow and self.modifiers.control) or (self.key == 0x41 and self.modifiers.native_control)
+
+    @property
+    def is_move_to_end_of_line(self):
+        return self.is_end or (self.is_right_arrow and self.modifiers.control) or (self.key == 0x45 and self.modifiers.native_control)
+
+    @property
+    def is_delete_to_end_of_line(self):
+        return self.key == 0x4B and self.modifiers.native_control
 
     @property
     def is_arrow(self):
@@ -127,6 +164,14 @@ class QtKey:
     @property
     def is_down_arrow(self):
         return self.key == 0x1000015
+
+    @property
+    def is_page_up(self):
+        return self.key == 0x1000016
+
+    @property
+    def is_page_down(self):
+        return self.key == 0x1000017
 
 
 class QtMimeData:
@@ -1455,6 +1500,9 @@ class QtTextEditWidget(QtWidget):
 
     def clear_selection(self):
         self.proxy.TextEdit_clearSelection(self.widget)
+
+    def remove_selected_text(self):
+        self.proxy.TextEdit_removeSelectedText(self.widget)
 
     def select_all(self):
         self.proxy.TextEdit_selectAll(self.widget)

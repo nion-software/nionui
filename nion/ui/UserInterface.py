@@ -1528,6 +1528,14 @@ class QtTextEditWidget(QtWidget):
         else:
             self.proxy.TextEdit_setTextColor(self.widget, 255, 255, 255)
 
+    @property
+    def word_wrap_mode(self):
+        return None
+
+    @word_wrap_mode.setter
+    def word_wrap_mode(self, value: str) -> None:
+        self.proxy.TextEdit_setWordWrapMode(self.widget, value)
+
     def cursorPositionChanged(self):
         on_cursor_position_changed = self.on_cursor_position_changed
         if callable(on_cursor_position_changed):

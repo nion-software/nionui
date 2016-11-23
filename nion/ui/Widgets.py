@@ -38,6 +38,10 @@ class CompositeWidgetBase:
         return self.__content_widget
 
     @property
+    def _contained_widgets(self):
+        return self.content_widget._contained_widgets
+
+    @property
     def root_container(self):
         return self.__root_container
 

@@ -546,6 +546,10 @@ class QtWidget:
     def _set_root_container(self, root_container):
         self.__root_container = root_container
 
+    @property
+    def _contained_widgets(self):
+        return list()
+
     # not thread safe
     def periodic(self):
         pass
@@ -673,6 +677,10 @@ class QtBoxWidget(QtWidget):
         for child in self.children:
             child._set_root_container(root_container)
 
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
     def periodic(self):
         super(QtBoxWidget, self).periodic()
         for child in self.children:
@@ -752,6 +760,10 @@ class QtSplitterWidget(QtWidget):
         for child in self.children:
             child._set_root_container(root_container)
 
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
     def periodic(self):
         super(QtSplitterWidget, self).periodic()
         for child in self.children:
@@ -798,6 +810,10 @@ class QtTabWidget(QtWidget):
         for child in self.children:
             child._set_root_container(root_container)
 
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
     def periodic(self):
         super(QtTabWidget, self).periodic()
         for child in self.children:
@@ -836,6 +852,10 @@ class QtStackWidget(QtWidget):
         super(QtStackWidget, self)._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
 
     def periodic(self):
         super(QtStackWidget, self).periodic()
@@ -883,6 +903,10 @@ class QtScrollAreaWidget(QtWidget):
     def _set_root_container(self, root_container):
         super(QtScrollAreaWidget, self)._set_root_container(root_container)
         self.__content._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return [self.__content] if self.__content else list()
 
     def periodic(self):
         super(QtScrollAreaWidget, self).periodic()
@@ -1680,6 +1704,7 @@ class QtCanvasWidget(QtWidget):
             self.on_drag_leave = None
             self.on_drag_move = None
             self.on_drop = None
+            self.on_pan_gesture = None
             super(QtCanvasWidget, self).close()
 
     def periodic(self):
@@ -2218,6 +2243,7 @@ class QtDocumentWindow:
         self.root_widget = None
         self.has_event_loop = True
         self.window_style = "window"
+        self.__dock_widget_weak_refs = list()
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
@@ -2259,6 +2285,16 @@ class QtDocumentWindow:
         self.root_widget.close()
         self.root_widget = None
 
+    @property
+    def dock_widgets(self):
+        return [dock_widget_weak_ref() for dock_widget_weak_ref in self.__dock_widget_weak_refs]
+
+    def register_dock_widget(self, dock_widget):
+        self.__dock_widget_weak_refs.append(weakref.ref(dock_widget))
+
+    def unregister_dock_widget(self, dock_widget):
+        self.__dock_widget_weak_refs.remove(weakref.ref(dock_widget))
+
     def queue_task(self, task):
         if self.on_queue_task:
             self.on_queue_task(task)
@@ -2270,6 +2306,18 @@ class QtDocumentWindow:
     def clear_task(self, key):
         if self.on_clear_task:
             self.on_clear_task(key + str(id(self)))
+
+    @property
+    def focus_widget(self):
+        def match_native_widget(widget):
+            if widget.focused:
+                return widget
+            for child_widget in widget._contained_widgets:
+                matched_widget = match_native_widget(child_widget)
+                if matched_widget:
+                    return matched_widget
+            return None
+        return match_native_widget(self.root_widget)
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
         selected_filter = selected_filter if selected_filter else str()
@@ -2357,13 +2405,27 @@ class QtDockWidget:
     def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
         self.proxy = proxy
         self.document_window = document_window
+        self.document_window.register_dock_widget(self)
         self.widget = widget
         self.widget._set_root_container(self)
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, notnone(title), positions, position)
 
+    @property
+    def focus_widget(self):
+        def match_native_widget(widget):
+            if widget.focused:
+                return widget
+            for child_widget in widget._contained_widgets:
+                matched_widget = match_native_widget(child_widget)
+                if matched_widget:
+                    return matched_widget
+            return None
+        return match_native_widget(self.widget)
+
     def close(self):
         self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
         self.widget.close()
+        self.document_window.unregister_dock_widget(self)
         self.document_window = None
         self.widget = None
         self.native_dock_widget = None

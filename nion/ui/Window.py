@@ -160,6 +160,21 @@ class Window:
     def screen_size(self):
         return self.__document_window.screen_size
 
+    @property
+    def focus_widget(self):
+        focus_widget = self.__document_window.focus_widget
+        if focus_widget:
+            return focus_widget
+        for dock_widget in self.dock_widgets:
+            focus_widget = dock_widget.focus_widget
+            if focus_widget:
+                return focus_widget
+        return None
+
+    @property
+    def dock_widgets(self):
+        return self.__document_window.dock_widgets
+
     def show(self) -> None:
         self.__document_window.show()
 

@@ -86,6 +86,7 @@ class Window:
 
         self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
         self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
+        self._bring_to_front_action = self._window_menu.add_menu_item(_("Bring to Front"), self._bring_to_front)
 
         self._file_menu.on_about_to_show = self._file_menu_about_to_show
         self._edit_menu.on_about_to_show = self._edit_menu_about_to_show
@@ -212,56 +213,76 @@ class Window:
     def handle_quit(self):
         self.app.exit()
 
+    def _dispatch_any_to_focus_widget(self, method: str, *args, **kwargs) -> bool:
+        focus_widget = self.focus_widget
+        if focus_widget and focus_widget._dispatch_any(method, *args, **kwargs):
+                return True
+        if hasattr(self, method) and getattr(self, method)(*args, **kwargs):
+                return True
+        return False
+
+    def _will_focus_widget_dispatch(self, method: str) -> bool:
+        focus_widget = self.focus_widget
+        if focus_widget and focus_widget._will_dispatch(method):
+            return True
+        if hasattr(self, method):
+            return True
+        return False
+
     # standarad menu items
 
     def _file_menu_about_to_show(self):
         self._close_action.enabled = True
-        self._page_setup_action.enabled = False
-        self._print_action.enabled = False
+        self._page_setup_action.enabled = self._will_focus_widget_dispatch("handle_page_setup")
+        self._print_action.enabled = self._will_focus_widget_dispatch("handle_print")
         self._quit_action.enabled = True
 
     def _edit_menu_about_to_show(self):
-        self._undo_action.enabled = False
-        self._redo_action.enabled = False
-        self._cut_action.enabled = False
-        self._copy_action.enabled = False
-        self._paste_action.enabled = False
-        self._delete_action.enabled = False
-        self._select_all_action.enabled = False
+        self._undo_action.enabled = self._will_focus_widget_dispatch("handle_undo")
+        self._redo_action.enabled = self._will_focus_widget_dispatch("handle_redo")
+        self._cut_action.enabled = self._will_focus_widget_dispatch("handle_cut")
+        self._copy_action.enabled = self._will_focus_widget_dispatch("handle_copy")
+        self._paste_action.enabled = self._will_focus_widget_dispatch("handle_paste")
+        self._delete_action.enabled = self._will_focus_widget_dispatch("handle_delete")
+        self._select_all_action.enabled = self._will_focus_widget_dispatch("handle_select_all")
 
     def _window_menu_about_to_show(self):
-        self._minimize_action.enabled = False
-        self._zoom_action.enabled = False
+        self._minimize_action.enabled = self._will_focus_widget_dispatch("handle_minimize")
+        self._zoom_action.enabled = self._will_focus_widget_dispatch("handle_zoom")
+        self._bring_to_front_action.enabled = self._will_focus_widget_dispatch("handle_bring_to_front")
 
     def _page_setup(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_page_setup")
 
     def _print(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_print")
 
     def _cut(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_cut")
 
     def _copy(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_copy")
 
     def _paste(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_paste")
 
     def _delete(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_delete")
 
     def _select_all(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_select_all")
 
     def _undo(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_undo")
 
     def _redo(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_redo")
 
     def _minimize(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_minimize")
 
     def _zoom(self):
-        pass
+        self._dispatch_any_to_focus_widget("handle_zoom")
+
+    def _bring_to_front(self):
+        self._dispatch_any_to_focus_widget("bring_to_front")

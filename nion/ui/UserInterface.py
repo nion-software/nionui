@@ -657,6 +657,14 @@ class QtWidget:
         gx, gy = self.proxy.Widget_mapToGlobal(self.widget, p.x, p.y)
         return Geometry.IntPoint(x=gx, y=gy)
 
+    def _dispatch_any(self, method: str, *args, **kwargs) -> bool:
+        if hasattr(self, method):
+            return getattr(self, method)(*args, **kwargs)
+        return False
+
+    def _will_dispatch(self, method) -> bool:
+        return hasattr(self, method)
+
 
 class QtBoxWidget(QtWidget):
 
@@ -1400,6 +1408,10 @@ class QtLineEditWidget(QtWidget):
         if self.on_editing_finished:
             self.on_editing_finished(text)
 
+    def handle_select_all(self):
+        self.select_all()
+        return True
+
     def escapePressed(self):
         if self.on_escape_pressed:
             self.on_escape_pressed()
@@ -1533,6 +1545,10 @@ class QtTextEditWidget(QtWidget):
 
     def move_cursor_position(self, operation, mode=None, n=1):
         self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
+
+    def handle_select_all(self):
+        self.select_all()
+        return True
 
     def set_text_color(self, color):
         if color == "red":
@@ -1677,6 +1693,8 @@ class QtCanvasWidget(QtWidget):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_dispatch_any = None
+        self.on_will_dispatch = None
         self.width = 0
         self.height = 0
         self.__focusable = False
@@ -1836,6 +1854,16 @@ class QtCanvasWidget(QtWidget):
 
     def release_mouse(self):
         self.proxy.Canvas_releaseMouse(self.widget)
+
+    def _dispatch_any(self, method: str, *args, **kwargs):
+        if callable(self.on_dispatch_any):
+            return self.on_dispatch_any(method, *args, **kwargs)
+        return False
+
+    def _will_dispatch(self, method) -> bool:
+        if callable(self.on_will_dispatch):
+            return self.on_will_dispatch(method)
+        return False
 
 
 # pobj

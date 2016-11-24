@@ -205,9 +205,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 if self.__delegate.on_delete_pressed:
                     self.__delegate.on_delete_pressed()
                 return True
-            if key.key == ord('A') and key.modifiers.only_control:
-                self.select_all()
-                return True
             if key.is_up_arrow:
                 new_index = None
                 indexes = self.__selection.indexes
@@ -238,6 +235,13 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super().key_pressed(key)
 
-    def select_all(self):
+    def handle_select_all(self):
         if self.__delegate:
             self.__selection.set_multiple(set(range(self.__delegate.item_count)))
+            return True
+        return False
+
+    def handle_delete(self):
+        if self.__delegate.on_delete_pressed:
+            self.__delegate.on_delete_pressed()
+        return True

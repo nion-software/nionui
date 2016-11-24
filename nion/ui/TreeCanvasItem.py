@@ -173,9 +173,6 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         if key.is_delete:
             self.__delete()
             return True
-        if key.key == ord('A') and key.modifiers.only_control:
-            self.select_all()
-            return True
         if key.is_up_arrow:
             self.__adjust_selection("up", key.modifiers.shift)
             return True
@@ -184,6 +181,6 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
             return True
         return super().key_pressed(key)
 
-    def select_all(self):
+    def handle_select_all(self):
         self.__adjust_selection("all", False)
         return True

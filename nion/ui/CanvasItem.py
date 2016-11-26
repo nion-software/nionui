@@ -1497,7 +1497,6 @@ class LayerCanvasItem(CanvasItemComposition):
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):
-
     """
         A scroll area canvas item with content.
 
@@ -1819,14 +1818,19 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
     """ A scroll bar for a scroll area. """
 
-    def __init__(self, scroll_area_canvas_item):
+    def __init__(self, scroll_area_canvas_item, orientation: str = None):
         super(ScrollBarCanvasItem, self).__init__()
+        orientation = orientation if orientation is not None else "vertical"
         self.wants_mouse_events = True
-        self.sizing.set_fixed_width(16)
         self.__scroll_area_canvas_item = scroll_area_canvas_item
         # when the scroll area content layout changes, this method will get called.
         self.__scroll_area_canvas_item._on_validate_content_origin = self.__validate_content_origin
         self.__tracking = False
+        self.__orientation = orientation
+        if self.__orientation == "vertical":
+            self.sizing.set_fixed_width(16)
+        else:
+            self.sizing.set_fixed_height(16)
 
     def _repaint(self, drawing_context):
         # canvas size, thumb rect
@@ -1834,43 +1838,54 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         thumb_rect = self.thumb_rect
 
         # draw it
-        drawing_context.save()
-        # draw the border of the scroll bar
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-        gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, canvas_size.width, 0)
-        gradient.add_color_stop(0.0, "#F2F2F2")
-        gradient.add_color_stop(0.35, "#FDFDFD")
-        gradient.add_color_stop(0.65, "#FDFDFD")
-        gradient.add_color_stop(1.0, "#F2F2F2")
-        drawing_context.fill_style = gradient
-        drawing_context.fill()
-        # draw the thumb, if any
-        if thumb_rect.height > 0:
-            drawing_context.save()
+        with drawing_context.saver():
+            # draw the border of the scroll bar
             drawing_context.begin_path()
-            drawing_context.move_to(thumb_rect.width - 8, thumb_rect.top + 6)
-            drawing_context.line_to(thumb_rect.width - 8, thumb_rect.bottom - 6)
-            drawing_context.line_width = 8.0
-            drawing_context.line_cap = "round"
-            drawing_context.stroke_style = "#888" if self.__tracking else "#CCC"
+            drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+            if self.__orientation == "vertical":
+                gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, canvas_size.width, 0)
+            else:
+                gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
+            gradient.add_color_stop(0.0, "#F2F2F2")
+            gradient.add_color_stop(0.35, "#FDFDFD")
+            gradient.add_color_stop(0.65, "#FDFDFD")
+            gradient.add_color_stop(1.0, "#F2F2F2")
+            drawing_context.fill_style = gradient
+            drawing_context.fill()
+            # draw the thumb, if any
+            if thumb_rect.height > 0 and thumb_rect.width > 0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    if self.__orientation == "vertical":
+                        drawing_context.move_to(thumb_rect.width - 8, thumb_rect.top + 6)
+                        drawing_context.line_to(thumb_rect.width - 8, thumb_rect.bottom - 6)
+                    else:
+                        drawing_context.move_to(thumb_rect.left + 6, thumb_rect.height - 8)
+                        drawing_context.line_to(thumb_rect.right - 6, thumb_rect.height - 8)
+                    drawing_context.line_width = 8.0
+                    drawing_context.line_cap = "round"
+                    drawing_context.stroke_style = "#888" if self.__tracking else "#CCC"
+                    drawing_context.stroke()
+            # draw inside edge
+            drawing_context.begin_path()
+            drawing_context.move_to(0, 0)
+            if self.__orientation == "vertical":
+                drawing_context.line_to(0, canvas_size.height)
+            else:
+                drawing_context.line_to(canvas_size.width, 0)
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = "#E3E3E3"
             drawing_context.stroke()
-            drawing_context.restore()
-        # draw inside edge
-        drawing_context.begin_path()
-        drawing_context.move_to(0, 0)
-        drawing_context.line_to(0, canvas_size.height)
-        drawing_context.line_width = 0.5
-        drawing_context.stroke_style = "#E3E3E3"
-        drawing_context.stroke()
-        # draw outside
-        drawing_context.begin_path()
-        drawing_context.move_to(canvas_size.width, 0)
-        drawing_context.line_to(canvas_size.width, canvas_size.height)
-        drawing_context.line_width = 0.5
-        drawing_context.stroke_style = "#999999"
-        drawing_context.stroke()
-        drawing_context.restore()
+            # draw outside
+            drawing_context.begin_path()
+            if self.__orientation == "vertical":
+                drawing_context.move_to(canvas_size.width, 0)
+            else:
+                drawing_context.move_to(0, canvas_size.height)
+            drawing_context.line_to(canvas_size.width, canvas_size.height)
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = "#999999"
+            drawing_context.stroke()
 
     def get_thumb_position_and_length(self, canvas_length, visible_length, content_length, content_offset):
         """
@@ -1908,21 +1923,30 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
     def thumb_rect(self):
         # return the thumb rect for the given canvas_size
         canvas_size = Geometry.IntSize.make(self.canvas_size)
-        visible_height = self.__scroll_area_canvas_item.canvas_size[0]
-        content_height = self.__scroll_area_canvas_item.content.canvas_size[0]
-        content_offset = self.__scroll_area_canvas_item.content.canvas_origin[0]
-        thumb_y, thumb_height = self.get_thumb_position_and_length(canvas_size[0], visible_height, content_height, content_offset)
-        thumb_origin = Geometry.IntPoint(x=0, y=thumb_y)
-        thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_height)
+        index = 0 if self.__orientation == "vertical" else 1
+        visible_length = self.__scroll_area_canvas_item.canvas_size[index]
+        content_length = self.__scroll_area_canvas_item.content.canvas_size[index]
+        content_offset = self.__scroll_area_canvas_item.content.canvas_origin[index]
+        thumb_position, thumb_length = self.get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
+        if self.__orientation == "vertical":
+            thumb_origin = Geometry.IntPoint(x=0, y=thumb_position)
+            thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_length)
+        else:
+            thumb_origin = Geometry.IntPoint(x=thumb_position, y=0)
+            thumb_size = Geometry.IntSize(width=thumb_length, height=canvas_size.height)
         return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
 
     def __validate_content_origin(self, content_canvas_origin):
         # when the scroll area content layout changes, this method will get called.
         # ensure that the content matches the scroll position.
-        visible_height = self.__scroll_area_canvas_item.canvas_size[0]
-        content_height = self.__scroll_area_canvas_item.content.canvas_size[0]
-        scroll_range = max(content_height - visible_height, 0)
-        return Geometry.IntPoint(x=content_canvas_origin.x, y=max(min(content_canvas_origin.y, 0), -scroll_range))
+        index = 0 if self.__orientation == "vertical" else 1
+        visible_length = self.__scroll_area_canvas_item.canvas_size[index]
+        content_length = self.__scroll_area_canvas_item.content.canvas_size[index]
+        scroll_range = max(content_length - visible_length, 0)
+        if self.__orientation == "vertical":
+            return Geometry.IntPoint(x=content_canvas_origin.x, y=max(min(content_canvas_origin.y, 0), -scroll_range))
+        else:
+            return Geometry.IntPoint(x=max(min(content_canvas_origin.x, 0), -scroll_range), y=content_canvas_origin.y)
 
     def mouse_pressed(self, x, y, modifiers):
         thumb_rect = self.thumb_rect
@@ -1933,10 +1957,16 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             self.__tracking_content_offset = self.__scroll_area_canvas_item.content.canvas_origin
             self.update()
             return True
-        elif y < thumb_rect.top:
+        elif self.__orientation == "vertical" and y < thumb_rect.top:
             self.__adjust_thumb(-1)
             return True
-        elif y > thumb_rect.bottom:
+        elif self.__orientation == "vertical" and y > thumb_rect.bottom:
+            self.__adjust_thumb(1)
+            return True
+        elif self.__orientation != "vertical" and x < thumb_rect.left:
+            self.__adjust_thumb(-1)
+            return True
+        elif self.__orientation != "vertical" and x > thumb_rect.right:
             self.__adjust_thumb(1)
             return True
         return super(ScrollBarCanvasItem, self).mouse_pressed(x, y, modifiers)
@@ -1948,9 +1978,13 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
     def __adjust_thumb(self, amount):
         # adjust the position up or down one visible screen worth
-        visible_height = self.__scroll_area_canvas_item.canvas_size[0]
+        index = 0 if self.__orientation == "vertical" else 1
+        visible_length = self.__scroll_area_canvas_item.canvas_size[index]
         content = self.__scroll_area_canvas_item.content
-        new_content_offset = Geometry.IntPoint(y=content.canvas_origin[0] - visible_height * amount, x=content.canvas_origin[1])
+        if self.__orientation == "vertical":
+            new_content_offset = Geometry.IntPoint(y=content.canvas_origin[0] - visible_length * amount, x=content.canvas_origin[1])
+        else:
+            new_content_offset = Geometry.IntPoint(y=content.canvas_origin[0], x=content.canvas_origin[1] - visible_length * amount)
         content.update_layout(new_content_offset, content.canvas_size)
         content.update()
 
@@ -1977,11 +2011,18 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if self.__tracking:
             pos = Geometry.IntPoint(x=x, y=y)
-            mouse_offset_v = pos.y - self.__tracking_start.y
-            visible_height = self.__scroll_area_canvas_item.canvas_size[0]
-            content_height = self.__scroll_area_canvas_item.content.canvas_size[0]
-            new_content_offset_v = self.adjust_content_offset(self.canvas_size[0], visible_height, content_height, self.__tracking_content_offset[0], mouse_offset_v)
-            new_content_offset = Geometry.IntPoint(x=self.__tracking_content_offset[1], y=new_content_offset_v)
+            if self.__orientation == "vertical":
+                mouse_offset_v = pos.y - self.__tracking_start.y
+                visible_height = self.__scroll_area_canvas_item.canvas_size[0]
+                content_height = self.__scroll_area_canvas_item.content.canvas_size[0]
+                new_content_offset_v = self.adjust_content_offset(self.canvas_size[0], visible_height, content_height, self.__tracking_content_offset[0], mouse_offset_v)
+                new_content_offset = Geometry.IntPoint(x=self.__tracking_content_offset[1], y=new_content_offset_v)
+            else:
+                mouse_offset_h = pos.x - self.__tracking_start.x
+                visible_width = self.__scroll_area_canvas_item.canvas_size[1]
+                content_width = self.__scroll_area_canvas_item.content.canvas_size[1]
+                new_content_offset_h = self.adjust_content_offset(self.canvas_size[1], visible_width, content_width, self.__tracking_content_offset[1], mouse_offset_h)
+                new_content_offset = Geometry.IntPoint(x=new_content_offset_h, y=self.__tracking_content_offset[0])
             self.__scroll_area_canvas_item.content._set_canvas_origin(new_content_offset)
             self.__scroll_area_canvas_item.refresh_layout()
             self.__scroll_area_canvas_item.content.update()

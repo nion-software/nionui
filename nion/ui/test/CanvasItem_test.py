@@ -685,6 +685,28 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_item_at_point(300, 260), canvas_item.canvas_items[2])
         self.assertEqual(canvas_item.canvas_item_at_point(340, 260), canvas_item.canvas_items[3])
 
+    def test_grid_layout_2x2_canvas_item_scroll_area_with_content_and_scroll_bars_inside_column_lays_out_properly(self):
+        # test row layout
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        content = CanvasItem.BackgroundCanvasItem("#F00")
+        content.sizing.set_fixed_size(Geometry.IntSize(width=250, height=60))
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(content)
+        scroll_area_canvas_item.auto_resize_contents = True
+        right_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
+        bottom_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, "horizontal")
+        bottom_canvas_item.sizing.set_fixed_height(20)
+        canvas_item = CanvasItem.CanvasItemComposition()
+        canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
+        canvas_item.add_canvas_item(scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
+        canvas_item.add_canvas_item(right_canvas_item, Geometry.IntPoint(x=1, y=0))
+        canvas_item.add_canvas_item(bottom_canvas_item, Geometry.IntPoint(x=0, y=1))
+        column.add_canvas_item(canvas_item)
+        column.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=200, height=100))
+        self.assertEqual(scroll_area_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 80, 184))
+        self.assertEqual(right_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 184, 80, 200))
+        self.assertEqual(bottom_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(80, 0, 100, 184))
+
     class TestCanvasItem(CanvasItem.CanvasItemComposition):
 
         def __init__(self):

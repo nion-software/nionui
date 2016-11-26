@@ -1185,6 +1185,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # calculate the vertical placement
         # calculate the sizing (y, height) for each row
         canvas_item_count = self.__size.height
+        spacing_count = canvas_item_count - 1
         content_top = canvas_origin.y + self.margins.top
         content_height = canvas_size.height - self.margins.top - self.margins.bottom - self.spacing * spacing_count
         constraints = list()
@@ -1216,6 +1217,9 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             Override from abstract layout.
         """
         sizing = Sizing()
+        sizing.maximum_width = 0
+        sizing.maximum_height = 0
+        sizing.preferred_height = 0
         # the widths
         canvas_item_sizings = list()
         for x in range(self.__size.width):
@@ -1224,7 +1228,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
             self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_width", operator.add)
-            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add, True)
         # the heights
         canvas_item_sizings = list()
         for y in range(self.__size.height):
@@ -1233,13 +1237,19 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
             self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
-            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add)
-        if sizing.minimum_width is not None and sizing.maximum_width is not None:
-            sizing.maximum_width = max(sizing.maximum_width, sizing.minimum_width)
-        if sizing.minimum_width is not None and sizing.preferred_width is not None:
-            sizing.preferred_width = max(sizing.minimum_width, sizing.preferred_width)
-        if sizing.maximum_width is not None and sizing.preferred_width is not None:
-            sizing.preferred_width = min(sizing.maximum_width, sizing.preferred_width)
+            self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
+        if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
+            sizing.maximum_width = None
+        if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
+            sizing.maximum_height = None
+        if sizing.maximum_width == 0 or len(canvas_items) == 0:
+            sizing.maximum_width = None
+        if sizing.preferred_width == 0 or len(canvas_items) == 0:
+            sizing.preferred_width = None
+        if sizing.maximum_height == 0 or len(canvas_items) == 0:
+            sizing.maximum_height = None
+        if sizing.preferred_height == 0 or len(canvas_items) == 0:
+            sizing.preferred_height = None
         self._adjust_sizing(sizing, self.spacing * (self.__size.width - 1), self.spacing * (self.__size.height - 1))
         return sizing
 

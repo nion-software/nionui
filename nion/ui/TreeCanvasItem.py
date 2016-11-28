@@ -153,6 +153,10 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
+        if self.__mouse_pressed:
+            # double check whether mouse_released has been called explicitly as part of a drag.
+            # see https://bugreports.qt.io/browse/QTBUG-40733
+            pass  # leave this here for future reference
         self.__mouse_pressed = False
         self.__mouse_item = None
         self.__mouse_position = None

@@ -169,15 +169,18 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
-        mouse_index = self.__mouse_index
-        max_index = self.__delegate.item_count
-        if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
-            if modifiers.shift:
-                self.__selection.extend(mouse_index)
-            elif modifiers.control:
-                self.__selection.toggle(mouse_index)
-            else:
-                self.__selection.set(mouse_index)
+        if self.__delegate and self.__mouse_pressed:
+            # double check whether mouse_released has been called explicitly as part of a drag.
+            # see https://bugreports.qt.io/browse/QTBUG-40733
+            mouse_index = self.__mouse_index
+            max_index = self.__delegate.item_count
+            if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
+                if modifiers.shift:
+                    self.__selection.extend(mouse_index)
+                elif modifiers.control:
+                    self.__selection.toggle(mouse_index)
+                else:
+                    self.__selection.set(mouse_index)
         self.__mouse_pressed = False
         self.__mouse_index = None
         self.__mouse_position = None

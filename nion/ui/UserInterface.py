@@ -1799,9 +1799,9 @@ class QtCanvasWidget(QtWidget):
         if self.on_grabbed_mouse_position_changed:
             self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
 
-    def wheelChanged(self, dx, dy, is_horizontal):
+    def wheelChanged(self, x, y, dx, dy, is_horizontal):
         if self.on_wheel_changed:
-            self.on_wheel_changed(dx, dy, is_horizontal)
+            self.on_wheel_changed(x, y, dx, dy, is_horizontal)
 
     def sizeChanged(self, width, height):
         self.width = width

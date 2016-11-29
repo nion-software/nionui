@@ -754,7 +754,7 @@ class AbstractCanvasItem(object):
         """ Handle a mouse move within this canvas item. Return True if handled. """
         return False
 
-    def wheel_changed(self, dx, dy, is_horizontal):
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
         """ Handle a mouse wheel changed within this canvas item. Return True if handled. """
         return False
 
@@ -1464,15 +1464,12 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_items.extend(super(CanvasItemComposition, self).canvas_items_at_point(x, y))
         return canvas_items
 
-    def wheel_changed(self, dx, dy, is_horizontal):
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
         # always give the mouse canvas item priority (for tracking outside bounds)
-        if False:
-            pass # self.root_container.mouse_canvas_item.wheel_changed(dx, dy, is_horizontal)
-        # now give other canvas items a chance
-        else:
-            for canvas_item in reversed(self.__canvas_items):
-                if canvas_item.wheel_changed(dx, dy, is_horizontal):
-                    return True
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in reversed(canvas_items):
+            if canvas_item != self and canvas_item.wheel_changed(x - self.canvas_origin.x, y - self.canvas_origin.y, dx, dy, is_horizontal):
+                return True
         return False
 
     def pan_gesture(self, dx, dy):
@@ -1625,8 +1622,10 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         canvas_items.extend(super(ScrollAreaCanvasItem, self).canvas_items_at_point(x, y))
         return canvas_items
 
-    def wheel_changed(self, dx, dy, is_horizontal):
-        return self.__content.wheel_changed(dx, dy, is_horizontal)
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
+        x -= self.canvas_origin.x
+        y -= self.canvas_origin.y
+        return self.__content.wheel_changed(x, y, dx, dy, is_horizontal)
 
     def pan_gesture(self, dx, dy):
         return self.__content.pan_gesture(dx, dy)

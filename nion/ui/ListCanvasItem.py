@@ -70,11 +70,12 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(), width=canvas_size.width)
         super().update_layout(canvas_origin, canvas_size, trigger_update)
 
-    def wheel_changed(self, dx, dy, is_horizontal):
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
         dy = dy if not is_horizontal else 0.0
         new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=0, y=dy)
         self.update_layout(new_canvas_origin, self.canvas_size)
         self.update()
+        return True
 
     def __calculate_layout_height(self):
         item_count = self.__delegate.item_count if self.__delegate else 0

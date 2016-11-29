@@ -284,9 +284,9 @@ class CanvasCanvasWidget(CanvasWidget):
         if self.on_grabbed_mouse_position_changed:
             self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
 
-    def handle_wheel_changed(self, dx, dy, is_horizontal):
+    def handle_wheel_changed(self, x, y, dx, dy, is_horizontal):
         if self.on_wheel_changed:
-            self.on_wheel_changed(dx, dy, is_horizontal)
+            self.on_wheel_changed(x, y, dx, dy, is_horizontal)
 
     def handle_size_changed(self, width, height):
         self.width = width

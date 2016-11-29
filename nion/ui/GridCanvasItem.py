@@ -5,13 +5,8 @@
     TODO: GridCanvasItem should handle keyboard navigation
     TODO: GridCanvasItem should allow drag selection to select multiple
 """
-
-# futures
-from __future__ import absolute_import
-from __future__ import division
-
 # standard libraries
-# none
+import enum
 
 # third party libraries
 # none
@@ -19,6 +14,11 @@ from __future__ import division
 # local libraries
 from . import CanvasItem
 from nion.utils import Geometry
+
+
+class Direction(enum.Enum):
+    Row = 0
+    Column = 1
 
 
 class GridCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -37,7 +37,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         on_drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
 
-    def __init__(self, delegate, selection):
+    def __init__(self, delegate, selection, direction=Direction.Row, wrap=True):
         super().__init__()
         # store parameters
         self.__delegate = delegate
@@ -51,6 +51,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
+        self.__direction = direction
+        self.__wrap = wrap
 
     def close(self):
         self.__selection_changed_listener.close()
@@ -60,47 +62,88 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     def detach_delegate(self):
         self.__delegate = None
 
+    @property
+    def direction(self) -> Direction:
+        return self.__direction
+
+    @direction.setter
+    def direction(self, value: Direction) -> None:
+        self.__direction = value
+        self.refresh_layout()
+
+    @property
+    def wrap(self) -> bool:
+        return self.__wrap
+
+    def set_wrap(self, value: bool, canvas_size) -> None:
+        self._set_canvas_origin(Geometry.IntPoint())
+        self._set_canvas_size(canvas_size)
+        self.__wrap = value
+        self.refresh_layout()
+
+    def __calculate_layout_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
+        # update the layout based on the current canvas size
+        canvas_size = Geometry.IntSize.make(canvas_size)
+
+        item_size = self.__calculate_item_size(canvas_size)
+        item_count = self.__delegate.item_count if self.__delegate else 0
+        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
+
+        if self.direction == Direction.Row:
+            item_rows = (item_count + items_per_row - 1) // items_per_row
+            width = canvas_size.width if self.wrap else item_count * item_size.width
+            canvas_size = Geometry.IntSize(height=item_rows * item_size.height, width=width)
+        else:
+            item_columns = (item_count + items_per_column - 1) // items_per_column
+            height = canvas_size.height if self.wrap else item_count * item_size.height
+            canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
+
+        return canvas_size
+
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """Override from abstract canvas item.
 
         Adjust the canvas height based on the constraints.
         """
-        canvas_size = Geometry.IntSize.make(canvas_size)
-        canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(canvas_size),
-                                       width=canvas_size.width)
-        super().update_layout(canvas_origin, canvas_size, trigger_update)
+        super().update_layout(canvas_origin, self.__calculate_layout_size(canvas_size), trigger_update)
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
+        dx = dx if is_horizontal else 0.0
         dy = dy if not is_horizontal else 0.0
-        new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=0, y=dy)
+        new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=dx, y=dy)
         self.update_layout(new_canvas_origin, self.canvas_size)
         self.update()
         return True
 
     def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
-        target_size = 80
-        item_width = int(canvas_size.width / (((canvas_size.width + target_size // 4) // target_size)))
-        return Geometry.IntSize(item_width, item_width)
-
-    def __calculate_layout_height(self, canvas_size: Geometry.IntSize) -> int:
-        item_size = self.__calculate_item_size(canvas_size)
-        items_per_row = int(canvas_size.width / item_size.width)
-        item_count = self.__delegate.item_count if self.__delegate else 0
-        item_rows = (item_count + items_per_row - 1) // items_per_row
-        return item_rows * item_size.height
+        if self.wrap:
+            target_size = 80
+            item_width = max(60, int(canvas_size.width / max(1, ((canvas_size.width + target_size // 4) // target_size))))
+            return Geometry.IntSize(item_width, item_width)
+        else:
+            if self.direction == Direction.Row:
+                return Geometry.IntSize(canvas_size.height, canvas_size.height)
+            else:
+                return Geometry.IntSize(canvas_size.width, canvas_size.width)
 
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_size = self.canvas_size
         item_size = self.__calculate_item_size(canvas_size)
-        items_per_row = int(canvas_size.width / item_size.width)
-        row = index // items_per_row
-        column = index - row * items_per_row
-        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
-                                size=Geometry.IntSize(width=item_size.width, height=item_size.height))
+        item_count = self.__delegate.item_count if self.__delegate else 0
+        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
+        if self.direction == Direction.Row:
+            row = index // items_per_row
+            column = index - row * items_per_row
+        else:
+            column = index // items_per_column
+            row = index - column * items_per_column
+        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width), size=Geometry.IntSize(width=item_size.width, height=item_size.height))
 
     def update(self):
         if self.canvas_origin is not None and self.canvas_size is not None:
-            if self.__calculate_layout_height(self.canvas_size) != self.canvas_size.height:
+            if self.__calculate_layout_size(self.canvas_size) != self.canvas_size:
                 self.refresh_layout()
         super().update()
 
@@ -108,27 +151,32 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__delegate:
             canvas_size = self.canvas_size
             item_size = self.__calculate_item_size(canvas_size)
-            items_per_row = int(canvas_size.width / item_size.width)
+            item_count = self.__delegate.item_count if self.__delegate else 0
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
 
             with drawing_context.saver():
-                max_index = self.__delegate.item_count
                 top_visible_row = visible_rect.top // item_size.height
                 bottom_visible_row = visible_rect.bottom // item_size.height
+                left_visible_column = visible_rect.left // item_size.width
+                right_visible_column = visible_rect.right // item_size.width
                 for row in range(top_visible_row, bottom_visible_row + 1):
-                    for column in range(items_per_row):
-                        index = row * items_per_row + column
-                        if index < max_index:
+                    for column in range(left_visible_column, right_visible_column + 1):
+                        if self.direction == Direction.Row:
+                            index = row * items_per_row + column
+                        else:
+                            index = row + column * items_per_column
+                        if 0 <= index < item_count:
                             rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
                                                     size=Geometry.IntSize(width=item_size.width, height=item_size.height))
                             if rect.intersects_rect(visible_rect):
                                 is_selected = self.__selection.contains(index)
                                 if is_selected:
-                                    drawing_context.save()
-                                    drawing_context.begin_path()
-                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                    drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
-                                    drawing_context.fill()
-                                    drawing_context.restore()
+                                    with drawing_context.saver():
+                                        drawing_context.begin_path()
+                                        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                        drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
+                                        drawing_context.fill()
                                 self.__delegate.paint_item(drawing_context, index, rect, is_selected)
 
     def _repaint(self, drawing_context):
@@ -151,10 +199,15 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     def __get_item_index_at(self, x, y):
         canvas_size = self.canvas_size
         item_size = self.__calculate_item_size(canvas_size)
-        items_per_row = int(canvas_size.width / item_size.width)
+        item_count = self.__delegate.item_count if self.__delegate else 0
+        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
         mouse_row = y // item_size.height
         mouse_column = x // item_size.width
-        mouse_index = mouse_row * items_per_row + mouse_column
+        if self.direction == Direction.Row:
+            mouse_index = mouse_row * items_per_row + mouse_column
+        else:
+            mouse_index = mouse_row + items_per_column * mouse_column
         return mouse_index
 
     def mouse_pressed(self, x, y, modifiers):
@@ -209,16 +262,28 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 min_rect = self.__rect_for_index(min_index)
                 max_rect = self.__rect_for_index(max_index)
                 visible_rect = self.container.visible_rect
-                if top:
-                    if min_rect.top < visible_rect.top:
-                        self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=self.canvas_origin.x), self.canvas_size)
-                    elif min_rect.bottom > visible_rect.bottom:
-                        self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
+                if (self.direction == Direction.Row and self.wrap) or (self.direction == Direction.Column and not self.wrap):
+                    if top:
+                        if min_rect.top < visible_rect.top:
+                            self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=self.canvas_origin.x), self.canvas_size)
+                        elif min_rect.bottom > visible_rect.bottom:
+                            self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
+                    else:
+                        if max_rect.bottom > visible_rect.bottom:
+                            self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
+                        elif max_rect.top < visible_rect.top:
+                            self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
                 else:
-                    if max_rect.bottom > visible_rect.bottom:
-                        self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
-                    elif max_rect.top < visible_rect.top:
-                        self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
+                    if top:
+                        if min_rect.left < visible_rect.left:
+                            self.update_layout(Geometry.IntPoint(y=self.canvas_origin.y, x=-min_rect.left), self.canvas_size)
+                        elif min_rect.right > visible_rect.right:
+                            self.update_layout(Geometry.IntPoint(y=self.canvas_origin.y, x=-min_rect.right + visible_rect.width), self.canvas_size)
+                    else:
+                        if max_rect.right > visible_rect.right:
+                            self.update_layout(Geometry.IntPoint(y=self.canvas_origin.y, x=-max_rect.right + visible_rect.width), self.canvas_size)
+                        elif max_rect.left < visible_rect.left:
+                            self.update_layout(Geometry.IntPoint(y=self.canvas_origin.y, x=-max_rect.left), self.canvas_size)
 
     def make_selection_visible(self):
         self.__make_selection_visible(True)
@@ -226,6 +291,9 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     def key_pressed(self, key):
         canvas_size = self.canvas_size
         item_size = self.__calculate_item_size(canvas_size)
+        item_count = self.__delegate.item_count if self.__delegate else 0
+        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
         if self.__delegate:
             if key.is_delete:
                 if self.__delegate.on_delete_pressed:
@@ -233,10 +301,12 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
             if key.is_up_arrow:
                 new_index = None
-                items_per_row = int(canvas_size.width / item_size.width)
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
-                    new_index = max(min(indexes) - items_per_row, 0)
+                    if self.direction == Direction.Row:
+                        new_index = max(min(indexes) - items_per_row, 0)
+                    else:
+                        new_index = max(min(indexes) - 1, 0)
                 elif self.__delegate.item_count > 0:
                     new_index = self.__delegate.item_count - 1
                 if new_index is not None:
@@ -248,10 +318,12 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
             if key.is_down_arrow:
                 new_index = None
-                items_per_row = int(canvas_size.width / item_size.width)
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
-                    new_index = min(max(indexes) + items_per_row, self.__delegate.item_count - 1)
+                    if self.direction == Direction.Row:
+                        new_index = min(max(indexes) + items_per_row, self.__delegate.item_count - 1)
+                    else:
+                        new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
                 elif self.__delegate.item_count > 0:
                     new_index = 0
                 if new_index is not None:
@@ -265,7 +337,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 new_index = None
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
-                    new_index = max(min(indexes) - 1, 0)
+                    if self.direction == Direction.Row:
+                        new_index = max(min(indexes) - 1, 0)
+                    else:
+                        new_index = max(min(indexes) - items_per_column, 0)
                 elif self.__delegate.item_count > 0:
                     new_index = self.__delegate.item_count - 1
                 if new_index is not None:
@@ -279,7 +354,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 new_index = None
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
-                    new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
+                    if self.direction == Direction.Row:
+                        new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
+                    else:
+                        new_index = min(max(indexes) + items_per_column, self.__delegate.item_count - 1)
                 elif self.__delegate.item_count > 0:
                     new_index = 0
                 if new_index is not None:

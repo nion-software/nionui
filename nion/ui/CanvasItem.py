@@ -5,6 +5,7 @@
 # standard libraries
 import collections
 import copy
+import enum
 import functools
 import logging
 import operator
@@ -26,6 +27,11 @@ from nion.utils import ThreadPool
 DEFAULT_MAX_FRAME_RATE = 25
 
 MAX_VALUE = sys.maxsize
+
+class Orientation(enum.Enum):
+    Vertical = 0
+    Horizontal = 1
+
 
 class Constraint:
 
@@ -1554,10 +1560,10 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
     def __init__(self, content=None):
         super(ScrollAreaCanvasItem, self).__init__()
         self.__content = None
-        self._on_validate_content_origin = None
         if content:
             self.content = content
         self.auto_resize_contents = False
+        self._constrain_position = True
 
     def close(self):
         if self.__content:
@@ -1623,8 +1629,16 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         # adjust the canvas_origin of the content if necessary. pass the canvas_origin, canvas_size of the content.
         # this method is used in the scroll bar canvas item to ensure that the content stays within view and
         # consistent with the scroll bar when the scroll area gets a new layout.
-        if self._on_validate_content_origin and canvas_origin is not None and canvas_size is not None and self.canvas_origin is not None and self.canvas_size is not None:
-            self.__content._set_canvas_origin(self._on_validate_content_origin(canvas_origin))
+        if self._constrain_position and canvas_origin is not None and canvas_size is not None and self.canvas_origin is not None and self.canvas_size is not None:
+            # when the scroll area content layout changes, this method will get called.
+            # ensure that the content matches the scroll position.
+            visible_size = self.canvas_size
+            content_size = self.content.canvas_size
+            scroll_range_h = max(content_size.width - visible_size.width, 0)
+            scroll_range_v = max(content_size.height - visible_size.height, 0)
+            canvas_origin = Geometry.IntPoint(x=canvas_origin.x, y=max(min(canvas_origin.y, 0), -scroll_range_v))
+            canvas_origin = Geometry.IntPoint(x=max(min(canvas_origin.x, 0), -scroll_range_h), y=canvas_origin.y)
+            self.__content._set_canvas_origin(canvas_origin)
 
     def _repaint(self, drawing_context):
         super(ScrollAreaCanvasItem, self)._repaint(drawing_context)
@@ -1852,16 +1866,14 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
     """ A scroll bar for a scroll area. """
 
-    def __init__(self, scroll_area_canvas_item, orientation: str = None):
+    def __init__(self, scroll_area_canvas_item, orientation:Orientation = None):
         super(ScrollBarCanvasItem, self).__init__()
-        orientation = orientation if orientation is not None else "vertical"
+        orientation = orientation if orientation is not None else Orientation.Vertical
         self.wants_mouse_events = True
         self.__scroll_area_canvas_item = scroll_area_canvas_item
-        # when the scroll area content layout changes, this method will get called.
-        self.__scroll_area_canvas_item._on_validate_content_origin = self.__validate_content_origin
         self.__tracking = False
         self.__orientation = orientation
-        if self.__orientation == "vertical":
+        if self.__orientation == Orientation.Vertical:
             self.sizing.set_fixed_width(16)
         else:
             self.sizing.set_fixed_height(16)
@@ -1876,7 +1888,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             # draw the border of the scroll bar
             drawing_context.begin_path()
             drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-            if self.__orientation == "vertical":
+            if self.__orientation == Orientation.Vertical:
                 gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, canvas_size.width, 0)
             else:
                 gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
@@ -1890,7 +1902,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             if thumb_rect.height > 0 and thumb_rect.width > 0:
                 with drawing_context.saver():
                     drawing_context.begin_path()
-                    if self.__orientation == "vertical":
+                    if self.__orientation == Orientation.Vertical:
                         drawing_context.move_to(thumb_rect.width - 8, thumb_rect.top + 6)
                         drawing_context.line_to(thumb_rect.width - 8, thumb_rect.bottom - 6)
                     else:
@@ -1903,7 +1915,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             # draw inside edge
             drawing_context.begin_path()
             drawing_context.move_to(0, 0)
-            if self.__orientation == "vertical":
+            if self.__orientation == Orientation.Vertical:
                 drawing_context.line_to(0, canvas_size.height)
             else:
                 drawing_context.line_to(canvas_size.width, 0)
@@ -1912,7 +1924,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             drawing_context.stroke()
             # draw outside
             drawing_context.begin_path()
-            if self.__orientation == "vertical":
+            if self.__orientation == Orientation.Vertical:
                 drawing_context.move_to(canvas_size.width, 0)
             else:
                 drawing_context.move_to(0, canvas_size.height)
@@ -1937,7 +1949,8 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         # the scroll_range defines the maximum negative value of the content_offset.
         scroll_range = max(content_length - visible_length, 0)
         # content_offset should be negative, but not more negative than the scroll_range.
-        assert content_offset <= 0 and content_offset >= -scroll_range
+        content_offset = max(-scroll_range, min(0, content_offset))
+        # assert content_offset <= 0 and content_offset >= -scroll_range
         # the length of the thumb is the visible_length multiplied by the ratio of
         # visible_length to the content_length. however, a minimum height is enforced
         # so that the user can always grab it. if the thumb is invisible (the content_length
@@ -1957,30 +1970,18 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
     def thumb_rect(self):
         # return the thumb rect for the given canvas_size
         canvas_size = Geometry.IntSize.make(self.canvas_size)
-        index = 0 if self.__orientation == "vertical" else 1
+        index = 0 if self.__orientation == Orientation.Vertical else 1
         visible_length = self.__scroll_area_canvas_item.canvas_size[index]
         content_length = self.__scroll_area_canvas_item.content.canvas_size[index]
         content_offset = self.__scroll_area_canvas_item.content.canvas_origin[index]
         thumb_position, thumb_length = self.get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
-        if self.__orientation == "vertical":
+        if self.__orientation == Orientation.Vertical:
             thumb_origin = Geometry.IntPoint(x=0, y=thumb_position)
             thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_length)
         else:
             thumb_origin = Geometry.IntPoint(x=thumb_position, y=0)
             thumb_size = Geometry.IntSize(width=thumb_length, height=canvas_size.height)
         return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
-
-    def __validate_content_origin(self, content_canvas_origin):
-        # when the scroll area content layout changes, this method will get called.
-        # ensure that the content matches the scroll position.
-        index = 0 if self.__orientation == "vertical" else 1
-        visible_length = self.__scroll_area_canvas_item.canvas_size[index]
-        content_length = self.__scroll_area_canvas_item.content.canvas_size[index]
-        scroll_range = max(content_length - visible_length, 0)
-        if self.__orientation == "vertical":
-            return Geometry.IntPoint(x=content_canvas_origin.x, y=max(min(content_canvas_origin.y, 0), -scroll_range))
-        else:
-            return Geometry.IntPoint(x=max(min(content_canvas_origin.x, 0), -scroll_range), y=content_canvas_origin.y)
 
     def mouse_pressed(self, x, y, modifiers):
         thumb_rect = self.thumb_rect
@@ -1991,16 +1992,16 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             self.__tracking_content_offset = self.__scroll_area_canvas_item.content.canvas_origin
             self.update()
             return True
-        elif self.__orientation == "vertical" and y < thumb_rect.top:
+        elif self.__orientation == Orientation.Vertical and y < thumb_rect.top:
             self.__adjust_thumb(-1)
             return True
-        elif self.__orientation == "vertical" and y > thumb_rect.bottom:
+        elif self.__orientation == Orientation.Vertical and y > thumb_rect.bottom:
             self.__adjust_thumb(1)
             return True
-        elif self.__orientation != "vertical" and x < thumb_rect.left:
+        elif self.__orientation != Orientation.Vertical and x < thumb_rect.left:
             self.__adjust_thumb(-1)
             return True
-        elif self.__orientation != "vertical" and x > thumb_rect.right:
+        elif self.__orientation != Orientation.Vertical and x > thumb_rect.right:
             self.__adjust_thumb(1)
             return True
         return super(ScrollBarCanvasItem, self).mouse_pressed(x, y, modifiers)
@@ -2012,10 +2013,10 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
     def __adjust_thumb(self, amount):
         # adjust the position up or down one visible screen worth
-        index = 0 if self.__orientation == "vertical" else 1
+        index = 0 if self.__orientation == Orientation.Vertical else 1
         visible_length = self.__scroll_area_canvas_item.canvas_size[index]
         content = self.__scroll_area_canvas_item.content
-        if self.__orientation == "vertical":
+        if self.__orientation == Orientation.Vertical:
             new_content_offset = Geometry.IntPoint(y=content.canvas_origin[0] - visible_length * amount, x=content.canvas_origin[1])
         else:
             new_content_offset = Geometry.IntPoint(y=content.canvas_origin[0], x=content.canvas_origin[1] - visible_length * amount)
@@ -2045,7 +2046,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
     def mouse_position_changed(self, x, y, modifiers):
         if self.__tracking:
             pos = Geometry.IntPoint(x=x, y=y)
-            if self.__orientation == "vertical":
+            if self.__orientation == Orientation.Vertical:
                 mouse_offset_v = pos.y - self.__tracking_start.y
                 visible_height = self.__scroll_area_canvas_item.canvas_size[0]
                 content_height = self.__scroll_area_canvas_item.content.canvas_size[0]

@@ -106,7 +106,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 top_visible_row = visible_rect.top // item_height
                 bottom_visible_row = visible_rect.bottom // item_height
                 for index in range(top_visible_row, bottom_visible_row + 1):
-                    if index < max_index:
+                    if 0 <= index < max_index:
                         rect = Geometry.IntRect(origin=Geometry.IntPoint(y=index * item_height, x=0),
                                                 size=Geometry.IntSize(width=item_width, height=item_height))
                         if rect.intersects_rect(visible_rect):

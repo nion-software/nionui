@@ -411,6 +411,9 @@ class DrawingContext(object):
     def mark_latency(self):
         self.commands.append(("latency", time.perf_counter()))
 
+    def message(self, text):
+        self.commands.append(("message", text))
+
     def fill(self):
         self.commands.append(("fill", ))
 

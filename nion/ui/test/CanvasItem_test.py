@@ -707,6 +707,20 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(right_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(0, 184, 80, 200))
         self.assertEqual(bottom_canvas_item.canvas_rect, Geometry.IntRect.from_tlbr(80, 0, 100, 184))
 
+    def test_item_in_column_layout_with_preferred_less_than_min_expands(self):
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        column.add_spacing(20)
+        item = CanvasItem.EmptyCanvasItem()
+        item.sizing.preferred_height = 10
+        item.sizing.minimum_height = 20
+        column.add_canvas_item(item)
+        column.add_spacing(20)
+        column.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=30, height=100))
+        self.assertEqual(column.canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 15, 20, 15))
+        self.assertEqual(column.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 0, 80, 30))
+        self.assertEqual(column.canvas_items[2].canvas_rect, Geometry.IntRect.from_tlbr(80, 15, 100, 15))
+
     class TestCanvasItem(CanvasItem.CanvasItemComposition):
 
         def __init__(self):

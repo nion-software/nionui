@@ -63,10 +63,14 @@ def constraint_solve(canvas_origin, canvas_size, canvas_item_constraints, spacin
             solver_item.size = solver_item.constraint.preferred
             if solver_item.size < solver_item.constraint.minimum:
                 solver_item.size = solver_item.constraint.minimum
-                solver_item.is_constrained = True
+                if solver_item.size > solver_item.constraint.maximum:
+                    solver_item.size = solver_item.constraint.maximum
+                    solver_item.is_constrained = True
             if solver_item.size > solver_item.constraint.maximum:
                 solver_item.size = solver_item.constraint.maximum
-                solver_item.is_constrained = True
+                if solver_item.size < solver_item.constraint.minimum:
+                    solver_item.size = solver_item.constraint.minimum
+                    solver_item.is_constrained = True
 
     # put these here to avoid linter warnings
     remaining_canvas_size = canvas_size

@@ -184,7 +184,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def __make_selection_visible(self, top):
         if self.__delegate:
             selected_indexes = list(self.__selection.indexes)
-            if len(selected_indexes) > 0 and self.canvas_bounds is not None:  # 2nd part for testing
+            if len(selected_indexes) > 0 and self.canvas_bounds is not None:
                 min_index = min(selected_indexes)
                 max_index = max(selected_indexes)
                 min_rect = self.__rect_for_index(min_index)

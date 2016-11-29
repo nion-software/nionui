@@ -33,6 +33,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     Optional methods:
         on_content_menu_event(index, x, y, gx, gy): called when user wants context menu for given index
+        on_key_pressed(key): called when user presses a key
         on_delete_pressed(): called when user presses delete key
         on_drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
@@ -205,6 +206,9 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def key_pressed(self, key):
         if self.__delegate:
+            if self.__delegate.on_key_pressed:
+                if self.__delegate.on_key_pressed(key):
+                    return True
             if key.is_delete:
                 if self.__delegate.on_delete_pressed:
                     self.__delegate.on_delete_pressed()

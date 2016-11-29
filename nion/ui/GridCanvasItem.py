@@ -33,6 +33,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     Optional methods:
         on_content_menu_event(index, x, y, gx, gy): called when user wants context menu for given index
+        on_key_pressed(key): called when user presses a key
         on_delete_pressed(): called when user presses delete key
         on_drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
@@ -295,6 +296,9 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
         items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
         if self.__delegate:
+            if self.__delegate.on_key_pressed:
+                if self.__delegate.on_key_pressed(key):
+                    return True
             if key.is_delete:
                 if self.__delegate.on_delete_pressed:
                     self.__delegate.on_delete_pressed()

@@ -11,6 +11,7 @@ import operator
 import sys
 import threading
 import time
+import typing
 import warnings
 import weakref
 
@@ -26,7 +27,7 @@ DEFAULT_MAX_FRAME_RATE = 25
 
 MAX_VALUE = sys.maxsize
 
-class Constraint(object):
+class Constraint:
 
     """ A constraint on an item in a layout. Preferred is only used when free sizing. """
 
@@ -39,7 +40,7 @@ class Constraint(object):
         return "Constraint (min={0}, max={1}, pref={2})".format(self.minimum, self.maximum, self.preferred)
 
 
-class SolverItem(object):
+class SolverItem:
     def __init__(self, constraint):
         self.constraint = constraint
         self.size = None
@@ -173,7 +174,7 @@ def constraint_solve(canvas_origin, canvas_size, canvas_item_constraints, spacin
     return origins, sizes
 
 
-class Sizing(object):
+class Sizing:
 
     """
         Describes the sizing for a particular canvas item.
@@ -311,7 +312,7 @@ class Sizing(object):
         return maximum_height
 
 
-class KeyboardModifiers(object):
+class KeyboardModifiers:
     def __init__(self, shift=False, control=False, alt=False, meta=False, keypad=False):
         self.__shift = shift
         self.__control = control
@@ -374,7 +375,11 @@ class KeyboardModifiers(object):
         return self.__keypad
 
 
-class AbstractCanvasItem(object):
+def visible_canvas_item(canvas_item: "AbstractCanvasItem") -> "AbstractCanvasItem":
+    return canvas_item if canvas_item and canvas_item.visible else None
+
+
+class AbstractCanvasItem:
     """An item drawn on a canvas supporting mouse and keyboard actions.
 
     CONTAINERS
@@ -430,6 +435,7 @@ class AbstractCanvasItem(object):
         self.__tool_tip = None
         self.__background_color = None
         self.__border_color = None
+        self.__visible = True
 
     def close(self):
         """ Close the canvas object. """
@@ -624,6 +630,16 @@ class AbstractCanvasItem(object):
             self.update_layout(self.canvas_origin, self.canvas_size, trigger_update)
             if trigger_update:
                 self.update()
+
+    @property
+    def visible(self) -> bool:
+        return self.__visible
+
+    @visible.setter
+    def visible(self, value: bool) -> None:
+        self.__visible = value
+        if self.root_container:
+            self.root_container.refresh_layout()
 
     @property
     def sizing(self):
@@ -825,7 +841,7 @@ class AbstractCanvasItem(object):
         self.mouse_released(p[1], p[0], modifiers)
 
 
-class CanvasItemAbstractLayout(object):
+class CanvasItemAbstractLayout:
 
     """
         Layout canvas items within a larger space.
@@ -1159,7 +1175,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         super(CanvasItemGridLayout, self).__init__(margins, spacing)
         assert size.width > 0 and size.height > 0
         self.__size = size
-        self.__columns = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
+        self.__columns = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]  # type: typing.List[typing.List[AbstractCanvasItem]]
 
     def add_canvas_item(self, canvas_item, pos):
         assert pos.x >= 0 and pos.x < self.__size.width
@@ -1182,7 +1198,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         content_width = canvas_size.width - self.margins.left - self.margins.right - self.spacing * spacing_count
         constraints = list()
         for x in range(self.__size.width):
-            sizing = self._get_overlap_sizing([self.__columns[x][y] for y in range(self.__size.height)])
+            sizing = self._get_overlap_sizing([visible_canvas_item(self.__columns[x][y]) for y in range(self.__size.height)])
             constraints.append(sizing.get_width_constraint(content_width))
         # run the layout engine
         x_positions, widths = constraint_solve(content_left, content_width, constraints, self.spacing)
@@ -1194,7 +1210,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         content_height = canvas_size.height - self.margins.top - self.margins.bottom - self.spacing * spacing_count
         constraints = list()
         for y in range(self.__size.height):
-            sizing = self._get_overlap_sizing([self.__columns[x][y] for x in range(self.__size.width)])
+            sizing = self._get_overlap_sizing([visible_canvas_item(self.__columns[x][y]) for x in range(self.__size.width)])
             constraints.append(sizing.get_height_constraint(content_height))
         # run the layout engine
         y_positions, heights = constraint_solve(content_top, content_height, constraints, self.spacing)
@@ -1206,12 +1222,13 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         combined_canvas_items = list()
         for x in range(self.__size.width):
             for y in range(self.__size.height):
-                if self.__columns[x][y] is not None:
+                canvas_item = visible_canvas_item(self.__columns[x][y])
+                if canvas_item is not None:
                     combined_xs.append(x_positions[x])
                     combined_ys.append(y_positions[y])
                     combined_widths.append(widths[x])
                     combined_heights.append(heights[y])
-                    combined_canvas_items.append(self.__columns[x][y])
+                    combined_canvas_items.append(canvas_item)
         self.layout_canvas_items(combined_xs, combined_ys, combined_widths, combined_heights, combined_canvas_items, trigger_update)
 
     def get_sizing(self, canvas_items):
@@ -1227,7 +1244,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # the widths
         canvas_item_sizings = list()
         for x in range(self.__size.width):
-            canvas_items = [self.__columns[x][y] for y in range(self.__size.height)]
+            canvas_items = [visible_canvas_item(self.__columns[x][y]) for y in range(self.__size.height)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items))
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", operator.add)
@@ -1236,7 +1253,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # the heights
         canvas_item_sizings = list()
         for y in range(self.__size.height):
-            canvas_items = [self.__columns[x][y] for x in range(self.__size.width)]
+            canvas_items = [visible_canvas_item(self.__columns[x][y]) for x in range(self.__size.width)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items))
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", operator.add)
@@ -1291,6 +1308,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         """ Return a copy of the canvas items managed by this composition. """
         return copy.copy(self.__canvas_items)
 
+    @property
+    def visible_canvas_items(self):
+        return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
+
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """Override from abstract canvas item.
 
@@ -1299,13 +1320,13 @@ class CanvasItemComposition(AbstractCanvasItem):
         super(CanvasItemComposition, self).update_layout(canvas_origin, canvas_size, trigger_update)
         # make sure arguments are point, size
         canvas_size = Geometry.IntSize.make(canvas_size)
-        self.layout.layout(Geometry.IntPoint(), canvas_size, self.__canvas_items, trigger_update)
+        self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items, trigger_update)
 
     # override sizing information. let layout provide it.
     @property
     def layout_sizing(self):
         sizing = self.sizing
-        layout_sizing = self.layout.get_sizing(self.__canvas_items)
+        layout_sizing = self.layout.get_sizing(self.visible_canvas_items)
         if sizing.minimum_width is not None:
             layout_sizing.minimum_width = sizing.minimum_width
         if sizing.maximum_width is not None:
@@ -1324,7 +1345,7 @@ class CanvasItemComposition(AbstractCanvasItem):
             layout_sizing.maximum_aspect_ratio = sizing.maximum_aspect_ratio
         if sizing.preferred_aspect_ratio is not None:
             layout_sizing.preferred_aspect_ratio = sizing.preferred_aspect_ratio
-        if len(self.__canvas_items) == 0 and sizing.collapsible:
+        if len(self.visible_canvas_items) == 0 and sizing.collapsible:
             layout_sizing.minimum_width = 0
             layout_sizing.preferred_width = 0
             layout_sizing.maximum_width = 0
@@ -1404,13 +1425,13 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def replace_canvas_item(self, old_canvas_item, new_canvas_item, container=None):
         """ Replace the given canvas item with the new one. Canvas item is closed. """
-        index = self.canvas_items.index(old_canvas_item)
+        index = self.__canvas_items.index(old_canvas_item)
         self.remove_canvas_item(old_canvas_item)
         self.insert_canvas_item(index, new_canvas_item)
 
     def wrap_canvas_item(self, canvas_item, canvas_item_container):
         """ Replace the given canvas item with the container and move the canvas item into the container. """
-        index = self.canvas_items.index(canvas_item)
+        index = self.__canvas_items.index(canvas_item)
         # remove the existing canvas item, but without closing it.
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
@@ -1446,7 +1467,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Paint items from back to front."""
         super(CanvasItemComposition, self)._repaint(drawing_context)
         self._draw_background(drawing_context)
-        for canvas_item in self.__canvas_items:
+        for canvas_item in self.visible_canvas_items:
             with drawing_context.saver():
                 canvas_item_rect = canvas_item.canvas_rect
                 drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
@@ -1457,7 +1478,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Returns list of canvas items under x, y, ordered from back to front."""
         canvas_items = []
         point = Geometry.IntPoint(x=x, y=y)
-        for canvas_item in reversed(self.__canvas_items):
+        for canvas_item in reversed(self.visible_canvas_items):
             if canvas_item.canvas_rect.contains_point(point):
                 canvas_point = point - Geometry.IntPoint.make(canvas_item.canvas_origin)
                 canvas_items.extend(canvas_item.canvas_items_at_point(canvas_point.x, canvas_point.y))
@@ -1473,7 +1494,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return False
 
     def pan_gesture(self, dx, dy):
-        for canvas_item in reversed(self.__canvas_items):
+        for canvas_item in reversed(self.visible_canvas_items):
             if canvas_item.pan_gesture(dx, dy):
                 return True
         return False
@@ -2603,7 +2624,7 @@ class CellCanvasItem(AbstractCanvasItem):
                 self.__cell.paint_cell(drawing_context, rect, self.style)
 
 
-class TwistDownCell(object):
+class TwistDownCell:
 
     def __init__(self):
         super(TwistDownCell, self).__init__()
@@ -2681,7 +2702,7 @@ class TwistDownCanvasItem(CellCanvasItem):
         return True
 
 
-class BitmapCell(object):
+class BitmapCell:
 
     def __init__(self, rgba_bitmap_data_fn=None, background_color=None, border_color=None):
         super().__init__()
@@ -3195,7 +3216,7 @@ class EmptyCanvasItem(AbstractCanvasItem):
         super(EmptyCanvasItem, self).__init__()
 
 
-class RadioButtonGroup(object):
+class RadioButtonGroup:
 
     def __init__(self, buttons):
         self.__buttons = copy.copy(buttons)

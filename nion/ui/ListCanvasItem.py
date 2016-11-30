@@ -49,6 +49,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.focusable = True
         # internal variables
         self.__mouse_pressed = False
+        self.__mouse_pressed_for_dragging = False
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
@@ -144,14 +145,15 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             max_index = self.__delegate.item_count
             if mouse_index >= 0 and mouse_index < max_index:
                 self.__mouse_index = mouse_index
+                self.__mouse_pressed = True
                 if not modifiers.shift and not modifiers.control:
-                    self.__mouse_pressed = True
+                    self.__mouse_pressed_for_dragging = True
                     self.__mouse_position = Geometry.IntPoint(y=y, x=x)
                 return True
         return super().mouse_pressed(x, y, modifiers)
 
-    def mouse_released(self, x, y, modifiers):
-        if self.__delegate and self.__mouse_pressed:
+    def __mouse_released(self, x, y, modifiers, do_select):
+        if self.__delegate and self.__mouse_pressed and do_select:
             # double check whether mouse_released has been called explicitly as part of a drag.
             # see https://bugreports.qt.io/browse/QTBUG-40733
             mouse_index = self.__mouse_index
@@ -164,20 +166,26 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 else:
                     self.__selection.set(mouse_index)
         self.__mouse_pressed = False
+        self.__mouse_pressed_for_dragging = False
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
         return True
 
+    def mouse_released(self, x, y, modifiers):
+        return self.__mouse_released(x, y, modifiers, True)
+
     def mouse_position_changed(self, x, y, modifiers):
-        if self.__mouse_pressed:
+        if self.__mouse_pressed_for_dragging:
             if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
                 self.__mouse_dragging = True
                 if self.__delegate and self.__delegate.on_drag_started:
-                    self.root_container.bypass_request_focus()
+                    root_container = self.root_container
+                    if root_container:
+                        root_container.bypass_request_focus()
                     self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
-                    self.mouse_released(x, y, modifiers)
+                    self.__mouse_released(x, y, modifiers, False)
                 return True
         return super().mouse_position_changed(x, y, modifiers)
 

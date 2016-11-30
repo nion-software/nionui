@@ -532,7 +532,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(canvas_item2.focused)
         # click in item 1 and check that focus was updated and changed
         modifiers = CanvasItem.KeyboardModifiers()
-        canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
         self.assertTrue(canvas_item1.focused)
         self.assertTrue(canvas_item1 in focus_changed_set)
         self.assertFalse(canvas_item2.focused)
@@ -540,7 +540,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.focused_item, canvas_item1)
         # click in item 2 and check that focus was updated and changed
         focus_changed_set.clear()
-        canvas_item.canvas_widget.on_mouse_clicked(160 + 320, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(160 + 320, 240, modifiers)
         self.assertFalse(canvas_item1.focused)
         self.assertTrue(canvas_item1 in focus_changed_set)
         self.assertTrue(canvas_item2.focused)
@@ -559,7 +559,7 @@ class TestCanvasItemClass(unittest.TestCase):
         modifiers = CanvasItem.KeyboardModifiers()
         self.assertIsNone(canvas_item.focused_item)
         self.assertFalse(canvas_item.focused)
-        canvas_item.canvas_widget.on_mouse_clicked(320, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(320, 240, modifiers)
         self.assertTrue(canvas_item.focused)
         self.assertEqual(canvas_item.focused_item, canvas_item)  # refers to itself??
         # become unfocused
@@ -582,8 +582,8 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         # click in item 1, then 2 and check key goes to 2nd item
         modifiers = CanvasItem.KeyboardModifiers()
-        canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
-        canvas_item.canvas_widget.on_mouse_clicked(160 + 320, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(160 + 320, 240, modifiers)
         # check assumptions
         self.assertFalse(canvas_item1.focused)
         self.assertTrue(canvas_item2.focused)
@@ -595,7 +595,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # now back to first item
         canvas_item1.key = None
         canvas_item2.key = None
-        canvas_item.canvas_widget.on_mouse_clicked(160, 240, modifiers)
+        canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
         canvas_item.canvas_widget.on_key_pressed('a')
         self.assertEqual(canvas_item1.key, 'a')
         self.assertIsNone(canvas_item2.key)

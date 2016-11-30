@@ -233,6 +233,13 @@ class Widget(object):
         pass
     def move_cursor_position(self, operation, mode=None, n=1):
         pass
+    def simulate_mouse_click(self, x, y, modifiers):
+        if self.on_mouse_pressed:
+            self.on_mouse_pressed(x, y, modifiers)
+        if self.on_mouse_released:
+            self.on_mouse_released(x, y, modifiers)
+        if self.on_mouse_clicked:
+            self.on_mouse_clicked(x, y, modifiers)
 
 
 class Menu:

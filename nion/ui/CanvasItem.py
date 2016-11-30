@@ -2326,7 +2326,6 @@ class RootCanvasItem(CanvasItemComposition):
     def __mouse_clicked(self, x, y, modifiers):
         canvas_item = self.__mouse_canvas_item_at_point(x, y)
         if canvas_item:
-            self.__request_focus(canvas_item)
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
             return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
 

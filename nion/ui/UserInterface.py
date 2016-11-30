@@ -1763,6 +1763,14 @@ class QtCanvasWidget(QtWidget):
         cursor_shape = cursor_shape or "arrow"
         self.proxy.Canvas_setCursorShape(self.widget, cursor_shape)
 
+    def simulate_mouse_click(self, x, y, modifiers):
+        if self.on_mouse_pressed:
+            self.on_mouse_pressed(x, y, modifiers)
+        if self.on_mouse_released:
+            self.on_mouse_released(x, y, modifiers)
+        if self.on_mouse_clicked:
+            self.on_mouse_clicked(x, y, modifiers)
+
     def mouseEntered(self):
         if self.on_mouse_entered:
             self.on_mouse_entered()

@@ -242,17 +242,36 @@ class Widget(object):
             self.on_mouse_clicked(x, y, modifiers)
 
 
+class MenuItem:
+    def __init__(self, title, callback, key_sequence, role, menu, is_separator, checked):
+        self.title = title
+        self.callback = callback
+        self.key_sequence = key_sequence,
+        self.role = role
+        self.menu = menu
+        self.is_separator = is_separator
+        self.checked = checked
+    def close(self):
+        self.callback = None
+
 class Menu:
-    MenuItem = collections.namedtuple("MenuItem", ["title", "callback", "key_sequence", "role", "menu", "is_separator"])
     def __init__(self):
         self.on_popup = None
         self.items = list()
+    def close(self):
+        for item in self.items:
+            item.close()
+        self.items = None
     def add_menu_item(self, title, callback, key_sequence=None, role=None):
-        self.items.append(Menu.MenuItem(title, callback, key_sequence, role, None, False))
+        menu_item = MenuItem(title, callback, key_sequence, role, None, False, False)
+        self.items.append(menu_item)
+        return menu_item
     def add_sub_menu(self, title, menu):
-        self.items.append(Menu.MenuItem(title, None, None, None, menu, False))
+        menu_item = MenuItem(title, None, None, None, menu, False, False)
+        self.items.append(menu_item)
+        return menu_item
     def add_separator(self):
-        self.items.append(Menu.MenuItem(None, None, None, None, None, True))
+        self.items.append(MenuItem(None, None, None, None, None, True, False))
     def popup(self, gx, gy):
         if self.on_popup:
             self.on_popup(self, gx, gy)
@@ -262,6 +281,7 @@ class DocumentWindow:
     def __init__(self):
         self.has_event_loop = False
         self.widget = None
+        self.__menus = list()
     def close(self):
         if self.widget:
             self.widget.close()
@@ -273,6 +293,9 @@ class DocumentWindow:
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
+        for menu in self.__menus:
+            menu.close()
+        self.__menus = None
     def request_close(self):
         if self.on_about_to_close:
             self.on_about_to_close(str(), str())
@@ -290,7 +313,9 @@ class DocumentWindow:
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
     def add_menu(self, title):
-        return Menu()
+        menu = Menu()
+        self.__menus.append(menu)
+        return menu
     def show(self):
         pass
 

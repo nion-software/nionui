@@ -1364,6 +1364,7 @@ class QtLineEditWidget(QtWidget):
         self.proxy.LineEdit_connect(self.widget, self)
         self.__binding = None
         self.__clear_button_enabled = False
+        self.__last_text = None
 
     def close(self):
         if self.__binding:
@@ -1376,30 +1377,43 @@ class QtLineEditWidget(QtWidget):
         self.on_text_edited = None
         super(QtLineEditWidget, self).close()
 
-    def __get_text(self):
+    @property
+    def text(self) -> str:
         return self.proxy.LineEdit_getText(self.widget)
-    def __set_text(self, text):
-        self.proxy.LineEdit_setText(self.widget, notnone(text))
-    text = property(__get_text, __set_text)
 
-    def __get_placeholder_text(self):
+    @text.setter
+    def text(self, text: str) -> None:
+        self.__last_text = notnone(text)
+        self.proxy.LineEdit_setText(self.widget, self.__last_text)
+
+    @property
+    def placeholder_text(self) -> str:
         return self.proxy.LineEdit_getPlaceholderText(self.widget)
-    def __set_placeholder_text(self, text):
-        self.proxy.LineEdit_setPlaceholderText(self.widget, notnone(text))
-    placeholder_text = property(__get_placeholder_text, __set_placeholder_text)
 
-    def __get_clear_button_enabled(self):
+    @placeholder_text.setter
+    def placeholder_text(self, text: str) -> None:
+        self.proxy.LineEdit_setPlaceholderText(self.widget, notnone(text))
+
+    @property
+    def selected_text(self):
+        return self.proxy.LineEdit_getSelectedText(self.widget)
+
+    @property
+    def clear_button_enabled(self) -> bool:
         return self.__clear_button_enabled
-    def __set_clear_button_enabled(self, enabled):
+
+    @clear_button_enabled.setter
+    def clear_button_enabled(self, enabled: bool) -> None:
         self.__clear_button_enabled = enabled
         self.proxy.LineEdit_setClearButtonEnabled(self.widget, enabled)
-    clear_button_enabled = property(__get_clear_button_enabled, __set_clear_button_enabled)
 
-    def __get_editable(self):
+    @property
+    def editable(self) -> bool:
         return self.proxy.LineEdit_getEditable(self.widget)
-    def __set_editable(self, editable):
+
+    @editable.setter
+    def editable(self, editable: bool) -> None:
         self.proxy.LineEdit_setEditable(self.widget, editable)
-    editable = property(__get_editable, __set_editable)
 
     def select_all(self):
         self.proxy.LineEdit_selectAll(self.widget)
@@ -1407,6 +1421,7 @@ class QtLineEditWidget(QtWidget):
     def editing_finished(self, text):
         if self.on_editing_finished:
             self.on_editing_finished(text)
+            self.__last_text = text
 
     def handle_select_all(self):
         self.select_all()
@@ -1442,15 +1457,26 @@ class QtLineEditWidget(QtWidget):
         self.text = binding.get_target_value()
         def update_field(text):
             if self.widget:  # may be called as task, so verify it hasn't closed yet
-                self.text = text
-                if self.focused:
-                    self.select_all()
+                if self.text != text and (not self.focused or self.selected_text == self.text):
+                    self.text = text
+                    if self.focused:
+                        self.select_all()
         self.__binding = binding
         def update_text(text):
             if self.widget:
                 self.add_task("update_text", lambda: update_field(text))
         self.__binding.target_setter = update_text
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
+        def return_pressed():
+            text = self.text
+            self.select_all()
+            self.__binding.update_source(text)
+        def escape_pressed():
+            text = self.__last_text
+            self.select_all()
+            self.__binding.update_source(text)
+        self.on_return_pressed = return_pressed
+        self.on_escape_pressed = escape_pressed
 
     def unbind_text(self):
         if self.__binding:

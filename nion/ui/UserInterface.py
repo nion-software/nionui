@@ -1755,7 +1755,8 @@ class QtCanvasWidget(QtWidget):
         # thread safe. take care to make sure widget hasn't been deleted from underneath.
         with self.__draw_mutex:
             if self.widget:
-                self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
+                # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
+                self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
 
     def set_cursor_shape(self, cursor_shape):
         cursor_shape = cursor_shape or "arrow"
@@ -2649,7 +2650,8 @@ class QtUserInterface:
         return DrawingContext.DrawingContext()
 
     def create_rgba_image(self, drawing_context, width, height):
-        return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
+        # return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
+        return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height))
 
     def get_font_metrics(self, font, text):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))

@@ -13,6 +13,7 @@ import copy
 import io
 import logging
 import math
+import struct
 import time
 import threading
 import uuid
@@ -42,20 +43,28 @@ class DrawingContext:
 
     def __init__(self, storage=None):
         self.commands = []
+        self.binary_commands = bytearray()
         self.save_count = 0
         self.__storage = storage
+        self.images = dict()
 
     def copy_from(self, drawing_context):
         assert self.save_count == 0
         assert drawing_context.save_count == 0
         self.commands = drawing_context.commands
+        self.binary_commands = drawing_context.binary_commands
+        self.images = drawing_context.images
 
     def add(self, drawing_context):
         self.commands.extend(drawing_context.commands)
+        self.binary_commands.extend(drawing_context.binary_commands)
+        self.images.update(drawing_context.images)
 
     def clear(self):
         self.commands = []
+        self.binary_commands = []
         self.save_count = 0
+        self.images = dict()
 
     def to_js(self):
         js = ""
@@ -346,38 +355,49 @@ class DrawingContext:
 
     def save(self):
         self.commands.append(("save", ))
+        self.binary_commands.extend(b"save")
         self.save_count += 1
 
     def restore(self):
         self.commands.append(("restore", ))
+        self.binary_commands.extend(b"rest")
         self.save_count -= 1
 
     def begin_path(self):
         self.commands.append(("beginPath", ))
+        self.binary_commands.extend(b"bpth")
 
     def close_path(self):
         self.commands.append(("closePath", ))
+        self.binary_commands.extend(b"cpth")
 
     def clip_rect(self, a, b, c, d):
         self.commands.append(("clip", float(a), float(b), float(c), float(d)))
+        self.binary_commands.extend(struct.pack("4sffff", b"clip", float(a), float(b), float(c), float(d)))
 
     def translate(self, x, y):
         self.commands.append(("translate", float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sff", b"tran", float(x), float(y)))
 
     def scale(self, x, y):
         self.commands.append(("scale", float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sff", b"scal", float(x), float(y)))
 
     def rotate(self, radians):
         self.commands.append(("rotate", math.degrees(float(radians))))
+        self.binary_commands.extend(struct.pack("4sf", b"rota", float(radians)))
 
     def move_to(self, x, y):
         self.commands.append(("moveTo", float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sff", b"move", float(x), float(y)))
 
     def line_to(self, x, y):
         self.commands.append(("lineTo", float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sff", b"line", float(x), float(y)))
 
     def rect(self, l, t, w, h):
         self.commands.append(("rect", float(l), float(t), float(w), float(h)))
+        self.binary_commands.extend(struct.pack("4sffff", b"rect", float(l), float(t), float(w), float(h)))
 
     def round_rect(self, x, y, w, h, r):
         self.move_to(x + r, y)
@@ -389,9 +409,11 @@ class DrawingContext:
 
     def arc(self, x, y, r, sa, ea, ac=False):
         self.commands.append(("arc", float(x), float(y), float(r), float(sa), float(ea), bool(ac)))
+        self.binary_commands.extend(struct.pack("4sfffffi", b"arc ", float(x), float(y), float(r), float(sa), float(ea), bool(ac)))
 
     def arc_to(self, x1, y1, x2, y2, r):
         self.commands.append(("arcTo", float(x1), float(y1), float(x2), float(y2), float(r)))
+        self.binary_commands.extend(struct.pack("4sfffff", b"arct", float(x1), float(y1), float(x2), float(y2), float(r)))
 
     def draw_image(self, img, x, y, width, height):
         # img should be rgba pack, uint32
@@ -401,25 +423,35 @@ class DrawingContext:
             image_id = DrawingContext.__image_id
         self.commands.append(
             ("image", img.shape[1], img.shape[0], img, int(image_id), float(x), float(y), float(width), float(height)))
+        self.images[str(image_id)] = img
+        self.binary_commands.extend(struct.pack("4siiiffff", b"imag", img.shape[1], img.shape[0], int(image_id), float(x), float(y), float(width), float(height)))
 
     def stroke(self):
         self.commands.append(("stroke", ))
+        self.binary_commands.extend(b"strk")
 
     def sleep(self, duration):
-        self.commands.append(("sleep", duration))
+        self.commands.append(("sleep", float(duration)))
+        self.binary_commands.extend(struct.pack("4sf", b"slep", float(duration)))
 
     def mark_latency(self):
         self.commands.append(("latency", time.perf_counter()))
+        self.binary_commands.extend(struct.pack("4sq", b"latn", time.perf_counter()))
 
     def message(self, text):
         self.commands.append(("message", text))
+        text_encoded = text.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(text_encoded)), b"mesg", len(text_encoded), text_encoded))
 
     def fill(self):
         self.commands.append(("fill", ))
+        self.binary_commands.extend(b"fill")
 
     def fill_text(self, text, x, y, max_width=None):
         text = str(text) if text is not None else str()
         self.commands.append(("fillText", text, float(x), float(y), float(max_width) if max_width else 0))
+        text_encoded = text.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}sfff".format(len(text_encoded)), b"text", len(text_encoded), text_encoded, float(x), float(y), float(max_width) if max_width else 0))
 
     @property
     def fill_style(self):
@@ -430,8 +462,12 @@ class DrawingContext:
         if isinstance(a, DrawingContext.LinearGradient):
             self.commands.extend(a.commands)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
+            self.binary_commands.extend(a.binary_commands)
+            self.binary_commands.extend(struct.pack("4si", b"flsg", int(a.command_var)))
         else:
             self.commands.append(("fillStyle", str(a)))
+            a_encoded = a.encode("utf-8")
+            self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"flst", len(a_encoded), a_encoded))
 
     @property
     def font(self):
@@ -445,6 +481,8 @@ class DrawingContext:
             Supports 'normal', 'bold', 'italic', size specific as '14px', and font-family.
         """
         self.commands.append(("font", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"font", len(a_encoded), a_encoded))
 
     def __get_text_align(self):
         raise NotImplementedError()
@@ -458,6 +496,8 @@ class DrawingContext:
             Default is 'start'.
         """
         self.commands.append(("textAlign", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"algn", len(a_encoded), a_encoded))
 
     text_align = property(__get_text_align, __set_text_align)
 
@@ -473,6 +513,8 @@ class DrawingContext:
             Default is 'alphabetic'.
         """
         self.commands.append(("textBaseline", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"tbas", len(a_encoded), a_encoded))
 
     text_baseline = property(__get_text_baseline, __set_text_baseline)
 
@@ -481,6 +523,8 @@ class DrawingContext:
 
     def __set_stroke_style(self, a):
         self.commands.append(("strokeStyle", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"stst", len(a_encoded), a_encoded))
 
     stroke_style = property(__get_stroke_style, __set_stroke_style)
 
@@ -489,6 +533,7 @@ class DrawingContext:
 
     def __set_line_width(self, a):
         self.commands.append(("lineWidth", float(a)))
+        self.binary_commands.extend(struct.pack("4sf", b"linw", float(a)))
 
     line_width = property(__get_line_width, __set_line_width)
 
@@ -498,6 +543,7 @@ class DrawingContext:
     def __set_line_dash(self, a):
         """ Set the line dash. Takes a single value with the length of the dash. """
         self.commands.append(("lineDash", float(a)))
+        self.binary_commands.extend(struct.pack("4sf", b"ldsh", float(a)))
 
     line_dash = property(__get_line_dash, __set_line_dash)
 
@@ -507,6 +553,8 @@ class DrawingContext:
     def __set_line_cap(self, a):
         """ Set the line join. Valid values are 'square', 'round', 'butt'. Default is 'square'. """
         self.commands.append(("lineCap", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"lcap", len(a_encoded), a_encoded))
 
     line_cap = property(__get_line_cap, __set_line_cap)
 
@@ -516,6 +564,8 @@ class DrawingContext:
     def __set_line_join(self, a):
         """ Set the line join. Valid values are 'round', 'miter', 'bevel'. Default is 'bevel'. """
         self.commands.append(("lineJoin", str(a)))
+        a_encoded = a.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"lnjn", len(a_encoded), a_encoded))
 
     line_join = property(__get_line_join, __set_line_join)
 
@@ -524,13 +574,16 @@ class DrawingContext:
 
         def __init__(self, width, height, x1, y1, x2, y2):  # pylint: disable=invalid-name
             self.commands = []
+            self.binary_commands = []
             self.command_var = DrawingContext.LinearGradient.next
-            self.commands.append(("gradient", self.command_var, float(width), float(height), float(x1), float(y1),
-                                  float(x2), float(y2)))
+            self.commands.append(("gradient", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
+            self.binary_commands.extend(struct.pack("4siffffff", b"grad", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
             DrawingContext.LinearGradient.next += 1
 
         def add_color_stop(self, x, color):
             self.commands.append(("colorStop", self.command_var, float(x), str(color)))
+            color_encoded = color.encode("utf-8")
+            self.binary_commands.extend(struct.pack("4sifi{}s0i".format(len(color_encoded)), b"grcs", self.command_var, float(x), len(color_encoded), color_encoded))
 
     def create_linear_gradient(self, width, height, x1, y1, x2, y2):  # pylint: disable=invalid-name
         gradient = DrawingContext.LinearGradient(width, height, x1, y1, x2, y2)
@@ -538,6 +591,8 @@ class DrawingContext:
 
     def statistics(self, stat_id):
         self.commands.append(("statistics", str(stat_id)))
+        stat_id_encoded = stat_id.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(stat_id_encoded)), b"stat", len(stat_id_encoded), stat_id_encoded))
 
     @contextmanager
     def layer(self, layer_id):
@@ -568,25 +623,39 @@ class DrawingContextStorage:
 
     def __init__(self):
         self.__storage = dict()
+        self.__storage_binary = dict()
         self.__keys_to_remove = list()
+        self.__keys_to_remove_binary = list()
 
     def close(self):
         self.__storage = None
+        self.__storage_binary = None
 
     def mark(self):
         self.__keys_to_remove = list(self.__storage.keys())
+        self.__keys_to_remove_binary = list(self.__storage_binary.keys())
 
     def clean(self):
         list(map(self.__storage.__delitem__, self.__keys_to_remove))
+        list(map(self.__storage_binary.__delitem__, self.__keys_to_remove_binary))
 
     def begin_layer(self, drawing_context, layer_id):
         self.__storage.setdefault(layer_id, dict())["start"] = len(drawing_context.commands)
+        self.__storage_binary.setdefault(layer_id, dict())["start"] = len(drawing_context.binary_commands)
 
     def end_layer(self, drawing_context, layer_id):
         start = self.__storage.get(layer_id, dict())["start"]
         self.__storage.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.commands[start:])
+        start_binary = self.__storage_binary.get(layer_id, dict())["start"]
+        self.__storage_binary.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.binary_commands[start_binary:])
 
     def draw_layer(self, drawing_context, layer_id):
         commands = self.__storage.get(layer_id, dict())["commands"]
         drawing_context.commands.extend(commands)
+        binary_commands = self.__storage_binary.get(layer_id, dict())["commands"]
+        drawing_context.binary_commands.extend(binary_commands)
+        for command in commands:
+            if command[0] == "image":
+                drawing_context.images[str(command[4])] = command[3]
         self.__keys_to_remove.remove(layer_id)
+        self.__keys_to_remove_binary.remove(layer_id)

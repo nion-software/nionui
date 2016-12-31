@@ -28,7 +28,7 @@ import scipy.misc
 # pylint: disable=star-args
 
 
-class DrawingContext(object):
+class DrawingContext:
     """
         Path commands (begin_path, close_path, move_to, line_to, etc.) should not be intermixed
         with transform commands (translate, scale, rotate).
@@ -519,7 +519,7 @@ class DrawingContext(object):
 
     line_join = property(__get_line_join, __set_line_join)
 
-    class LinearGradient(object):
+    class LinearGradient:
         next = 1
 
         def __init__(self, width, height, x1, y1, x2, y2):  # pylint: disable=invalid-name
@@ -562,3 +562,31 @@ class DrawingContext(object):
 
     def draw_layer(self, layer_id):
         self.__storage.draw_layer(self, layer_id)
+
+
+class DrawingContextStorage:
+
+    def __init__(self):
+        self.__storage = dict()
+        self.__keys_to_remove = list()
+
+    def close(self):
+        self.__storage = None
+
+    def mark(self):
+        self.__keys_to_remove = list(self.__storage.keys())
+
+    def clean(self):
+        list(map(self.__storage.__delitem__, self.__keys_to_remove))
+
+    def begin_layer(self, drawing_context, layer_id):
+        self.__storage.setdefault(layer_id, dict())["start"] = len(drawing_context.commands)
+
+    def end_layer(self, drawing_context, layer_id):
+        start = self.__storage.get(layer_id, dict())["start"]
+        self.__storage.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.commands[start:])
+
+    def draw_layer(self, drawing_context, layer_id):
+        commands = self.__storage.get(layer_id, dict())["commands"]
+        drawing_context.commands.extend(commands)
+        self.__keys_to_remove.remove(layer_id)

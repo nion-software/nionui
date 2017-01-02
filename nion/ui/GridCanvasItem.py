@@ -153,7 +153,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__delegate:
             canvas_size = self.canvas_size
             item_size = self.__calculate_item_size(canvas_size)
-            item_count = self.__delegate.item_count if self.__delegate else 0
+            items = self.__delegate.items if self.__delegate else list()
+            item_count = len(items)
             items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
             items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
 
@@ -179,7 +180,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                                         drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
                                         drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
                                         drawing_context.fill()
-                                self.__delegate.paint_item(drawing_context, index, rect, is_selected)
+                                self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
 
     def _repaint(self, drawing_context):
         self._repaint_visible(drawing_context, self.canvas_bounds)

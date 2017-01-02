@@ -104,7 +104,8 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             item_height = self.__item_height
 
             with drawing_context.saver():
-                max_index = self.__delegate.item_count
+                items = self.__delegate.items
+                max_index = len(items)
                 top_visible_row = visible_rect.top // item_height
                 bottom_visible_row = visible_rect.bottom // item_height
                 for index in range(top_visible_row, bottom_visible_row + 1):
@@ -120,7 +121,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                                 drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
                                 drawing_context.fill()
                                 drawing_context.restore()
-                            self.__delegate.paint_item(drawing_context, index, rect, is_selected)
+                            self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
 
     def _repaint(self, drawing_context):
         self._repaint_visible(drawing_context, self.canvas_bounds)

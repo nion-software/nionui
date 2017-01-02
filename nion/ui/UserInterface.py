@@ -2646,9 +2646,6 @@ class QtUserInterface:
 
     # misc
 
-    def create_offscreen_drawing_context(self):
-        return DrawingContext.DrawingContext()
-
     def create_rgba_image(self, drawing_context, width, height):
         # return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
         return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height))

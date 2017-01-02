@@ -2128,11 +2128,13 @@ class RootCanvasItem(CanvasItemComposition):
         self._metric_update_event = Event.Event()
 
     def close(self):
+        # shut down the repaint thread first
+        self.__repaint_thread.close()
+        self.__repaint_thread = None
+        # drawing storage after repaint, since repaint may be using drawing storage
         if self.__drawing_context_storage:
             self.__drawing_context_storage.close()
             self.__drawing_context_storage = None
-        self.__repaint_thread.close()
-        self.__repaint_thread = None
         self.__mouse_tracking_canvas_item = None
         self.__drag_tracking_canvas_item = None
         self.__grab_canvas_item = None

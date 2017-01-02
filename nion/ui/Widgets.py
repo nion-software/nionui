@@ -106,11 +106,14 @@ class CompositeWidgetBase:
 
     @property
     def size(self):
-        raise NotImplementedError()
+        return self.__content_widget.size
 
     @size.setter
     def size(self, size):
-        raise NotImplementedError()
+        self.__content_widget.size = size
+
+    def size_changed(self, size):
+        self.__content_widget.size_changed(size)
 
     @property
     def tool_tip(self):

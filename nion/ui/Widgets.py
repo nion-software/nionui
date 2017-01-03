@@ -210,8 +210,8 @@ class StringListWidget(CompositeWidgetBase):
             def on_drag_started(self, index, x, y, modifiers):
                 pass
 
-            def paint_item(self, drawing_context, index, rect, is_selected):
-                item = stringify_item(self.__items[index])
+            def paint_item(self, drawing_context, display_item, rect, is_selected):
+                item = stringify_item(display_item)
                 with drawing_context.saver():
                     drawing_context.fill_style = "#000"
                     drawing_context.font = "12px"

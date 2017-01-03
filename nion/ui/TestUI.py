@@ -14,9 +14,8 @@ from nion.utils import Geometry
 focused_widget = None  # simulate focus handling at the widget level
 
 
-class Widget(object):
+class Widget:
     def __init__(self):
-        self.widget = ()
         self.drawing_context = DrawingContext.DrawingContext()
         self.width = 640
         self.height = 480
@@ -27,14 +26,16 @@ class Widget(object):
         self.parent_id = 0
         self.current_index = -1
         self.viewport = ((0, 0), (480, 640))
-        self.size = Geometry.IntSize(16, 16)
+        self.__size = None
         self.__focused = False
         self.on_editing_finished = None
         self.on_focus_changed = None
         self.on_text_edited = None
+        self.on_periodic = None
+        self.on_size_changed = None
         self.__text_binding = None
         self.__binding = None
-        self.content = None
+        self.__content = None
         self.widget = None
         self.focusable = False
         self.content_section = None
@@ -111,7 +112,33 @@ class Widget(object):
         self.on_viewport_changed = None
         self.on_wheel_changed = None
     def periodic(self):
-        pass
+        for child in self.children:
+            child.periodic()
+        if self.content:
+            self.content.periodic()
+        if callable(self.on_periodic):
+            self.on_periodic()
+    @property
+    def size(self):
+        return self.__size
+    @size.setter
+    def size(self, size):
+        self.size_changed(size)
+    def size_changed(self, size):
+        self.__size = size
+        for child in self.children:
+            child.size_changed(size)
+        if self.content:
+            self.width = size[1] if size is not None else None
+            self.height = size[0] if size is not None else None
+            self.content.size_changed(size)
+            if self.on_size_changed:
+                self.on_size_changed(self.width, self.height)
+        if self.canvas_item and size is not None:
+            self.width = size[1] if size is not None else None
+            self.height = size[0] if size is not None else None
+            if self.on_size_changed:
+                self.on_size_changed(self.width, self.height)
     def send(self, text):
         pass
     @property
@@ -121,6 +148,7 @@ class Widget(object):
         self.insert(widget, len(self.children), fill, alignment)
     def insert(self, widget, before, fill=False, alignment=None):
         self.children.insert(before, widget)
+        widget.size_changed(self.size)
     def remove(self, widget):
         widget.close()
         self.children.remove(widget)
@@ -128,6 +156,14 @@ class Widget(object):
         for widget in self.children:
             widget.close()
         self.children = list()
+    @property
+    def content(self):
+        return self.__content
+    @content.setter
+    def content(self, value):
+        self.__content = value
+        if self.__content:
+            self.__content.size_changed(self.size)
     def add_stretch(self):
         pass
     def add_spacing(self, spacing):
@@ -135,8 +171,8 @@ class Widget(object):
     def create_drawing_context(self, storage=None):
         return DrawingContext.DrawingContext(storage)
     def create_drawing_context_storage(self):
-        return None
-    def draw(self, drawing_context):
+        return DrawingContext.DrawingContextStorage()
+    def draw(self, drawing_context, drawing_context_storage):
         pass
     def save_state(self, tag):
         pass
@@ -278,14 +314,19 @@ class Menu:
 
 
 class DocumentWindow:
-    def __init__(self):
+    def __init__(self, size=None):
         self.has_event_loop = False
-        self.widget = None
+        self.root_widget = None
         self.__menus = list()
+        self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
+        self.__dock_widgets = list()
     def close(self):
-        if self.widget:
-            self.widget.close()
-            self.widget = None
+        if self.root_widget:
+            self.root_widget.close()
+            self.root_widget = None
+        for dock_widget in self.__dock_widgets:
+            dock_widget.close()
+        self.__dock_widgets = None
         self.on_periodic = None
         self.on_queue_task = None
         self.on_add_task = None
@@ -299,31 +340,39 @@ class DocumentWindow:
     def request_close(self):
         if self.on_about_to_close:
             self.on_about_to_close(str(), str())
-        self.close()
-    def attach(self, widget):
-        self.widget = widget
+    def attach(self, root_widget):
+        self.root_widget = root_widget
+        self.root_widget.size_changed(self.__size)
     def detach(self):
-        assert self.widget is not None
-        self.widget.close()
-        self.widget = None
+        assert self.root_widget is not None
+        self.root_widget.close()
+        self.root_widget = None
     def create_dock_widget(self, widget, panel_id, title, positions, position):
         dock_widget = Widget()
         dock_widget.add(widget)
+        dock_widget.size_changed(Geometry.IntSize(height=320, width=480))
+        self.__dock_widgets.append(dock_widget)
         return dock_widget
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
+    def insert_menu(self, title, before_menu):
+        menu = Menu()
+        self.__menus.append(menu)
+        return menu
     def add_menu(self, title):
         menu = Menu()
         self.__menus.append(menu)
         return menu
     def show(self):
         pass
+    def restore(self, geometry, state):
+        pass
 
 
 class ItemModelController:
     DRAG = 0
     DROP = 1
-    class Item(object):
+    class Item:
         def __init__(self, data=None):
             self.children = []
             self.parent = None
@@ -417,7 +466,7 @@ class ListModelController:
         pass
 
 
-class Key(object):
+class Key:
     def __init__(self, text, key, modifiers):
         self.text = text
         self.key = key
@@ -456,7 +505,7 @@ class Key(object):
         return self.key == "down"
 
 
-class MimeData(object):
+class MimeData:
     def __init__(self, mime_data=None):
         self.mime_data = dict() if mime_data is None else mime_data
     @property
@@ -488,7 +537,7 @@ class MimeData(object):
 
 
 # define a dummy user interface to use during tests
-class UserInterface(object):
+class UserInterface:
     def __init__(self):
         self.popup = None
         self.popup_pos = None
@@ -503,7 +552,7 @@ class UserInterface(object):
     def create_document_window(self, title=None):
         return DocumentWindow()
     def destroy_document_window(self, document_window):
-        pass
+        document_window.close()
     def create_button_group(self):
         return Widget()
     def create_row_widget(self, alignment=None, properties=None):
@@ -586,8 +635,6 @@ class UserInterface(object):
             elif modifiers_id == "keypad":
                 keypad = True
         return CanvasItem.KeyboardModifiers(shift, control, alt, meta, keypad)
-    def create_offscreen_drawing_context(self):
-        return DrawingContext.DrawingContext()
     def get_font_metrics(self, font, text):
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
         return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)

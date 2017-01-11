@@ -442,6 +442,7 @@ class AbstractCanvasItem:
         self.__background_color = None
         self.__border_color = None
         self.__visible = True
+        self._has_layout = False
 
     def close(self):
         """ Close the canvas object. """
@@ -460,6 +461,7 @@ class AbstractCanvasItem:
 
     def _set_canvas_size(self, canvas_size):
         self.__canvas_size = Geometry.IntSize.make(canvas_size)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     @property
     def canvas_origin(self):
@@ -468,6 +470,7 @@ class AbstractCanvasItem:
 
     def _set_canvas_origin(self, canvas_origin):
         self.__canvas_origin = Geometry.IntPoint.make(canvas_origin)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     @property
     def canvas_widget(self):
@@ -674,7 +677,7 @@ class AbstractCanvasItem:
             The canvas item will be repainted by the root canvas item.
         """
         container = self.__container
-        if container:
+        if container and self._has_layout:
             container._child_updated(self)
 
     def _child_updated(self, child):
@@ -686,7 +689,7 @@ class AbstractCanvasItem:
             Subclasses can override to handle specially.
         """
         container = self.__container
-        if container:
+        if container and self._has_layout:
             container._child_updated(self)
 
     def _repaint(self, drawing_context):
@@ -1301,12 +1304,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.layout = CanvasItemLayout()
 
     def close(self):
-        canvas_items_copy = copy.copy(self.__canvas_items)
-        for canvas_item in canvas_items_copy:
-            canvas_item.close()
-            canvas_item.container = None
-            self.__canvas_items.remove(canvas_item)
+        canvas_items = self.canvas_items
         self.__canvas_items = None
+        for canvas_item in canvas_items:
+            canvas_item.close()
         super(CanvasItemComposition, self).close()
 
     @property
@@ -1474,10 +1475,11 @@ class CanvasItemComposition(AbstractCanvasItem):
         super(CanvasItemComposition, self)._repaint(drawing_context)
         self._draw_background(drawing_context)
         for canvas_item in self.visible_canvas_items:
-            with drawing_context.saver():
-                canvas_item_rect = canvas_item.canvas_rect
-                drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
-                canvas_item._repaint(drawing_context)
+            if canvas_item._has_layout:
+                with drawing_context.saver():
+                    canvas_item_rect = canvas_item.canvas_rect
+                    drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
+                    canvas_item._repaint(drawing_context)
         self._draw_border(drawing_context)
 
     def canvas_items_at_point(self, x, y):
@@ -1566,10 +1568,10 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         self._constrain_position = True
 
     def close(self):
-        if self.__content:
-            self.__content.close()
-            self.__content.container = None
+        content = self.__content
         self.__content = None
+        if content:
+            content.close()
         super(ScrollAreaCanvasItem, self).close()
 
     @property
@@ -3259,9 +3261,6 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
         self.__enabled = True
         self.__progress = 0.0  # 0.0 to 1.0
         self.sizing.set_fixed_height(4)
-
-    def close(self):
-        super(ProgressBarCanvasItem, self).close()
 
     @property
     def enabled(self) -> bool:

@@ -1239,6 +1239,7 @@ class QtLabelWidget(QtWidget):
         self.__text = None
         self.text = text
         self.__binding = None
+        self.__word_wrap = False
 
     def close(self):
         if self.__binding:
@@ -1247,13 +1248,24 @@ class QtLabelWidget(QtWidget):
         self.clear_task("update_text")
         super(QtLabelWidget, self).close()
 
-    def __get_text(self):
+    @property
+    def text(self):
         return self.__text
-    def __set_text(self, text):
+
+    @text.setter
+    def text(self, text):
         self.__text = text if text else ""
         if self.widget:  # may be called as task, so verify it hasn't closed yet
             self.proxy.Label_setText(self.widget, notnone(self.__text))
-    text = property(__get_text, __set_text)
+
+    @property
+    def word_wrap(self):
+        return self.__word_wrap
+
+    @word_wrap.setter
+    def word_wrap(self, value):
+        self.__word_wrap = value
+        self.proxy.Label_setWordWrap(self.widget, value)
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
@@ -1264,7 +1276,7 @@ class QtLabelWidget(QtWidget):
         self.__binding = binding
         def update_text(text):
             if self.widget:
-                self.add_task("update_text", lambda: self.__set_text(text))
+                self.add_task("update_text", lambda: setattr(self, "text", text))
         self.__binding.target_setter = update_text
 
 

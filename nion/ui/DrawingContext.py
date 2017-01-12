@@ -385,7 +385,7 @@ class DrawingContext:
 
     def rotate(self, radians):
         self.commands.append(("rotate", math.degrees(float(radians))))
-        self.binary_commands.extend(struct.pack("4sf", b"rota", float(radians)))
+        self.binary_commands.extend(struct.pack("4sf", b"rota", math.degrees(float(radians))))
 
     def move_to(self, x, y):
         self.commands.append(("moveTo", float(x), float(y)))

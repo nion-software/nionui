@@ -2286,6 +2286,9 @@ class QtDocumentWindow:
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
+        self.on_size_changed = None
+        self.width = None
+        self.height = None
         self.__title = str()
 
     def close(self):
@@ -2303,6 +2306,7 @@ class QtDocumentWindow:
         self.on_about_to_show = None
         self.on_about_to_close = None
         self.on_activation_changed = None
+        self.on_size_changed = None
         self.proxy = None
 
     def request_close(self):
@@ -2434,6 +2438,12 @@ class QtDocumentWindow:
     def restore(self, geometry, state):
         self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
 
+    def sizeChanged(self, width, height):
+        self.width = width
+        self.height = height
+        if callable(self.on_size_changed):
+            self.on_size_changed(self.width, self.height)
+
 
 class QtDockWidget:
 
@@ -2443,7 +2453,21 @@ class QtDockWidget:
         self.document_window.register_dock_widget(self)
         self.widget = widget
         self.widget._set_root_container(self)
+        self.on_size_changed = None
+        self.width = None
+        self.height = None
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, notnone(title), positions, position)
+        self.proxy.DockWidget_connect(self.native_dock_widget, self)
+
+    def close(self):
+        self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
+        self.widget.close()
+        self.document_window.unregister_dock_widget(self)
+        self.document_window = None
+        self.on_size_changed = None
+        self.widget = None
+        self.native_dock_widget = None
+        self.proxy = None
 
     @property
     def focus_widget(self):
@@ -2457,15 +2481,6 @@ class QtDockWidget:
             return None
         return match_native_widget(self.widget)
 
-    def close(self):
-        self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
-        self.widget.close()
-        self.document_window.unregister_dock_widget(self)
-        self.document_window = None
-        self.widget = None
-        self.native_dock_widget = None
-        self.proxy = None
-
     def queue_task(self, task):
         self.document_window.queue_task(task)
 
@@ -2478,15 +2493,21 @@ class QtDockWidget:
     def periodic(self):
         self.widget.periodic()
 
-    def __get_toggle_action(self):
+    @property
+    def toggle_action(self):
         return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
-    toggle_action = property(__get_toggle_action)
 
     def show(self):
         self.proxy.Widget_show(self.native_dock_widget)
 
     def hide(self):
         self.proxy.Widget_hide(self.native_dock_widget)
+
+    def sizeChanged(self, width, height):
+        self.width = width
+        self.height = height
+        if callable(self.on_size_changed):
+            self.on_size_changed(self.width, self.height)
 
 
 QtFontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])

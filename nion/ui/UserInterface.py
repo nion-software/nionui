@@ -1708,32 +1708,30 @@ class QtCanvasWidget(QtWidget):
         self.width = 0
         self.height = 0
         self.__focusable = False
-        self.__draw_mutex = threading.Lock()  # don't delete while drawing
         self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
     def close(self):
-        with self.__draw_mutex:
-            if self.__canvas_item:
-                self.__canvas_item.close()
-                self.__canvas_item = None
-            self.on_periodic = None
-            self.on_mouse_entered = None
-            self.on_mouse_exited = None
-            self.on_mouse_clicked = None
-            self.on_mouse_double_clicked = None
-            self.on_mouse_pressed = None
-            self.on_mouse_released = None
-            self.on_mouse_position_changed = None
-            self.on_grabbed_mouse_position_changed = None
-            self.on_wheel_changed = None
-            self.on_key_released = None
-            self.on_size_changed = None
-            self.on_drag_enter = None
-            self.on_drag_leave = None
-            self.on_drag_move = None
-            self.on_drop = None
-            self.on_pan_gesture = None
-            super(QtCanvasWidget, self).close()
+        if self.__canvas_item:
+            self.__canvas_item.close()
+            self.__canvas_item = None
+        self.on_periodic = None
+        self.on_mouse_entered = None
+        self.on_mouse_exited = None
+        self.on_mouse_clicked = None
+        self.on_mouse_double_clicked = None
+        self.on_mouse_pressed = None
+        self.on_mouse_released = None
+        self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
+        self.on_wheel_changed = None
+        self.on_key_released = None
+        self.on_size_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_pan_gesture = None
+        super(QtCanvasWidget, self).close()
 
     def periodic(self):
         super(QtCanvasWidget, self).periodic()
@@ -1765,10 +1763,9 @@ class QtCanvasWidget(QtWidget):
 
     def draw(self, drawing_context, drawing_context_storage):
         # thread safe. take care to make sure widget hasn't been deleted from underneath.
-        with self.__draw_mutex:
-            if self.widget:
-                # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
-                self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
+        if self.widget:
+            # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
+            self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
 
     def set_cursor_shape(self, cursor_shape):
         cursor_shape = cursor_shape or "arrow"

@@ -1520,20 +1520,20 @@ class LayerCanvasItem(CanvasItemComposition):
             drawing_context.draw_layer(layer_id)
         else:
             layer_id = drawing_context.create_layer()
+            self.__layer_id = layer_id
             with drawing_context.layer(layer_id):
                 self._repaint_layer(drawing_context)
-            self.__layer_id = layer_id
 
     def _repaint_layer(self, drawing_context):
         super(LayerCanvasItem, self)._repaint(drawing_context)
 
     def update(self):
-        super(LayerCanvasItem, self).update()
         self.__layer_id = None
+        super(LayerCanvasItem, self).update()
 
     def _child_updated(self, child):
-        super(LayerCanvasItem, self)._child_updated(child)
         self.__layer_id = None
+        super(LayerCanvasItem, self)._child_updated(child)
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):

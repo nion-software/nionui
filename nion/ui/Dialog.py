@@ -85,8 +85,7 @@ class ActionDialog(Window.Window):
     def __init__(self, ui, title: str=None, app=None):
         super().__init__(ui, app=app)
 
-        self.on_reject = None
-        self.on_accept = None
+        self.on_close = None
 
         self.title = title
 
@@ -107,9 +106,13 @@ class ActionDialog(Window.Window):
 
     def close(self) -> None:
         self.finish_periodic()  # required to finish periodic operations during tests
-        self.on_reject = None
-        self.on_accept = None
+        self.on_close = None
         super().close()
+
+    def about_to_close(self, geometry: str, state: str) -> None:
+        if callable(self.on_close):
+            self.on_close()
+        super().about_to_close(geometry, state)
 
     def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> None:
         def on_clicked():
@@ -117,7 +120,7 @@ class ActionDialog(Window.Window):
             if do_close:
                 self.request_close()
 
-        button = self.ui.create_push_button_widget(title, properties={"min-width": 100})
+        button = self.ui.create_push_button_widget(title)
         button.on_clicked = on_clicked
         self.button_row.add(button)
         self.button_row.add_spacing(13)

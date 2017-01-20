@@ -177,7 +177,7 @@ class SectionWidget(CompositeWidgetBase):
 class StringListWidget(CompositeWidgetBase):
     """A widget with a list in a scroll bar."""
 
-    def __init__(self, ui, items, selection_style=None, stringify_item=None):
+    def __init__(self, ui, items, selection_style=None, stringify_item=None, properties=None):
         super().__init__(ui.create_column_widget())
         self.__items = items
         content_widget = self.content_widget
@@ -206,6 +206,9 @@ class StringListWidget(CompositeWidgetBase):
 
             def on_delete_pressed(self):
                 pass
+
+            def on_key_pressed(self, key):
+                return self.__data_list_controller._key_pressed(key)
 
             def on_drag_started(self, index, x, y, modifiers):
                 pass
@@ -238,7 +241,7 @@ class StringListWidget(CompositeWidgetBase):
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
         scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
 
-        canvas_widget = ui.create_canvas_widget(properties={"min-height": 200, "min-width": 560})
+        canvas_widget = ui.create_canvas_widget(properties=properties)
         canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
 
         content_widget.add(canvas_widget)

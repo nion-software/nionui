@@ -846,7 +846,7 @@ class QtTabWidget(QtWidget):
 class QtStackWidget(QtWidget):
 
     def __init__(self, proxy, properties):
-        super(QtStackWidget, self).__init__(proxy, "stack", properties)
+        super().__init__(proxy, "stack", properties)
         self.children = []
         self.__current_index = -1
 
@@ -854,10 +854,10 @@ class QtStackWidget(QtWidget):
         for child in self.children:
             child.close()
         self.children = None
-        super(QtStackWidget, self).close()
+        super().close()
 
     def _set_root_container(self, root_container):
-        super(QtStackWidget, self)._set_root_container(root_container)
+        super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
@@ -866,7 +866,7 @@ class QtStackWidget(QtWidget):
         return copy.copy(self.children)
 
     def periodic(self):
-        super(QtStackWidget, self).periodic()
+        super().periodic()
         for child in self.children:
             child.periodic()
 
@@ -875,18 +875,30 @@ class QtStackWidget(QtWidget):
         self.children.append(child)
         child._set_root_container(self.root_container)
 
+    def remove(self, child):
+        self.proxy.StackWidget_removeWidget(self.widget, child.widget)
+        child._set_root_container(None)
+        self.children.remove(child)
+        child.close()
+
+    def remove_all(self):
+        while len(self.children) > 0:
+            self.remove(self.children[-1])
+
     def restore_state(self, tag):
         pass
 
     def save_state(self, tag):
         pass
 
-    def get_current_index(self):
+    @property
+    def current_index(self):
         return self.__current_index
-    def set_current_index(self, index):
+
+    @current_index.setter
+    def current_index(self, index):
         self.__current_index = index
         self.proxy.StackWidget_setCurrentIndex(self.widget, index)
-    current_index = property(get_current_index, set_current_index)
 
 
 class QtScrollAreaWidget(QtWidget):

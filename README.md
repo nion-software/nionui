@@ -1,8 +1,9 @@
 Introduction
 ============
-This is a UI library that can run the user interface in a browser.
+This is a UI library that can run the user interface in a browser or a
+native viewer (nionui-launcher).
 
-It is targeted at Python 3, although it is also currently  Python 2 compatible.
+It is targeted at Python 3.5.
 
 Basic Usage
 ===========

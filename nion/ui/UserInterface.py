@@ -2680,8 +2680,11 @@ class QtUserInterface:
         return value if value else default_value
 
     def set_persistent_string(self, key, value):
-        key = "/".join([self.persistence_root, key])
-        self.proxy.Settings_setString(key, value)
+        if value is not None:
+            key = "/".join([self.persistence_root, key])
+            self.proxy.Settings_setString(key, value)
+        else:
+            self.remove_persistent_key(key)
 
     def get_persistent_object(self, key, default_value=None):
         key = "/".join([self.persistence_root, key])
@@ -2689,8 +2692,11 @@ class QtUserInterface:
         return pickle.loads(binascii.unhexlify(value.encode("utf-8"))) if value else default_value
 
     def set_persistent_object(self, key, value):
-        key = "/".join([self.persistence_root, key])
-        self.set_persistent_string(key, binascii.hexlify(pickle.dumps(value, 0)).decode("utf-8"))
+        if value is not None:
+            key = "/".join([self.persistence_root, key])
+            self.set_persistent_string(key, binascii.hexlify(pickle.dumps(value, 0)).decode("utf-8"))
+        else:
+            self.remove_persistent_key(key)
 
     def remove_persistent_key(self, key):
         key = "/".join([self.persistence_root, key])

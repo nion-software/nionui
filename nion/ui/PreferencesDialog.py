@@ -123,22 +123,3 @@ class PreferencesDialog(Dialog.ActionDialog):
     def close(self):
         self.__preference_pane_delegates_changed_listener.close()
         self.__preference_pane_delegates_changed_listener = None
-
-class T1:
-    def __init__(self):
-        self.identifier = "t1"
-        self.label = "Tea for One"
-
-    def build(self, ui):
-        return ui.create_label_widget("TEE ONE")
-
-class T2:
-    def __init__(self):
-        self.identifier = "t2"
-        self.label = "Tea for TWO"
-
-    def build(self, ui):
-        return ui.create_label_widget("Two for One")
-
-PreferencesManager().register_preference_pane(T1())
-PreferencesManager().register_preference_pane(T2())

@@ -972,20 +972,26 @@ class QtComboBoxWidget(QtWidget):
 
     def __init__(self, proxy, items, item_getter, properties):
         super(QtComboBoxWidget, self).__init__(proxy, "combobox", properties)
+        self.on_items_changed = None
+        self.on_current_text_changed = None
+        self.on_current_item_changed = None
         self.item_getter = item_getter
         self.items = items if items else []
         self.proxy.ComboBox_connect(self.widget, self)
-        self.on_current_text_changed = None
-        self.on_current_item_changed = None
-        self.__binding = None
+        self.__current_item_binding = None
+        self.__items_binding = None
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__current_item_binding:
+            self.__current_item_binding.close()
+            self.__current_item_binding = None
+        if self.__items_binding:
+            self.__items_binding.close()
+            self.__items_binding = None
         self.clear_task("update_current_index")
         self.item_getter = None
         self.__items = None
+        self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
         super(QtComboBoxWidget, self).close()
@@ -1024,6 +1030,8 @@ class QtComboBoxWidget(QtWidget):
             item_string = notnone(self.item_getter(item) if self.item_getter else item)
             self.proxy.ComboBox_addItem(self.widget, item_string)
             self.__items.append(item)
+        if callable(self.on_items_changed):
+            self.on_items_changed(self.__items)
 
     # this message comes from Qt implementation
     def currentTextChanged(self, text):
@@ -1032,18 +1040,30 @@ class QtComboBoxWidget(QtWidget):
         if self.on_current_item_changed:
             self.on_current_item_changed(self.current_item)
 
+    def bind_items(self, binding):
+        if self.__items_binding:
+            self.__items_binding.close()
+            self.__items_binding = None
+        self.items = binding.get_target_value()
+        self.__items_binding = binding
+        def update_items(items):
+            if self.widget:
+                self.add_task("update_items", lambda: setattr(self, "items", items))
+        self.__items_binding.target_setter = update_items
+        self.on_items_changed = lambda items: self.__items_binding.update_source(items)
+
     def bind_current_index(self, binding):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__current_item_binding:
+            self.__current_item_binding.close()
+            self.__current_item_binding = None
         self.current_item = self.__items[binding.get_target_value()]
-        self.__binding = binding
+        self.__current_item_binding = binding
         def update_current_index(current_index):
             item = self.__items[current_index]
             if self.widget:
                 self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
-        self.__binding.target_setter = update_current_index
-        self.on_current_item_changed = lambda item: self.__binding.update_source(self.__items.index(item))
+        self.__current_item_binding.target_setter = update_current_index
+        self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
 
 
 class QtPushButtonWidget(QtWidget):
@@ -1290,6 +1310,11 @@ class QtLabelWidget(QtWidget):
             if self.widget:
                 self.add_task("update_text", lambda: setattr(self, "text", text))
         self.__binding.target_setter = update_text
+
+    def unbind_text(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
 
 
 class QtSliderWidget(QtWidget):
@@ -1689,7 +1714,9 @@ class QtTextEditWidget(QtWidget):
         self.on_text_changed = on_text_changed
 
     def unbind_text(self):
-        self.__binding = None
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
         self.on_text_changed = None
 
 

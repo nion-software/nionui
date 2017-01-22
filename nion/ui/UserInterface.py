@@ -2317,12 +2317,9 @@ class QtMenu:
         self.proxy.Menu_popup(self.native_menu, gx, gy)
 
 
-class QtDocumentWindow:
+class Window:
 
-    def __init__(self, proxy, title):
-        self.proxy = proxy
-        self.native_document_window = self.proxy.DocumentWindow_create(title)
-        self.proxy.DocumentWindow_connect(self.native_document_window, self)
+    def __init__(self, title):
         self.root_widget = None
         self.has_event_loop = True
         self.window_style = "window"
@@ -2337,13 +2334,11 @@ class QtDocumentWindow:
         self.on_size_changed = None
         self.width = None
         self.height = None
-        self.__title = str()
+        self.__title = title if title is not None else str()
 
     def close(self):
         # this is a callback and should not be invoked directly from Python;
         # call request_close instead.
-        assert self.native_document_window is not None
-        self.native_document_window = None
         if self.root_widget:
             self.root_widget.close()
             self.root_widget = None
@@ -2355,17 +2350,19 @@ class QtDocumentWindow:
         self.on_about_to_close = None
         self.on_activation_changed = None
         self.on_size_changed = None
-        self.proxy = None
 
     def request_close(self):
-        self.proxy.DocumentWindow_close(self.native_document_window)
+        raise NotImplemented()
 
     # attach the root widget to this window
     # the root widget must respond to _set_root_container
     def attach(self, root_widget):
         self.root_widget = root_widget
         self.root_widget._set_root_container(self)
-        self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, self.root_widget.widget)
+        self._attach_root_widget(root_widget)
+
+    def _attach_root_widget(self, root_widget):
+        raise NotImplemented()
 
     def detach(self):
         assert self.root_widget is not None
@@ -2396,6 +2393,109 @@ class QtDocumentWindow:
 
     @property
     def focus_widget(self):
+        return self._get_focus_widget()
+
+    def _get_focus_widget(self):
+        raise NotImplemented()
+
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+        raise NotImplemented()
+
+    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+        raise NotImplemented()
+
+    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+        raise NotImplemented()
+
+    def create_dock_widget(self, widget, panel_id, title, positions, position):
+        raise NotImplemented()
+
+    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+        raise NotImplemented()
+
+    @property
+    def screen_size(self) -> Geometry.IntSize:
+        return self._get_screen_size()
+
+    def _get_screen_size(self):
+        raise NotImplemented()
+
+    # call show to display the window.
+    def show(self, size=None, position=None):
+        raise NotImplemented()
+
+    def fill_screen(self):
+        raise NotImplemented()
+
+    @property
+    def title(self):
+        return self.__title
+
+    @title.setter
+    def title(self, value):
+        self.__title = value
+        self._set_title(value)
+
+    def _set_title(self, value):
+        raise NotImplemented()
+
+    def _handle_periodic(self):
+        if self.root_widget:
+            self.root_widget.periodic()
+        if self.on_periodic:
+            self.on_periodic()
+
+    def _handle_about_to_show(self):
+        if self.on_about_to_show:
+            self.on_about_to_show()
+
+    def _handle_activation_changed(self, activated):
+        if self.on_activation_changed:
+            self.on_activation_changed(activated)
+
+    def _handle_about_to_close(self, geometry, state):
+        if self.on_about_to_close:
+            self.on_about_to_close(geometry, state)
+
+    def add_menu(self, title):
+        raise NotImplemented()
+
+    def insert_menu(self, title, before_menu):
+        raise NotImplemented()
+
+    def restore(self, geometry, state):
+        raise NotImplemented()
+
+    def _handle_size_changed(self, width, height):
+        self.width = width
+        self.height = height
+        if callable(self.on_size_changed):
+            self.on_size_changed(self.width, self.height)
+
+
+class QtWindow(Window):
+
+    def __init__(self, proxy, title):
+        super().__init__(title)
+        self.proxy = proxy
+        self.native_document_window = self.proxy.DocumentWindow_create(title)
+        self.proxy.DocumentWindow_connect(self.native_document_window, self)
+
+    def close(self):
+        # this is a callback and should not be invoked directly from Python;
+        # call request_close instead.
+        assert self.native_document_window is not None
+        self.native_document_window = None
+        self.proxy = None
+        super().close()
+
+    def request_close(self):
+        self.proxy.DocumentWindow_close(self.native_document_window)
+
+    def _attach_root_widget(self, root_widget):
+        self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, root_widget.widget)
+
+    def _get_focus_widget(self):
         def match_native_widget(widget):
             if widget.focused:
                 return widget
@@ -2427,12 +2527,10 @@ class QtDocumentWindow:
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         self.proxy.DocumentWindow_tabifyDockWidgets(self.native_document_window, dock_widget1.native_dock_widget, dock_widget2.native_dock_widget)
 
-    @property
-    def screen_size(self):
+    def _get_screen_size(self):
         w, h = self.proxy.DocumentWindow_getScreenSize(self.native_document_window)
         return Geometry.IntSize(width=w, height=h)
 
-    # call show to display the window.
     def show(self, size=None, position=None):
         if size is not None:
             self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
@@ -2445,33 +2543,20 @@ class QtDocumentWindow:
         self.proxy.DocumentWindow_setPosition(self.native_document_window, 0, 0)
         self.proxy.DocumentWindow_setSize(self.native_document_window, screen_size.width, screen_size.height)
 
-    @property
-    def title(self):
-        return self.__title
-
-    @title.setter
-    def title(self, value):
-        self.__title = value
+    def _set_title(self, value):
         self.proxy.DocumentWindow_setTitle(self.native_document_window, notnone(value))
 
-    # periodic is called periodically from the user interface object to service the window.
     def periodic(self):
-        if self.root_widget:
-            self.root_widget.periodic()
-        if self.native_document_window and self.on_periodic:
-            self.on_periodic()
+        self._handle_periodic()
 
     def aboutToShow(self):
-        if self.on_about_to_show:
-            self.on_about_to_show()
+        self._handle_about_to_show()
 
     def activationChanged(self, activated):
-        if self.on_activation_changed:
-            self.on_activation_changed(activated)
+        self._handle_activation_changed(activated)
 
     def aboutToClose(self, geometry, state):
-        if self.on_about_to_close:
-            self.on_about_to_close(geometry, state)
+        self._handle_about_to_close(geometry, state)
 
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
@@ -2487,10 +2572,7 @@ class QtDocumentWindow:
         self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
 
     def sizeChanged(self, width, height):
-        self.width = width
-        self.height = height
-        if callable(self.on_size_changed):
-            self.on_size_changed(self.width, self.height)
+        self._handle_size_changed(width, height)
 
 
 class QtDockWidget:
@@ -2589,7 +2671,7 @@ class QtUserInterface:
     # window elements
 
     def create_document_window(self, title=None):
-        return QtDocumentWindow(self.proxy, title)
+        return QtWindow(self.proxy, title)
 
     def destroy_document_window(self, document_window):
         document_window.close()

@@ -18,6 +18,7 @@ import time
 # local libraries
 from . import CanvasItem
 from . import DrawingContext
+from . import UserInterface
 from nion.utils import Geometry
 
 
@@ -625,31 +626,14 @@ class CanvasWidget(Widget):
             self.on_pan_gesture(delta_x, delta_y)
 
 
-class DocumentWindow:
+class Window(UserInterface.Window):
 
-    def __init__(self, ui):
+    def __init__(self, ui, title):
+        super().__init__(title)
         self.ui = ui
-        self.root_widget = None  # a CanvasWidget
-        self.has_event_loop = True
-        self.on_periodic = None
-        self.on_queue_task = None
-        self.on_add_task = None
-        self.on_clear_task = None
-        self.on_about_to_show = None  # when code shows the window
-        self.on_about_to_close = None  # when user closes the window
-        self.is_focused = True  # always focused
-        self.__title = str()
 
     def close(self):
-        self.root_widget.close()
-        self.root_widget = None
-        self.on_periodic = None
-        self.on_queue_task = None
-        self.on_add_task = None
-        self.on_clear_task = None
-        self.on_about_to_show = None
-        self.on_about_to_close = None
-        self.on_activation_changed = None
+        super().close()
 
     # attach the root widget to this window
     # the root widget must either respond to _set_root_container or canvas_item
@@ -660,43 +644,25 @@ class DocumentWindow:
             root_widget._set_root_container(self)
             root_widget = canvas_widget
         # root_widget should be a CanvasWidget
-        self.root_widget = root_widget
-        self.root_widget._set_root_container(self)
+        super().attach(root_widget)
         size = self.__size
         if size is not None:
             self.root_widget.handle_size_changed(size.width, size.height)
 
+    def _attach_root_widget(self, root_widget):
+        pass
+
     # periodic is called periodically from the user interface object to service the window.
     def periodic(self):
-        if self.root_widget:
-            self.root_widget.periodic()
-        if self.on_periodic:
-            self.on_periodic()
+        self._handle_periodic()
 
     # call show to display the window.
-    def show(self):
+    def show(self, size=None, position=None):
         if self.on_about_to_show:
             self.on_about_to_show()
 
-    def queue_task(self, task):
-        if self.on_queue_task:
-            self.on_queue_task(task)
-
-    def add_task(self, key, task):
-        if self.on_add_task:
-            self.on_add_task(key + str(id(self)), task)
-
-    def clear_task(self, key):
-        if self.on_clear_task:
-            self.on_clear_task(key + str(id(self)))
-
-    @property
-    def title(self):
-        return self.__title
-
-    @title.setter
-    def title(self, value):
-        self.__title = value
+    def _set_title(self, value):
+        pass
 
     def draw(self, widget, drawing_context, drawing_context_storage):
         """Render the drawing context by called draw on the ui object."""
@@ -710,6 +676,7 @@ class DocumentWindow:
         if self.root_widget:
             if size is not None:
                 self.root_widget.handle_size_changed(size.width, size.height)
+        self._handle_size_changed(size.width, size.height)
 
 
 class CanvasUserInterface:
@@ -768,7 +735,7 @@ class CanvasUserInterface:
     def _draw(self, drawing_context, drawing_context_storage):
         """Render the drawing context.
 
-        This will be called from the DocumentWindow, which will, in turn, be called from a thread from its
+        This will be called from the Window, which will, in turn, be called from a thread from its
         RootCanvasItem object."""
         dc = DrawingContext.DrawingContext()
         canvas_width = 960
@@ -795,7 +762,7 @@ class CanvasUserInterface:
     # window elements
 
     def create_document_window(self, title=None):
-        document_window = DocumentWindow(self)
+        document_window = Window(self, title)
         self.__document_windows.append(document_window)
         document_window.handle_size_changed(Geometry.IntSize(height=720, width=960))
         return document_window

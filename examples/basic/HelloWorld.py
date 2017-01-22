@@ -1,7 +1,6 @@
 # standard libraries
 import gettext
-import os
-import sys
+import math
 
 # third party libraries
 # None
@@ -9,7 +8,6 @@ import sys
 # local libraries
 from nion.ui import Application
 from nion.ui import CanvasItem
-from nion.ui import CanvasUI
 from nion.ui import Window
 
 _ = gettext.gettext
@@ -20,15 +18,16 @@ _ = gettext.gettext
 class HelloWorldApplication(Application.Application):
 
     def start(self):
-        # the start method should create a document window that will be the focus of the ui
+        # the start method should create a window that will be the focus of the ui
         self.window = HelloWorldWindow(self.ui, app=self)
         self.window.show()
+        return True
 
 
 class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
-        super(BrownSquareCanvasItem, self).__init__()
+        super().__init__()
         self.sizing.set_fixed_height(40)
         self.sizing.set_fixed_width(40)
 
@@ -45,7 +44,6 @@ class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
         drawing_context.stroke_style = "#000"
         drawing_context.stroke()
         drawing_context.restore()
-        import math
         drawing_context.save()
         drawing_context.begin_path()
         drawing_context.arc(20, 20, 8, 0, 2 * math.pi)
@@ -142,19 +140,7 @@ class HelloWorldWindow(Window.Window):
         hello_world_button.on_button_clicked = button_clicked
 
 
-if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "twisted":
-            try:
-                from nion.ui import TwistedWebSocketServer
-            except ImportError as e:
-                print("Cannot import TwistedWebSocketServer.")
-                print(e)
-                raise
-            def run_server(server):
-                user_interface = CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
-                app = HelloWorldApplication(user_interface)
-                app.initialize()
-                app.start()
-                user_interface.run(server.event_queue)
-            TwistedWebSocketServer.TwistedWebSocketServer().launch(run_server)
+def main(args, bootstrap_args):
+    app = HelloWorldApplication(Application.make_ui(bootstrap_args))
+    app.initialize()
+    return app

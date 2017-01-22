@@ -440,6 +440,7 @@ class CanvasWidget(Widget):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_pan_gesture = None
         self.width = properties.get("width", 0) if properties else 0
         self.height = properties.get("height", 0) if properties else 0
         self.__focusable = False
@@ -472,6 +473,7 @@ class CanvasWidget(Widget):
             self.on_drag_leave = None
             self.on_drag_move = None
             self.on_drop = None
+            self.on_pan_gesture = None
             super().close()
 
     def periodic(self):
@@ -654,6 +656,7 @@ class Window(UserInterface.Window):
 class CanvasUserInterface:
 
     def __init__(self, draw_fn, get_font_metrics_fn):
+        self.persistence_root = "0"
         self.__draw_fn = draw_fn
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__done = False

@@ -419,34 +419,6 @@ class LabelWidget(Widget):
         self.__binding.target_setter = update_text
 
 
-class DrawingContextStorage:
-
-    def __init__(self):
-        self.__storage = dict()
-        self.__keys_to_remove = list()
-
-    def close(self):
-        self.__storage = None
-
-    def mark(self):
-        self.__keys_to_remove = list(self.__storage.keys())
-
-    def clean(self):
-        list(map(self.__storage.__delitem__, self.__keys_to_remove))
-
-    def begin_layer(self, drawing_context, layer_id):
-        self.__storage.setdefault(layer_id, dict())["start"] = len(drawing_context.commands)
-
-    def end_layer(self, drawing_context, layer_id):
-        start = self.__storage.get(layer_id, dict())["start"]
-        self.__storage.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.commands[start:])
-
-    def draw_layer(self, drawing_context, layer_id):
-        commands = self.__storage.get(layer_id, dict())["commands"]
-        drawing_context.commands.extend(commands)
-        self.__keys_to_remove.remove(layer_id)
-
-
 class CanvasWidget(Widget):
 
     def __init__(self, properties):

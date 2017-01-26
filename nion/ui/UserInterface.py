@@ -1019,6 +1019,14 @@ class QtComboBoxWidget(QtWidget):
             self.proxy.ComboBox_setCurrentText(self.widget, item_string)
 
     @property
+    def current_index(self):
+        return self.items.index(self.current_text) if self.current_text in self.items else None
+
+    @current_index.setter
+    def current_index(self, value):
+        self.current_item = self.items[value] if value is not None else None
+
+    @property
     def items(self):
         return self.__items
 

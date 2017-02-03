@@ -12,10 +12,12 @@ from nion.utils import Geometry
 
 
 class GridCanvasItemDelegate:
+    def __init__(self, item_count=None):
+        self.__item_count = item_count if item_count is not None else 4
 
     @property
     def item_count(self):
-        return 4
+        return self.__item_count
 
     def on_drag_started(self, mouse_index, x, y, modifiers):
         pass
@@ -49,3 +51,10 @@ class TestGridCanvasItemClass(unittest.TestCase):
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_drag(Geometry.IntPoint(y=120, x=50), Geometry.IntPoint(y=120, x=500))
         self.assertEqual(selection.indexes, set())
+
+    def test_layout_size_maintains_height_with_no_items_when_not_wrapped(self):
+        selection = Selection.IndexedSelection()
+        delegate = GridCanvasItemDelegate(0)
+        canvas_item = GridCanvasItem.GridCanvasItem(delegate, selection, wrap=False)
+        canvas_item.update_layout((0, 0), (40, 500))
+        self.assertEqual(canvas_item.canvas_bounds.height, 40)

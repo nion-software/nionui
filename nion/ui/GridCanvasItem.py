@@ -17,6 +17,7 @@ from nion.utils import Geometry
 
 
 class Direction(enum.Enum):
+    """Enumeration to specify row first or column first layout."""
     Row = 0
     Column = 1
 
@@ -89,15 +90,15 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
         item_size = self.__calculate_item_size(canvas_size)
         item_count = self.__delegate.item_count if self.__delegate else 0
-        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
-        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
 
         if self.direction == Direction.Row:
-            item_rows = (item_count + items_per_row - 1) // items_per_row
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+            item_rows = max((item_count + items_per_row - 1) // items_per_row, 1)
             width = canvas_size.width if self.wrap else item_count * item_size.width
             canvas_size = Geometry.IntSize(height=item_rows * item_size.height, width=width)
         else:
-            item_columns = (item_count + items_per_column - 1) // items_per_column
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
+            item_columns = max((item_count + items_per_column - 1) // items_per_column, 1)
             height = canvas_size.height if self.wrap else item_count * item_size.height
             canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
 
@@ -150,8 +151,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         super().update()
 
     def _repaint_visible(self, drawing_context, visible_rect):
-        if self.__delegate:
-            canvas_size = self.canvas_size
+        canvas_size = self.canvas_size
+        if self.__delegate and canvas_size.height > 0 and canvas_size.width > 0:
             item_size = self.__calculate_item_size(canvas_size)
             items = self.__delegate.items if self.__delegate else list()
             item_count = len(items)

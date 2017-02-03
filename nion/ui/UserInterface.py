@@ -277,6 +277,7 @@ class QtItemModelController:
         self.__next_id = 0
         self.root = self.create_item()
         self.on_item_set_data = None
+        self.on_can_drop_mime_data = None
         self.on_item_drop_mime_data = None
         self.on_item_mime_data = None
         self.on_remove_rows = None
@@ -289,6 +290,7 @@ class QtItemModelController:
         self.py_item_model = None
         self.root = None
         self.on_item_set_data = None
+        self.on_can_drop_mime_data = None
         self.on_item_drop_mime_data = None
         self.on_item_mime_data = None
         self.on_remove_rows = None
@@ -354,6 +356,11 @@ class QtItemModelController:
     def itemSetData(self, index, parent_row, parent_id, data):
         if self.on_item_set_data:
             return self.on_item_set_data(data, index, parent_row, parent_id)
+        return False
+
+    def canDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
+        if self.on_can_drop_mime_data:
+            return self.on_can_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row, parent_id)
         return False
 
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row, parent_id):
@@ -434,6 +441,7 @@ class QtListModelController:
         self.py_list_model = self.proxy.ListModel_create(["index"] + keys)
         self.proxy.ListModel_connect(self.py_list_model, self)
         self.model = []
+        self.on_can_drop_mime_data = None
         self.on_item_drop_mime_data = None
         self.on_item_mime_data = None
         self.on_remove_rows = None
@@ -444,6 +452,7 @@ class QtListModelController:
         self.proxy = None
         self.py_list_model = None
         self.model = None
+        self.on_can_drop_mime_data = None
         self.on_item_drop_mime_data = None
         self.on_item_mime_data = None
         self.on_remove_rows = None
@@ -460,6 +469,10 @@ class QtListModelController:
         else:
             #print "Unknown key %s" % role
             return None
+    def canDropMimeData(self, raw_mime_data, action, row, parent_row):
+        if self.on_can_drop_mime_data:
+            return self.on_can_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row)
+        return False
     def itemDropMimeData(self, raw_mime_data, action, row, parent_row):
         if self.on_item_drop_mime_data:
             return self.on_item_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row)

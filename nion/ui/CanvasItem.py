@@ -443,11 +443,12 @@ class AbstractCanvasItem:
         self.__border_color = None
         self.__visible = True
         self._has_layout = False
+        self.__thread = threading.current_thread()
 
     def close(self):
         """ Close the canvas object. """
-        if threading.current_thread() != threading.main_thread():
-            warnings.warn('CanvasItem closed on non-UI thread')
+        if threading.current_thread() != self.__thread:
+            warnings.warn('CanvasItem closed on different thread')
             import traceback
             traceback.print_stack()
         self.__container = None

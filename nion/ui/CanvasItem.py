@@ -20,6 +20,7 @@ import weakref
 # None
 
 # local libraries
+from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ThreadPool
@@ -1512,29 +1513,49 @@ class CanvasItemComposition(AbstractCanvasItem):
 class LayerCanvasItem(CanvasItemComposition):
 
     def __init__(self):
-        super(LayerCanvasItem, self).__init__()
-        self.__layer_id = None
+        super().__init__()
+        self.__layer_drawing_context = None
+        self.__needs_update_lock = threading.RLock()
+        self.__needs_update = True
+        self.__layer_thread = ThreadPool.ThreadDispatcher(self.__repaint_layer_on_thread, minimum_interval=0.01)
+        self.__layer_thread.start()
+
+    def close(self):
+        self.__layer_thread.close()
+        self.__layer_thread = None
+        self.__layer_drawing_context = None
+        super().close()
 
     def _repaint(self, drawing_context):
-        layer_id = self.__layer_id  # avoid race condition on self.__layer_id by reading just once
-        if layer_id:
-            drawing_context.draw_layer(layer_id)
-        else:
-            layer_id = drawing_context.create_layer()
-            self.__layer_id = layer_id
-            with drawing_context.layer(layer_id):
-                self._repaint_layer(drawing_context)
+        layer_drawing_context = self.__layer_drawing_context
+        if layer_drawing_context:
+            drawing_context.add(layer_drawing_context)
+        with self.__needs_update_lock:
+            if self.__needs_update and self._has_layout:
+                self.__layer_thread.trigger()
+
+    def __repaint_layer_on_thread(self):
+        with self.__needs_update_lock:
+            do_update = self.__needs_update and self._has_layout
+            self.__needs_update = False
+        if do_update:
+            drawing_context = DrawingContext.DrawingContext()
+            self._repaint_layer(drawing_context)
+            self.__layer_drawing_context = drawing_context
+            super().update()
 
     def _repaint_layer(self, drawing_context):
-        super(LayerCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
 
     def update(self):
-        self.__layer_id = None
-        super(LayerCanvasItem, self).update()
+        with self.__needs_update_lock:
+            self.__needs_update = True
+        super().update()
 
     def _child_updated(self, child):
-        self.__layer_id = None
-        super(LayerCanvasItem, self)._child_updated(child)
+        with self.__needs_update_lock:
+            self.__needs_update = True
+        super()._child_updated(child)
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):
@@ -2111,7 +2132,6 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
         self.__canvas_widget.on_will_dispatch = self.__will_dispatch
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
-        self.__drawing_context_storage = self.__canvas_widget.create_drawing_context_storage()
         self.__max_frame_rate = float(max_frame_rate) if max_frame_rate is not None else DEFAULT_MAX_FRAME_RATE
         self.__repaint_thread = ThreadPool.ThreadDispatcher(self.__repaint_on_thread, minimum_interval=1/50.0)
         self.__repaint_thread.start()
@@ -2134,10 +2154,6 @@ class RootCanvasItem(CanvasItemComposition):
         # shut down the repaint thread first
         self.__repaint_thread.close()
         self.__repaint_thread = None
-        # drawing storage after repaint, since repaint may be using drawing storage
-        if self.__drawing_context_storage:
-            self.__drawing_context_storage.close()
-            self.__drawing_context_storage = None
         self.__mouse_tracking_canvas_item = None
         self.__drag_tracking_canvas_item = None
         self.__grab_canvas_item = None
@@ -2190,18 +2206,16 @@ class RootCanvasItem(CanvasItemComposition):
     def __repaint_on_thread(self):
         # Create a new drawing context, render to it, upload to canvas widget.
         if self.canvas_size is not None:
-            drawing_context = self.__canvas_widget.create_drawing_context(self.__drawing_context_storage)
-            self.__drawing_context_storage.mark()
+            drawing_context = self.__canvas_widget.create_drawing_context()
             try:
                 with drawing_context.saver():
                     self._repaint(drawing_context)
-                self.__canvas_widget.draw(drawing_context, self.__drawing_context_storage)
+                self.__canvas_widget.draw(drawing_context)
             except Exception as e:
                 import traceback
                 logging.debug("CanvasItem Repaint Error: %s", e)
                 traceback.print_exc()
                 traceback.print_stack()
-            self.__drawing_context_storage.clean()
 
     @property
     def canvas_widget(self):

@@ -1815,13 +1815,10 @@ class QtCanvasWidget(QtWidget):
         self.__focusable = focusable
         self.proxy.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
 
-    def create_drawing_context(self, storage=None):
-        return DrawingContext.DrawingContext(storage)
+    def create_drawing_context(self):
+        return DrawingContext.DrawingContext()
 
-    def create_drawing_context_storage(self):
-        return DrawingContext.DrawingContextStorage()
-
-    def draw(self, drawing_context, drawing_context_storage):
+    def draw(self, drawing_context):
         # thread safe. take care to make sure widget hasn't been deleted from underneath.
         if self.widget:
             # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)

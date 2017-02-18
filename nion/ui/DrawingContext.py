@@ -41,11 +41,10 @@ class DrawingContext:
     __image_id = 0
     __image_id_lock = threading.RLock()
 
-    def __init__(self, storage=None):
+    def __init__(self):
         self.commands = []
         self.binary_commands = bytearray()
         self.save_count = 0
-        self.__storage = storage
         self.images = dict()
 
     def copy_from(self, drawing_context):
@@ -593,69 +592,3 @@ class DrawingContext:
         self.commands.append(("statistics", str(stat_id)))
         stat_id_encoded = stat_id.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(stat_id_encoded)), b"stat", len(stat_id_encoded), stat_id_encoded))
-
-    @contextmanager
-    def layer(self, layer_id):
-        self.begin_layer(layer_id)
-        try:
-            yield
-        finally:
-            self.end_layer(layer_id)
-
-    def create_layer(self):
-        if self.__storage is not None:
-            return str(uuid.uuid4())
-        return None
-
-    def begin_layer(self, layer_id):
-        if layer_id:
-            self.__storage.begin_layer(self, layer_id)
-
-    def end_layer(self, layer_id):
-        if layer_id:
-            self.__storage.end_layer(self, layer_id)
-
-    def draw_layer(self, layer_id):
-        self.__storage.draw_layer(self, layer_id)
-
-
-class DrawingContextStorage:
-
-    def __init__(self):
-        self.__storage = dict()
-        self.__storage_binary = dict()
-        self.__keys_to_remove = list()
-        self.__keys_to_remove_binary = list()
-
-    def close(self):
-        self.__storage = None
-        self.__storage_binary = None
-
-    def mark(self):
-        self.__keys_to_remove = list(self.__storage.keys())
-        self.__keys_to_remove_binary = list(self.__storage_binary.keys())
-
-    def clean(self):
-        list(map(self.__storage.__delitem__, self.__keys_to_remove))
-        list(map(self.__storage_binary.__delitem__, self.__keys_to_remove_binary))
-
-    def begin_layer(self, drawing_context, layer_id):
-        self.__storage.setdefault(layer_id, dict())["start"] = len(drawing_context.commands)
-        self.__storage_binary.setdefault(layer_id, dict())["start"] = len(drawing_context.binary_commands)
-
-    def end_layer(self, drawing_context, layer_id):
-        start = self.__storage.get(layer_id, dict())["start"]
-        self.__storage.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.commands[start:])
-        start_binary = self.__storage_binary.get(layer_id, dict())["start"]
-        self.__storage_binary.setdefault(layer_id, dict())["commands"] = copy.copy(drawing_context.binary_commands[start_binary:])
-
-    def draw_layer(self, drawing_context, layer_id):
-        commands = self.__storage.get(layer_id, dict())["commands"]
-        drawing_context.commands.extend(commands)
-        binary_commands = self.__storage_binary.get(layer_id, dict())["commands"]
-        drawing_context.binary_commands.extend(binary_commands)
-        for command in commands:
-            if command[0] == "image":
-                drawing_context.images[str(command[4])] = command[3]
-        self.__keys_to_remove.remove(layer_id)
-        self.__keys_to_remove_binary.remove(layer_id)

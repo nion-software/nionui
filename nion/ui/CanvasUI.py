@@ -501,14 +501,11 @@ class CanvasWidget(Widget):
     def create_drawing_context(self, storage=None):
         return DrawingContext.DrawingContext(storage)
 
-    def create_drawing_context_storage(self):
-        return DrawingContext.DrawingContextStorage()
-
-    def draw(self, drawing_context, drawing_context_storage):
+    def draw(self, drawing_context):
         # thread safe. take care to make sure widget hasn't been deleted from underneath.
         with self.__draw_mutex:
             if self.root_container:
-                self.root_container.draw(self, drawing_context, drawing_context_storage)
+                self.root_container.draw(self, drawing_context)
 
     def set_cursor_shape(self, cursor_shape):
         pass

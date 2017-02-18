@@ -168,11 +168,9 @@ class Widget:
         pass
     def add_spacing(self, spacing):
         pass
-    def create_drawing_context(self, storage=None):
-        return DrawingContext.DrawingContext(storage)
-    def create_drawing_context_storage(self):
-        return DrawingContext.DrawingContextStorage()
-    def draw(self, drawing_context, drawing_context_storage):
+    def create_drawing_context(self):
+        return DrawingContext.DrawingContext()
+    def draw(self, drawing_context):
         pass
     def save_state(self, tag):
         pass

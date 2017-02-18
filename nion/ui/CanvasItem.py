@@ -445,6 +445,9 @@ class AbstractCanvasItem:
         self.__visible = True
         self._has_layout = False
         self.__thread = threading.current_thread()
+        # stats for testing
+        self._update_count = 0
+        self._repaint_count = 0
 
     def close(self):
         """ Close the canvas object. """
@@ -678,6 +681,7 @@ class AbstractCanvasItem:
 
             The canvas item will be repainted by the root canvas item.
         """
+        self._update_count += 1
         container = self.__container
         if container and self._has_layout:
             container._child_updated(self)
@@ -690,6 +694,7 @@ class AbstractCanvasItem:
 
             Subclasses can override to handle specially.
         """
+        self._update_count += 1
         container = self.__container
         if container and self._has_layout:
             container._child_updated(self)
@@ -705,6 +710,7 @@ class AbstractCanvasItem:
             The drawing should take place within the canvas_bounds.
         """
         assert self.canvas_size is not None
+        self._repaint_count += 1
 
     def _draw_background(self, drawing_context):
         """Draw the background. Subclasses can call this."""

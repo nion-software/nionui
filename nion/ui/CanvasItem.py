@@ -4,6 +4,7 @@
 
 # standard libraries
 import collections
+import contextlib
 import copy
 import enum
 import functools
@@ -445,6 +446,8 @@ class AbstractCanvasItem:
         self.__visible = True
         self._has_layout = False
         self.__thread = threading.current_thread()
+        self.__update_level_lock = threading.RLock()
+        self.__update_level = 0
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
@@ -681,12 +684,33 @@ class AbstractCanvasItem:
 
             The canvas item will be repainted by the root canvas item.
         """
-        self._update_count += 1
-        container = self.__container
-        if container and self._has_layout:
-            container._child_updated(self)
+        self._begin_update()
+        self._end_update()
 
-    def _child_updated(self, child):
+    def _begin_update(self):
+        with self.__update_level_lock:
+            self.__update_level += 1
+
+    def _end_update(self):
+        with self.__update_level_lock:
+            self.__update_level -= 1
+            update_level = self.__update_level
+        if update_level == 0:
+            self._update_count += 1
+            self._updated()
+            container = self.__container
+            if container and self._has_layout:
+                container.update()
+
+    def _update_container(self):
+        with self.__update_level_lock:
+            update_level = self.__update_level
+        if update_level == 0:
+            container = self.__container
+            if container and self._has_layout:
+                container.update()
+
+    def _updated(self):
         """
             Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
 
@@ -694,10 +718,13 @@ class AbstractCanvasItem:
 
             Subclasses can override to handle specially.
         """
-        self._update_count += 1
-        container = self.__container
-        if container and self._has_layout:
-            container._child_updated(self)
+        pass
+
+    @contextlib.contextmanager
+    def update_context(self):
+        self._begin_update()
+        yield
+        self._end_update()
 
     def _repaint(self, drawing_context):
         """
@@ -1523,7 +1550,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__layer_drawing_context = None
         self.__needs_update_lock = threading.RLock()
         self.__needs_update = True
-        self.__layer_thread = ThreadPool.ThreadDispatcher(self.__repaint_layer_on_thread, minimum_interval=0.01)
+        self.__layer_thread = ThreadPool.ThreadDispatcher(self.__repaint_layer_on_thread, minimum_interval=0.001)
         self.__layer_thread.start()
 
     def close(self):
@@ -1548,20 +1575,15 @@ class LayerCanvasItem(CanvasItemComposition):
             drawing_context = DrawingContext.DrawingContext()
             self._repaint_layer(drawing_context)
             self.__layer_drawing_context = drawing_context
-            super().update()
+            self._update_container()
 
     def _repaint_layer(self, drawing_context):
         super()._repaint(drawing_context)
 
-    def update(self):
+    def _updated(self):
         with self.__needs_update_lock:
             self.__needs_update = True
-        super().update()
-
-    def _child_updated(self, child):
-        with self.__needs_update_lock:
-            self.__needs_update = True
-        super()._child_updated(child)
+        super()._updated()
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):
@@ -2145,7 +2167,6 @@ class RootCanvasItem(CanvasItemComposition):
         self.__last_focused_item = None
         self.__needs_repaint = True
         self.__needs_repaint_lock = threading.RLock()
-        self.__last_repaint = 0
         self.__mouse_canvas_item = None  # not None when the mouse is pressed
         self.__mouse_tracking = False
         self.__mouse_tracking_canvas_item = None
@@ -2199,13 +2220,8 @@ class RootCanvasItem(CanvasItemComposition):
     def __draw_if_needed(self):
         # Check to see if needs repaint has been set. trigger drawing on a thread if so.
         with self.__needs_repaint_lock:
-            now = time.time()
-            if now - self.__last_repaint > 1 / self.__max_frame_rate:
-                needs_repaint = self.__needs_repaint
-                self.__needs_repaint = False
-                self.__last_repaint = now
-            else:
-                needs_repaint = False
+            needs_repaint = self.__needs_repaint
+            self.__needs_repaint = False
         if needs_repaint:
             self.__repaint_thread.trigger()
 
@@ -2239,7 +2255,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.canvas_widget.focusable = focusable
 
     # a child has been updated, trigger the thread to repaint
-    def _child_updated(self, child):
+    def _updated(self):
         self._metric_update_event.fire()
         with self.__needs_repaint_lock:
             self.__needs_repaint = True

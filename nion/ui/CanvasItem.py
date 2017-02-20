@@ -1550,11 +1550,13 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__layer_drawing_context = None
         self.__needs_update_lock = threading.RLock()
         self.__needs_update = True
-        self.__layer_thread = ThreadPool.ThreadDispatcher(self.__repaint_layer_on_thread, minimum_interval=0.001)
+        self.__layer_thread_cancel_event = threading.Event()
+        self.__layer_thread = threading.Thread(target=self.__repaint_loop)
         self.__layer_thread.start()
 
     def close(self):
-        self.__layer_thread.close()
+        self.__layer_thread_cancel_event.set()
+        self.__layer_thread.join()
         self.__layer_thread = None
         self.__layer_drawing_context = None
         super().close()
@@ -1563,19 +1565,17 @@ class LayerCanvasItem(CanvasItemComposition):
         layer_drawing_context = self.__layer_drawing_context
         if layer_drawing_context:
             drawing_context.add(layer_drawing_context)
-        with self.__needs_update_lock:
-            if self.__needs_update and self._has_layout:
-                self.__layer_thread.trigger()
 
-    def __repaint_layer_on_thread(self):
-        with self.__needs_update_lock:
-            do_update = self.__needs_update and self._has_layout
-            self.__needs_update = False
-        if do_update:
-            drawing_context = DrawingContext.DrawingContext()
-            self._repaint_layer(drawing_context)
-            self.__layer_drawing_context = drawing_context
-            self._update_container()
+    def __repaint_loop(self):
+        while not self.__layer_thread_cancel_event.wait(1/30):
+            with self.__needs_update_lock:
+                do_update = self.__needs_update and self._has_layout
+                self.__needs_update = False
+            if do_update:
+                drawing_context = DrawingContext.DrawingContext()
+                self._repaint_layer(drawing_context)
+                self.__layer_drawing_context = drawing_context
+                self._update_container()
 
     def _repaint_layer(self, drawing_context):
         super()._repaint(drawing_context)

@@ -739,6 +739,9 @@ class AbstractCanvasItem:
         assert self.canvas_size is not None
         self._repaint_count += 1
 
+    def _repaint_immediate(self, drawing_context):
+        self._repaint(drawing_context)
+
     def _draw_background(self, drawing_context):
         """Draw the background. Subclasses can call this."""
         background_color = self.__background_color
@@ -1565,6 +1568,9 @@ class LayerCanvasItem(CanvasItemComposition):
         layer_drawing_context = self.__layer_drawing_context
         if layer_drawing_context:
             drawing_context.add(layer_drawing_context)
+
+    def _repaint_immediate(self, drawing_context):
+        self._repaint_layer(drawing_context)
 
     def __repaint_loop(self):
         while not self.__layer_thread_cancel_event.wait(1/30):

@@ -435,7 +435,7 @@ class DrawingContext:
 
     def mark_latency(self):
         self.commands.append(("latency", time.perf_counter()))
-        self.binary_commands.extend(struct.pack("4sq", b"latn", time.perf_counter()))
+        self.binary_commands.extend(struct.pack("<4sd", b"latn", time.perf_counter()))
 
     def message(self, text):
         self.commands.append(("message", text))

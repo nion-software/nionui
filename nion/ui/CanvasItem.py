@@ -698,9 +698,12 @@ class AbstractCanvasItem:
         if update_level == 0:
             self._update_count += 1
             self._updated()
-            container = self.__container
-            if container and self._has_layout:
-                container.update()
+            self._handle_end_update()
+
+    def _handle_end_update(self):
+        container = self.__container
+        if container and self._has_layout:
+            container.update()
 
     def _update_container(self):
         with self.__update_level_lock:
@@ -1590,6 +1593,9 @@ class LayerCanvasItem(CanvasItemComposition):
         with self.__needs_update_lock:
             self.__needs_update = True
         super()._updated()
+
+    def _handle_end_update(self):
+        pass
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):

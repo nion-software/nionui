@@ -140,6 +140,16 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                     return self.__delegate.on_context_menu_event(None, x, y, gx, gy)
         return False
 
+    def mouse_double_clicked(self, x, y, modifiers):
+        if self.__delegate and hasattr(self.__delegate, "on_item_selected") and self.__delegate.on_item_selected:
+            max_index = self.__delegate.item_count
+            mouse_index = y // self.__item_height
+            if mouse_index >= 0 and mouse_index < max_index:
+                if not self.__selection.contains(mouse_index):
+                    self.__selection.set(mouse_index)
+                return self.__delegate.on_item_selected(mouse_index)
+        return super().mouse_double_clicked(x, y, modifiers)
+
     def mouse_pressed(self, x, y, modifiers):
         if self.__delegate:
             mouse_index = y // self.__item_height
@@ -222,6 +232,11 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 if self.__delegate.on_delete_pressed:
                     self.__delegate.on_delete_pressed()
                 return True
+            if key.is_enter_or_return:
+                if hasattr(self.__delegate, "on_item_selected") and self.__delegate.on_item_selected:
+                    indexes = self.__selection.indexes
+                    if len(indexes) == 1:
+                        return self.__delegate.on_item_selected(list(indexes)[0])
             if key.is_up_arrow:
                 new_index = None
                 indexes = self.__selection.indexes

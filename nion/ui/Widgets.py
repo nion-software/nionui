@@ -182,10 +182,12 @@ class StringListWidget(CompositeWidgetBase):
         self.__items = items
         content_widget = self.content_widget
         self.on_selection_changed = None
+        self.on_item_selected = None
         stringify_item = str if stringify_item is None else stringify_item
 
         class ListCanvasItemDelegate:
-            def __init__(self, items, selection):
+            def __init__(self, string_list_widget, items, selection):
+                self.__string_list_widget = string_list_widget
                 self.__items = items
                 self.__selection = selection
 
@@ -208,10 +210,15 @@ class StringListWidget(CompositeWidgetBase):
                 pass
 
             def on_key_pressed(self, key):
-                return self.__data_list_controller._key_pressed(key)
+                return False
 
             def on_drag_started(self, index, x, y, modifiers):
                 pass
+
+            def on_item_selected(self, index):
+                if callable(self.__string_list_widget.on_item_selected):
+                    return self.__string_list_widget.on_item_selected(index)
+                return False
 
             def paint_item(self, drawing_context, display_item, rect, is_selected):
                 item = stringify_item(display_item)
@@ -230,7 +237,7 @@ class StringListWidget(CompositeWidgetBase):
                 on_selection_changed(self.__selection.indexes)
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
-        self.__list_canvas_item_delegate = ListCanvasItemDelegate(items, self.__selection)
+        self.__list_canvas_item_delegate = ListCanvasItemDelegate(self, items, self.__selection)
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem(self.__list_canvas_item_delegate, self.__selection, 20)
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         scroll_area_canvas_item.auto_resize_contents = True

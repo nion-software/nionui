@@ -22,8 +22,8 @@ class OkCancelDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None):
-        super().__init__(ui, window_style="dialog")
+    def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None, persistent_id: str=None):
+        super().__init__(ui, window_style="dialog", persistent_id=persistent_id)
 
         self.on_reject = None
         self.on_accept = None
@@ -82,8 +82,8 @@ class ActionDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, title: str=None, app=None):
-        super().__init__(ui, app=app)
+    def __init__(self, ui, title: str=None, app=None, persistent_id=None):
+        super().__init__(ui, app=app, persistent_id=persistent_id)
 
         self.on_close = None
 

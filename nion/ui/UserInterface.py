@@ -2350,6 +2350,9 @@ class Window:
         self.on_about_to_close = None
         self.on_activation_changed = None
         self.on_size_changed = None
+        self.on_position_changed = None
+        self.pos_x = None
+        self.pos_y = None
         self.width = None
         self.height = None
         self.__title = title if title is not None else str()
@@ -2368,6 +2371,7 @@ class Window:
         self.on_about_to_close = None
         self.on_activation_changed = None
         self.on_size_changed = None
+        self.on_position_changed = None
 
     def request_close(self):
         raise NotImplemented()
@@ -2490,6 +2494,12 @@ class Window:
         if callable(self.on_size_changed):
             self.on_size_changed(self.width, self.height)
 
+    def _handle_position_changed(self, x, y):
+        self.pos_x = x
+        self.pos_y = y
+        if callable(self.on_position_changed):
+            self.on_position_changed(self.pos_x, self.pos_y)
+
 
 class QtWindow(Window):
 
@@ -2589,8 +2599,15 @@ class QtWindow(Window):
     def restore(self, geometry, state):
         self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
 
+    def save(self):
+        geometry, state = self.proxy.DocumentWindow_save(self.native_document_window)
+        return geometry, state
+
     def sizeChanged(self, width, height):
         self._handle_size_changed(width, height)
+
+    def positionChanged(self, x, y):
+        self._handle_position_changed(x, y)
 
 
 class QtDockWidget:

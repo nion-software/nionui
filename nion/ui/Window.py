@@ -18,12 +18,14 @@ _ = gettext.gettext
 
 class Window:
 
-    def __init__(self, ui, app=None, window_style=None):
+    def __init__(self, ui, app=None, window_style=None, persistent_id=None):
         self.ui = ui
         self.app = app
         self.__document_window = self.ui.create_document_window()
         if window_style:
             self.__document_window.window_style = window_style
+        self.__persistent_id = persistent_id
+        self.__shown = False
         self.__document_window.on_periodic = self.periodic
         self.__document_window.on_queue_task = self.queue_task
         self.__document_window.on_add_task = self.add_task
@@ -31,6 +33,8 @@ class Window:
         self.__document_window.on_about_to_show = self.about_to_show
         self.__document_window.on_about_to_close = self.about_to_close
         self.__document_window.on_activation_changed = self.activation_changed
+        self.__document_window.on_size_changed = self.size_changed
+        self.__document_window.on_position_changed = self.position_changed
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         # configure the event loop object
@@ -126,15 +130,31 @@ class Window:
         self.__document_window.detach()
 
     def about_to_show(self) -> None:
-        pass
+        if self.__persistent_id:
+            geometry = self.ui.get_persistent_string(f"{self.__persistent_id}/Geometry")
+            state = self.ui.get_persistent_string(f"{self.__persistent_id}/State")
+            self.restore(geometry, state)
+        self.__shown = True
 
     def about_to_close(self, geometry: str, state: str) -> None:
         # subclasses can override this method to save geometry and state
         # subclasses can also cancel closing by not calling super() (or close()).
         self.close()
 
+    def __save_bounds(self):
+        if self.__shown and self.__persistent_id:
+            geometry, state = self.save()
+            self.ui.set_persistent_string(f"{self.__persistent_id}/Geometry", geometry)
+            self.ui.set_persistent_string(f"{self.__persistent_id}/State", state)
+
     def activation_changed(self, activated: bool) -> None:
         pass
+
+    def size_changed(self, width: int, height: int) -> None:
+        self.__save_bounds()
+
+    def position_changed(self, x: int, y: int) -> None:
+        self.__save_bounds()
 
     def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y):
         self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
@@ -198,6 +218,9 @@ class Window:
 
     def restore(self, geometry: str, state: str) -> None:
         self.__document_window.restore(geometry, state)
+
+    def save(self) -> (str, str):
+        return self.__document_window.save()
 
     # tasks can be added in two ways, queued or added
     # queued tasks are guaranteed to be executed in the order queued.

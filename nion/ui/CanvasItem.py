@@ -1556,6 +1556,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__layer_drawing_context = None
         self.__needs_update_lock = threading.RLock()
         self.__needs_update = True
+        self._layer_thread_suppress = False  # for testing
         self.__layer_thread_cancel_event = threading.Event()
         self.__layer_thread = threading.Thread(target=self.__repaint_loop)
         self.__layer_thread.start()
@@ -1577,17 +1578,22 @@ class LayerCanvasItem(CanvasItemComposition):
 
     def __repaint_loop(self):
         while not self.__layer_thread_cancel_event.wait(1/30):
-            with self.__needs_update_lock:
-                do_update = self.__needs_update and self._has_layout
-                self.__needs_update = False
-            if do_update:
-                drawing_context = DrawingContext.DrawingContext()
-                self._repaint_layer(drawing_context)
-                self.__layer_drawing_context = drawing_context
-                self._update_container()
+            if self._layer_thread_suppress:
+                continue
+            self._repaint_loop_one()
 
     def _repaint_layer(self, drawing_context):
         super()._repaint(drawing_context)
+
+    def _repaint_loop_one(self):
+        with self.__needs_update_lock:
+            do_update = self.__needs_update and self._has_layout
+            self.__needs_update = False
+        if do_update:
+            drawing_context = DrawingContext.DrawingContext()
+            self._repaint_layer(drawing_context)
+            self.__layer_drawing_context = drawing_context
+            self._update_container()
 
     def _updated(self):
         with self.__needs_update_lock:

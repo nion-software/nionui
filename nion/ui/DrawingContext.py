@@ -161,6 +161,7 @@ class DrawingContext:
         font_style = None
         font_weight = None
         font_size = None
+        font_unit = None
         font_family = None
         contexts = collections.deque()
         gradient_start = None
@@ -182,6 +183,7 @@ class DrawingContext:
                 context["font_style"] = font_style
                 context["font_weight"] = font_weight
                 context["font_size"] = font_size
+                context["font_unit"] = font_unit
                 context["font_family"] = font_family
                 context["text_anchor"] = text_anchor
                 context["text_baseline"] = text_baseline
@@ -197,6 +199,7 @@ class DrawingContext:
                 font_style = context["font_style"]
                 font_weight = context["font_weight"]
                 font_size = context["font_size"]
+                font_unit = context["font_unit"]
                 font_family = context["font_family"]
                 text_anchor = context["text_anchor"]
                 text_baseline = context["text_baseline"]
@@ -272,7 +275,7 @@ class DrawingContext:
                 if font_weight:
                     font_str += " font-weight='{0}'".format(font_weight)
                 if font_size:
-                    font_str += " font-size='{0}pt'".format(font_size)
+                    font_str += " font-size='{0}{1}'".format(font_size, font_unit)
                 if font_family:
                     font_str += " font-family='{0}'".format(font_family)
                 svg_format_str = "<text x='{0}' y='{1}' text-anchor='{3}' alignment-baseline='{4}'{5}{6}>{2}</text>"
@@ -288,6 +291,7 @@ class DrawingContext:
                 font_style = None
                 font_weight = None
                 font_size = None
+                font_unit = None
                 font_family = None
                 for font_part in [s for s in command_args[0].split(" ") if s]:
                     if font_part == "italic":
@@ -296,6 +300,10 @@ class DrawingContext:
                         font_weight = "bold"
                     elif font_part.endswith("px") and int(font_part[0:-2]) > 0:
                         font_size = int(font_part[0:-2])
+                        font_unit = "px"
+                    elif font_part.endswith("pt") and int(font_part[0:-2]) > 0:
+                        font_size = int(font_part[0:-2])
+                        font_unit = "pt"
                     else:
                         font_family = font_part
             elif command_id == "textAlign":

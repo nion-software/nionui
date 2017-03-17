@@ -2442,6 +2442,13 @@ class Window:
     def _get_screen_size(self):
         raise NotImplemented()
 
+    @property
+    def display_scaling(self) -> float:
+        return self._get_display_scaling()
+
+    def _get_display_scaling(self):
+        raise NotImplemented()
+
     # call show to display the window.
     def show(self, size=None, position=None):
         raise NotImplemented()
@@ -2558,6 +2565,9 @@ class QtWindow(Window):
     def _get_screen_size(self):
         w, h = self.proxy.DocumentWindow_getScreenSize(self.native_document_window)
         return Geometry.IntSize(width=w, height=h)
+
+    def _get_display_scaling(self):
+        return self.proxy.DocumentWindow_getDisplayScaling(self.native_document_window)
 
     def show(self, size=None, position=None):
         if size is not None:

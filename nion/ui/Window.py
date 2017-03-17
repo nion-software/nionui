@@ -187,6 +187,13 @@ class Window:
         return self.__document_window.screen_size
 
     @property
+    def display_scaling(self):
+        return self.__document_window.display_scaling
+
+    def get_font_metrics(self, font, text):
+        return self.ui.get_font_metrics(font, text)
+
+    @property
     def focus_widget(self):
         focus_widget = self.__document_window.focus_widget
         if focus_widget:

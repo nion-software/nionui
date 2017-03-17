@@ -318,6 +318,7 @@ class DocumentWindow:
         self.__menus = list()
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
         self.__dock_widgets = list()
+        self.display_scaling = 1.0
     def close(self):
         if self.root_widget:
             self.root_widget.close()

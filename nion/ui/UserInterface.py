@@ -1077,12 +1077,15 @@ class QtComboBoxWidget(QtWidget):
         if self.__current_item_binding:
             self.__current_item_binding.close()
             self.__current_item_binding = None
-        self.current_item = self.__items[binding.get_target_value()]
+        current_index = binding.get_target_value()
+        if current_index is not None and 0 <= current_index < len(self.__items):
+            self.current_item = self.__items[current_index]
         self.__current_item_binding = binding
         def update_current_index(current_index):
-            item = self.__items[current_index]
-            if self.widget:
-                self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
+            if current_index is not None and 0 <= current_index < len(self.__items):
+                item = self.__items[current_index]
+                if self.widget:
+                    self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
 

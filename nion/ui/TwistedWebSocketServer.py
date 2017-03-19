@@ -113,7 +113,7 @@ class TwistedWebSocketServer(object):
             else:
                 message_queue.put(bytes(message, "utf8"))
 
-        def draw(drawing_context, drawing_context_storage):
+        def draw(drawing_context):
             put_message(json.dumps({"message": "draw", "js": drawing_context.to_js()}))
 
         def get_font_metrics(font, text):

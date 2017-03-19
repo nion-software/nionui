@@ -498,8 +498,8 @@ class CanvasWidget(Widget):
         self.__focusable = focusable
         self.root_container.set_focusable(self, focusable)
 
-    def create_drawing_context(self, storage=None):
-        return DrawingContext.DrawingContext(storage)
+    def create_drawing_context(self):
+        return DrawingContext.DrawingContext()
 
     def draw(self, drawing_context):
         # thread safe. take care to make sure widget hasn't been deleted from underneath.
@@ -635,10 +635,10 @@ class Window(UserInterface.Window):
     def _set_title(self, value):
         pass
 
-    def draw(self, widget, drawing_context, drawing_context_storage):
+    def draw(self, widget, drawing_context):
         """Render the drawing context by called draw on the ui object."""
         assert widget == self.root_widget
-        self.ui._draw(drawing_context, drawing_context_storage)
+        self.ui._draw(drawing_context)
 
     # called when the document size changes
     # typically by the UI object
@@ -704,7 +704,7 @@ class CanvasUserInterface:
                 traceback.print_exc()
                 traceback.print_stack()
 
-    def _draw(self, drawing_context, drawing_context_storage):
+    def _draw(self, drawing_context):
         """Render the drawing context.
 
         This will be called from the Window, which will, in turn, be called from a thread from its
@@ -718,7 +718,7 @@ class CanvasUserInterface:
             dc.fill_style = "#FFF"
             dc.fill()
         dc.add(drawing_context)
-        self.__draw_fn(dc, drawing_context_storage)
+        self.__draw_fn(dc)
 
     # data objects
 

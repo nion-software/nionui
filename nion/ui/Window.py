@@ -131,8 +131,8 @@ class Window:
 
     def about_to_show(self) -> None:
         if self.__persistent_id:
-            geometry = self.ui.get_persistent_string(f"{self.__persistent_id}/Geometry")
-            state = self.ui.get_persistent_string(f"{self.__persistent_id}/State")
+            geometry = self.ui.get_persistent_string("{}/Geometry".format(self.__persistent_id))
+            state = self.ui.get_persistent_string("{}/State".format(self.__persistent_id))
             self.restore(geometry, state)
         self.__shown = True
 
@@ -144,8 +144,8 @@ class Window:
     def __save_bounds(self):
         if self.__shown and self.__persistent_id:
             geometry, state = self.save()
-            self.ui.set_persistent_string(f"{self.__persistent_id}/Geometry", geometry)
-            self.ui.set_persistent_string(f"{self.__persistent_id}/State", state)
+            self.ui.set_persistent_string("{}/Geometry".format(self.__persistent_id), geometry)
+            self.ui.set_persistent_string("{}/State".format(self.__persistent_id), state)
 
     def activation_changed(self, activated: bool) -> None:
         pass

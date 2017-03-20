@@ -16,6 +16,7 @@ focused_widget = None  # simulate focus handling at the widget level
 
 class Widget:
     def __init__(self):
+        self.widget_id = None
         self.drawing_context = DrawingContext.DrawingContext()
         self.width = 640
         self.height = 480
@@ -274,6 +275,17 @@ class Widget:
             self.on_mouse_released(x, y, modifiers)
         if self.on_mouse_clicked:
             self.on_mouse_clicked(x, y, modifiers)
+    @property
+    def _contained_widgets(self):
+        return [self.__content] if self.__content else self.children
+    def find_widget_by_id(self, widget_id):
+        if self.widget_id == widget_id:
+            return self
+        for contained_widget in self._contained_widgets:
+            found_widget = contained_widget.find_widget_by_id(widget_id)
+            if found_widget:
+                return found_widget
+        return None
 
 
 class MenuItem:

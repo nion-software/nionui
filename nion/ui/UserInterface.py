@@ -540,6 +540,7 @@ class QtWidget:
         self.__tool_tip = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
+        self.widget_id = None
 
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -562,6 +563,15 @@ class QtWidget:
     @property
     def _contained_widgets(self):
         return list()
+
+    def find_widget_by_id(self, widget_id: str):
+        if self.widget_id == widget_id:
+            return self
+        for contained_widget in self._contained_widgets:
+            found_widget = contained_widget.find_widget_by_id(widget_id)
+            if found_widget:
+                return found_widget
+        return None
 
     # not thread safe
     def periodic(self):

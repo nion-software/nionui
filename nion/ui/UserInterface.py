@@ -1393,21 +1393,21 @@ class QtSliderWidget(QtWidget):
         return self.__pressed
     pressed = property(__get_pressed)
 
-    def value_changed(self, value):
+    def valueChanged(self, value):
         if self.on_value_changed:
             self.on_value_changed(value)
 
-    def slider_pressed(self):
+    def sliderPressed(self):
         self.__pressed = True
         if self.on_slider_pressed:
             self.on_slider_pressed()
 
-    def slider_released(self):
+    def sliderReleased(self):
         self.__pressed = False
         if self.on_slider_released:
             self.on_slider_released()
 
-    def slider_moved(self, value):
+    def sliderMoved(self, value):
         if self.on_slider_moved:
             self.on_slider_moved(value)
 
@@ -1491,7 +1491,7 @@ class QtLineEditWidget(QtWidget):
     def select_all(self):
         self.proxy.LineEdit_selectAll(self.widget)
 
-    def editing_finished(self, text):
+    def editingFinished(self, text):
         if self.on_editing_finished:
             self.on_editing_finished(text)
             self.__last_text = text
@@ -1518,7 +1518,7 @@ class QtLineEditWidget(QtWidget):
             return on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
-    def text_edited(self, text):
+    def textEdited(self, text):
         if self.on_text_edited:
             self.on_text_edited(text)
 

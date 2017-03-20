@@ -166,9 +166,9 @@ class Widget:
         if self.__content:
             self.__content.size_changed(self.size)
     def add_stretch(self):
-        pass
+        self.children.append(Widget())
     def add_spacing(self, spacing):
-        pass
+        self.children.append(Widget())
     def create_drawing_context(self):
         return DrawingContext.DrawingContext()
     def draw(self, drawing_context):

@@ -448,30 +448,37 @@ class QtDrag:
             self.on_drag_finished(action)
 
 
-class QtWidget:
-    def __init__(self, proxy, widget_type, properties):
-        self.proxy = proxy
-        self.properties = properties if properties else {}
-        self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
+class Widget:
+
+    def __init__(self, widget_behavior):
+        self.__behavior = widget_behavior
         self.__root_container = None  # the document window
-        self.update_properties()
-        self.__visible = True
-        self.__enabled = True
-        self.__tool_tip = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.widget_id = None
 
-    # subclasses should override to clear their variables.
-    # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
+        def handle_context_menu_event(x, y, gx, gy):
+            if callable(self.on_context_menu_event):
+                self.on_context_menu_event(x, y, gx, gy)
+
+        def handle_focus_changed(focused):
+            if callable(self.on_focus_changed):
+                self.on_focus_changed(focused)
+
+        self._behavior.on_context_menu_event = handle_context_menu_event
+        self._behavior.on_focus_changed = handle_focus_changed
+        self.widget_id = None
+
     def close(self):
-        if self.widget:
-            self.proxy.Widget_removeWidget(self.widget)
-            self.widget = None
+        self.__behavior.close()
+        self.__behavior = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.__root_container = None
-        self.proxy = None
+
+    @property
+    def _behavior(self):
+        return self.__behavior
 
     @property
     def root_container(self):
@@ -521,10 +528,84 @@ class QtWidget:
         if root_container:
             root_container.queue_task(task)
 
+    @property
+    def focused(self) -> bool:
+        return self._behavior.focused
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        self._behavior.focused = focused
+
+    @property
+    def visible(self) -> bool:
+        return self._behavior.visible
+
+    @visible.setter
+    def visible(self, visible: bool) -> None:
+        self._behavior.visible = visible
+
+    @property
+    def enabled(self) -> bool:
+        return self._behavior.enabled
+
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        self._behavior.enabled = enabled
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        return self._behavior.size
+
+    @size.setter
+    def size(self, size: Geometry.IntSize) -> None:
+        self._behavior.size = size
+
+    @property
+    def tool_tip(self) -> str:
+        return self._behavior.tool_tip
+
+    @tool_tip.setter
+    def tool_tip(self, tool_tip: str) -> None:
+        self._behavior.tool_tip = tool_tip
+
+    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+        self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+
+    def map_to_global(self, p) -> Geometry.IntPoint:
+        return self._behavior.map_to_global(p)
+
+    def _dispatch_any(self, method: str, *args, **kwargs) -> bool:
+        if hasattr(self, method):
+            return getattr(self, method)(*args, **kwargs)
+        return False
+
+    def _will_dispatch(self, method) -> bool:
+        return hasattr(self, method)
+
+
+class QtWidgetBehavior:
+
+    def __init__(self, proxy, widget_type, properties):
+        self.proxy = proxy
+        self.properties = properties if properties else {}
+        self.widget = self.proxy.Widget_loadIntrinsicWidget(widget_type) if widget_type else None
+        self.update_properties()
+        self.__visible = True
+        self.__enabled = True
+        self.__tool_tip = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
+
+    # subclasses should override to clear their variables.
+    # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
+    def close(self):
+        self.proxy.Widget_removeWidget(self.widget)
+        self.widget = None
+        self.proxy = None
+
     def update_properties(self):
-        if self.widget:
-            for key in self.properties.keys():
-                self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(self.properties[key]))
+        for key in self.properties.keys():
+            self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(self.properties[key]))
 
     @property
     def focused(self):
@@ -577,7 +658,7 @@ class QtWidget:
             self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
-    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
         def drag_finished(action):
             if drag_finished_fn:
                 drag_finished_fn(action)
@@ -600,198 +681,67 @@ class QtWidget:
         gx, gy = self.proxy.Widget_mapToGlobal(self.widget, p.x, p.y)
         return Geometry.IntPoint(x=gx, y=gy)
 
-    def _dispatch_any(self, method: str, *args, **kwargs) -> bool:
-        if hasattr(self, method):
-            return getattr(self, method)(*args, **kwargs)
-        return False
 
-    def _will_dispatch(self, method) -> bool:
-        return hasattr(self, method)
+class QtNullBehavior:
+
+    def __init__(self):
+        self.focused = False
+        self.enabled = True
+        self.visible = True
+
+    def close(self):
+        pass
 
 
-class QtBoxWidget(QtWidget):
+class QtBoxStretch(Widget):
 
-    def __init__(self, proxy, widget_type, alignment, properties):
-        super(QtBoxWidget, self).__init__(proxy, widget_type, properties)
+    def __init__(self):
+        super().__init__(QtNullBehavior())
+
+
+class QtBoxSpacing(Widget):
+
+    def __init__(self, spacing: int):
+        super().__init__(QtNullBehavior())
+        self.spacing = spacing
+
+
+def extract_widget(widget):
+    if hasattr(widget, "_behavior"):
+        return widget._behavior.widget
+    elif hasattr(widget, "content_widget"):
+        return extract_widget(widget.content_widget)
+    return None
+
+
+class QtBoxWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, widget_type, properties):
+        super().__init__(proxy, widget_type, properties)
+
+    def insert(self, child, index, fill, alignment):
+        # behavior must handle index of None, meaning insert at end
+        child_widget = extract_widget(child)
+        assert self.widget is not None
+        assert child_widget is not None
+        index = index if index is not None else self.proxy.Widget_widgetCount(self.widget)
+        self.proxy.Widget_insertWidget(self.widget, child_widget, index, fill, alignment)
+
+    def add_stretch(self) -> Widget:
+        self.proxy.Widget_addStretch(self.widget)
+        return QtBoxStretch()
+
+    def add_spacing(self, spacing: int) -> Widget:
+        self.proxy.Widget_addSpacing(self.widget, spacing)
+        return QtBoxSpacing(spacing)
+
+
+class BoxWidget(Widget):
+
+    def __init__(self, widget_behavior, alignment):
+        super().__init__(widget_behavior)
         self.alignment = alignment
         self.children = []
-        self.spacer_count = 0
-
-    def close(self):
-        for child in self.children:
-            child.close()
-        self.children = None
-        super(QtBoxWidget, self).close()
-
-    def _set_root_container(self, root_container):
-        super(QtBoxWidget, self)._set_root_container(root_container)
-        for child in self.children:
-            child._set_root_container(root_container)
-
-    @property
-    def _contained_widgets(self):
-        return copy.copy(self.children)
-
-    def periodic(self):
-        super(QtBoxWidget, self).periodic()
-        for child in self.children:
-            child.periodic()
-
-    @property
-    def child_count(self):
-        return len(self.children)
-
-    def index(self, child):
-        assert child in self.children
-        return self.children.index(child)
-
-    def insert(self, child, before, fill=False, alignment=None):
-        if isinstance(before, numbers.Integral):
-            index = before
-        else:
-            index = self.index(before) if before else self.child_count + self.spacer_count
-        if alignment is None:
-            alignment = self.alignment
-        self.children.insert(index, child)
-        child._set_root_container(self.root_container)
-        assert self.widget is not None
-        assert child.widget is not None
-        self.proxy.Widget_insertWidget(self.widget, child.widget, index, fill, alignment)
-
-    def add(self, child, fill=False, alignment=None):
-        self.insert(child, None, fill, alignment)
-
-    def remove(self, child):
-        if isinstance(child, numbers.Integral):
-            child = self.children[child]
-        child._set_root_container(None)
-        self.children.remove(child)
-        child.close()
-
-    def remove_all(self):
-        while self.child_count > 0:
-            self.remove(0)
-
-    def add_stretch(self):
-        self.spacer_count += 1
-        self.proxy.Widget_addStretch(self.widget)
-
-    def add_spacing(self, spacing):
-        self.spacer_count += 1
-        self.proxy.Widget_addSpacing(self.widget, spacing)
-
-
-class QtRowWidget(QtBoxWidget):
-
-    def __init__(self, proxy, alignment, properties):
-        super(QtRowWidget, self).__init__(proxy, "row", alignment, properties)
-
-
-class QtColumnWidget(QtBoxWidget):
-
-    def __init__(self, proxy, alignment, properties):
-        super(QtColumnWidget, self).__init__(proxy, "column", alignment, properties)
-
-
-class QtSplitterWidget(QtWidget):
-
-    def __init__(self, proxy, orientation, properties):
-        super(QtSplitterWidget, self).__init__(proxy, "splitter", properties)
-        self.children = []
-        self.orientation = orientation
-
-    def close(self):
-        for child in self.children:
-            child.close()
-        self.children = None
-        super(QtSplitterWidget, self).close()
-
-    def _set_root_container(self, root_container):
-        super(QtSplitterWidget, self)._set_root_container(root_container)
-        for child in self.children:
-            child._set_root_container(root_container)
-
-    @property
-    def _contained_widgets(self):
-        return copy.copy(self.children)
-
-    def periodic(self):
-        super(QtSplitterWidget, self).periodic()
-        for child in self.children:
-            child.periodic()
-
-    def __get_orientation(self):
-        return self.__orientation
-    def __set_orientation(self, orientation):
-        self.__orientation = orientation
-        self.proxy.Splitter_setOrientation(self.widget, self.__orientation)
-    orientation = property(__get_orientation, __set_orientation)
-
-    def add(self, child):
-        self.proxy.Widget_addWidget(self.widget, child.widget)
-        self.children.append(child)
-        child._set_root_container(self.root_container)
-
-    def restore_state(self, tag):
-        self.proxy.Splitter_restoreState(self.widget, tag)
-
-    def save_state(self, tag):
-        self.proxy.Splitter_saveState(self.widget, tag)
-
-
-class QtTabWidget(QtWidget):
-
-    def __init__(self, proxy, properties):
-        properties = copy.copy(properties) if properties is not None else dict()
-        properties["stylesheet"] = "background-color: '#FFF'"
-        super(QtTabWidget, self).__init__(proxy, "tab", properties)
-        self.children = []
-        self.on_current_index_changed = None
-        self.proxy.TabWidget_connect(self.widget, self)
-
-    def close(self):
-        for child in self.children:
-            child.close()
-        self.children = None
-        self.on_current_index_changed = None
-        super(QtTabWidget, self).close()
-
-    def _set_root_container(self, root_container):
-        super(QtTabWidget, self)._set_root_container(root_container)
-        for child in self.children:
-            child._set_root_container(root_container)
-
-    @property
-    def _contained_widgets(self):
-        return copy.copy(self.children)
-
-    def periodic(self):
-        super(QtTabWidget, self).periodic()
-        for child in self.children:
-            child.periodic()
-
-    def add(self, child, label):
-        self.proxy.TabWidget_addTab(self.widget, child.widget, notnone(label))
-        self.children.append(child)
-        child._set_root_container(self.root_container)
-
-    def restore_state(self, tag):
-        pass
-
-    def save_state(self, tag):
-        pass
-
-    def currentTabChanged(self, index):
-        if self.on_current_index_changed:
-            self.on_current_index_changed(index)
-
-
-class QtStackWidget(QtWidget):
-
-    def __init__(self, proxy, properties):
-        super().__init__(proxy, "stack", properties)
-        self.children = []
-        self.__current_index = -1
 
     def close(self):
         for child in self.children:
@@ -813,26 +763,206 @@ class QtStackWidget(QtWidget):
         for child in self.children:
             child.periodic()
 
-    def add(self, child):
-        self.proxy.StackWidget_addWidget(self.widget, child.widget)
+    @property
+    def child_count(self):
+        return len(self.children)
+
+    def index(self, child):
+        assert child in self.children
+        return self.children.index(child)
+
+    def insert(self, child, before, fill=False, alignment=None):
+        if isinstance(before, numbers.Integral):
+            index = before
+        else:
+            index = self.index(before) if before is not None else self.child_count
+        if alignment is None:
+            alignment = self.alignment
+        self.children.insert(index, child)
+        child._set_root_container(self.root_container)
+        self._behavior.insert(child, index, fill, alignment)
+
+    def add(self, child, fill=False, alignment=None):
+        self.insert(child, None, fill, alignment)
+
+    def remove(self, child: typing.Union[Widget, int]) -> None:
+        if isinstance(child, numbers.Integral):
+            child = self.children[child]
+        child._set_root_container(None)
+        self.children.remove(child)
+        # closing the child should remove it from the layout
+        child.close()
+
+    def remove_all(self) -> None:
+        while self.child_count > 0:
+            self.remove(0)
+
+    def add_stretch(self) -> None:
+        child = self._behavior.add_stretch()
+        self.children.append(child)
+
+    def add_spacing(self, spacing: int) -> None:
+        child = self._behavior.add_spacing(spacing)
+        self.children.append(child)
+
+
+class QtSplitterWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "splitter", properties)
+        self.children = []
+        self.__orientation = "vertical"
+
+    @property
+    def orientation(self):
+        return self.__orientation
+
+    @orientation.setter
+    def orientation(self, value):
+        self.__orientation = value
+        self.proxy.Splitter_setOrientation(self.widget, self.__orientation)
+
+    def add(self, child: Widget) -> None:
+        self.proxy.Widget_addWidget(self.widget, extract_widget(child))
+
+    def restore_state(self, tag):
+        self.proxy.Splitter_restoreState(self.widget, tag)
+
+    def save_state(self, tag):
+        self.proxy.Splitter_saveState(self.widget, tag)
+
+
+class SplitterWidget(Widget):
+
+    def __init__(self, widget_behavior, orientation):
+        super().__init__(widget_behavior)
+        self.children = []
+        self.orientation = orientation
+
+    def close(self):
+        for child in self.children:
+            child.close()
+        self.children = None
+        super().close()
+
+    def _set_root_container(self, root_container):
+        super()._set_root_container(root_container)
+        for child in self.children:
+            child._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
+    def periodic(self):
+        super().periodic()
+        for child in self.children:
+            child.periodic()
+
+    @property
+    def orientation(self):
+        return self._behavior.orientation
+
+    @orientation.setter
+    def orientation(self, value):
+        self._behavior.orientation = value
+
+    def add(self, child: Widget) -> None:
+        self._behavior.add(child)
         self.children.append(child)
         child._set_root_container(self.root_container)
 
-    def remove(self, child):
-        self.proxy.StackWidget_removeWidget(self.widget, child.widget)
-        child._set_root_container(None)
-        self.children.remove(child)
-        child.close()
+    def restore_state(self, tag: str) -> None:
+        self._behavior.restore_state(tag)
 
-    def remove_all(self):
-        while len(self.children) > 0:
-            self.remove(self.children[-1])
+    def save_state(self, tag: str) -> None:
+        self._behavior.save_state(tag)
+
+
+class QtTabWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        properties = copy.deepcopy(properties) if properties is not None else dict()
+        properties["stylesheet"] = "background-color: '#FFF'"
+        super().__init__(proxy, "tab", properties)
+        self.on_current_index_changed = None
+        self.proxy.TabWidget_connect(self.widget, self)
+
+    def close(self):
+        self.on_current_index_changed = None
+        super().close()
+
+    def add(self, child: Widget, label: str) -> None:
+        self.proxy.TabWidget_addTab(self.widget, extract_widget(child), notnone(label))
 
     def restore_state(self, tag):
         pass
 
     def save_state(self, tag):
         pass
+
+    def currentTabChanged(self, index):
+        if callable(self.on_current_index_changed):
+            self.on_current_index_changed(index)
+
+
+class TabWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.children = []
+        self.on_current_index_changed = None
+
+        def handle_current_index_changed(index):
+            if callable(self.on_current_index_changed):
+                self.on_current_index_changed(index)
+
+        self._behavior.on_current_index_changed = handle_current_index_changed
+
+    def close(self):
+        for child in self.children:
+            child.close()
+        self.children = None
+        self.on_current_index_changed = None
+        super().close()
+
+    def _set_root_container(self, root_container):
+        super()._set_root_container(root_container)
+        for child in self.children:
+            child._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
+    def periodic(self):
+        super().periodic()
+        for child in self.children:
+            child.periodic()
+
+    def add(self, child: Widget, label: str) -> None:
+        self._behavior.add(child, label)
+        self.children.append(child)
+        child._set_root_container(self.root_container)
+
+    def restore_state(self, tag: str) -> None:
+        self._behavior.restore_state(tag)
+
+    def save_state(self, tag: str) -> None:
+        self._behavior.save_state(tag)
+
+
+class QtStackWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "stack", properties)
+        self.__current_index = -1
+
+    def add(self, child: Widget) -> None:
+        self.proxy.StackWidget_addWidget(self.widget, extract_widget(child))
+
+    def remove(self, child: Widget) -> None:
+        self.proxy.StackWidget_removeWidget(self.widget, extract_widget(child))
 
     @property
     def current_index(self):
@@ -844,61 +974,80 @@ class QtStackWidget(QtWidget):
         self.proxy.StackWidget_setCurrentIndex(self.widget, index)
 
 
-class QtScrollAreaWidget(QtWidget):
+class StackWidget(Widget):
 
-    def __init__(self, proxy, properties):
-        super(QtScrollAreaWidget, self).__init__(proxy, "scrollarea", properties)
-        self.__content = None
-        self.on_size_changed = None
-        self.on_viewport_changed = None
-        self.viewport = ((0, 0), (0, 0))
-        self.width = 0
-        self.height = 0
-        self.proxy.ScrollArea_connect(self.widget, self)
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.children = []
 
     def close(self):
-        self.__content.close()
-        self.__content = None
-        self.on_size_changed = None
-        self.on_viewport_changed = None
-        super(QtScrollAreaWidget, self).close()
+        for child in self.children:
+            child.close()
+        self.children = None
+        super().close()
 
     def _set_root_container(self, root_container):
-        super(QtScrollAreaWidget, self)._set_root_container(root_container)
-        self.__content._set_root_container(root_container)
+        super()._set_root_container(root_container)
+        for child in self.children:
+            child._set_root_container(root_container)
 
     @property
     def _contained_widgets(self):
-        return [self.__content] if self.__content else list()
+        return copy.copy(self.children)
 
     def periodic(self):
-        super(QtScrollAreaWidget, self).periodic()
-        self.__content.periodic()
+        super().periodic()
+        for child in self.children:
+            child.periodic()
 
-    def __get_content(self):
-        return self.__content
-    def __set_content(self, content):
-        self.proxy.ScrollArea_setWidget(self.widget, content.widget)
-        self.__content = content
-        content._set_root_container(self.root_container)
-    content = property(__get_content, __set_content)
+    def add(self, child: Widget) -> None:
+        self._behavior.add(child)
+        self.children.append(child)
+        child._set_root_container(self.root_container)
 
-    def restore_state(self, tag):
-        pass
+    def remove(self, child: Widget) -> None:
+        self._behavior.remove(child)
+        child._set_root_container(None)
+        self.children.remove(child)
+        child.close()
 
-    def save_state(self, tag):
-        pass
+    def remove_all(self):
+        while len(self.children) > 0:
+            self.remove(self.children[-1])
+
+    @property
+    def current_index(self):
+        return self._behavior.current_index
+
+    @current_index.setter
+    def current_index(self, index):
+        self._behavior.current_index = index
+
+
+class QtScrollAreaWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "scrollarea", properties)
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        self.proxy.ScrollArea_connect(self.widget, self)
+
+    def close(self):
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        super().close()
+
+    def set_content(self, content: Widget) -> None:
+        self.proxy.ScrollArea_setWidget(self.widget, extract_widget(content))
 
     def sizeChanged(self, width, height):
-        self.width = width
-        self.height = height
-        if self.on_size_changed:
-            self.on_size_changed(self.width, self.height)
+        if callable(self.on_size_changed):
+            self.on_size_changed(width, height)
 
     def viewportChanged(self, left, top, width, height):
-        self.viewport = ((top, left), (height, width))
-        if self.on_viewport_changed:
-            self.on_viewport_changed(self.viewport)
+        if callable(self.on_viewport_changed):
+            viewport = (top, left), (height, width)
+            self.on_viewport_changed(viewport)
 
     def scroll_to(self, x, y):
         self.proxy.ScrollArea_setHorizontal(self.widget, float(x))
@@ -911,18 +1060,126 @@ class QtScrollAreaWidget(QtWidget):
         self.proxy.ScrollArea_info(self.widget)
 
 
-class QtComboBoxWidget(QtWidget):
+class ScrollAreaWidget(Widget):
 
-    def __init__(self, proxy, items, item_getter, properties):
-        super(QtComboBoxWidget, self).__init__(proxy, "combobox", properties)
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.__content = None
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        self.viewport = ((0, 0), (0, 0))
+        self.width = 0
+        self.height = 0
+
+        def handle_size_changed(width, height):
+            self.width = width
+            self.height = height
+            if callable(self.on_size_changed):
+                self.on_size_changed(width, height)
+
+        self._behavior.on_size_changed = handle_size_changed
+
+        def handle_viewport_changed(viewport):
+            self.viewport = viewport
+            if callable(self.on_viewport_changed):
+                self.on_viewport_changed(viewport)
+
+        self._behavior.on_viewport_changed = handle_viewport_changed
+
+    def close(self):
+        self.__content.close()
+        self.__content = None
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        super().close()
+
+    def _set_root_container(self, root_container):
+        super()._set_root_container(root_container)
+        self.__content._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return [self.__content] if self.__content else list()
+
+    def periodic(self):
+        super().periodic()
+        self.__content.periodic()
+
+    @property
+    def content(self) -> Widget:
+        return self.__content
+
+    @content.setter
+    def content(self, content: Widget) -> None:
+        self._behavior.set_content(content)
+        self.__content = content
+        content._set_root_container(self.root_container)
+
+    def restore_state(self, tag):
+        pass
+
+    def save_state(self, tag):
+        pass
+
+    def scroll_to(self, x, y):
+        self._behavior.scroll_to(x, y)
+
+    def set_scrollbar_policies(self, horizontal_policy, vertical_policy):
+        self._behavior.set_scrollbar_policies(horizontal_policy, vertical_policy)
+
+    def info(self):
+        self._behavior.info()
+
+
+class QtComboBoxWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "combobox", properties)
+        self.on_current_text_changed = None
+        self.proxy.ComboBox_connect(self.widget, self)
+
+    def close(self):
+        self.on_current_text_changed = None
+        super().close()
+
+    @property
+    def current_text(self):
+        return self.proxy.ComboBox_getCurrentText(self.widget)
+
+    @current_text.setter
+    def current_text(self, value):
+        self.proxy.ComboBox_setCurrentText(self.widget, notnone(value))
+
+    def set_item_strings(self, item_strings):
+        self.proxy.ComboBox_removeAllItems(self.widget)
+        for item_string in item_strings:
+            self.proxy.ComboBox_addItem(self.widget, item_string)
+
+    # this message comes from Qt implementation
+    def currentTextChanged(self, text):
+        if callable(self.on_current_text_changed):
+            self.on_current_text_changed(text)
+
+
+class ComboBoxWidget(Widget):
+
+    def __init__(self, widget_behavior, items, item_getter):
+        super().__init__(widget_behavior)
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
         self.item_getter = item_getter
         self.items = items if items else []
-        self.proxy.ComboBox_connect(self.widget, self)
         self.__current_item_binding = None
         self.__items_binding = None
+
+        def handle_current_text_changed(text):
+            if callable(self.on_current_text_changed):
+                self.on_current_text_changed(text)
+            if callable(self.on_current_item_changed):
+                self.on_current_item_changed(self.current_item)
+
+        self._behavior.on_current_text_changed = handle_current_text_changed
 
     def close(self):
         if self.__current_item_binding:
@@ -937,15 +1194,15 @@ class QtComboBoxWidget(QtWidget):
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
-        super(QtComboBoxWidget, self).close()
+        super().close()
 
     @property
-    def current_text(self):
-        return self.proxy.ComboBox_getCurrentText(self.widget)
+    def current_text(self) -> str:
+        return self._behavior.current_text
 
     @current_text.setter
-    def current_text(self, value):
-        self.proxy.ComboBox_setCurrentText(self.widget, notnone(value))
+    def current_text(self, value: str) -> None:
+        self._behavior.current_text = value
 
     @property
     def current_item(self):
@@ -958,15 +1215,14 @@ class QtComboBoxWidget(QtWidget):
     @current_item.setter
     def current_item(self, value):
         item_string = notnone(self.item_getter(value) if self.item_getter and value is not None else value)
-        if self.widget:  # may be called as task, so verify it hasn't closed yet
-            self.proxy.ComboBox_setCurrentText(self.widget, item_string)
+        self.current_text = item_string
 
     @property
-    def current_index(self):
+    def current_index(self) -> int:
         return self.items.index(self.current_text) if self.current_text in self.items else None
 
     @current_index.setter
-    def current_index(self, value):
+    def current_index(self, value: int) -> None:
         self.current_item = self.items[value] if value is not None else None
 
     @property
@@ -975,21 +1231,15 @@ class QtComboBoxWidget(QtWidget):
 
     @items.setter
     def items(self, items):
-        self.proxy.ComboBox_removeAllItems(self.widget)
+        item_strings = list()
         self.__items = list()
         for item in items:
             item_string = notnone(self.item_getter(item) if self.item_getter else item)
-            self.proxy.ComboBox_addItem(self.widget, item_string)
+            item_strings.append(item_string)
             self.__items.append(item)
+        self._behavior.set_item_strings(item_strings)
         if callable(self.on_items_changed):
             self.on_items_changed(self.__items)
-
-    # this message comes from Qt implementation
-    def currentTextChanged(self, text):
-        if self.on_current_text_changed:
-            self.on_current_text_changed(text)
-        if self.on_current_item_changed:
-            self.on_current_item_changed(self.current_item)
 
     def bind_items(self, binding):
         if self.__items_binding:
@@ -998,8 +1248,7 @@ class QtComboBoxWidget(QtWidget):
         self.items = binding.get_target_value()
         self.__items_binding = binding
         def update_items(items):
-            if self.widget:
-                self.add_task("update_items", lambda: setattr(self, "items", items))
+            self.add_task("update_items", lambda: setattr(self, "items", items))
         self.__items_binding.target_setter = update_items
         self.on_items_changed = lambda items: self.__items_binding.update_source(items)
 
@@ -1014,24 +1263,23 @@ class QtComboBoxWidget(QtWidget):
         def update_current_index(current_index):
             if current_index is not None and 0 <= current_index < len(self.__items):
                 item = self.__items[current_index]
-                if self.widget:
-                    self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
+                self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
 
 
-class QtPushButtonWidget(QtWidget):
+class QtPushButtonWidgetBehavior(QtWidgetBehavior):
 
-    def __init__(self, proxy, text, properties):
-        super(QtPushButtonWidget, self).__init__(proxy, "pushbutton", properties)
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "pushbutton", properties)
         self.on_clicked = None
-        self.text = text
-        self.icon = None
+        self.__text = None
+        self.__icon = None
         self.proxy.PushButton_connect(self.widget, self)
 
     def close(self):
         self.on_clicked = None
-        super(QtPushButtonWidget, self).close()
+        super().close()
 
     @property
     def text(self) -> str:
@@ -1050,28 +1298,63 @@ class QtPushButtonWidget(QtWidget):
     def icon(self, rgba_image) -> None:
         # rgba_image should be a uint32 numpy array with the pixel order bgra
         self.__icon = rgba_image
-        self.__width = rgba_image.shape[1] if rgba_image is not None else 0
-        self.__height = rgba_image.shape[0] if rgba_image is not None else 0
+        width = rgba_image.shape[1] if rgba_image is not None else 0
+        height = rgba_image.shape[0] if rgba_image is not None else 0
         rgba_data = self.proxy.encode_data(rgba_image)
-        self.proxy.PushButton_setIcon(self.widget, self.__width, self.__height, rgba_data)
+        self.proxy.PushButton_setIcon(self.widget, width, height, rgba_data)
 
     def clicked(self):
-        if self.on_clicked:
+        if callable(self.on_clicked):
             self.on_clicked()
 
 
-class QtRadioButtonWidget(QtWidget):
+class PushButtonWidget(Widget):
 
-    def __init__(self, proxy, text, properties):
-        super(QtRadioButtonWidget, self).__init__(proxy, "radiobutton", properties)
+    def __init__(self, widget_behavior, text):
+        super().__init__(widget_behavior)
         self.on_clicked = None
         self.text = text
         self.icon = None
+
+        def handle_clicked():
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        self._behavior.on_clicked = handle_clicked
+
+    def close(self):
+        self.on_clicked = None
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self._behavior.text = text
+
+    @property
+    def icon(self):
+        return self._behavior.icon
+
+    @icon.setter
+    def icon(self, rgba_image) -> None:
+        self._behavior.icon = rgba_image
+
+
+class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "radiobutton", properties)
+        self.on_clicked = None
+        self.__text = None
+        self.__icon = None
         self.proxy.RadioButton_connect(self.widget, self)
 
     def close(self):
         self.on_clicked = None
-        super(QtRadioButtonWidget, self).close()
+        super().close()
 
     @property
     def text(self) -> str:
@@ -1104,8 +1387,51 @@ class QtRadioButtonWidget(QtWidget):
         self.proxy.RadioButton_setChecked(self.widget, value)
 
     def clicked(self):
-        if self.on_clicked:
+        if callable(self.on_clicked):
             self.on_clicked()
+
+
+class RadioButtonWidget(Widget):
+
+    def __init__(self, widget_behavior, text):
+        super().__init__(widget_behavior)
+        self.on_clicked = None
+        self.text = text
+        self.icon = None
+
+        def handle_clicked():
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        self._behavior.on_clicked = handle_clicked
+
+    def close(self):
+        self.on_clicked = None
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self._behavior.text = text
+
+    @property
+    def icon(self):
+        return self._behavior.icon
+
+    @icon.setter
+    def icon(self, rgba_image) -> None:
+        self._behavior.icon = rgba_image
+
+    @property
+    def checked(self):
+        return self._behavior.checked
+
+    @checked.setter
+    def checked(self, value):
+        self._behavior.checked = value
 
 
 class QtButtonGroup:
@@ -1132,24 +1458,17 @@ class QtButtonGroup:
             self.on_button_clicked(button_id)
 
 
-class QtCheckBoxWidget(QtWidget):
+class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
 
-    def __init__(self, proxy, text, properties):
-        super(QtCheckBoxWidget, self).__init__(proxy, "checkbox", properties)
-        self.on_checked_changed = None
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "checkbox", properties)
         self.on_check_state_changed = None
-        self.text = text
+        self.__text = None
         self.proxy.CheckBox_connect(self.widget, self)
-        self.__binding = None
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_check_state")
-        self.on_checked_changed = None
         self.on_check_state_changed = None
-        super(QtCheckBoxWidget, self).close()
+        super().close()
 
     @property
     def text(self):
@@ -1159,14 +1478,6 @@ class QtCheckBoxWidget(QtWidget):
     def text(self, value):
         self.__text = value
         self.proxy.CheckBox_setText(self.widget, notnone(value))
-
-    @property
-    def checked(self):
-        return self.check_state == "checked"
-
-    @checked.setter
-    def checked(self, value):
-        self.check_state = "checked" if value else "unchecked"
 
     @property
     def tristate(self):
@@ -1182,14 +1493,70 @@ class QtCheckBoxWidget(QtWidget):
 
     @check_state.setter
     def check_state(self, value):
-        if self.widget:  # may be called as task, so verify it hasn't closed yet
-            self.proxy.CheckBox_setCheckState(self.widget, str(value))
+        self.proxy.CheckBox_setCheckState(self.widget, str(value))
 
     def stateChanged(self, check_state):
-        if self.on_checked_changed:
-            self.on_checked_changed(check_state == "checked")
-        if self.on_check_state_changed:
+        if callable(self.on_check_state_changed):
             self.on_check_state_changed(check_state)
+
+
+class CheckBoxWidget(Widget):
+
+    def __init__(self, widget_behavior, text):
+        super().__init__(widget_behavior)
+        self.on_checked_changed = None
+        self.on_check_state_changed = None
+        self.text = text
+        self.__binding = None
+
+        def handle_check_state_changed(check_state):
+            if callable(self.on_checked_changed):
+                self.on_checked_changed(check_state == "checked")
+            if callable(self.on_check_state_changed):
+                self.on_check_state_changed(check_state)
+
+        self._behavior.on_check_state_changed = handle_check_state_changed
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_check_state")
+        self.on_checked_changed = None
+        self.on_check_state_changed = None
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self._behavior.text = text
+
+    @property
+    def checked(self):
+        return self.check_state == "checked"
+
+    @checked.setter
+    def checked(self, value):
+        self.check_state = "checked" if value else "unchecked"
+
+    @property
+    def tristate(self):
+        return self._behavior.tristate
+
+    @tristate.setter
+    def tristate(self, value):
+        self._behavior.tristate = value
+
+    @property
+    def check_state(self):
+        return self._behavior.checkstate
+
+    @check_state.setter
+    def check_state(self, value):
+        self._behavior.checkstate = value
 
     # bind to state. takes ownership of binding.
     def bind_checked(self, binding):
@@ -1199,8 +1566,7 @@ class QtCheckBoxWidget(QtWidget):
         self.checked = binding.get_target_value()
         self.__binding = binding
         def update_checked(checked):
-            if self.widget:
-                self.add_task("update_checked", lambda: setattr(self, "checked", checked))
+            self.add_task("update_checked", lambda: setattr(self, "checked", checked))
         self.__binding.target_setter = update_checked
         self.on_checked_changed = lambda checked: self.__binding.update_source(checked)
 
@@ -1212,27 +1578,17 @@ class QtCheckBoxWidget(QtWidget):
         self.check_state = binding.get_target_value()
         self.__binding = binding
         def update_check_state(check_state):
-            if self.widget:
-                self.add_task("update_check_state", lambda: setattr(self, "check_state", check_state))
+            self.add_task("update_check_state", lambda: setattr(self, "check_state", check_state))
         self.__binding.target_setter = update_check_state
         self.on_check_state_changed = lambda check_state: self.__binding.update_source(check_state)
 
 
-class QtLabelWidget(QtWidget):
+class QtLabelWidgetBehavior(QtWidgetBehavior):
 
-    def __init__(self, proxy, text, properties):
-        super(QtLabelWidget, self).__init__(proxy, "label", properties)
+    def __init__(self, proxy, properties):
+        super().__init__(proxy, "label", properties)
         self.__text = None
-        self.text = text
-        self.__binding = None
         self.__word_wrap = False
-
-    def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_text")
-        super(QtLabelWidget, self).close()
 
     @property
     def text(self):
@@ -1241,8 +1597,7 @@ class QtLabelWidget(QtWidget):
     @text.setter
     def text(self, text):
         self.__text = text if text else ""
-        if self.widget:  # may be called as task, so verify it hasn't closed yet
-            self.proxy.Label_setText(self.widget, notnone(self.__text))
+        self.proxy.Label_setText(self.widget, notnone(self.__text))
 
     @property
     def word_wrap(self):
@@ -1253,6 +1608,37 @@ class QtLabelWidget(QtWidget):
         self.__word_wrap = value
         self.proxy.Label_setWordWrap(self.widget, value)
 
+
+class LabelWidget(Widget):
+
+    def __init__(self, widget_behavior, text):
+        super().__init__(widget_behavior)
+        self.text = text
+        self.__binding = None
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_text")
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self._behavior.text = text
+
+    @property
+    def word_wrap(self):
+        return self._behavior.word_wrap
+
+    @word_wrap.setter
+    def word_wrap(self, value):
+        self._behavior.word_wrap = value
+
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         if self.__binding:
@@ -1261,8 +1647,7 @@ class QtLabelWidget(QtWidget):
         self.text = binding.get_target_value()
         self.__binding = binding
         def update_text(text):
-            if self.widget:
-                self.add_task("update_text", lambda: setattr(self, "text", text))
+            self.add_task("update_text", lambda: setattr(self, "text", text))
         self.__binding.target_setter = update_text
 
     def unbind_text(self):
@@ -1271,10 +1656,10 @@ class QtLabelWidget(QtWidget):
             self.__binding = None
 
 
-class QtSliderWidget(QtWidget):
+class QtSliderWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        super(QtSliderWidget, self).__init__(proxy, "slider", properties)
+        super().__init__(proxy, "slider", properties)
         self.on_value_changed = None
         self.on_slider_pressed = None
         self.on_slider_released = None
@@ -1283,9 +1668,98 @@ class QtSliderWidget(QtWidget):
         self.__min = 0
         self.__max = 0
         self.proxy.Slider_connect(self.widget, self)
-        self.minimum = self.__min
-        self.maximum = self.__max
+
+    def close(self):
+        self.on_value_changed = None
+        self.on_slider_pressed = None
+        self.on_slider_released = None
+        self.on_slider_moved = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.proxy.Slider_getValue(self.widget)
+
+    @value.setter
+    def value(self, value):
+        self.proxy.Slider_setValue(self.widget, value)
+
+    @property
+    def minimum(self):
+        return self.__min
+
+    @minimum.setter
+    def minimum(self, value):
+        self.__min = value
+        self.proxy.Slider_setMinimum(self.widget, value)
+
+    @property
+    def maximum(self):
+        return self.__max
+
+    @maximum.setter
+    def maximum(self, value):
+        self.__max = value
+        self.proxy.Slider_setMaximum(self.widget, value)
+
+    @property
+    def pressed(self):
+        return self.__pressed
+
+    def valueChanged(self, value):
+        if callable(self.on_value_changed):
+            self.on_value_changed(value)
+
+    def sliderPressed(self):
+        self.__pressed = True
+        if callable(self.on_slider_pressed):
+            self.on_slider_pressed()
+
+    def sliderReleased(self):
+        self.__pressed = False
+        if callable(self.on_slider_released):
+            self.on_slider_released()
+
+    def sliderMoved(self, value):
+        if callable(self.on_slider_moved):
+            self.on_slider_moved(value)
+
+
+class SliderWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.on_value_changed = None
+        self.on_slider_pressed = None
+        self.on_slider_released = None
+        self.on_slider_moved = None
+        self.minimum = 0
+        self.maximum = 0
         self.__binding = None
+
+        def handle_value_changed(value):
+            if callable(self.on_value_changed):
+                self.on_value_changed(value)
+
+        self._behavior.on_value_changed = handle_value_changed
+
+        def handle_slider_pressed():
+            if callable(self.on_slider_pressed):
+                self.on_slider_pressed()
+
+        self._behavior.on_slider_pressed = handle_slider_pressed
+
+        def handle_slider_released():
+            if callable(self.on_slider_released):
+                self.on_slider_released()
+
+        self._behavior.on_slider_released = handle_slider_released
+
+        def handle_slider_moved(value):
+            if callable(self.on_slider_moved):
+                self.on_slider_moved(value)
+
+        self._behavior.on_slider_moved = handle_slider_moved
 
     def close(self):
         if self.__binding:
@@ -1296,50 +1770,35 @@ class QtSliderWidget(QtWidget):
         self.on_slider_pressed = None
         self.on_slider_released = None
         self.on_slider_moved = None
-        super(QtSliderWidget, self).close()
+        super().close()
 
-    def __get_value(self):
-        return self.proxy.Slider_getValue(self.widget)
-    def __set_value(self, value):
-        if self.widget:  # may be called as task, so verify it hasn't closed yet
-            self.proxy.Slider_setValue(self.widget, value)
-    value = property(__get_value, __set_value)
+    @property
+    def value(self):
+        return self._behavior.value
 
-    def __get_minimum(self):
-        return self.__min
-    def __set_minimum(self, value):
-        self.__min = value
-        self.proxy.Slider_setMinimum(self.widget, value)
-    minimum = property(__get_minimum, __set_minimum)
+    @value.setter
+    def value(self, value):
+        self._behavior.value = value
 
-    def __get_maximum(self):
-        return self.__max
-    def __set_maximum(self, value):
-        self.__max = value
-        self.proxy.Slider_setMaximum(self.widget, value)
-    maximum = property(__get_maximum, __set_maximum)
+    @property
+    def minimum(self):
+        return self._behavior.minimum
 
-    def __get_pressed(self):
-        return self.__pressed
-    pressed = property(__get_pressed)
+    @minimum.setter
+    def minimum(self, minimum):
+        self._behavior.minimum = minimum
 
-    def valueChanged(self, value):
-        if self.on_value_changed:
-            self.on_value_changed(value)
+    @property
+    def maximum(self):
+        return self._behavior.maximum
 
-    def sliderPressed(self):
-        self.__pressed = True
-        if self.on_slider_pressed:
-            self.on_slider_pressed()
+    @maximum.setter
+    def maximum(self, maximum):
+        self._behavior.maximum = maximum
 
-    def sliderReleased(self):
-        self.__pressed = False
-        if self.on_slider_released:
-            self.on_slider_released()
-
-    def sliderMoved(self, value):
-        if self.on_slider_moved:
-            self.on_slider_moved(value)
+    @property
+    def pressed(self):
+        return self._behavior.pressed
 
     # bind to value. takes ownership of binding.
     def bind_value(self, binding):
@@ -1349,16 +1808,15 @@ class QtSliderWidget(QtWidget):
         self.value = binding.get_target_value()
         self.__binding = binding
         def update_value(value):
-            if self.widget:
-                self.add_task("update_value", lambda: self.__set_value(value))
+            self.add_task("update_value", lambda: setattr(self, "value", value))
         self.__binding.target_setter = update_value
         self.on_value_changed = lambda value: self.__binding.update_source(value)
 
 
-class QtLineEditWidget(QtWidget):
+class QtLineEditWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        super(QtLineEditWidget, self).__init__(proxy, "lineedit", properties)
+        super().__init__(proxy, "lineedit", properties)
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
@@ -1367,18 +1825,13 @@ class QtLineEditWidget(QtWidget):
         self.proxy.LineEdit_connect(self.widget, self)
         self.__binding = None
         self.__clear_button_enabled = False
-        self.__last_text = None
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_text")
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_text_edited = None
-        super(QtLineEditWidget, self).close()
+        super().close()
 
     @property
     def text(self) -> str:
@@ -1386,8 +1839,7 @@ class QtLineEditWidget(QtWidget):
 
     @text.setter
     def text(self, text: str) -> None:
-        self.__last_text = notnone(text)
-        self.proxy.LineEdit_setText(self.widget, self.__last_text)
+        self.proxy.LineEdit_setText(self.widget, notnone(text))
 
     @property
     def placeholder_text(self) -> str:
@@ -1424,33 +1876,129 @@ class QtLineEditWidget(QtWidget):
     def editingFinished(self, text):
         if self.on_editing_finished:
             self.on_editing_finished(text)
+
+    def escapePressed(self):
+        if callable(self.on_escape_pressed):
+            return self.on_escape_pressed()
+        return False
+
+    def returnPressed(self):
+        if callable(self.on_return_pressed):
+            return self.on_return_pressed()
+        return False
+
+    def keyPressed(self, text, key, raw_modifiers):
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
+
+    def textEdited(self, text):
+        if callable(self.on_text_edited):
+            self.on_text_edited(text)
+
+
+class LineEditWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.on_editing_finished = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_text_edited = None
+        self.__binding = None
+        self.__last_text = None
+
+        def handle_editing_finished(text):
+            if callable(self.on_editing_finished):
+                self.on_editing_finished(text)
             self.__last_text = text
+
+        self._behavior.on_editing_finished = handle_editing_finished
+
+        def handle_escape_pressed():
+            if callable(self.on_escape_pressed):
+                self.on_escape_pressed()
+                return True
+            return False
+
+        self._behavior.on_escape_pressed = handle_escape_pressed
+
+        def handle_return_pressed():
+            if callable(self.on_return_pressed):
+                self.on_return_pressed()
+                return True
+            return False
+
+        self._behavior.on_return_pressed = handle_return_pressed
+
+        def handle_key_pressed(key):
+            if callable(self.on_key_pressed):
+                return self.on_key_pressed(key)
+            return False
+
+        self._behavior.on_key_pressed = handle_key_pressed
+
+        def handle_text_edited(text):
+            if callable(self.on_text_edited):
+                self.on_text_edited(text)
+
+        self._behavior.on_text_edited = handle_text_edited
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_text")
+        self.on_editing_finished = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_text_edited = None
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self.__last_text = notnone(text)
+        self._behavior.text = text
+
+    @property
+    def placeholder_text(self) -> str:
+        return self._behavior.placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, text: str) -> None:
+        self._behavior.placeholder_text = text
+
+    @property
+    def selected_text(self):
+        return self._behavior.selected_text
+
+    @property
+    def clear_button_enabled(self) -> bool:
+        return self._behavior.clear_button_enabled
+
+    @clear_button_enabled.setter
+    def clear_button_enabled(self, enabled: bool) -> None:
+        self._behavior.clear_button_enabled = enabled
+
+    @property
+    def editable(self) -> bool:
+        return self._behavior.editable
+
+    @editable.setter
+    def editable(self, editable: bool) -> None:
+        self._behavior.editable = editable
+
+    def select_all(self):
+        self._behavior.select_all()
 
     def handle_select_all(self):
         self.select_all()
         return True
-
-    def escapePressed(self):
-        if self.on_escape_pressed:
-            self.on_escape_pressed()
-            return True
-        return False
-
-    def returnPressed(self):
-        if self.on_return_pressed:
-            self.on_return_pressed()
-            return True
-        return False
-
-    def keyPressed(self, text, key, raw_modifiers):
-        on_key_pressed = self.on_key_pressed
-        if callable(on_key_pressed):
-            return on_key_pressed(QtKey(text, key, raw_modifiers))
-        return False
-
-    def textEdited(self, text):
-        if self.on_text_edited:
-            self.on_text_edited(text)
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
@@ -1459,15 +2007,13 @@ class QtLineEditWidget(QtWidget):
             self.__binding = None
         self.text = binding.get_target_value()
         def update_field(text):
-            if self.widget:  # may be called as task, so verify it hasn't closed yet
-                if self.text != text and (not self.focused or self.selected_text == self.text):
-                    self.text = text
-                    if self.focused:
-                        self.select_all()
+            if self.text != text and (not self.focused or self.selected_text == self.text):
+                self.text = text
+                if self.focused:
+                    self.select_all()
         self.__binding = binding
         def update_text(text):
-            if self.widget:
-                self.add_task("update_text", lambda: update_field(text))
+            self.add_task("update_text", lambda: update_field(text))
         self.__binding.target_setter = update_text
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
         def return_pressed():
@@ -1493,10 +2039,11 @@ Selection = collections.namedtuple("Selection", ["start", "end"])
 CursorPosition = collections.namedtuple("CursorPosition", ["position", "block_number", "column_number"])
 
 
-class QtTextEditWidget(QtWidget):
+class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        super(QtTextEditWidget, self).__init__(proxy, "textedit", properties)
+        super().__init__(proxy, "textedit", properties)
+        self.__word_wrap_mode = "optimal"
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
@@ -1505,19 +2052,16 @@ class QtTextEditWidget(QtWidget):
         self.on_key_pressed = None
         self.on_insert_mime_data = None
         self.proxy.TextEdit_connect(self.widget, self)
-        self.__binding = None
-        self.__in_update = False
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_text")
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_key_pressed = None
         self.on_insert_mime_data = None
-        super(QtTextEditWidget, self).close()
+        super().close()
 
     @property
     def text(self):
@@ -1575,10 +2119,6 @@ class QtTextEditWidget(QtWidget):
     def move_cursor_position(self, operation, mode=None, n=1):
         self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
 
-    def handle_select_all(self):
-        self.select_all()
-        return True
-
     def set_text_color(self, color):
         if color == "red":
             self.proxy.TextEdit_setTextColor(self.widget, 255, 0, 0)
@@ -1599,43 +2139,38 @@ class QtTextEditWidget(QtWidget):
 
     @property
     def word_wrap_mode(self):
-        return None
+        return self.__word_wrap_mode
 
     @word_wrap_mode.setter
     def word_wrap_mode(self, value: str) -> None:
+        self.__word_wrap_mode = value
         self.proxy.TextEdit_setWordWrapMode(self.widget, value)
 
     def cursorPositionChanged(self):
-        on_cursor_position_changed = self.on_cursor_position_changed
-        if callable(on_cursor_position_changed):
-            on_cursor_position_changed(self.cursor_position)
+        if callable(self.on_cursor_position_changed):
+            self.on_cursor_position_changed(self.cursor_position)
 
     def selectionChanged(self):
-        on_selection_changed = self.on_selection_changed
-        if callable(on_selection_changed):
-            on_selection_changed(self.selection)
+        if callable(self.on_selection_changed):
+            self.on_selection_changed(self.selection)
 
     def textChanged(self):
-        on_text_changed = self.on_text_changed
-        if callable(on_text_changed):
-            on_text_changed(self.text)
+        if callable(self.on_text_changed):
+            self.on_text_changed(self.text)
 
     def escapePressed(self):
-        on_escape_pressed = self.on_escape_pressed
-        if callable(on_escape_pressed):
-            return on_escape_pressed()
+        if callable(self.on_escape_pressed):
+            return self.on_escape_pressed()
         return False
 
     def returnPressed(self):
-        on_return_pressed = self.on_return_pressed
-        if callable(on_return_pressed):
-            return on_return_pressed()
+        if callable(self.on_return_pressed):
+            return self.on_return_pressed()
         return False
 
     def keyPressed(self, text, key, raw_modifiers):
-        on_key_pressed = self.on_key_pressed
-        if callable(on_key_pressed):
-            return on_key_pressed(QtKey(text, key, raw_modifiers))
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
     def insertFromMimeData(self, raw_mime_data):
@@ -1645,6 +2180,149 @@ class QtTextEditWidget(QtWidget):
         else:
             self.insert_text(mime_data.data_as_string("text/plain"))
 
+
+class TextEditWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
+        self.__binding = None
+        self.__in_update = False
+
+        def handle_cursor_position_changed(cursor_position):
+            if callable(self.on_cursor_position_changed):
+                self.on_cursor_position_changed(cursor_position)
+
+        self._behavior.on_cursor_position_changed = handle_cursor_position_changed
+
+        def handle_selection_changed(selection):
+            if callable(self.on_selection_changed):
+                self.on_selection_changed(selection)
+
+        self._behavior.on_selection_changed = handle_selection_changed
+
+        def handle_text_changed(text):
+            if callable(self.on_text_changed):
+                self.on_text_changed(text)
+
+        self._behavior.on_text_changed = handle_text_changed
+
+        def handle_escape_pressed():
+            if callable(self.on_escape_pressed):
+                return self.on_escape_pressed()
+            return False
+
+        self._behavior.on_escape_pressed = handle_escape_pressed
+
+        def handle_return_pressed():
+            if callable(self.on_return_pressed):
+                return self.on_return_pressed()
+            return False
+
+        self._behavior.on_return_pressed = handle_return_pressed
+
+        def handle_key_pressed(key):
+            if callable(self.on_key_pressed):
+                return self.on_key_pressed(key)
+            return False
+
+        self._behavior.on_key_pressed = handle_key_pressed
+
+        def handle_insert_from_mime_data(mime_data):
+            if callable(self.on_insert_mime_data):
+                self.on_insert_mime_data(mime_data)
+
+        self._behavior.on_insert_from_mime_data = handle_insert_from_mime_data
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_text")
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
+        super().close()
+
+    @property
+    def text(self) -> str:
+        return self._behavior.text
+
+    @text.setter
+    def text(self, text: str) -> None:
+        self._behavior.text = text
+
+    @property
+    def placeholder(self) -> str:
+        return self._behavior.placeholder
+
+    @placeholder.setter
+    def placeholder(self, text: str) -> None:
+        self._behavior.placeholder = text
+
+    @property
+    def editable(self) -> bool:
+        return self._behavior.editable
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        self._behavior.editable = value
+
+    @property
+    def selected_text(self) -> str:
+        return self._behavior.selected_text
+
+    @property
+    def cursor_position(self):
+        return self._behavior.cursor_position
+
+    @property
+    def selection(self):
+        return self._behavior.selection
+
+    def append_text(self, value):
+        self._behavior.append_text(value)
+
+    def insert_text(self, value):
+        self._behavior.insert_text(value)
+
+    def clear_selection(self):
+        self._behavior.clear_selection()
+
+    def remove_selected_text(self):
+        self._behavior.remove_selected_text()
+
+    def select_all(self):
+        self._behavior.select_all()
+
+    def move_cursor_position(self, operation, mode=None, n=1):
+        self._behavior.move_cursor_position(operation, mode, n)
+
+    def handle_select_all(self):
+        self.select_all()
+        return True
+
+    def set_text_color(self, color):
+        self._behavior.set_text_color(color)
+
+    @property
+    def word_wrap_mode(self):
+        return self._behavior.word_wrap_mode
+
+    @word_wrap_mode.setter
+    def word_wrap_mode(self, value: str) -> None:
+        self._behavior.word_wrap_mode = value
+
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         if self.__binding:
@@ -1652,13 +2330,12 @@ class QtTextEditWidget(QtWidget):
             self.__binding = None
         self.text = binding.get_target_value()
         def update_field(text):
-            if self.widget:  # may be called as task, so verify it hasn't closed yet
-                self.text = text
-                if self.focused:
-                    pass # self.select_all()
+            self.text = text
+            if self.focused:
+                pass # self.select_all()
         self.__binding = binding
         def update_text(text):
-            if not self.__in_update and self.widget:
+            if not self.__in_update:
                 self.add_task("update_text", lambda: update_field(text))
         self.__binding.target_setter = update_text
         def on_text_changed(text):
@@ -1674,12 +2351,11 @@ class QtTextEditWidget(QtWidget):
         self.on_text_changed = None
 
 
-class QtCanvasWidget(QtWidget):
+class QtCanvasWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        super(QtCanvasWidget, self).__init__(proxy, "canvas", properties)
+        super().__init__(proxy, "canvas", properties)
         self.proxy.Canvas_connect(self.widget, self)
-        self.on_periodic = None
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_clicked = None
@@ -1696,19 +2372,10 @@ class QtCanvasWidget(QtWidget):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
-        self.on_dispatch_any = None
-        self.on_will_dispatch = None
-        self.width = 0
-        self.height = 0
-        self.position_info = None
+        self.on_pan_gesture = None
         self.__focusable = False
-        self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
     def close(self):
-        if self.__canvas_item:
-            self.__canvas_item.close()
-            self.__canvas_item = None
-        self.on_periodic = None
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_clicked = None
@@ -1718,6 +2385,7 @@ class QtCanvasWidget(QtWidget):
         self.on_mouse_position_changed = None
         self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
+        self.on_key_pressed = None
         self.on_key_released = None
         self.on_size_changed = None
         self.on_drag_enter = None
@@ -1725,23 +2393,7 @@ class QtCanvasWidget(QtWidget):
         self.on_drag_move = None
         self.on_drop = None
         self.on_pan_gesture = None
-        super(QtCanvasWidget, self).close()
-
-    def periodic(self):
-        super(QtCanvasWidget, self).periodic()
-        if self.on_periodic:
-            self.on_periodic()
-        if self.position_info is not None and self.on_mouse_position_changed:
-            self.on_mouse_position_changed(*self.position_info)
-            self.position_info = None
-
-    @property
-    def canvas_item(self):
-        return self.__canvas_item
-
-    @property
-    def canvas_size(self):
-        return (self.height, self.width)
+        super().close()
 
     @property
     def focusable(self):
@@ -1752,18 +2404,300 @@ class QtCanvasWidget(QtWidget):
         self.__focusable = focusable
         self.proxy.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
 
-    def create_drawing_context(self):
-        return DrawingContext.DrawingContext()
-
     def draw(self, drawing_context):
-        # thread safe. take care to make sure widget hasn't been deleted from underneath.
-        if self.widget:
-            # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
-            self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
+        # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
+        self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
 
     def set_cursor_shape(self, cursor_shape):
         cursor_shape = cursor_shape or "arrow"
         self.proxy.Canvas_setCursorShape(self.widget, cursor_shape)
+
+    def grab_gesture(self, gesture_type):
+        self.proxy.Widget_grabGesture(self.widget, gesture_type)
+
+    def release_gesture(self, gesture_type):
+        self.proxy.Widget_ungrabGesture(self.widget, gesture_type)
+
+    def grab_mouse(self, gx, gy):
+        self.proxy.Canvas_grabMouse(self.widget, gx, gy)
+
+    def release_mouse(self):
+        self.proxy.Canvas_releaseMouse(self.widget)
+
+    def mouseEntered(self):
+        if callable(self.on_mouse_entered):
+            self.on_mouse_entered()
+
+    def mouseExited(self):
+        if callable(self.on_mouse_exited):
+            self.on_mouse_exited()
+
+    def mouseClicked(self, x, y, raw_modifiers):
+        if callable(self.on_mouse_clicked):
+            self.on_mouse_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mouseDoubleClicked(self, x, y, raw_modifiers):
+        if callable(self.on_mouse_double_clicked):
+            self.on_mouse_double_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mousePressed(self, x, y, raw_modifiers):
+        if callable(self.on_mouse_pressed):
+            self.on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mouseReleased(self, x, y, raw_modifiers):
+        if callable(self.on_mouse_released):
+            self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def mousePositionChanged(self, x, y, raw_modifiers):
+        if callable(self.on_mouse_position_changed):
+            self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
+
+    def grabbedMousePositionChanged(self, dx, dy, raw_modifiers):
+        if callable(self.on_grabbed_mouse_position_changed):
+            self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
+
+    def wheelChanged(self, x, y, dx, dy, is_horizontal):
+        if callable(self.on_wheel_changed):
+            self.on_wheel_changed(x, y, dx, dy, is_horizontal)
+
+    def sizeChanged(self, width, height):
+        if callable(self.on_size_changed):
+            self.on_size_changed(width, height)
+
+    def keyPressed(self, text, key, raw_modifiers):
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
+
+    def keyReleased(self, text, key, raw_modifiers):
+        if callable(self.on_key_released):
+            return self.on_key_released(QtKey(text, key, raw_modifiers))
+        return False
+
+    def dragEnterEvent(self, raw_mime_data):
+        if callable(self.on_drag_enter):
+            return self.on_drag_enter(QtMimeData(self.proxy, raw_mime_data))
+        return "ignore"
+
+    def dragLeaveEvent(self):
+        if callable(self.on_drag_leave):
+            return self.on_drag_leave()
+        return "ignore"
+
+    def dragMoveEvent(self, raw_mime_data, x, y):
+        if callable(self.on_drag_move):
+            return self.on_drag_move(QtMimeData(self.proxy, raw_mime_data), x, y)
+        return "ignore"
+
+    def dropEvent(self, raw_mime_data, x, y):
+        if callable(self.on_drop):
+            return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
+        return "ignore"
+
+    def panGesture(self, delta_x, delta_y):
+        if callable(self.on_pan_gesture):
+            self.on_pan_gesture(delta_x, delta_y)
+
+
+class CanvasWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.on_periodic = None
+        self.on_dispatch_any = None
+        self.on_will_dispatch = None
+        self.on_mouse_entered = None
+        self.on_mouse_exited = None
+        self.on_mouse_clicked = None
+        self.on_mouse_double_clicked = None
+        self.on_mouse_pressed = None
+        self.on_mouse_released = None
+        self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
+        self.on_wheel_changed = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_size_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_pan_gesture = None
+        self.width = 0
+        self.height = 0
+        self.__canvas_item = CanvasItem.RootCanvasItem(self)
+
+        def handle_mouse_entered():
+            if callable(self.on_mouse_entered):
+                self.on_mouse_entered()
+
+        self._behavior.on_mouse_entered = handle_mouse_entered
+
+        def handle_mouse_exited():
+            if callable(self.on_mouse_exited):
+                self.on_mouse_exited()
+
+        self._behavior.on_mouse_exited = handle_mouse_exited
+
+        def handle_mouse_clicked(x, y, modifiers):
+            if callable(self.on_mouse_clicked):
+                self.on_mouse_clicked(x, y, modifiers)
+
+        self._behavior.on_mouse_clicked = handle_mouse_clicked
+
+        def handle_mouse_double_clicked(x, y, modifiers):
+            if callable(self.on_mouse_double_clicked):
+                self.on_mouse_double_clicked(x, y, modifiers)
+
+        self._behavior.on_mouse_double_clicked = handle_mouse_double_clicked
+
+        def handle_mouse_pressed(x, y, modifiers):
+            if callable(self.on_mouse_pressed):
+                self.on_mouse_pressed(x, y, modifiers)
+
+        self._behavior.on_mouse_pressed = handle_mouse_pressed
+
+        def handle_mouse_released(x, y, modifiers):
+            if callable(self.on_mouse_released):
+                self.on_mouse_released(x, y, modifiers)
+
+        self._behavior.on_mouse_released = handle_mouse_released
+
+        def handle_mouse_position_changed(x, y, modifiers):
+            # mouse tracking takes priority over timer events in newer
+            # versions of Qt, so during mouse tracking, make sure periodic
+            # gets called regularly.
+            self.periodic()
+            if callable(self.on_mouse_position_changed):
+                self.on_mouse_position_changed(x, y, modifiers)
+
+        self._behavior.on_mouse_position_changed = handle_mouse_position_changed
+
+        def handle_grabbed_mouse_position_changed(dx, dy, modifiers):
+            if callable(self.on_grabbed_mouse_position_changed):
+                self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
+
+        self._behavior.on_grabbed_mouse_position_changed = handle_grabbed_mouse_position_changed
+
+        def handle_wheel_changed(x, y, dx, dy, is_horizontal):
+            if callable(self.on_wheel_changed):
+                self.on_wheel_changed(x, y, dx, dy, is_horizontal)
+
+        self._behavior.on_wheel_changed = handle_wheel_changed
+
+        def handle_size_changed(width, height):
+            self.width = width
+            self.height = height
+            if callable(self.on_size_changed):
+                self.on_size_changed(width, height)
+
+        self._behavior.on_size_changed = handle_size_changed
+
+        def handle_key_pressed(key):
+            if callable(self.on_key_pressed):
+                return self.on_key_pressed(key)
+            return False
+
+        self._behavior.on_key_pressed = handle_key_pressed
+
+        def handle_key_released(key):
+            if callable(self.on_key_released):
+                return self.on_key_released(key)
+            return False
+
+        self._behavior.on_key_released = handle_key_released
+
+        def handle_drag_enter_event(mime_data):
+            if callable(self.on_drag_enter):
+                return self.on_drag_enter(mime_data)
+            return "ignore"
+
+        self._behavior.on_drag_enter_event = handle_drag_enter_event
+
+        def handle_drag_leave_event():
+            if callable(self.on_drag_leave):
+                return self.on_drag_leave()
+            return "ignore"
+
+        self._behavior.on_drag_leave_event = handle_drag_leave_event
+
+        def handle_drag_move_event(mime_data, x, y):
+            if callable(self.on_drag_move):
+                return self.on_drag_move(mime_data, x, y)
+            return "ignore"
+
+        self._behavior.on_drag_move_event = handle_drag_move_event
+
+        def handle_drop_event(mime_data, x, y):
+            if callable(self.on_drop):
+                return self.on_drop(mime_data, x, y)
+            return "ignore"
+
+        self._behavior.on_drop_event = handle_drop_event
+
+        def handle_pan_gesture(delta_x, delta_y):
+            if callable(self.on_pan_gesture):
+                self.on_pan_gesture(delta_x, delta_y)
+
+        self._behavior.on_pan_gesture = handle_pan_gesture
+
+    def close(self):
+        if self.__canvas_item:
+            self.__canvas_item.close()
+            self.__canvas_item = None
+        # messages generated from this class
+        self.on_periodic = None
+        self.on_dispatch_any = None
+        self.on_will_dispatch = None
+        # messages passed on from the behavior
+        self.on_mouse_entered = None
+        self.on_mouse_exited = None
+        self.on_mouse_clicked = None
+        self.on_mouse_double_clicked = None
+        self.on_mouse_pressed = None
+        self.on_mouse_released = None
+        self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
+        self.on_wheel_changed = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_size_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_pan_gesture = None
+        super().close()
+
+    def periodic(self):
+        super().periodic()
+        if self.on_periodic:
+            self.on_periodic()
+
+    @property
+    def canvas_item(self):
+        return self.__canvas_item
+
+    @property
+    def canvas_size(self):
+        return (self.height, self.width)
+
+    @property
+    def focusable(self) -> bool:
+        return self._behavior.focusable
+
+    @focusable.setter
+    def focusable(self, focusable: bool) -> None:
+        self._behavior.focusable = focusable
+
+    def create_drawing_context(self) -> DrawingContext.DrawingContext:
+        return DrawingContext.DrawingContext()
+
+    def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self._behavior.draw(drawing_context)
+
+    def set_cursor_shape(self, cursor_shape: str) -> None:
+        self._behavior.set_cursor_shape(cursor_shape)
 
     def simulate_mouse_click(self, x, y, modifiers):
         if self.on_mouse_pressed:
@@ -1773,95 +2707,17 @@ class QtCanvasWidget(QtWidget):
         if self.on_mouse_clicked:
             self.on_mouse_clicked(x, y, modifiers)
 
-    def mouseEntered(self):
-        if self.on_mouse_entered:
-            self.on_mouse_entered()
-
-    def mouseExited(self):
-        if self.on_mouse_exited:
-            self.on_mouse_exited()
-
-    def mouseClicked(self, x, y, raw_modifiers):
-        if self.on_mouse_clicked:
-            self.on_mouse_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
-
-    def mouseDoubleClicked(self, x, y, raw_modifiers):
-        if self.on_mouse_double_clicked:
-            self.on_mouse_double_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
-
-    def mousePressed(self, x, y, raw_modifiers):
-        if self.on_mouse_pressed:
-            self.on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
-
-    def mouseReleased(self, x, y, raw_modifiers):
-        if self.on_mouse_released:
-            self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
-
-    def mousePositionChanged(self, x, y, raw_modifiers):
-        # mouse tracking takes priority over timer events in newer
-        # versions of Qt, so during mouse tracking, make sure periodic
-        # gets called regularly.
-        self.position_info = x, y, QtKeyboardModifiers(raw_modifiers)
-
-    def grabbedMousePositionChanged(self, dx, dy, raw_modifiers):
-        if self.on_grabbed_mouse_position_changed:
-            self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
-
-    def wheelChanged(self, x, y, dx, dy, is_horizontal):
-        if self.on_wheel_changed:
-            self.on_wheel_changed(x, y, dx, dy, is_horizontal)
-
-    def sizeChanged(self, width, height):
-        self.width = width
-        self.height = height
-        if self.on_size_changed:
-            self.on_size_changed(self.width, self.height)
-
-    def keyPressed(self, text, key, raw_modifiers):
-        if self.on_key_pressed:
-            return self.on_key_pressed(QtKey(text, key, raw_modifiers))
-        return False
-
-    def keyReleased(self, text, key, raw_modifiers):
-        if self.on_key_released:
-            return self.on_key_released(QtKey(text, key, raw_modifiers))
-        return False
-
-    def dragEnterEvent(self, raw_mime_data):
-        if self.on_drag_enter:
-            return self.on_drag_enter(QtMimeData(self.proxy, raw_mime_data))
-        return "ignore"
-
-    def dragLeaveEvent(self):
-        if self.on_drag_leave:
-            return self.on_drag_leave()
-        return "ignore"
-
-    def dragMoveEvent(self, raw_mime_data, x, y):
-        if self.on_drag_move:
-            return self.on_drag_move(QtMimeData(self.proxy, raw_mime_data), x, y)
-        return "ignore"
-
-    def dropEvent(self, raw_mime_data, x, y):
-        if self.on_drop:
-            return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
-        return "ignore"
-
     def grab_gesture(self, gesture_type):
-        self.proxy.Widget_grabGesture(self.widget, gesture_type)
+        self._behavior.grab_gesture(gesture_type)
 
     def release_gesture(self, gesture_type):
-        self.proxy.Widget_ungrabGesture(self.widget, gesture_type)
-
-    def panGesture(self, delta_x, delta_y):
-        if self.on_pan_gesture:
-            self.on_pan_gesture(delta_x, delta_y)
+        self._behavior.release_gesture(gesture_type)
 
     def grab_mouse(self, gx, gy):
-        self.proxy.Canvas_grabMouse(self.widget, gx, gy)
+        self._behavior.grab_mouse(gx, gy)
 
     def release_mouse(self):
-        self.proxy.Canvas_releaseMouse(self.widget)
+        self._behavior.release_mouse()
 
     def _dispatch_any(self, method: str, *args, **kwargs):
         if callable(self.on_dispatch_any):
@@ -1874,13 +2730,12 @@ class QtCanvasWidget(QtWidget):
         return False
 
 
-# pobj
-class QtTreeWidget(QtWidget):
+class QtTreeWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        properties = copy.copy(properties) if properties is not None else dict()
+        properties = copy.deepcopy(properties) if properties is not None else dict()
         properties["stylesheet"] = "* { border: none; background-color: '#EEEEEE'; } TreeWidget { margin-top: 4px }"
-        super(QtTreeWidget, self).__init__(proxy, "pytree", properties)
+        super().__init__(proxy, "pytree", properties)
         self.proxy.TreeWidget_connect(self.widget, self)
         self.__item_model_controller = None
         self.on_key_pressed = None
@@ -1901,63 +2756,159 @@ class QtTreeWidget(QtWidget):
         self.on_item_double_clicked = None
         self.on_item_key_pressed = None
         self.on_focus_changed = None
-        super(QtTreeWidget, self).close()
+        super().close()
 
-    def __get_selection_mode(self):
+    @property
+    def selection_mode(self):
         return self.__selection_mode
-    def __set_selection_mode(self, selection_mode):
+
+    @selection_mode.setter
+    def selection_mode(self, selection_mode):
         self.__selection_mode = selection_mode
         self.proxy.TreeWidget_setSelectionMode(self.widget, selection_mode)
-    selection_mode = property(__get_selection_mode, __set_selection_mode)
 
-    def __get_item_model_controller(self):
+    @property
+    def item_model_controller(self):
         return self.__item_model_controller
-    def __set_item_model_controller(self, item_model_controller):
+
+    @item_model_controller.setter
+    def item_model_controller(self, item_model_controller):
         self.__item_model_controller = item_model_controller
         self.proxy.TreeWidget_setModel(self.widget, item_model_controller.py_item_model)
-    item_model_controller = property(__get_item_model_controller, __set_item_model_controller)
-
-    def keyPressed(self, indexes, text, key, raw_modifiers):
-        if self.on_key_pressed:
-            return self.on_key_pressed(indexes, QtKey(text, key, raw_modifiers))
-        return False
-
-    def treeItemChanged(self, index, parent_row, parent_id):
-        if self.on_current_item_changed:
-            self.on_current_item_changed(index, parent_row, parent_id)
-
-    def treeSelectionChanged(self, selected_indexes):
-        if self.on_selection_changed:
-            self.on_selection_changed(selected_indexes)
-
-    def treeItemKeyPressed(self, index, parent_row, parent_id, text, key, raw_modifiers):
-        if self.on_item_key_pressed:
-            return self.on_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
-        return False
-
-    def treeItemClicked(self, index, parent_row, parent_id):
-        if self.on_item_clicked:
-            return self.on_item_clicked(index, parent_row, parent_id)
-        return False
-
-    def treeItemDoubleClicked(self, index, parent_row, parent_id):
-        if self.on_item_double_clicked:
-            return self.on_item_double_clicked(index, parent_row, parent_id)
-        return False
-
-    def focusIn(self):
-        if self.on_focus_changed:
-            self.on_focus_changed(True)
-
-    def focusOut(self):
-        if self.on_focus_changed:
-            self.on_focus_changed(False)
 
     def set_current_row(self, index, parent_row, parent_id):
         self.proxy.TreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
 
     def clear_current_row(self):
         self.proxy.TreeWidget_setCurrentRow(self.widget, -1, -1, 0)
+
+    def keyPressed(self, indexes, text, key, raw_modifiers):
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(indexes, QtKey(text, key, raw_modifiers))
+        return False
+
+    def treeItemChanged(self, index, parent_row, parent_id):
+        if callable(self.on_current_item_changed):
+            self.on_current_item_changed(index, parent_row, parent_id)
+
+    def treeSelectionChanged(self, selected_indexes):
+        if callable(self.on_selection_changed):
+            self.on_selection_changed(selected_indexes)
+
+    def treeItemKeyPressed(self, index, parent_row, parent_id, text, key, raw_modifiers):
+        if callable(self.on_item_key_pressed):
+            return self.on_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
+        return False
+
+    def treeItemClicked(self, index, parent_row, parent_id):
+        if callable(self.on_item_clicked):
+            return self.on_item_clicked(index, parent_row, parent_id)
+        return False
+
+    def treeItemDoubleClicked(self, index, parent_row, parent_id):
+        if callable(self.on_item_double_clicked):
+            return self.on_item_double_clicked(index, parent_row, parent_id)
+        return False
+
+    def focusIn(self):
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(True)
+
+    def focusOut(self):
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(False)
+
+
+class TreeWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.on_key_pressed = None
+        self.on_selection_changed = None
+        self.on_current_item_changed = None
+        self.on_item_clicked = None
+        self.on_item_double_clicked = None
+        self.on_item_key_pressed = None
+        self.on_focus_changed = None
+
+        def handle_key_pressed(indexes, key):
+            if callable(self.on_key_pressed):
+                return self.on_key_pressed(indexes, key)
+            return False
+
+        self._behavior.on_key_pressed = handle_key_pressed
+
+        def handle_tree_item_changed(index, parent_row, parent_id):
+            if callable(self.on_current_item_changed):
+                self.on_current_item_changed(index, parent_row, parent_id)
+
+        self._behavior.on_tree_item_changed = handle_tree_item_changed
+
+        def handle_tree_selection_changed(selected_indexes):
+            if callable(self.on_selection_changed):
+                self.on_selection_changed(selected_indexes)
+
+        self._behavior.on_tree_selection_changed = handle_tree_selection_changed
+
+        def handle_tree_item_key_pressed(index, parent_row, parent_id, key):
+            if callable(self.on_item_key_pressed):
+                return self.on_item_key_pressed(index, parent_row, parent_id, key)
+            return False
+
+        self._behavior.on_tree_item_key_pressed = handle_tree_item_key_pressed
+
+        def handle_tree_item_clicked(index, parent_row, parent_id):
+            if callable(self.on_item_clicked):
+                return self.on_item_clicked(index, parent_row, parent_id)
+            return False
+
+        self._behavior.on_tree_item_clicked = handle_tree_item_clicked
+
+        def handle_tree_item_double_clicked(index, parent_row, parent_id):
+            if callable(self.on_item_double_clicked):
+                return self.on_item_double_clicked(index, parent_row, parent_id)
+            return False
+
+        self._behavior.on_tree_item_double_clicked = handle_tree_item_double_clicked
+
+        def handle_focus_changed(self, focused):
+            if callable(self.on_focus_changed):
+                self.on_focus_changed(focused)
+
+        self._behavior.on_focus_changed = handle_focus_changed
+
+    def close(self):
+        self.__item_model_controller = None
+        self.on_key_pressed = None
+        self.on_selection_changed = None
+        self.on_current_item_changed = None
+        self.on_item_clicked = None
+        self.on_item_double_clicked = None
+        self.on_item_key_pressed = None
+        self.on_focus_changed = None
+        super().close()
+
+    @property
+    def selection_mode(self):
+        return self._behavior.selection_mode
+
+    @selection_mode.setter
+    def selection_mode(self, value):
+        self._behavior.selection_mode = value
+
+    @property
+    def item_model_controller(self):
+        return self._behavior.item_model_controller
+
+    @item_model_controller.setter
+    def item_model_controller(self, value):
+        self._behavior.item_model_controller = value
+
+    def set_current_row(self, index, parent_row, parent_id):
+        self._behavior.set_current_row(index, parent_row, parent_id)
+
+    def clear_current_row(self):
+        self._behavior.clear_current_row()
 
 
 class QtAction:
@@ -2259,8 +3210,8 @@ class QtWindow(Window):
     def request_close(self):
         self.proxy.DocumentWindow_close(self.native_document_window)
 
-    def _attach_root_widget(self, root_widget):
-        self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, root_widget.widget)
+    def _attach_root_widget(self, root_widget: Widget) -> None:
+        self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, extract_widget(root_widget))
 
     def _get_focus_widget(self):
         def match_native_widget(widget):
@@ -2363,7 +3314,7 @@ class QtDockWidget:
         self.on_size_changed = None
         self.width = None
         self.height = None
-        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, widget.widget, panel_id, notnone(title), positions, position)
+        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
 
     def close(self):
@@ -2453,52 +3404,52 @@ class QtUserInterface:
     # user interface elements
 
     def create_row_widget(self, alignment=None, properties=None):
-        return QtRowWidget(self.proxy, alignment, properties)
+        return BoxWidget(QtBoxWidgetBehavior(self.proxy, "row", properties), alignment)
 
     def create_column_widget(self, alignment=None, properties=None):
-        return QtColumnWidget(self.proxy, alignment, properties)
+        return BoxWidget(QtBoxWidgetBehavior(self.proxy, "column", properties), alignment)
 
     def create_splitter_widget(self, orientation="vertical", properties=None):
-        return QtSplitterWidget(self.proxy, orientation, properties)
+        return SplitterWidget(QtSplitterWidgetBehavior(self.proxy, properties), orientation)
 
     def create_tab_widget(self, properties=None):
-        return QtTabWidget(self.proxy, properties)
+        return TabWidget(QtTabWidgetBehavior(self.proxy, properties))
 
     def create_stack_widget(self, properties=None):
-        return QtStackWidget(self.proxy, properties)
+        return StackWidget(QtStackWidgetBehavior(self.proxy, properties))
 
     def create_scroll_area_widget(self, properties=None):
-        return QtScrollAreaWidget(self.proxy, properties)
+        return ScrollAreaWidget(QtScrollAreaWidgetBehavior(self.proxy, properties))
 
     def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
-        return QtComboBoxWidget(self.proxy, items, item_getter, properties)
+        return ComboBoxWidget(QtComboBoxWidgetBehavior(self.proxy, properties), items, item_getter)
 
     def create_push_button_widget(self, text=None, properties=None):
-        return QtPushButtonWidget(self.proxy, text, properties)
+        return PushButtonWidget(QtPushButtonWidgetBehavior(self.proxy, properties), text)
 
     def create_radio_button_widget(self, text=None, properties=None):
-        return QtRadioButtonWidget(self.proxy, text, properties)
+        return RadioButtonWidget(QtRadioButtonWidgetBehavior(self.proxy, properties), text)
 
     def create_check_box_widget(self, text=None, properties=None):
-        return QtCheckBoxWidget(self.proxy, text, properties)
+        return CheckBoxWidget(QtCheckBoxWidgetBehavior(self.proxy, properties), text)
 
     def create_label_widget(self, text=None, properties=None):
-        return QtLabelWidget(self.proxy, text, properties)
+        return LabelWidget(QtLabelWidgetBehavior(self.proxy, properties), text)
 
     def create_slider_widget(self, properties=None):
-        return QtSliderWidget(self.proxy, properties)
+        return SliderWidget(QtSliderWidgetBehavior(self.proxy, properties))
 
     def create_line_edit_widget(self, properties=None):
-        return QtLineEditWidget(self.proxy, properties)
+        return LineEditWidget(QtLineEditWidgetBehavior(self.proxy, properties))
 
     def create_text_edit_widget(self, properties=None):
-        return QtTextEditWidget(self.proxy, properties)
+        return TextEditWidget(QtTextEditWidgetBehavior(self.proxy, properties))
 
     def create_canvas_widget(self, properties=None):
-        return QtCanvasWidget(self.proxy, properties)
+        return CanvasWidget(QtCanvasWidgetBehavior(self.proxy, properties))
 
     def create_tree_widget(self, properties=None):
-        return QtTreeWidget(self.proxy, properties)
+        return TreeWidget(QtTreeWidgetBehavior(self.proxy, properties))
 
     # file i/o
 

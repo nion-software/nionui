@@ -15,126 +15,94 @@ from typing import AbstractSet
 from nion.ui import CanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import Selection
+from nion.ui import UserInterface
 
 
-class CompositeWidgetBase:
+class CompositeWidgetBehavior:
+
     def __init__(self, content_widget):
-        assert content_widget is not None
-        self.__root_container = None  # the document window
-        self.__content_widget = content_widget
+        self.content_widget = content_widget
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
 
     # subclasses should override to clear their variables.
+    # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
     def close(self):
-        self.__root_container = None
-        self.__content_widget.close()
-
-    @property
-    def content_widget(self):
-        return self.__content_widget
-
-    @property
-    def _contained_widgets(self):
-        return self.content_widget._contained_widgets
-
-    @property
-    def widget_id(self):
-        return self.__content_widget.widget_id
-
-    @widget_id.setter
-    def widget_id(self, value):
-        self.__content_widget.widget_id = value
-
-    def find_widget_by_id(self, widget_id: str):
-        return self.__content_widget.find_widget_by_id(widget_id)
-
-    @property
-    def root_container(self):
-        return self.__root_container
-
-    def _set_root_container(self, root_container):
-        self.__root_container = root_container
-        self.__content_widget._set_root_container(root_container)
-
-    # not thread safe
-    def periodic(self):
-        self.__content_widget.periodic()
-
-    # thread safe
-    # tasks are run periodically. if another task causes a widget to close,
-    # the outstanding task may try to use a closed widget. any methods called
-    # in a task need to verify that the widget is not yet closed. this can be
-    # mitigated in several ways: 1) clear the task if possible; 2) do not queue
-    # the task if widget is already closed; 3) check during task to make sure
-    # widget was not already closed.
-    def add_task(self, key, task):
-        root_container = self.root_container
-        if root_container:
-            root_container.add_task(key + str(id(self)), task)
-
-    # thread safe
-    def clear_task(self, key):
-        root_container = self.root_container
-        if root_container:
-            root_container.clear_task(key + str(id(self)))
-
-    # thread safe
-    def queue_task(self, task):
-        root_container = self.root_container
-        if root_container:
-            root_container.queue_task(task)
+        self.content_widget.close()
+        self.content_widget = None
 
     @property
     def focused(self):
-        return self.__content_widget.focused
+        return self.content_widget.focused
 
     @focused.setter
     def focused(self, focused):
-        if focused != self.focused:
-            self.__content_widget.focused = focused
+        self.content_widget.focused = focused
 
     @property
     def visible(self):
-        return self.__content_widget.visible
+        return self.content_widget.visible
 
     @visible.setter
     def visible(self, visible):
-        if visible != self.visible:
-            self.__content_widget.visible = visible
+        self.content_widget.visible = visible
 
     @property
     def enabled(self):
-        return self.__content_widget.enabled
+        return self.content_widget.enabled
 
     @enabled.setter
     def enabled(self, enabled):
-        if enabled != self.enabled:
-            self.__content_widget.enabled = enabled
+        self.content_widget.enabled = enabled
 
     @property
     def size(self):
-        return self.__content_widget.size
+        return self.content_widget.size
 
     @size.setter
     def size(self, size):
-        self.__content_widget.size = size
-
-    def size_changed(self, size):
-        self.__content_widget.size_changed(size)
+        self.content_widget.size = size
 
     @property
     def tool_tip(self):
-        return self.__content_widget.tool_tip
+        return self.content_widget.tool_tip
 
     @tool_tip.setter
     def tool_tip(self, tool_tip):
-        if tool_tip != self.tool_tip:
-            self.__content_widget.tool_tip = tool_tip
+        self.content_widget.tool_tip = tool_tip
 
-    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
-        self.__content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
+        self.content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p):
-        return self.__content_widget.map_to_global(p)
+        return self.content_widget.map_to_global(p)
+
+
+class CompositeWidgetBase(UserInterface.Widget):
+
+    def __init__(self, content_widget):
+        assert content_widget is not None
+        super().__init__(CompositeWidgetBehavior(content_widget))
+
+    @property
+    def content_widget(self):
+        return self._behavior.content_widget
+
+    @property
+    def _contained_widgets(self):
+        return [self.content_widget]
+
+    def _set_root_container(self, root_container):
+        super()._set_root_container(root_container)
+        self.content_widget._set_root_container(root_container)
+
+    # not thread safe
+    def periodic(self):
+        super().periodic()
+        self.content_widget.periodic()
+
+    def size_changed(self, size):
+        self.content_widget.size_changed(size)
 
 
 class SectionWidget(CompositeWidgetBase):

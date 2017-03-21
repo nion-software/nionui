@@ -707,10 +707,10 @@ class QtBoxSpacing(Widget):
 
 
 def extract_widget(widget):
-    if hasattr(widget, "_behavior"):
-        return widget._behavior.widget
-    elif hasattr(widget, "content_widget"):
+    if hasattr(widget, "content_widget"):
         return extract_widget(widget.content_widget)
+    elif hasattr(widget, "_behavior"):
+        return widget._behavior.widget
     return None
 
 

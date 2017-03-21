@@ -790,12 +790,6 @@ class CanvasUserInterface:
     def create_tree_widget(self, properties=None):
         raise NotImplementedError()
 
-    def create_list_widget(self, properties=None):
-        raise NotImplementedError()
-
-    def create_new_list_widget(self, create_list_item_widget, header_widget=None, header_for_empty_list_widget=None, properties=None):
-        raise NotImplementedError()
-
     def create_output_widget(self, properties=None):
         raise NotImplementedError()
 

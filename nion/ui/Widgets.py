@@ -42,6 +42,17 @@ class CompositeWidgetBase:
         return self.content_widget._contained_widgets
 
     @property
+    def widget_id(self):
+        return self.__content_widget.widget_id
+
+    @widget_id.setter
+    def widget_id(self, value):
+        self.__content_widget.widget_id = value
+
+    def find_widget_by_id(self, widget_id: str):
+        return self.__content_widget.find_widget_by_id(widget_id)
+
+    @property
     def root_container(self):
         return self.__root_container
 
@@ -272,3 +283,82 @@ class StringListWidget(CompositeWidgetBase):
         self.__selection_changed_event_listener = None
         self.on_selection_changed = None
         super().close()
+
+
+class TableWidget(CompositeWidgetBase):
+    """A widget representing a table (column only)."""
+
+    def __init__(self, ui, create_list_item_widget, header_widget=None, header_for_empty_list_widget=None):
+        super().__init__(ui.create_column_widget())
+        self.__binding = None
+        self.content_section = ui.create_column_widget()
+        self.content_section.widget_id = "content_section"
+        header_column = ui.create_column_widget()
+        self.header_widget = header_widget
+        self.header_for_empty_list_widget = header_for_empty_list_widget
+        if self.header_widget:
+            header_column.add(self.header_widget)
+        if self.header_for_empty_list_widget:
+            header_column.add(self.header_for_empty_list_widget)
+        self.content_widget.add(header_column)
+        content_column = ui.create_column_widget()
+        content_column.add(self.content_section)
+        content_column.add_stretch()
+        self.content_widget.add(content_column)
+        self.content_widget.add_stretch()
+        self.create_list_item_widget = create_list_item_widget
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.content_section = None
+        self.header_widget = None
+        self.header_for_empty_list_widget = None
+        self.create_list_item_widget = None
+        super().close()
+
+    @property
+    def list_items(self):
+        return self.content_section.children
+
+    @property
+    def list_item_count(self):
+        return self.content_section.child_count
+
+    def insert_item(self, item, before_index):
+        if self.create_list_item_widget:  # item may be closed while this call is pending on main thread.
+            item_row = self.create_list_item_widget(item)
+            self.content_section.insert(item_row, before_index)
+            self.__sync_header()
+
+    def remove_item(self, index):
+        self.content_section.remove(index)
+        self.__sync_header()
+
+    def remove_all_items(self):
+        self.content_section.remove_all()
+        self.__sync_header()
+
+    def __sync_header(self):
+        # select the right header item
+        has_content = self.content_section.child_count > 0
+        if self.header_widget:
+            self.header_widget.visible = has_content
+        if self.header_for_empty_list_widget:
+            self.header_for_empty_list_widget.visible = not has_content
+
+    def bind_items(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.__binding = binding
+        def insert_item(item, before_index):
+            self.queue_task(lambda: self.insert_item(item, before_index))
+        def remove_item(index):
+            self.queue_task(lambda: self.remove_item(index))
+        self.__binding.inserter = insert_item
+        self.__binding.remover = remove_item
+        for index, item in enumerate(binding.items):
+            self.insert_item(item, index)
+        self.__sync_header()

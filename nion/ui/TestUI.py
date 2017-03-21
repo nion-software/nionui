@@ -1,5 +1,6 @@
 # standard libraries
 import collections
+import numbers
 import logging
 
 # third party libraries
@@ -39,7 +40,6 @@ class Widget:
         self.__content = None
         self.widget = None
         self.focusable = False
-        self.content_section = None
         self.__text = None
         self.canvas_item = None
     def close(self):
@@ -67,10 +67,8 @@ class Widget:
         self.item_model_controller = None
         self.list_model_controller = None
         self.root_container = None
-        self.content_section = None
         self.header_widget = None
         self.header_for_empty_list_widget = None
-        self.create_list_item_widget = None
         self.on_check_state_changed = None
         self.on_clicked = None
         self.on_context_menu_event = None
@@ -151,6 +149,8 @@ class Widget:
         self.children.insert(before, widget)
         widget.size_changed(self.size)
     def remove(self, widget):
+        if isinstance(widget, numbers.Integral):
+            widget = self.children[widget]
         widget.close()
         self.children.remove(widget)
     def remove_all(self):
@@ -215,28 +215,6 @@ class Widget:
     def editing_finished(self, text):
         if self.on_editing_finished:
             self.on_editing_finished(text)
-    def insert_item(self, item, before_index):
-        item_row = self.create_list_item_widget(item)
-        if not self.content_section:
-            self.content_section = Widget()
-        self.content_section.insert(item_row, before_index)
-    def remove_item(self, index):
-        self.content_section.children.pop(index)
-    @property
-    def list_item_count(self):
-        return self.content_section.child_count if self.content_section else 0
-    @property
-    def list_items(self):
-        return self.content_section.children
-    def remove_all_items(self):
-        while self.list_item_count > 0:
-            self.remove_item(0)
-    def bind_items(self, binding):
-        self.__binding = binding
-        self.__binding.inserter = self.insert_item
-        self.__binding.remover = self.remove_item
-        for index, item in enumerate(binding.items):
-            self.insert_item(item, index)
     def bind_value(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()
@@ -602,12 +580,6 @@ class UserInterface:
         return widget
     def create_tree_widget(self, properties=None):
         return Widget()
-    def create_list_widget(self, properties=None):
-        return Widget()
-    def create_new_list_widget(self, create_list_item_widget, header_widget=None, header_for_empty_list_widget=None, properties=None):
-        widget = Widget()
-        widget.create_list_item_widget = create_list_item_widget
-        return widget
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)
     def get_persistent_string(self, key, default_value=None):

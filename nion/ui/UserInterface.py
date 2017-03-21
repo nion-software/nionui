@@ -2494,7 +2494,7 @@ class QtDockWidget:
             self.on_size_changed(self.width, self.height)
 
 
-QtFontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
 
 class QtUserInterface:

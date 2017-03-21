@@ -40,9 +40,9 @@ class Application(object):
 
 def make_ui(bootstrap_args):
     if "proxy" in bootstrap_args:
-        from nion.ui import UserInterface
+        from nion.ui import QtUserInterface
         proxy = bootstrap_args["proxy"]
-        return UserInterface.QtUserInterface(proxy)
+        return QtUserInterface.QtUserInterface(proxy)
     elif "server" in bootstrap_args:
         from nion.ui import CanvasUI
         server = bootstrap_args["server"]

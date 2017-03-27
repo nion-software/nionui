@@ -1734,7 +1734,7 @@ class QtDockWidget:
             self.on_size_changed(self.width, self.height)
 
 
-class QtUserInterface:
+class QtUserInterface(UserInterface.UserInterface):
 
     def __init__(self, proxy):
         self.proxy = proxy

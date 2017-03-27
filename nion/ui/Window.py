@@ -11,6 +11,7 @@ import typing
 
 # local libraries
 from nion.utils import Process
+from nion.ui import UserInterface
 
 
 _ = gettext.gettext
@@ -18,7 +19,7 @@ _ = gettext.gettext
 
 class Window:
 
-    def __init__(self, ui, app=None, window_style=None, persistent_id=None):
+    def __init__(self, ui: UserInterface.UserInterface, app=None, window_style=None, persistent_id=None):
         self.ui = ui
         self.app = app
         self.__document_window = self.ui.create_document_window()

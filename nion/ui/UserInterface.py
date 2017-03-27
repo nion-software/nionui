@@ -3,6 +3,7 @@ Provides a user interface object that can render to an Qt host.
 """
 
 # standard libraries
+import abc
 import collections
 import copy
 import numbers
@@ -1653,3 +1654,188 @@ class Window:
 
 
 FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+
+
+class UserInterface(abc.ABC):
+
+    @abc.abstractmethod
+    def close(self) -> None:
+        ...
+
+    # data objects
+
+    @abc.abstractmethod
+    def create_mime_data(self):
+        ...
+
+    @abc.abstractmethod
+    def create_item_model_controller(self, keys):
+        ...
+
+    @abc.abstractmethod
+    def create_button_group(self):
+        ...
+
+    # window elements
+
+    @abc.abstractmethod
+    def create_document_window(self, title=None) -> Window:
+        ...
+
+    @abc.abstractmethod
+    def destroy_document_window(self, document_window: Window) -> None:
+        ...
+
+    # user interface elements
+
+    @abc.abstractmethod
+    def create_row_widget(self, alignment=None, properties=None) -> BoxWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_column_widget(self, alignment=None, properties=None) -> BoxWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_splitter_widget(self, orientation="vertical", properties=None) -> SplitterWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_tab_widget(self, properties=None) -> TabWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_stack_widget(self, properties=None) -> StackWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_scroll_area_widget(self, properties=None) -> ScrollAreaWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_combo_box_widget(self, items=None, item_getter=None, properties=None) -> ComboBoxWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_push_button_widget(self, text: str=None, properties=None) -> PushButtonWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_radio_button_widget(self, text: str=None, properties=None) -> RadioButtonWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_check_box_widget(self, text=None, properties=None) -> CheckBoxWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_label_widget(self, text: str=None, properties=None) -> LabelWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_slider_widget(self, properties=None) -> SliderWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_line_edit_widget(self, properties=None) -> LineEditWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_text_edit_widget(self, properties=None) -> TextEditWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_canvas_widget(self, properties=None) -> CanvasWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_tree_widget(self, properties=None) -> TreeWidget:
+        ...
+
+    # file i/o
+
+    @abc.abstractmethod
+    def load_rgba_data_from_file(self, filename):
+        ...
+
+    @abc.abstractmethod
+    def save_rgba_data_to_file(self, data, filename, format):
+        ...
+
+    @abc.abstractmethod
+    def get_existing_directory_dialog(self, title: str, directory: str) -> typing.Tuple[str, str]:
+        ...
+
+    # persistence (associated with application)
+
+    @abc.abstractmethod
+    def get_data_location(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def get_document_location(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def get_temporary_location(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def get_persistent_string(self, key: str, default_value: str=None) -> str:
+        ...
+
+    @abc.abstractmethod
+    def set_persistent_string(self, key: str, value: str) -> None:
+        ...
+
+    @abc.abstractmethod
+    def get_persistent_object(self, key: str, default_value: typing.Any=None) -> typing.Any:
+        ...
+
+    @abc.abstractmethod
+    def set_persistent_object(self, key: str, value: typing.Any) -> None:
+        ...
+
+    @abc.abstractmethod
+    def remove_persistent_key(self, key: str) -> None:
+        ...
+
+    # clipboard
+
+    @abc.abstractmethod
+    def clipboard_clear(self) -> None:
+        ...
+
+    @abc.abstractmethod
+    def clipboard_mime_data(self):
+        ...
+
+    @abc.abstractmethod
+    def clipboard_set_mime_data(self, mime_data):
+        ...
+
+    @abc.abstractmethod
+    def clipboard_set_text(self, text: str) -> None:
+        ...
+
+    @abc.abstractmethod
+    def clipboard_text(self) -> str:
+        ...
+
+    # misc
+
+    @abc.abstractmethod
+    def create_rgba_image(self, drawing_context, width, height):
+        ...
+
+    @abc.abstractmethod
+    def get_font_metrics(self, font, text) -> FontMetrics:
+        ...
+
+    @abc.abstractmethod
+    def create_context_menu(self, document_window):
+        ...
+
+    @abc.abstractmethod
+    def create_sub_menu(self, document_window):
+        ...

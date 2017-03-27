@@ -728,9 +728,6 @@ class CanvasUserInterface:
     def create_item_model_controller(self, keys):
         raise NotImplementedError()
 
-    def create_list_model_controller(self, keys):
-        raise NotImplementedError()
-
     # window elements
 
     def create_document_window(self, title=None):

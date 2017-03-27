@@ -536,8 +536,6 @@ class UserInterface:
         return MimeData()
     def create_item_model_controller(self, keys):
         return ItemModelController()
-    def create_list_model_controller(self, keys):
-        return ListModelController()
     def create_document_window(self, title=None):
         return DocumentWindow()
     def destroy_document_window(self, document_window):

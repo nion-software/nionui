@@ -423,85 +423,6 @@ class QtItemModelController:
         self.proxy.ItemModel_dataChanged(self.py_item_model, row, parent_row, parent_id)
 
 
-# pobj
-# supported drop actions are what is allowed for a drag originated with this item and dropped into another item.
-class QtListModelController:
-
-    NONE = 0
-    COPY = 1
-    MOVE = 2
-    LINK = 4
-
-    DRAG = 1
-    DROP = 2
-
-    def __init__(self, proxy, keys):
-        self.proxy = proxy
-        self.py_list_model = self.proxy.ListModel_create(["index"] + keys)
-        self.proxy.ListModel_connect(self.py_list_model, self)
-        self.model = []
-        self.on_can_drop_mime_data = None
-        self.on_item_drop_mime_data = None
-        self.on_item_mime_data = None
-        self.on_remove_rows = None
-        self.supported_drop_actions = 0
-        self.mime_types_for_drop = []
-    def close(self):
-        self.proxy.ListModel_destroy(self.py_list_model)
-        self.proxy = None
-        self.py_list_model = None
-        self.model = None
-        self.on_can_drop_mime_data = None
-        self.on_item_drop_mime_data = None
-        self.on_item_mime_data = None
-        self.on_remove_rows = None
-    # these methods are invoked from Qt
-    def itemCount(self):
-        return len(self.model)
-    def itemValue(self, role, index):
-        if role == "index":
-            return index
-        properties = self.model[index]
-        if role in properties:
-            value = properties[role]
-            return value
-        else:
-            #print "Unknown key %s" % role
-            return None
-    def canDropMimeData(self, raw_mime_data, action, row, parent_row):
-        if self.on_can_drop_mime_data:
-            return self.on_can_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row)
-        return False
-    def itemDropMimeData(self, raw_mime_data, action, row, parent_row):
-        if self.on_item_drop_mime_data:
-            return self.on_item_drop_mime_data(QtMimeData(self.proxy, raw_mime_data), action, row, parent_row)
-        return False
-    def itemMimeData(self, row):
-        if self.on_item_mime_data:
-            mime_data = self.on_item_mime_data(row)
-            return mime_data.raw_mime_data if mime_data else None
-        return None
-    def removeRows(self, row, count):
-        if self.on_remove_rows:
-            return self.on_remove_rows(row, count)
-        return False
-    def supportedDropActions(self):
-        return self.supported_drop_actions
-    def mimeTypesForDrop(self):
-        return self.mime_types_for_drop
-    # these methods must be invoked from the client when the model changes
-    def begin_insert(self, first_row, last_row):
-        self.proxy.ListModel_beginInsertRows(self.py_list_model, first_row, last_row)
-    def end_insert(self):
-        self.proxy.ListModel_endInsertRow(self.py_list_model)
-    def begin_remove(self, first_row, last_row):
-        self.proxy.ListModel_beginRemoveRows(self.py_list_model, first_row, last_row)
-    def end_remove(self):
-        self.proxy.ListModel_endRemoveRow(self.py_list_model)
-    def data_changed(self):
-        self.proxy.ListModel_dataChanged(self.py_list_model)
-
-
 class QtDrag:
     def __init__(self, proxy, widget, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
         self.proxy = proxy
@@ -2515,9 +2436,6 @@ class QtUserInterface:
 
     def create_item_model_controller(self, keys):
         return QtItemModelController(self.proxy, keys)
-
-    def create_list_model_controller(self, keys):
-        return QtListModelController(self.proxy, keys)
 
     def create_button_group(self):
         return QtButtonGroup(self.proxy)

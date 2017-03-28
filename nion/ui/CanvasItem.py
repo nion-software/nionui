@@ -1352,6 +1352,11 @@ class CanvasItemComposition(AbstractCanvasItem):
         super(CanvasItemComposition, self).close()
 
     @property
+    def canvas_items_count(self) -> int:
+        """Return count of canvas items managed by this composition."""
+        return len(self.__canvas_items)
+
+    @property
     def canvas_items(self):
         """ Return a copy of the canvas items managed by this composition. """
         return copy.copy(self.__canvas_items)

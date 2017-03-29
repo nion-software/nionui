@@ -31,6 +31,9 @@ class CompositeWidgetBehavior:
         self.content_widget.close()
         self.content_widget = None
 
+    def _set_root_container(self, root_container):
+        pass
+
     @property
     def focused(self):
         return self.content_widget.focused

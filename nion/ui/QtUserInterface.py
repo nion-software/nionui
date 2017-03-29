@@ -468,6 +468,9 @@ class QtWidgetBehavior:
         for key in self.properties.keys():
             self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(self.properties[key]))
 
+    def _set_root_container(self, root_container):
+        pass
+
     @property
     def focused(self):
         return self.proxy.Widget_hasFocus(self.widget)
@@ -551,6 +554,9 @@ class QtNullBehavior:
         self.visible = True
 
     def close(self):
+        pass
+
+    def _set_root_container(self, root_container):
         pass
 
 
@@ -1256,6 +1262,12 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_drop = None
         self.on_pan_gesture = None
         super().close()
+
+    def _set_canvas_item(self, canvas_item):
+        pass
+
+    def periodic(self):
+        pass
 
     @property
     def focusable(self):

@@ -61,6 +61,7 @@ class Widget:
 
     def _set_root_container(self, root_container):
         self.__root_container = root_container
+        self._behavior._set_root_container(root_container)
 
     @property
     def _contained_widgets(self):
@@ -1183,7 +1184,6 @@ class CanvasWidget(Widget):
         self.on_pan_gesture = None
         self.width = 0
         self.height = 0
-        self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
         def handle_mouse_entered():
             if callable(self.on_mouse_entered):
@@ -1299,6 +1299,9 @@ class CanvasWidget(Widget):
 
         self._behavior.on_pan_gesture = handle_pan_gesture
 
+        self.__canvas_item = CanvasItem.RootCanvasItem(self)
+        self._behavior._set_canvas_item(self.__canvas_item)
+
     def close(self):
         if self.__canvas_item:
             self.__canvas_item.close()
@@ -1329,6 +1332,7 @@ class CanvasWidget(Widget):
 
     def periodic(self):
         super().periodic()
+        self._behavior.periodic()
         if self.on_periodic:
             self.on_periodic()
 

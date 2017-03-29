@@ -1265,33 +1265,33 @@ class CanvasWidget(Widget):
 
         self._behavior.on_key_released = handle_key_released
 
-        def handle_drag_enter_event(mime_data):
+        def handle_drag_enter(mime_data):
             if callable(self.on_drag_enter):
                 return self.on_drag_enter(mime_data)
             return "ignore"
 
-        self._behavior.on_drag_enter_event = handle_drag_enter_event
+        self._behavior.on_drag_enter = handle_drag_enter
 
-        def handle_drag_leave_event():
+        def handle_drag_leave():
             if callable(self.on_drag_leave):
                 return self.on_drag_leave()
             return "ignore"
 
-        self._behavior.on_drag_leave_event = handle_drag_leave_event
+        self._behavior.on_drag_leave = handle_drag_leave
 
-        def handle_drag_move_event(mime_data, x, y):
+        def handle_drag_move(mime_data, x, y):
             if callable(self.on_drag_move):
                 return self.on_drag_move(mime_data, x, y)
             return "ignore"
 
-        self._behavior.on_drag_move_event = handle_drag_move_event
+        self._behavior.on_drag_move = handle_drag_move
 
-        def handle_drop_event(mime_data, x, y):
+        def handle_drop(mime_data, x, y):
             if callable(self.on_drop):
                 return self.on_drop(mime_data, x, y)
             return "ignore"
 
-        self._behavior.on_drop_event = handle_drop_event
+        self._behavior.on_drop = handle_drop
 
         def handle_pan_gesture(delta_x, delta_y):
             if callable(self.on_pan_gesture):

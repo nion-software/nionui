@@ -846,10 +846,10 @@ class QtButtonGroup:
         self.on_button_clicked = None
 
     def add_button(self, radio_button, button_id):
-        self.proxy.ButtonGroup_addButton(self.py_button_group, radio_button.widget, button_id)
+        self.proxy.ButtonGroup_addButton(self.py_button_group, extract_widget(radio_button), button_id)
 
     def remove_button(self, radio_button):
-        self.proxy.ButtonGroup_removeButton(self.py_button_group, radio_button.widget)
+        self.proxy.ButtonGroup_removeButton(self.py_button_group, extract_widget(radio_button))
 
     def clicked(self, button_id):
         if self.on_button_clicked:

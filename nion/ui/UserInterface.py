@@ -1444,7 +1444,7 @@ class TreeWidget(Widget):
 
         self._behavior.on_tree_item_double_clicked = handle_tree_item_double_clicked
 
-        def handle_focus_changed(self, focused):
+        def handle_focus_changed(focused):
             if callable(self.on_focus_changed):
                 self.on_focus_changed(focused)
 

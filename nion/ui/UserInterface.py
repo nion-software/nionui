@@ -1184,6 +1184,7 @@ class CanvasWidget(Widget):
         self.on_pan_gesture = None
         self.width = 0
         self.height = 0
+        self.position_info = None
 
         def handle_mouse_entered():
             if callable(self.on_mouse_entered):
@@ -1225,9 +1226,7 @@ class CanvasWidget(Widget):
             # mouse tracking takes priority over timer events in newer
             # versions of Qt, so during mouse tracking, make sure periodic
             # gets called regularly.
-            self.periodic()
-            if callable(self.on_mouse_position_changed):
-                self.on_mouse_position_changed(x, y, modifiers)
+            self.position_info = x, y, modifiers
 
         self._behavior.on_mouse_position_changed = handle_mouse_position_changed
 
@@ -1335,6 +1334,10 @@ class CanvasWidget(Widget):
         self._behavior.periodic()
         if self.on_periodic:
             self.on_periodic()
+        if self.position_info is not None:
+            if callable(self.on_mouse_position_changed):
+                self.on_mouse_position_changed(*self.position_info)
+            self.position_info = None
 
     @property
     def canvas_item(self):

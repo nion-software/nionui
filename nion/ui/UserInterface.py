@@ -1700,6 +1700,7 @@ class QtCanvasWidget(QtWidget):
         self.on_will_dispatch = None
         self.width = 0
         self.height = 0
+        self.position_info = None
         self.__focusable = False
         self.__canvas_item = CanvasItem.RootCanvasItem(self)
 
@@ -1730,6 +1731,9 @@ class QtCanvasWidget(QtWidget):
         super(QtCanvasWidget, self).periodic()
         if self.on_periodic:
             self.on_periodic()
+        if self.position_info is not None and self.on_mouse_position_changed:
+            self.on_mouse_position_changed(*self.position_info)
+            self.position_info = None
 
     @property
     def canvas_item(self):
@@ -1797,9 +1801,7 @@ class QtCanvasWidget(QtWidget):
         # mouse tracking takes priority over timer events in newer
         # versions of Qt, so during mouse tracking, make sure periodic
         # gets called regularly.
-        self.periodic()
-        if self.on_mouse_position_changed:
-            self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
+        self.position_info = x, y, QtKeyboardModifiers(raw_modifiers)
 
     def grabbedMousePositionChanged(self, dx, dy, raw_modifiers):
         if self.on_grabbed_mouse_position_changed:

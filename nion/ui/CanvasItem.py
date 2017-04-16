@@ -2768,25 +2768,25 @@ class TwistDownCanvasItem(CellCanvasItem):
 
 class BitmapCell:
 
-    def __init__(self, rgba_bitmap_data_fn=None, background_color=None, border_color=None):
+    def __init__(self, rgba_bitmap_data=None, background_color=None, border_color=None):
         super().__init__()
-        self.__rgba_bitmap_data_fn = rgba_bitmap_data_fn
+        self.__rgba_bitmap_data = rgba_bitmap_data
         self.__background_color = background_color
         self.__border_color = border_color
         self.update_event = Event.Event()
 
-    def set_rgba_bitmap_data_fn(self, rgba_bitmap_data_fn, trigger_update=True):
-        self.__rgba_bitmap_data_fn = rgba_bitmap_data_fn
+    def set_rgba_bitmap_data(self, rgba_bitmap_data, trigger_update=True):
+        self.__rgba_bitmap_data = rgba_bitmap_data
         if trigger_update:
             self.update_event.fire()
 
     @property
-    def rgba_bitmap_data_fn(self):
-        return self.__rgba_bitmap_data_fn
+    def rgba_bitmap_data(self):
+        return self.__rgba_bitmap_data
 
-    @rgba_bitmap_data_fn.setter
-    def rgba_bitmap_data_fn(self, value):
-        self.set_rgba_bitmap_data_fn(value, trigger_update=True)
+    @rgba_bitmap_data.setter
+    def rgba_bitmap_data(self, value):
+        self.set_rgba_bitmap_data(value, trigger_update=True)
 
     @property
     def background_color(self):
@@ -2827,7 +2827,7 @@ class BitmapCell:
 
         rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
 
-        bitmap_data = self.rgba_bitmap_data_fn() if self.rgba_bitmap_data_fn else None
+        bitmap_data = self.rgba_bitmap_data
 
         # draw the background
         if background_color:
@@ -2865,14 +2865,11 @@ class BitmapCanvasItem(CellCanvasItem):
     """ Canvas item to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data=None, background_color=None, border_color=None):
-        super(BitmapCanvasItem, self).__init__()
-        self.cell = BitmapCell(lambda: rgba_bitmap_data, background_color, border_color)
-
-    def set_rgba_bitmap_data_fn(self, rgba_bitmap_data_fn, trigger_update=True):
-        self.cell.set_rgba_bitmap_data_fn(rgba_bitmap_data_fn, trigger_update)
+        super().__init__()
+        self.cell = BitmapCell(rgba_bitmap_data, background_color, border_color)
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data, trigger_update=True):
-        self.set_rgba_bitmap_data_fn(lambda: rgba_bitmap_data, trigger_update)
+        self.cell.set_rgba_bitmap_data(rgba_bitmap_data, trigger_update)
 
     @property
     def rgba_bitmap_data(self):
@@ -2880,7 +2877,7 @@ class BitmapCanvasItem(CellCanvasItem):
 
     @rgba_bitmap_data.setter
     def rgba_bitmap_data(self, rgb_bitmap_data):
-        self.cell.rgba_bitmap_data_fn = lambda: rgb_bitmap_data
+        self.cell.rgba_bitmap_data = rgb_bitmap_data
 
     @property
     def background_color(self):

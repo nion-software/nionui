@@ -1559,15 +1559,17 @@ class LayerCanvasItem(CanvasItemComposition):
     def __init__(self):
         super().__init__()
         self.__layer_drawing_context = None
+        self.__cancel = False
         self.__needs_update_lock = threading.RLock()
         self.__needs_update = True
         self._layer_thread_suppress = False  # for testing
-        self.__layer_thread_cancel_event = threading.Event()
+        self.__layer_thread_event = threading.Event()
         self.__layer_thread = threading.Thread(target=self.__repaint_loop)
         self.__layer_thread.start()
 
     def close(self):
-        self.__layer_thread_cancel_event.set()
+        self.__cancel = True
+        self.__layer_thread_event.set()
         self.__layer_thread.join()
         self.__layer_thread = None
         self.__layer_drawing_context = None
@@ -1582,7 +1584,11 @@ class LayerCanvasItem(CanvasItemComposition):
         self._repaint_layer(drawing_context)
 
     def __repaint_loop(self):
-        while not self.__layer_thread_cancel_event.wait(1/30):
+        while True:
+            self.__layer_thread_event.wait(1/30)
+            self.__layer_thread_event.clear()
+            if self.__cancel:
+                break
             if self._layer_thread_suppress:
                 continue
             self._repaint_loop_one()
@@ -1604,6 +1610,11 @@ class LayerCanvasItem(CanvasItemComposition):
         with self.__needs_update_lock:
             self.__needs_update = True
         super()._updated()
+        if threading.current_thread() == threading.main_thread():
+            self.__layer_thread_event.set()
+        else:
+            if not self._layer_thread_suppress:
+                self._repaint_loop_one()
 
     def _handle_end_update(self):
         pass

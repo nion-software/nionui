@@ -680,11 +680,11 @@ class CheckBoxWidget(Widget):
 
     @property
     def check_state(self):
-        return self._behavior.checkstate
+        return self._behavior.check_state
 
     @check_state.setter
     def check_state(self, value):
-        self._behavior.checkstate = value
+        self._behavior.check_state = value
 
     # bind to state. takes ownership of binding.
     def bind_checked(self, binding):

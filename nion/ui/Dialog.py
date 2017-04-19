@@ -102,6 +102,7 @@ class ActionDialog(Window.Window):
         self.button_row.add_stretch()
 
         content_column.add(self.button_row)
+        content_column.add_spacing(13)
 
         self.attach_widget(content_column)
 

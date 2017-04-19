@@ -1382,22 +1382,22 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.proxy.TreeWidget_connect(self.widget, self)
         self.__item_model_controller = None
         self.on_key_pressed = None
-        self.on_selection_changed = None
-        self.on_current_item_changed = None
-        self.on_item_clicked = None
-        self.on_item_double_clicked = None
-        self.on_item_key_pressed = None
+        self.on_tree_selection_changed = None
+        self.on_tree_item_changed = None
+        self.on_tree_item_clicked = None
+        self.on_tree_item_double_clicked = None
+        self.on_tree_item_key_pressed = None
         self.on_focus_changed = None
         self.__selection_mode = "single"
 
     def close(self):
         self.__item_model_controller = None
         self.on_key_pressed = None
-        self.on_selection_changed = None
-        self.on_current_item_changed = None
-        self.on_item_clicked = None
-        self.on_item_double_clicked = None
-        self.on_item_key_pressed = None
+        self.on_tree_selection_changed = None
+        self.on_tree_item_changed = None
+        self.on_tree_item_clicked = None
+        self.on_tree_item_double_clicked = None
+        self.on_tree_item_key_pressed = None
         self.on_focus_changed = None
         super().close()
 
@@ -1431,26 +1431,26 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         return False
 
     def treeItemChanged(self, index, parent_row, parent_id):
-        if callable(self.on_current_item_changed):
-            self.on_current_item_changed(index, parent_row, parent_id)
+        if callable(self.on_tree_item_changed):
+            self.on_tree_item_changed(index, parent_row, parent_id)
 
     def treeSelectionChanged(self, selected_indexes):
-        if callable(self.on_selection_changed):
-            self.on_selection_changed(selected_indexes)
+        if callable(self.on_tree_selection_changed):
+            self.on_tree_selection_changed(selected_indexes)
 
     def treeItemKeyPressed(self, index, parent_row, parent_id, text, key, raw_modifiers):
-        if callable(self.on_item_key_pressed):
-            return self.on_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
+        if callable(self.on_tree_item_key_pressed):
+            return self.on_tree_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
         return False
 
     def treeItemClicked(self, index, parent_row, parent_id):
-        if callable(self.on_item_clicked):
-            return self.on_item_clicked(index, parent_row, parent_id)
+        if callable(self.on_tree_item_clicked):
+            return self.on_tree_item_clicked(index, parent_row, parent_id)
         return False
 
     def treeItemDoubleClicked(self, index, parent_row, parent_id):
-        if callable(self.on_item_double_clicked):
-            return self.on_item_double_clicked(index, parent_row, parent_id)
+        if callable(self.on_tree_item_double_clicked):
+            return self.on_tree_item_double_clicked(index, parent_row, parent_id)
         return False
 
     def focusIn(self):

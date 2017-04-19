@@ -1610,11 +1610,7 @@ class LayerCanvasItem(CanvasItemComposition):
         with self.__needs_update_lock:
             self.__needs_update = True
         super()._updated()
-        if threading.current_thread() == threading.main_thread():
-            self.__layer_thread_event.set()
-        else:
-            if not self._layer_thread_suppress:
-                self._repaint_loop_one()
+        self.__layer_thread_event.set()
 
     def _handle_end_update(self):
         pass

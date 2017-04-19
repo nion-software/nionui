@@ -63,6 +63,7 @@ class OkCancelDialog(Window.Window):
             button_row.add_spacing(13)
 
         content_column.add(button_row)
+        content_column.add_spacing(13)
 
         self.attach_widget(content_column)
 

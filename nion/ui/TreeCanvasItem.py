@@ -57,7 +57,7 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
 
     def reconstruct(self):
         for canvas_item in copy.copy(self.canvas_items):
-            self._remove_canvas_item(canvas_item, refresh_layout=False)
+            self._remove_canvas_item(canvas_item)
         indent_size = 16
         canvas_bounds = self.canvas_bounds
         item_width = int(canvas_bounds.width) if canvas_bounds else None

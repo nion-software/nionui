@@ -1450,7 +1450,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _remove_canvas_item_direct(self, canvas_item):
         self.__canvas_items.remove(canvas_item)
 
-    def _remove_canvas_item(self, canvas_item, refresh_layout=True):
+    def _remove_canvas_item(self, canvas_item):
         canvas_item.close()
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
@@ -1471,7 +1471,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     def remove_all_canvas_items(self):
         """ Remove all canvas items from layout. Canvas items are closed. """
         for canvas_item in copy.copy(self.__canvas_items):
-            self._remove_canvas_item(canvas_item, refresh_layout=False)
+            self._remove_canvas_item(canvas_item)
         root_container = self.root_container
         if root_container:
             root_container.refresh_layout()

@@ -165,8 +165,6 @@ class PushButtonWidgetBehavior(WidgetBehavior):
     def text(self, text):
         self.canvas_item.text = text
         self.canvas_item.size_to_content(self.__get_font_metrics_fn)
-        if self.canvas_item.root_container:
-            self.canvas_item.root_container.refresh_layout()
 
     @property
     def icon(self):
@@ -209,8 +207,6 @@ class CheckBoxWidgetBehavior(WidgetBehavior):
     def text(self, value):
         self.canvas_item.text = value
         self.canvas_item.size_to_content(self.__get_font_metrics_fn)
-        if self.canvas_item.root_container:
-            self.canvas_item.root_container.refresh_layout()
 
     @property
     def tristate(self):
@@ -245,8 +241,6 @@ class LabelWidgetBehavior(WidgetBehavior):
         self.__text = text if text else ""
         self.canvas_item.text = self.text
         self.canvas_item.size_to_content(self.__get_font_metrics_fn)
-        if self.canvas_item.root_container:
-            self.canvas_item.root_container.refresh_layout()
 
 
 class CanvasWidgetBehavior(WidgetBehavior):

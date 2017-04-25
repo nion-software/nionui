@@ -144,12 +144,6 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             row = index - column * items_per_column
         return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width), size=Geometry.IntSize(width=item_size.width, height=item_size.height))
 
-    def update(self):
-        if self.canvas_origin is not None and self.canvas_size is not None:
-            if self.__calculate_layout_size(self.canvas_size) != self.canvas_size:
-                self.refresh_layout()
-        super().update()
-
     def _repaint_visible(self, drawing_context, visible_rect):
         canvas_size = self.canvas_size
         if self.__delegate and canvas_size.height > 0 and canvas_size.width > 0:

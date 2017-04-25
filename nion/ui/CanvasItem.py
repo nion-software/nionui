@@ -216,6 +216,29 @@ class Sizing:
                                  self.minimum_aspect_ratio, self.maximum_aspect_ratio, self.preferred_aspect_ratio,
                                  self.collapsible)
 
+    def __eq__(self, other):
+        if self.preferred_width != other.preferred_width:
+            return False
+        if self.preferred_height != other.preferred_height:
+            return False
+        if self.preferred_aspect_ratio != other.preferred_aspect_ratio:
+            return False
+        if self.minimum_width != other.minimum_width:
+            return False
+        if self.minimum_height != other.minimum_height:
+            return False
+        if self.minimum_aspect_ratio != other.minimum_aspect_ratio:
+            return False
+        if self.maximum_width != other.maximum_width:
+            return False
+        if self.maximum_height != other.maximum_height:
+            return False
+        if self.maximum_aspect_ratio != other.maximum_aspect_ratio:
+            return False
+        if self.collapsible != other.collapsible:
+            return False
+        return True
+
     def copy_from(self, other):
         self.preferred_width = other.preferred_width
         self.preferred_height = other.preferred_height
@@ -445,6 +468,7 @@ class AbstractCanvasItem:
         self.__border_color = None
         self.__visible = True
         self._has_layout = False
+        self.__needs_layout = True
         self.__thread = threading.current_thread()
         self.__update_level_lock = threading.RLock()
         self.__update_level = 0
@@ -636,17 +660,30 @@ class AbstractCanvasItem:
         if self.on_layout_updated:
             self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
 
-    def refresh_layout(self, trigger_update=True):
+    def perform_layout(self):
+        if self.__needs_layout:
+            self.__needs_layout = False
+            if self.canvas_origin is not None and self.canvas_size is not None:
+                self.update_layout(self.canvas_origin, self.canvas_size)
+                self.update()
+
+    def refresh_layout(self):
         """ Update the layout with the same origin and size.
 
             Set trigger_update to false to avoid triggering updates for efficiency.
 
             Call this method on containers if child items have changed size or constraints.
         """
-        if self.canvas_origin is not None and self.canvas_size is not None:
-            self.update_layout(self.canvas_origin, self.canvas_size, trigger_update)
-            if trigger_update:
-                self.update()
+        self.__needs_layout = True
+        container = self.__container
+        if container:
+            container._child_refresh_layout()
+        if self.root_container:
+            self.root_container.needs_layout()
+
+    def _child_refresh_layout(self):
+        """Called when a child layout changes."""
+        self.refresh_layout()
 
     @property
     def visible(self) -> bool:
@@ -655,8 +692,8 @@ class AbstractCanvasItem:
     @visible.setter
     def visible(self, value: bool) -> None:
         self.__visible = value
-        if self.root_container:
-            self.root_container.refresh_layout()
+        if self.__container:
+            self.__container.refresh_layout()
 
     @property
     def sizing(self):
@@ -677,6 +714,16 @@ class AbstractCanvasItem:
             used from the layout engine.
         """
         return self.sizing
+
+    def copy_sizing(self):
+        new_sizing = Sizing()
+        new_sizing.copy_from(self.sizing)
+        return new_sizing
+
+    def update_sizing(self, new_sizing):
+        if new_sizing != self.sizing:
+            self.sizing.copy_from(new_sizing)
+            self.refresh_layout()
 
     def update(self):
         """
@@ -1419,14 +1466,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.__canvas_items.insert(before_index, canvas_item)
         canvas_item.container = self
         self.layout.add_canvas_item(canvas_item, pos)
-        root_container = self.root_container
-        if root_container:
-            # TODO: refresh layout during add canvas item only as necessary
-            # This is a hammer approach: the entire layout up to the root
-            # container gets refreshed. Alternatively, one could walk up
-            # the container hierarchy and see where the layout_sizing changed
-            # and stop when the layout_sizing does not change.
-            root_container.refresh_layout()
+        self.refresh_layout()
         return canvas_item
 
     def insert_spacing(self, before_index, spacing):
@@ -1455,14 +1495,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
         self.__canvas_items.remove(canvas_item)
-        root_container = self.root_container
-        if root_container:
-            # TODO: refresh layout during remove canvas item only as necessary
-            # This is a hammer approach: the entire layout up to the root
-            # container gets refreshed. Alternatively, one could walk up
-            # the container hierarchy and see where the layout_sizing changed
-            # and stop when the layout_sizing does not change.
-            root_container.refresh_layout()
+        self.refresh_layout()
 
     def remove_canvas_item(self, canvas_item):
         """ Remove canvas item from layout. Canvas item is closed. """
@@ -1472,9 +1505,6 @@ class CanvasItemComposition(AbstractCanvasItem):
         """ Remove all canvas items from layout. Canvas items are closed. """
         for canvas_item in copy.copy(self.__canvas_items):
             self._remove_canvas_item(canvas_item)
-        root_container = self.root_container
-        if root_container:
-            root_container.refresh_layout()
 
     def replace_canvas_item(self, old_canvas_item, new_canvas_item, container=None):
         """ Replace the given canvas item with the new one. Canvas item is closed. """
@@ -1494,8 +1524,8 @@ class CanvasItemComposition(AbstractCanvasItem):
         self._insert_canvas_item_direct(index, canvas_item_container)
         # insert the canvas item into the container
         canvas_item_container.add_canvas_item(canvas_item)
-        # update the layout if origin and size already known
-        self.refresh_layout()
+        # perform the layout using existing origin/size.
+        self.perform_layout()
 
     def unwrap_canvas_item(self, canvas_item):
         """ Replace the canvas item container with the canvas item. """
@@ -1671,11 +1701,15 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         self.__content = content
         content.container = self
         content.on_layout_updated = self.__content_layout_updated
-        self.refresh_layout()
+        self.update()
 
     @property
     def visible_rect(self) -> Geometry.IntRect:
         return Geometry.IntRect(origin=-Geometry.IntPoint.make(self.__content.canvas_origin), size=Geometry.IntSize.make(self.canvas_size))
+
+    def _child_refresh_layout(self):
+        """Called when a child layout changes."""
+        pass
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """Override from abstract canvas item.
@@ -1752,7 +1786,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
 class SplitterCanvasItem(CanvasItemComposition):
 
     def __init__(self, orientation=None):
-        super(SplitterCanvasItem, self).__init__()
+        super().__init__()
         self.orientation = orientation if orientation else "vertical"
         self.wants_mouse_events = True
         self.sizings = []
@@ -1792,7 +1826,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.refresh_layout()
 
     def _insert_canvas_item_direct(self, before_index, canvas_item, pos=None):
-        super(SplitterCanvasItem, self).insert_canvas_item(before_index, canvas_item)
+        super().insert_canvas_item(before_index, canvas_item)
 
     def insert_canvas_item(self, before_index, canvas_item, sizing=None):
         sizing = copy.copy(sizing) if sizing else Sizing()
@@ -1805,11 +1839,11 @@ class SplitterCanvasItem(CanvasItemComposition):
             if sizing.minimum_width is None:
                 sizing.minimum_width = 0.1
         self.sizings.insert(before_index, sizing)
-        super(SplitterCanvasItem, self).insert_canvas_item(before_index, canvas_item)
+        super().insert_canvas_item(before_index, canvas_item)
 
     def remove_canvas_item(self, canvas_item):
         del self.sizings[self.canvas_items.index(canvas_item)]
-        super(SplitterCanvasItem, self).remove_canvas_item(canvas_item)
+        super().remove_canvas_item(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         origins, sizes = self.__calculate_layout(canvas_size)
@@ -1844,10 +1878,10 @@ class SplitterCanvasItem(CanvasItemComposition):
             for origin in origins[1:]:  # don't check the '0' origin
                 if abs(x - origin) < 6:
                     return [self]
-        return super(SplitterCanvasItem, self).canvas_items_at_point(x, y)
+        return super().canvas_items_at_point(x, y)
 
     def _repaint(self, drawing_context):
-        super(SplitterCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
         assert self.canvas_origin is not None and self.canvas_size is not None
         origins, _ = self.__calculate_layout(self.canvas_size)
         drawing_context.save()
@@ -1899,7 +1933,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                     self.__tracking_start_preferred = self.sizings[index].preferred_width
                     self.__tracking_start_preferred_next = self.sizings[index + 1].preferred_width
                     return True
-        return super(SplitterCanvasItem, self).mouse_pressed(x, y, modifiers)
+        return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
         self.__tracking = False
@@ -1925,6 +1959,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                         sizing.set_fixed_width(sizing.preferred_width)
             # update the layout
             self.refresh_layout()
+            self.perform_layout()
             # restore the freedom of the others
             for index, pair in enumerate(zip(old_sizings, self.sizings)):
                 old_sizing, sizing = pair
@@ -1939,7 +1974,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 self.cursor_shape = "split_horizontal"
             else:
                 self.cursor_shape = None
-            return super(SplitterCanvasItem, self).mouse_position_changed(x, y, modifiers)
+            return super().mouse_position_changed(x, y, modifiers)
 
 
 PositionLength = collections.namedtuple("PositionLength", ["position", "length"])
@@ -2142,7 +2177,6 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
                 new_content_offset_h = self.adjust_content_offset(self.canvas_size[1], visible_width, content_width, self.__tracking_content_offset[1], mouse_offset_h)
                 new_content_offset = Geometry.IntPoint(x=new_content_offset_h, y=self.__tracking_content_offset[0])
             self.__scroll_area_canvas_item.content._set_canvas_origin(new_content_offset)
-            self.__scroll_area_canvas_item.refresh_layout()
             self.__scroll_area_canvas_item.content.update()
         return super(ScrollBarCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
@@ -2196,6 +2230,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__repaint_thread.start()
         self.__focused_item = None
         self.__last_focused_item = None
+        self.__needs_layout = True
         self.__needs_repaint = True
         self.__needs_repaint_lock = threading.RLock()
         self.__mouse_canvas_item = None  # not None when the mouse is pressed
@@ -2251,14 +2286,17 @@ class RootCanvasItem(CanvasItemComposition):
     def __draw_if_needed(self):
         # Check to see if needs repaint has been set. trigger drawing on a thread if so.
         with self.__needs_repaint_lock:
+            needs_layout = self.__needs_layout
+            self.__needs_layout = False
             needs_repaint = self.__needs_repaint
             self.__needs_repaint = False
-        if needs_repaint:
+        if needs_repaint or needs_layout:
             self.__repaint_thread.trigger()
 
     def __repaint_on_thread(self):
         # Create a new drawing context, render to it, upload to canvas widget.
         if self.canvas_size is not None:
+            self.perform_layout()
             drawing_context = self.__canvas_widget.create_drawing_context()
             try:
                 with drawing_context.saver():
@@ -2269,6 +2307,10 @@ class RootCanvasItem(CanvasItemComposition):
                 logging.debug("CanvasItem Repaint Error: %s", e)
                 traceback.print_exc()
                 traceback.print_stack()
+
+    def needs_layout(self):
+        with self.__needs_repaint_lock:
+            self.__needs_layout = True
 
     @property
     def canvas_widget(self):
@@ -3003,8 +3045,10 @@ class StaticTextCanvasItem(AbstractCanvasItem):
         if vertical_padding is None:
             vertical_padding = 4
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
-        self.sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding)
-        self.sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        new_sizing = self.copy_sizing()
+        new_sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding)
+        new_sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
         canvas_bounds_center = self.canvas_bounds.center
@@ -3228,8 +3272,10 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         horizontal_padding = 4
         vertical_padding = 3
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
-        self.sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
-        self.sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        new_sizing = self.copy_sizing()
+        new_sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
+        new_sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
         canvas_size = self.canvas_size

@@ -90,12 +90,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         return Geometry.IntRect(origin=Geometry.IntPoint(y=index * item_height, x=0),
                                 size=Geometry.IntSize(width=item_width, height=item_height))
 
-    def update(self):
-        if self.canvas_origin is not None and self.canvas_size is not None:
-            if self.__calculate_layout_height() != self.canvas_size.height:
-                self.refresh_layout()
-        super().update()
-
     def _repaint_visible(self, drawing_context, visible_rect):
         if self.__delegate:
             canvas_bounds = self.canvas_bounds

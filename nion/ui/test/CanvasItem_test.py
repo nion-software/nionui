@@ -957,6 +957,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=480, y=240))
+        canvas_item.perform_layout()
         self.assertAlmostEqual(splitter.splits[0], 0.75)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=480, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=480, y=0), size=Geometry.IntSize(width=160, height=480)))
@@ -1045,6 +1046,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
+        canvas_item.perform_layout()
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=576, height=480)))
 
@@ -1109,6 +1111,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=426, y=240), Geometry.IntPoint(x=500, y=240))
+        canvas_item.perform_layout()
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=213, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=213, y=0), size=Geometry.IntSize(width=500 - 213, height=480)))
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=500, y=0), size=Geometry.IntSize(width=140, height=480)))
@@ -1136,6 +1139,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=0, y=240))
+        canvas_widget.canvas_item.perform_layout()
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=640 - 64 - 214, height=480)))
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=640 - 214, y=0), size=Geometry.IntSize(width=214, height=480)))
@@ -1306,6 +1310,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # remove 2nd canvas item
         canvas_item.remove_canvas_item(empty2)
         # check that column was laid out again
+        canvas_item.perform_layout()
         self.assertEqual(empty1.canvas_bounds.height, 100)
 
     def test_removing_item_from_collapsible_layout_that_gets_resized_causes_container_to_relayout(self):
@@ -1330,6 +1335,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # remove 2nd canvas item
         row.remove_canvas_item(empty2)
         # check that column was laid out again
+        canvas_item.perform_layout()
         self.assertEqual(empty1.canvas_bounds.height, 100)
         self.assertEqual(row.canvas_bounds.height, 0)
 

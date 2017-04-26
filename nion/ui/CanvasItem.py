@@ -3422,9 +3422,29 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
             drawing_context.fill_style = "#fff"
             drawing_context.line_width = 2
             drawing_context.fill_text(progress_text, (canvas_size.width - 6) * self.progress - 19, canvas_bounds_center.y + 1)
-            drawing_context.fill();
+            drawing_context.fill()
             drawing_context.close_path()
 
         drawing_context.restore()
 
         super(ProgressBarCanvasItem, self)._repaint(drawing_context)
+
+
+class TimestampCanvasItem(AbstractCanvasItem):
+    def __init__(self):
+        super().__init__()
+        self.__timestamp = None
+
+    @property
+    def timestamp(self):
+        return self.__timestamp
+
+    @timestamp.setter
+    def timestamp(self, value):
+        self.__timestamp = value
+        # self.update()
+
+    def _repaint(self, drawing_context):
+        if self.__timestamp:
+            drawing_context.timestamp(self.__timestamp.isoformat())
+        super()._repaint(drawing_context)

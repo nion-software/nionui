@@ -450,6 +450,11 @@ class DrawingContext:
         text_encoded = text.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(text_encoded)), b"mesg", len(text_encoded), text_encoded))
 
+    def timestamp(self, timestamp):
+        self.commands.append(("timestamp", time.perf_counter()))
+        timestamp_encoded = timestamp.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4si{}s0i".format(len(timestamp_encoded)), b"time", len(timestamp_encoded), timestamp_encoded))
+
     def fill(self):
         self.commands.append(("fill", ))
         self.binary_commands.extend(b"fill")

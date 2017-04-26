@@ -493,7 +493,6 @@ class AbstractCanvasItem:
 
     def _set_canvas_size(self, canvas_size):
         self.__canvas_size = Geometry.IntSize.make(canvas_size)
-        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     @property
     def canvas_origin(self):
@@ -502,7 +501,6 @@ class AbstractCanvasItem:
 
     def _set_canvas_origin(self, canvas_origin):
         self.__canvas_origin = Geometry.IntPoint.make(canvas_origin)
-        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     @property
     def canvas_widget(self):
@@ -659,6 +657,7 @@ class AbstractCanvasItem:
         self._set_canvas_size(canvas_size)
         if self.on_layout_updated:
             self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def perform_layout(self):
         if self.__needs_layout:
@@ -1417,10 +1416,14 @@ class CanvasItemComposition(AbstractCanvasItem):
 
         After calling the super class, ask the layout object to layout the list of canvas items in this object.
         """
-        super(CanvasItemComposition, self).update_layout(canvas_origin, canvas_size, trigger_update)
+        self._set_canvas_origin(canvas_origin)
+        self._set_canvas_size(canvas_size)
+        if self.on_layout_updated:
+            self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
         # make sure arguments are point, size
         canvas_size = Geometry.IntSize.make(canvas_size)
         self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items, trigger_update)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     # override sizing information. let layout provide it.
     @property
@@ -1640,8 +1643,8 @@ class LayerCanvasItem(CanvasItemComposition):
         with self.__needs_update_lock:
             self.__needs_update = True
         super()._updated()
-        # if not self._layer_thread_suppress:
-        #     self.__layer_thread_event.set()
+        if not self._layer_thread_suppress:
+            self.__layer_thread_event.set()
 
     def _handle_end_update(self):
         pass
@@ -1740,6 +1743,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         # call on_layout_updated, just like the super implementation.
         if self.on_layout_updated:
             self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def __content_layout_updated(self, canvas_origin, canvas_size, trigger_update):
         # whenever the content layout changes, this method gets called.
@@ -1866,6 +1870,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self._set_canvas_size(canvas_size)
         if self.on_layout_updated:
             self.on_layout_updated(self.canvas_origin, self.canvas_size, trigger_update)
+        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None

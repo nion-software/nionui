@@ -595,6 +595,11 @@ class AbstractCanvasItem:
             if root_container:
                 root_container.focused_item = None
 
+    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+        root_container = self.root_container
+        if root_container:
+            self.root_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+
     @property
     def tool_tip(self):
         return self.__tool_tip
@@ -617,12 +622,12 @@ class AbstractCanvasItem:
     def map_to_canvas_item(self, p, canvas_item):
         """ Map the point to the local coordinates of canvas_item. """
         p = Geometry.IntPoint.make(p)
-        o1 = self.map_to_global(Geometry.IntPoint())
-        o2 = canvas_item.map_to_global(Geometry.IntPoint())
+        o1 = self.map_to_root_container(Geometry.IntPoint())
+        o2 = canvas_item.map_to_root_container(Geometry.IntPoint())
         return p + o1 - o2
 
-    def map_to_global(self, p):
-        """ Map the point to the coordinates of the enclosing canvas widget. """
+    def map_to_root_container(self, p):
+        """ Map the point to the coordinates of the root container. """
         canvas_item = self
         while canvas_item:  # handle case where last canvas item was root
             canvas_item_origin = canvas_item.canvas_origin
@@ -636,6 +641,9 @@ class AbstractCanvasItem:
     def map_to_container(self, p):
         """ Map the point to the coordinates of the container. """
         return p + Geometry.IntPoint.make(self.canvas_origin)
+
+    def map_to_global(self, p):
+        return self.root_container.map_to_global(self.map_to_root_container(p))
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """
@@ -2322,6 +2330,9 @@ class RootCanvasItem(CanvasItemComposition):
         """ Return the canvas widget. """
         return self.__canvas_widget
 
+    def map_to_global(self, p):
+        return self.__canvas_widget.map_to_global(p)
+
     @property
     def focusable(self):
         """ Return whether the canvas widget is focusable. """
@@ -2586,6 +2597,9 @@ class RootCanvasItem(CanvasItemComposition):
             response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
         self.__drag_leave()
         return response
+
+    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+        self.__canvas_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def grab_gesture(self, gesture_type):
         """ Grab gesture """

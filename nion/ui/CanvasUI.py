@@ -106,7 +106,7 @@ class WidgetBehavior:
             self.on_focus_changed(False)
 
     def map_to_global(self, p):
-        return self.canvas_item.map_to_global(p)
+        return self.canvas_item.map_to_root_container(p)
 
 
 def extract_canvas_item(widget):

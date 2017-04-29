@@ -1355,9 +1355,6 @@ class CanvasWidget(Widget):
     def focusable(self, focusable: bool) -> None:
         self._behavior.focusable = focusable
 
-    def create_drawing_context(self) -> DrawingContext.DrawingContext:
-        return DrawingContext.DrawingContext()
-
     def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self._behavior.draw(drawing_context)
 

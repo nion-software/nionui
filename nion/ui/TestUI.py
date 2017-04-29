@@ -169,8 +169,6 @@ class Widget:
         self.children.append(Widget())
     def add_spacing(self, spacing):
         self.children.append(Widget())
-    def create_drawing_context(self):
-        return DrawingContext.DrawingContext()
     def draw(self, drawing_context):
         pass
     def save_state(self, tag):

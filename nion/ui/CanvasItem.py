@@ -471,6 +471,7 @@ class AbstractCanvasItem:
         self.__thread = threading.current_thread()
         self.__update_level_lock = threading.RLock()
         self.__update_level = 0
+        self.__repaint_drawing_context = None
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
@@ -492,6 +493,7 @@ class AbstractCanvasItem:
 
     def _set_canvas_size(self, canvas_size):
         self.__canvas_size = Geometry.IntSize.make(canvas_size)
+        self.update()
 
     @property
     def canvas_origin(self):
@@ -500,6 +502,7 @@ class AbstractCanvasItem:
 
     def _set_canvas_origin(self, canvas_origin):
         self.__canvas_origin = Geometry.IntPoint.make(canvas_origin)
+        self.update()
 
     @property
     def canvas_widget(self):
@@ -783,7 +786,7 @@ class AbstractCanvasItem:
 
             Subclasses can override to handle specially.
         """
-        pass
+        self.__repaint_drawing_context = None
 
     @contextlib.contextmanager
     def update_context(self):
@@ -804,8 +807,12 @@ class AbstractCanvasItem:
         assert self.canvas_size is not None
         self._repaint_count += 1
 
-    def _repaint_immediate(self, drawing_context):
-        self._repaint(drawing_context)
+    def _repaint_if_needed(self, drawing_context) -> None:
+        if not self.__repaint_drawing_context:
+            repaint_drawing_context = DrawingContext.DrawingContext()
+            self._repaint(repaint_drawing_context)
+            self.__repaint_drawing_context = repaint_drawing_context
+        drawing_context.add(self.__repaint_drawing_context)
 
     def _draw_background(self, drawing_context):
         """Draw the background. Subclasses can call this."""
@@ -841,7 +848,7 @@ class AbstractCanvasItem:
 
             The default implementation calls _repaint(drawing_context)
         """
-        self._repaint(drawing_context)
+        self._repaint_if_needed(drawing_context)
 
     def canvas_item_at_point(self, x, y):
         canvas_items = self.canvas_items_at_point(x, y)
@@ -1584,7 +1591,7 @@ class CanvasItemComposition(AbstractCanvasItem):
                 with drawing_context.saver():
                     canvas_item_rect = canvas_item.canvas_rect
                     drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
-                    canvas_item._repaint(drawing_context)
+                    canvas_item._repaint_if_needed(drawing_context)
         self._draw_border(drawing_context)
 
     def canvas_items_at_point(self, x, y):
@@ -1669,9 +1676,8 @@ class LayerCanvasItem(CanvasItemComposition):
         if layer_drawing_context:
             drawing_context.add(layer_drawing_context)
 
-    def _repaint_immediate(self, drawing_context):
-        self._update_child_layouts(self.canvas_size)
-        self._repaint_layer(drawing_context)
+    def _repaint_if_needed(self, drawing_context) -> None:
+        self._repaint(drawing_context)
 
     def __repaint_loop(self):
         while True:
@@ -1682,9 +1688,6 @@ class LayerCanvasItem(CanvasItemComposition):
             if self._layer_thread_suppress:
                 continue
             self._repaint_loop_one()
-
-    def _repaint_layer(self, drawing_context):
-        super()._repaint(drawing_context)
 
     def _repaint_loop_one(self):
         with self.__render_lock:
@@ -1700,7 +1703,7 @@ class LayerCanvasItem(CanvasItemComposition):
                     if needs_layout:
                         self._update_child_layouts(self.__layout_size)
                     drawing_context = DrawingContext.DrawingContext()
-                    self._repaint_layer(drawing_context)
+                    super()._repaint(drawing_context)
                     self.__layer_drawing_context = drawing_context
                     self._repaint_finished(self.__layer_drawing_context)
                 except Exception as e:
@@ -1739,6 +1742,7 @@ class LayerCanvasItem(CanvasItemComposition):
             self.__needs_repaint = True
             self.__pending_needs_repaint = True
         self._trigger_render()
+        super()._updated()
 
     def _handle_end_update(self):
         pass
@@ -2269,6 +2273,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
                 new_content_offset = Geometry.IntPoint(x=new_content_offset_h, y=self.__tracking_content_offset[0])
             self.__scroll_area_canvas_item.content._set_canvas_origin(new_content_offset)
             self.__scroll_area_canvas_item.content.update()
+            self.update()
         return super(ScrollBarCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
 
@@ -2325,9 +2330,8 @@ class RootCanvasItem(LayerCanvasItem):
         self.__drag_tracking = False
         self.__drag_tracking_canvas_item = None
         self.__grab_canvas_item = None
-        self._set_canvas_origin(Geometry.IntPoint())
-        # metrics
         self._metric_update_event = Event.Event()
+        self._set_canvas_origin(Geometry.IntPoint())
 
     def close(self):
         # shut down the repaint thread first

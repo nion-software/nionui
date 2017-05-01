@@ -217,8 +217,8 @@ class BoxWidget(Widget):
         child.close()
 
     def remove_all(self) -> None:
-        while self.child_count > 0:
-            self.remove(0)
+        for child in reversed(copy.copy(self.children)):
+            self.remove(child)
 
     def add_stretch(self) -> None:
         child = self._behavior.add_stretch()

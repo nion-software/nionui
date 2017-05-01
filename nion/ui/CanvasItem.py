@@ -1388,12 +1388,14 @@ class CanvasItemComposition(AbstractCanvasItem):
         super(CanvasItemComposition, self).__init__()
         self.__canvas_items = []
         self.layout = CanvasItemLayout()
+        self.__layout_lock = threading.RLock()
 
     def close(self):
-        canvas_items = self.canvas_items
-        self.__canvas_items = None
-        for canvas_item in canvas_items:
-            canvas_item.close()
+        with self.__layout_lock:
+            canvas_items = self.canvas_items
+            self.__canvas_items = None
+            for canvas_item in canvas_items:
+                canvas_item.close()
         super(CanvasItemComposition, self).close()
 
     @property
@@ -1408,20 +1410,27 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     @property
     def visible_canvas_items(self):
-        return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
+        with self.__layout_lock:
+            if self.__canvas_items is not None:
+                return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
+        return list()
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """Override from abstract canvas item.
 
         After calling the super class, ask the layout object to layout the list of canvas items in this object.
         """
-        self._update_self_layout(canvas_origin, canvas_size, trigger_update)
-        self._update_child_layouts(canvas_size)
+        with self.__layout_lock:
+            if self.__canvas_items is not None:
+                self._update_self_layout(canvas_origin, canvas_size, trigger_update)
+                self._update_child_layouts(canvas_size)
 
     def _update_child_layouts(self, canvas_size):
-        # make sure arguments are point, size
-        canvas_size = Geometry.IntSize.make(canvas_size)
-        self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items, True)
+        with self.__layout_lock:
+            if self.__canvas_items is not None:
+                # make sure arguments are point, size
+                canvas_size = Geometry.IntSize.make(canvas_size)
+                self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items, True)
 
     # override sizing information. let layout provide it.
     @property
@@ -1504,7 +1513,7 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def remove_all_canvas_items(self):
         """ Remove all canvas items from layout. Canvas items are closed. """
-        for canvas_item in copy.copy(self.__canvas_items):
+        for canvas_item in reversed(copy.copy(self.__canvas_items)):
             self._remove_canvas_item(canvas_item)
 
     def replace_canvas_item(self, old_canvas_item, new_canvas_item, container=None):

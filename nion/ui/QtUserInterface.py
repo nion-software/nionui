@@ -1279,7 +1279,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.proxy.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
 
     def draw(self, drawing_context):
-        # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context_storage)
+        # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), None)
         self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
 
     def set_cursor_shape(self, cursor_shape):

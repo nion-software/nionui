@@ -531,6 +531,11 @@ class AbstractCanvasItem:
         self.__container = container
 
     @property
+    def layer_container(self) -> "LayerCanvasItem":
+        """ Return the root container, if any. """
+        return self.__container.layer_container if self.__container else None
+
+    @property
     def root_container(self):
         """ Return the root container, if any. """
         return self.__container.root_container if self.__container else None
@@ -643,6 +648,18 @@ class AbstractCanvasItem:
 
     def map_to_global(self, p):
         return self.root_container.map_to_global(self.map_to_root_container(p))
+
+    def _inserted(self, container):
+        """Subclasses may override to know when inserted into a container."""
+        pass
+
+    def _removed(self, container):
+        """Subclasses may override to know when removed from a container."""
+        pass
+
+    def prepare_render(self):
+        """Subclasses may override to prepare for layout and repaint."""
+        pass
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         """
@@ -1475,6 +1492,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         """ Insert canvas item into layout. pos parameter is layout specific. """
         self.__canvas_items.insert(before_index, canvas_item)
         canvas_item.container = self
+        canvas_item._inserted(self)
         self.layout.add_canvas_item(canvas_item, pos)
         self.refresh_layout()
         return canvas_item
@@ -1501,6 +1519,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.__canvas_items.remove(canvas_item)
 
     def _remove_canvas_item(self, canvas_item):
+        canvas_item._removed(self)
         canvas_item.close()
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
@@ -1610,6 +1629,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__layer_thread_event = threading.Event()
         self.__layer_thread = threading.Thread(target=self.__repaint_loop)
         self.__layer_thread.start()
+        self.__prepare_canvas_items = list()
 
     def close(self):
         self._stop_render_thread()
@@ -1622,6 +1642,18 @@ class LayerCanvasItem(CanvasItemComposition):
             self.__layer_thread.join()
             self.__layer_thread = None
             self.__layer_drawing_context = None
+
+    @property
+    def layer_container(self) -> "LayerCanvasItem":
+        return self
+
+    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        assert canvas_item not in self.__prepare_canvas_items
+        self.__prepare_canvas_items.append(canvas_item)
+
+    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        assert canvas_item in self.__prepare_canvas_items
+        self.__prepare_canvas_items.remove(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
         # layout self, but not the children. layout for children goes to thread.
@@ -1663,7 +1695,8 @@ class LayerCanvasItem(CanvasItemComposition):
         if needs_repaint or needs_layout:
             if self._has_layout:
                 try:
-                    import time
+                    for canvas_item in copy.copy(self.__prepare_canvas_items):
+                        canvas_item.prepare_render()
                     if needs_layout:
                         self._update_child_layouts(self.__layout_size)
                     drawing_context = DrawingContext.DrawingContext()

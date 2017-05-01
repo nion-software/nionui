@@ -1720,6 +1720,16 @@ class LayerCanvasItem(CanvasItemComposition):
                     if self.__needs_layout or self.__needs_repaint:
                         self._trigger_render()
 
+    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
+        self._inserted(None)
+        self._layer_thread_suppress = True
+        for canvas_item in copy.copy(self.__prepare_canvas_items):
+            canvas_item.prepare_render()
+        super()._update_self_layout(Geometry.IntPoint(), canvas_size, True)
+        super()._update_child_layouts(canvas_size)
+        super()._repaint(drawing_context)
+        self._removed(None)
+
     def _trigger_render(self):
         if not self._layer_thread_suppress:
             self.__layer_thread_event.set()

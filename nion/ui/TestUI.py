@@ -526,6 +526,7 @@ class MimeData:
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
+        CanvasItem._threaded_rendering_enabled = False
         self.popup = None
         self.popup_pos = None
     def close(self):

@@ -26,6 +26,7 @@ class TestCanvasItem(CanvasItem.AbstractCanvasItem):
     def key_released(self, key):
         self.key_r = key
 
+
 class TestCanvasItemClass(unittest.TestCase):
 
     def setUp(self):

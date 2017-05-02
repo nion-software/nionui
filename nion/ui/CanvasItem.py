@@ -1550,6 +1550,8 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def wrap_canvas_item(self, canvas_item, canvas_item_container):
         """ Replace the given canvas item with the container and move the canvas item into the container. """
+        canvas_origin = canvas_item.canvas_origin
+        canvas_size = canvas_item.canvas_size
         index = self.__canvas_items.index(canvas_item)
         # remove the existing canvas item, but without closing it.
         self.layout.remove_canvas_item(canvas_item)
@@ -1561,6 +1563,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         # insert the canvas item into the container
         canvas_item_container.add_canvas_item(canvas_item)
         # perform the layout using existing origin/size.
+        if canvas_origin is not None and canvas_size is not None:
+            canvas_item_container._set_canvas_origin(canvas_origin)
+            canvas_item_container._set_canvas_size(canvas_size)
+            canvas_item._set_canvas_origin(Geometry.IntPoint())
         self.refresh_layout()
 
     def unwrap_canvas_item(self, canvas_item):
@@ -2410,8 +2416,10 @@ class RootCanvasItem(LayerCanvasItem):
         """ Called when size changes. """
         # logging.debug("{} {} x {}".format(id(self), width, height))
         if width > 0 and height > 0:
-            self.update_layout((0, 0), (height, width))
-            self.update()
+            self._set_canvas_origin(Geometry.IntPoint())
+            self._set_canvas_size(Geometry.IntSize(height=height, width=width))
+            self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
+            self.refresh_layout()
 
     @property
     def focused_item(self):

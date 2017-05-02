@@ -48,7 +48,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         canvas_widget.canvas_item.add_canvas_item(canvas_item)
-        canvas_widget.canvas_item.update_layout((0, 0), (100, 100))
+        canvas_widget.canvas_item.layout_immediate((100, 100))
         self.simulate_drag(canvas_widget, (50, 50), (30, 50))
         self.assertTrue(canvas_item._mouse_released)
 
@@ -57,7 +57,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         canvas_item = TestCanvasItem()
         canvas_widget.canvas_item.add_canvas_item(canvas_item)
-        canvas_widget.canvas_item.update_layout((0, 0), (100, 100))
+        canvas_widget.canvas_item.layout_immediate((100, 100))
         self.simulate_drag(canvas_widget, (50, 50), (-30, 50))
         self.assertTrue(canvas_item._mouse_released)
 
@@ -68,7 +68,7 @@ class TestCanvasItemClass(unittest.TestCase):
         container = CanvasItem.CanvasItemComposition()
         container.add_canvas_item(canvas_item)
         canvas_widget.canvas_item.add_canvas_item(container)
-        canvas_widget.canvas_item.update_layout((0, 0), (100, 100))
+        canvas_widget.canvas_item.layout_immediate((100, 100))
         self.simulate_drag(canvas_widget, (50, 50), (30, 50))
         self.assertTrue(canvas_item._mouse_released)
 
@@ -79,7 +79,7 @@ class TestCanvasItemClass(unittest.TestCase):
         container = CanvasItem.CanvasItemComposition()
         container.add_canvas_item(canvas_item)
         canvas_widget.canvas_item.add_canvas_item(container)
-        canvas_widget.canvas_item.update_layout((0, 0), (100, 100))
+        canvas_widget.canvas_item.layout_immediate((100, 100))
         self.simulate_drag(canvas_widget, (50, 50), (-30, 50))
         self.assertTrue(canvas_item._mouse_released)
 
@@ -525,7 +525,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item2.on_focus_changed = focus_changed2
         canvas_item.add_canvas_item(canvas_item1)
         canvas_item.add_canvas_item(canvas_item2)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertIsNone(canvas_item.focused_item)
         self.assertFalse(canvas_item1.focused)
@@ -579,7 +579,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item2.focusable = True
         canvas_item.add_canvas_item(canvas_item1)
         canvas_item.add_canvas_item(canvas_item2)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # click in item 1, then 2 and check key goes to 2nd item
         modifiers = CanvasItem.KeyboardModifiers()
         canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
@@ -770,7 +770,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item.wants_mouse_events = True
         container_canvas_item.add_canvas_item(test_canvas_item)
         canvas_item.add_canvas_item(container_canvas_item)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
@@ -791,7 +791,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item.wants_mouse_events = True
         test_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
         canvas_item.add_canvas_item(test_canvas_item)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
@@ -815,7 +815,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
         canvas_item.add_canvas_item(test_canvas_item)
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         modifiers = CanvasItem.KeyboardModifiers()
         # check assumptions
         self.assertFalse(test_canvas_item.mouse_inside)
@@ -836,7 +836,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item.wants_drag_events = True
         container_canvas_item.add_canvas_item(test_canvas_item)
         canvas_item.add_canvas_item(container_canvas_item)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertFalse(test_canvas_item.drag_inside)
         # run test
@@ -862,7 +862,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item2 = TestCanvasItemClass.TestCanvasItem()
         test_canvas_item2.wants_mouse_events = True
         container_canvas_item.add_canvas_item(test_canvas_item2)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         canvas_item.canvas_widget.on_mouse_entered()
         canvas_item.canvas_widget.on_mouse_position_changed(160, 160, modifiers)
@@ -897,7 +897,7 @@ class TestCanvasItemClass(unittest.TestCase):
         test_canvas_item2 = TestCanvasItemClass.TestCanvasItem()
         test_canvas_item2.wants_mouse_events = True
         container_canvas_item.add_canvas_item(test_canvas_item2)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         canvas_item.canvas_widget.on_mouse_entered()
         canvas_item.canvas_widget.on_mouse_position_changed(160, 160, modifiers)
@@ -950,14 +950,14 @@ class TestCanvasItemClass(unittest.TestCase):
         splitter.add_canvas_item(canvas_item1)
         splitter.add_canvas_item(canvas_item2)
         canvas_item.add_canvas_item(splitter)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertAlmostEqual(splitter.splits[0], 0.5)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=480, y=240))
-        canvas_item.perform_layout()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         self.assertAlmostEqual(splitter.splits[0], 0.75)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=480, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=480, y=0), size=Geometry.IntSize(width=160, height=480)))
@@ -1039,14 +1039,14 @@ class TestCanvasItemClass(unittest.TestCase):
         splitter.add_canvas_item(canvas_item1)
         splitter.add_canvas_item(canvas_item2)
         canvas_item.add_canvas_item(splitter)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertAlmostEqual(splitter.splits[0], 0.5)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
-        canvas_item.perform_layout()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=576, height=480)))
 
@@ -1102,7 +1102,7 @@ class TestCanvasItemClass(unittest.TestCase):
         splitter.add_canvas_item(canvas_item2)
         splitter.add_canvas_item(canvas_item3)
         canvas_item.add_canvas_item(splitter)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertAlmostEqual(splitter.splits[0], 213.0 / 640.0)
         self.assertAlmostEqual(splitter.splits[1], 213.0 / 640.0)
@@ -1111,7 +1111,7 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=426, y=240), Geometry.IntPoint(x=500, y=240))
-        canvas_item.perform_layout()
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=213, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=213, y=0), size=Geometry.IntSize(width=500 - 213, height=480)))
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=500, y=0), size=Geometry.IntSize(width=140, height=480)))
@@ -1130,7 +1130,7 @@ class TestCanvasItemClass(unittest.TestCase):
         splitter.add_canvas_item(canvas_item2)
         splitter.add_canvas_item(canvas_item3)
         canvas_item.add_canvas_item(splitter)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
         # check assumptions
         self.assertAlmostEqual(splitter.splits[0], 213.0 / 640.0)
         self.assertAlmostEqual(splitter.splits[1], 213.0 / 640.0)
@@ -1139,7 +1139,6 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
         # drag splitter
         self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=0, y=240))
-        canvas_widget.canvas_item.perform_layout()
         self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
         self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=640 - 64 - 214, height=480)))
         self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=640 - 214, y=0), size=Geometry.IntSize(width=214, height=480)))
@@ -1181,7 +1180,7 @@ class TestCanvasItemClass(unittest.TestCase):
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
         canvas_item.add_canvas_item(scroll_area)
         canvas_item.add_canvas_item(scroll_bar)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500), immediate=True)
         # check assumptions
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=16, height=250)))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
@@ -1197,12 +1196,12 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         content = TestCanvasItem()
-        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=30000))
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=30000), immediate=True)
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
         canvas_item.add_canvas_item(scroll_area)
         canvas_item.add_canvas_item(scroll_bar)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500), immediate=True)
         # check assumptions
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=16, height=32)))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=30000)))
@@ -1223,12 +1222,13 @@ class TestCanvasItemClass(unittest.TestCase):
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
         canvas_item.add_canvas_item(scroll_area)
         canvas_item.add_canvas_item(scroll_bar)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500), immediate=True)
         # check assumptions
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=16, height=250)))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
         # resize the canvas item
         canvas_item.size_changed(100, 750)
+        canvas_item.refresh_layout_immediate()
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=16, height=int(750 * 0.75))))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
 
@@ -1239,18 +1239,19 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = canvas_widget.canvas_item
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         content = TestCanvasItem()
-        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000), immediate=True)
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
         canvas_item.add_canvas_item(scroll_area)
         canvas_item.add_canvas_item(scroll_bar)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500), immediate=True)
         content._set_canvas_origin(Geometry.IntPoint(x=0, y=-500))
         # check assumptions
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=250), size=Geometry.IntSize(width=16, height=250)))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-500), size=Geometry.IntSize(width=100, height=1000)))
         # resize the canvas item
         canvas_item.size_changed(100, 750)
+        canvas_item.refresh_layout_immediate()
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=750 - int(750 * 0.75)), size=Geometry.IntSize(width=16, height=int(750 * 0.75))))
         self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-250), size=Geometry.IntSize(width=100, height=1000)))
 
@@ -1303,14 +1304,14 @@ class TestCanvasItemClass(unittest.TestCase):
         empty2.sizing.set_fixed_height(40)
         canvas_item.add_canvas_item(empty1)
         canvas_item.add_canvas_item(empty2)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
         # check assumptions
         self.assertEqual(empty1.canvas_bounds.height, 60)
         self.assertEqual(empty2.canvas_bounds.height, 40)
         # remove 2nd canvas item
         canvas_item.remove_canvas_item(empty2)
         # check that column was laid out again
-        canvas_item.perform_layout()
+        canvas_item.refresh_layout_immediate()
         self.assertEqual(empty1.canvas_bounds.height, 100)
 
     def test_removing_item_from_collapsible_layout_that_gets_resized_causes_container_to_relayout(self):
@@ -1327,7 +1328,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(empty1)
         row.add_canvas_item(empty2)
         canvas_item.add_canvas_item(row)
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
         # check assumptions
         self.assertEqual(empty1.canvas_bounds.height, 60)
         self.assertEqual(row.canvas_bounds.height, 40)
@@ -1335,7 +1336,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # remove 2nd canvas item
         row.remove_canvas_item(empty2)
         # check that column was laid out again
-        canvas_item.perform_layout()
+        canvas_item.refresh_layout_immediate()
         self.assertEqual(empty1.canvas_bounds.height, 100)
         self.assertEqual(row.canvas_bounds.height, 0)
 
@@ -1361,7 +1362,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_canvas_item(container)
         canvas_item.add_stretch()
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
         # check that items use full container (due to item2 not having preferred size)
         self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_height)
         self.assertEqual(item1.canvas_size.width, 100)
@@ -1387,7 +1388,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(container)
         canvas_item.add_stretch()
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
         # check that items use full container width (due to item2 not having preferred width)
         self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_width)
         self.assertEqual(item1.canvas_size.width, 50)
@@ -1413,7 +1414,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_canvas_item(container)
         canvas_item.add_stretch()
-        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
         # check that items use full container width (due to item2 not having preferred width)
         self.assertIsNone(container.layout.get_sizing(container.canvas_items).preferred_width)
         self.assertEqual(item1.canvas_size.width, 50)

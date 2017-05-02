@@ -63,14 +63,14 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def detach_delegate(self):
         self.__delegate = None
 
-    def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
+    def update_layout(self, canvas_origin, canvas_size, trigger_update=True, *, immediate=False):
         """Override from abstract canvas item.
 
         Adjust the canvas height based on the constraints.
         """
         canvas_size = Geometry.IntSize.make(canvas_size)
         canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(), width=canvas_size.width)
-        super().update_layout(canvas_origin, canvas_size, trigger_update)
+        super().update_layout(canvas_origin, canvas_size, trigger_update, immediate=immediate)
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
         dy = dy if not is_horizontal else 0.0

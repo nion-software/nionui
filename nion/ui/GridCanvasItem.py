@@ -104,12 +104,12 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
         return canvas_size
 
-    def update_layout(self, canvas_origin, canvas_size, trigger_update=True):
+    def update_layout(self, canvas_origin, canvas_size, trigger_update=True, *, immediate=False):
         """Override from abstract canvas item.
 
         Adjust the canvas height based on the constraints.
         """
-        super().update_layout(canvas_origin, self.__calculate_layout_size(canvas_size), trigger_update)
+        super().update_layout(canvas_origin, self.__calculate_layout_size(canvas_size), trigger_update, immediate=immediate)
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
         dx = dx if is_horizontal else 0.0

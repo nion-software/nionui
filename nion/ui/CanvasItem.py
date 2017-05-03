@@ -810,7 +810,10 @@ class AbstractCanvasItem:
         assert self.canvas_size is not None
         self._repaint_count += 1
 
-    def _repaint_if_needed(self, drawing_context) -> None:
+    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
+        self._repaint(drawing_context)
+
+    def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
         """Repaint if no cached version of the last paint is available.
         
         If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
@@ -821,7 +824,7 @@ class AbstractCanvasItem:
         """
         if not self.__repaint_drawing_context:
             repaint_drawing_context = DrawingContext.DrawingContext()
-            self._repaint(repaint_drawing_context)
+            self._repaint_template(repaint_drawing_context, immediate)
             self.__repaint_drawing_context = repaint_drawing_context
         drawing_context.add(self.__repaint_drawing_context)
 
@@ -1635,10 +1638,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         # update the layout if origin and size already known
         self.refresh_layout()
 
-    def _repaint(self, drawing_context):
-        self.__render_behavior.repaint(drawing_context)
+    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
+        self.__render_behavior.repaint(drawing_context, immediate)
 
-    def _repaint_children(self, drawing_context):
+    def _repaint_children(self, drawing_context, *, immediate=False):
         """Paint items from back to front."""
         super(CanvasItemComposition, self)._repaint(drawing_context)
         self._draw_background(drawing_context)
@@ -1647,15 +1650,15 @@ class CanvasItemComposition(AbstractCanvasItem):
                 with drawing_context.saver():
                     canvas_item_rect = canvas_item.canvas_rect
                     drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
-                    canvas_item._repaint_if_needed(drawing_context)
+                    canvas_item._repaint_if_needed(drawing_context, immediate=immediate)
         self._draw_border(drawing_context)
 
-    def _repaint_if_needed(self, drawing_context) -> None:
+    def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
         # If the render behavior is a layer, it will have its own cached drawing context. Use it.
         if self.__render_behavior.is_layer:
-            self._repaint(drawing_context)
+            self._repaint_template(drawing_context, immediate)
         else:
-            super()._repaint_if_needed(drawing_context)
+            super()._repaint_if_needed(drawing_context, immediate=immediate)
 
     def canvas_items_at_point(self, x, y):
         """Returns list of canvas items under x, y, ordered from back to front."""
@@ -1713,8 +1716,8 @@ class RenderBehavior:
     def updated_self_layout(self):
         pass
 
-    def repaint(self, drawing_context):
-        self.__canvas_item._repaint_children(drawing_context)
+    def repaint(self, drawing_context, immediate):
+        self.__canvas_item._repaint_children(drawing_context, immediate=immediate)
         self._repaint_finished(drawing_context)
 
     def needs_layout(self, canvas_item):
@@ -1786,10 +1789,13 @@ class ThreadedRenderBehavior:
         # whenever self layout occurs, the thread needs to layout the children.
         self.__trigger_layout()
 
-    def repaint(self, drawing_context):
-        layer_drawing_context = self.__layer_drawing_context
-        if layer_drawing_context:
-            drawing_context.add(layer_drawing_context)
+    def repaint(self, drawing_context, immediate):
+        if immediate:
+            self.repaint_immediate(drawing_context, self.__canvas_item.canvas_size)
+        else:
+            layer_drawing_context = self.__layer_drawing_context
+            if layer_drawing_context:
+                drawing_context.add(layer_drawing_context)
 
     def needs_layout(self, canvas_item):
         self.__trigger_layout()
@@ -1823,7 +1829,7 @@ class ThreadedRenderBehavior:
             canvas_item.prepare_render()
         self.__canvas_item._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
         self.__canvas_item._update_child_layouts(canvas_size, immediate=True)
-        self.__canvas_item._repaint_children(drawing_context)
+        self.__canvas_item._repaint_children(drawing_context, immediate=True)
         self._layer_thread_suppress = layer_thread_suppress
         if orphan:
             self.__canvas_item._removed(None)
@@ -3658,7 +3664,7 @@ class TimestampCanvasItem(AbstractCanvasItem):
         self.__timestamp = value
         # self.update()
 
-    def _repaint_if_needed(self, drawing_context):
+    def _repaint_if_needed(self, drawing_context, *, immediate=False):
         if self.__timestamp:
             drawing_context.timestamp(self.__timestamp.isoformat())
         super()._repaint(drawing_context)

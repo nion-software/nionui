@@ -8,6 +8,7 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.utils import Geometry
 
@@ -1449,6 +1450,23 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(item1.canvas_size.height, 50)  # vertical is shared evenly between item1 and stretch
             self.assertEqual(item2.canvas_size.width, 50)
             self.assertEqual(item2.canvas_size.height, 50)  # vertical is shared evenly between item2 and stretch
+
+    def test_repaint_immediate_paints_child_layers_and_their_elements_too(self):
+        outer_layer = CanvasItem.LayerCanvasItem()
+        with contextlib.closing(outer_layer):
+            inner_composition = CanvasItem.CanvasItemComposition()
+            inner_layer = CanvasItem.LayerCanvasItem()
+            test_canvas_item = TestCanvasItemClass.TestCanvasItem()
+            outer_layer.add_canvas_item(inner_composition)
+            inner_composition.add_canvas_item(inner_layer)
+            inner_layer.add_canvas_item(test_canvas_item)
+            outer_layer_repaint_count = outer_layer._repaint_count
+            inner_layer_repaint_count = inner_layer._repaint_count
+            test_canvas_item_repaint_count = test_canvas_item._repaint_count
+            outer_layer.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            self.assertEqual(outer_layer_repaint_count + 1, outer_layer._repaint_count)
+            self.assertEqual(inner_layer_repaint_count + 1, inner_layer._repaint_count)
+            self.assertEqual(test_canvas_item_repaint_count + 1, test_canvas_item._repaint_count)
 
 
 if __name__ == '__main__':

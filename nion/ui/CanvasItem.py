@@ -665,25 +665,24 @@ class AbstractCanvasItem:
         pass
 
     def update_layout(self, canvas_origin, canvas_size, trigger_update=True, *, immediate=False):
-        """
-            Update the layout with a new canvas_origin and canvas_size.
+        """Update the layout with a new canvas_origin and canvas_size.
 
-            canvas_origin and canvas_size are the external bounds.
+        canvas_origin and canvas_size are the external bounds.
+        
+        This method will be called on the render thread.
 
-            Set trigger_update to false to avoid triggering updates for efficiency.
+        Subclasses can override this method to take action when the size of the canvas item changes, but they should
+        typically call super to do the actual layout.
 
-            Subclasses can override this method to take action when the
-            size of the canvas item changes.
+        The on_layout_updated callable will be called with the new canvas_origin, canvas_size, and trigger_update flag.
 
-            The on_layout_updated callable will be called with the new canvas_origin,
-            canvas_size, and trigger_update flag.
-
-            The canvas_origin and canvas_size properties are set after calling this method.
+        The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
         self._update_self_layout(canvas_origin, canvas_size, trigger_update, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def _update_self_layout(self, canvas_origin, canvas_size, trigger_update, *, immediate=False):
+        """Update the canvas origin and size and call notification methods."""
         self._set_canvas_origin(canvas_origin)
         self._set_canvas_size(canvas_size)
         if self.on_layout_updated:
@@ -692,19 +691,16 @@ class AbstractCanvasItem:
         self._updated_self_layout()
 
     def _updated_self_layout(self):
+        """Called to indicate self layout has finished."""
         pass
 
     def refresh_layout_immediate(self):
+        """Immediate re-layout the item."""
         self.refresh_layout()
         self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
 
     def refresh_layout(self):
-        """ Update the layout with the same origin and size.
-
-            Set trigger_update to false to avoid triggering updates for efficiency.
-
-            Call this method on containers if child items have changed size or constraints.
-        """
+        """Invalidate the layout and trigger layout."""
         self._needs_layout(self)
 
     def _needs_layout(self, canvas_item):
@@ -803,19 +799,26 @@ class AbstractCanvasItem:
         self._end_update()
 
     def _repaint(self, drawing_context):
-        """
-            Repaint the canvas item to the drawing context.
+        """Repaint the canvas item to the drawing context.
 
-            Subclasses should override this method to paint.
+        Subclasses should override this method to paint.
 
-            This method will be called on a thread.
+        This method will be called on a thread.
 
-            The drawing should take place within the canvas_bounds.
+        The drawing should take place within the canvas_bounds.
         """
         assert self.canvas_size is not None
         self._repaint_count += 1
 
     def _repaint_if_needed(self, drawing_context) -> None:
+        """Repaint if no cached version of the last paint is available.
+        
+        If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
+        
+        The cached drawing context is typically cleared during the update method.
+        
+        Subclasses will typically not need to override this method, except in special cases.
+        """
         if not self.__repaint_drawing_context:
             repaint_drawing_context = DrawingContext.DrawingContext()
             self._repaint(repaint_drawing_context)
@@ -1648,6 +1651,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         self._draw_border(drawing_context)
 
     def _repaint_if_needed(self, drawing_context) -> None:
+        # If the render behavior is a layer, it will have its own cached drawing context. Use it.
         if self.__render_behavior.is_layer:
             self._repaint(drawing_context)
         else:

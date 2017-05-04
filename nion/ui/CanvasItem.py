@@ -492,8 +492,10 @@ class AbstractCanvasItem:
         return self.__canvas_size
 
     def _set_canvas_size(self, canvas_size):
-        self.__canvas_size = Geometry.IntSize.make(canvas_size)
-        self.update()
+        canvas_size = Geometry.IntSize.make(canvas_size) if canvas_size is not None else None
+        if ((self.__canvas_size is None) != (canvas_size is None)) or (self.__canvas_size != canvas_size):
+            self.__canvas_size = canvas_size
+            self.update()
 
     @property
     def canvas_origin(self):
@@ -501,8 +503,10 @@ class AbstractCanvasItem:
         return self.__canvas_origin
 
     def _set_canvas_origin(self, canvas_origin):
-        self.__canvas_origin = Geometry.IntPoint.make(canvas_origin)
-        self.update()
+        canvas_origin = Geometry.IntPoint.make(canvas_origin) if canvas_origin is not None else None
+        if ((self.__canvas_origin is None) != (canvas_origin is None)) or (self.__canvas_origin != canvas_origin):
+            self.__canvas_origin = canvas_origin
+            self.update()
 
     @property
     def canvas_widget(self):
@@ -688,11 +692,6 @@ class AbstractCanvasItem:
         if self.on_layout_updated:
             self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
-        self._updated_self_layout()
-
-    def _updated_self_layout(self):
-        """Called to indicate self layout has finished."""
-        pass
 
     def refresh_layout_immediate(self):
         """Immediate re-layout the item."""
@@ -700,8 +699,12 @@ class AbstractCanvasItem:
         self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
 
     def refresh_layout(self):
-        """Invalidate the layout and trigger layout."""
-        self._needs_layout(self)
+        """Invalidate the layout and trigger layout.
+        
+        Items get layout from their container, so the default implementation asks the container to layout.
+        """
+        if self.__container:
+            self.__container._needs_layout(self)
 
     def _needs_layout(self, canvas_item):
         if self.__container:
@@ -1420,31 +1423,23 @@ class CanvasItemComposition(AbstractCanvasItem):
         Child canvas items with higher indexes are considered to be foremost.
     """
 
-    def __init__(self, *, render_behavior=None):
+    def __init__(self):
         super(CanvasItemComposition, self).__init__()
-        self.__render_behavior = render_behavior if render_behavior else RenderBehavior(self)
         self.__canvas_items = []
         self.layout = CanvasItemLayout()
         self.__layout_lock = threading.RLock()
 
     def close(self):
-        self._stop_render_behavior()
+        self._close()
         with self.__layout_lock:
             canvas_items = self.canvas_items
             self.__canvas_items = None
             for canvas_item in canvas_items:
                 canvas_item.close()
-        if self.__render_behavior:
-            self.__render_behavior.close()
-            self.__render_behavior = None
         super(CanvasItemComposition, self).close()
 
-    def _stop_render_behavior(self):
-        self.__render_behavior.stop()
-
-    @property
-    def layer_container(self) -> "CanvasItemComposition":
-        return self if self.__render_behavior.is_layer else super().layer_container
+    def _close(self):
+        pass
 
     @property
     def canvas_items_count(self) -> int:
@@ -1463,14 +1458,8 @@ class CanvasItemComposition(AbstractCanvasItem):
                 return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
         return list()
 
-    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        self.__render_behavior.register_prepare_canvas_item(canvas_item)
-
-    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        self.__render_behavior.unregister_prepare_canvas_item(canvas_item)
-
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
-        self.__render_behavior.update_layout(canvas_origin, canvas_size, immediate=immediate)
+        self._update_layout(canvas_origin, canvas_size, immediate=immediate)
 
     def _update_layout(self, canvas_origin, canvas_size, *, immediate=False):
         """Override from abstract canvas item.
@@ -1479,32 +1468,19 @@ class CanvasItemComposition(AbstractCanvasItem):
         """
         with self.__layout_lock:
             if self.__canvas_items is not None:
+                assert canvas_origin is not None
+                assert canvas_size is not None
+                canvas_origin = Geometry.IntSize.make(canvas_origin)
+                canvas_size = Geometry.IntSize.make(canvas_size)
                 self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
                 self._update_child_layouts(canvas_size, immediate=immediate)
 
     def _update_child_layouts(self, canvas_size, *, immediate=False):
         with self.__layout_lock:
             if self.__canvas_items is not None:
-                # make sure arguments are point, size
+                assert canvas_size is not None
                 canvas_size = Geometry.IntSize.make(canvas_size)
                 self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items, immediate=immediate)
-
-    def _updated_self_layout(self):
-        self.__render_behavior.updated_self_layout()
-
-    def _needs_layout(self, canvas_item):
-        if self.__render_behavior.is_layer:
-            self.__render_behavior.needs_layout(canvas_item)
-        else:
-            super()._needs_layout(canvas_item)
-
-    def _updated(self):
-        self.__render_behavior.updated()
-        super()._updated()
-
-    def _handle_end_update(self):
-        if not self.__render_behavior.is_layer:
-            super()._handle_end_update()
 
     # override sizing information. let layout provide it.
     @property
@@ -1639,11 +1615,11 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.refresh_layout()
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-        self.__render_behavior.repaint(drawing_context, immediate)
+        self._repaint_children(drawing_context, immediate=immediate)
+        self._repaint(drawing_context)
 
     def _repaint_children(self, drawing_context, *, immediate=False):
         """Paint items from back to front."""
-        super(CanvasItemComposition, self)._repaint(drawing_context)
         self._draw_background(drawing_context)
         for canvas_item in self.visible_canvas_items:
             if canvas_item._has_layout:
@@ -1652,13 +1628,6 @@ class CanvasItemComposition(AbstractCanvasItem):
                     drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
                     canvas_item._repaint_if_needed(drawing_context, immediate=immediate)
         self._draw_border(drawing_context)
-
-    def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
-        # If the render behavior is a layer, it will have its own cached drawing context. Use it.
-        if self.__render_behavior.is_layer:
-            self._repaint_template(drawing_context, immediate)
-        else:
-            super()._repaint_if_needed(drawing_context, immediate=immediate)
 
     def canvas_items_at_point(self, x, y):
         """Returns list of canvas items under x, y, ordered from back to front."""
@@ -1685,64 +1654,14 @@ class CanvasItemComposition(AbstractCanvasItem):
                 return True
         return False
 
-    def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
-        self.__render_behavior.layout_immediate(canvas_size)
-
-    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
-        self.__render_behavior.repaint_immediate(drawing_context, canvas_size)
-
-
-class RenderBehavior:
-
-    def __init__(self, canvas_item: CanvasItemComposition):
-        self.is_layer = False
-        self.__canvas_item = canvas_item
-
-    def close(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        assert False
-
-    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        assert False
-
-    def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
-        self.__canvas_item._update_layout(canvas_origin, canvas_size, immediate=immediate)
-
-    def updated_self_layout(self):
-        pass
-
-    def repaint(self, drawing_context, immediate):
-        self.__canvas_item._repaint_children(drawing_context, immediate=immediate)
-        self._repaint_finished(drawing_context)
-
-    def needs_layout(self, canvas_item):
-        pass
-
-    def updated(self):
-        pass
-
-    def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
-        pass
-
-    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
-        pass
-
-    def _repaint_finished(self, drawing_context):
-        pass
-
 
 _threaded_rendering_enabled = True
 
-class ThreadedRenderBehavior:
 
-    def __init__(self, canvas_item: CanvasItemComposition):
-        self.is_layer = True
-        self.__canvas_item = canvas_item
+class LayerCanvasItem(CanvasItemComposition):
+
+    def __init__(self):
+        super().__init__()
         self.__layer_drawing_context = None
         self.__cancel = False
         self.__render_lock = threading.RLock()
@@ -1750,7 +1669,6 @@ class ThreadedRenderBehavior:
         self.__needs_repaint = False
         self.__pending_needs_layout = False
         self.__pending_needs_repaint = False
-        self.__layout_size = None
         self.__prepare_canvas_items = list()
         global _threaded_rendering_enabled
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
@@ -1758,17 +1676,20 @@ class ThreadedRenderBehavior:
         self.__layer_thread = threading.Thread(target=self.__repaint_loop)
         self.__layer_thread.start()
 
-    def close(self):
-        self.stop()
-        self.__canvas_item = None
+    def _close(self):
+        self._stop_render_behavior()
 
-    def stop(self):
+    def _stop_render_behavior(self):
         if self.__layer_thread:
             self.__cancel = True
             self.__layer_thread_event.set()
             self.__layer_thread.join()
             self.__layer_thread = None
             self.__layer_drawing_context = None
+
+    @property
+    def layer_container(self) -> "CanvasItemComposition":
+        return self
 
     def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         assert canvas_item not in self.__prepare_canvas_items
@@ -1780,59 +1701,67 @@ class ThreadedRenderBehavior:
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
         if immediate:
-            self.__canvas_item._update_layout(canvas_origin, canvas_size, immediate=True)
+            self._update_layout(canvas_origin, canvas_size, immediate=True)
         else:
             # layout self, but not the children. layout for children goes to thread.
-            self.__canvas_item._update_self_layout(canvas_origin, canvas_size)
+            self._update_self_layout(canvas_origin, canvas_size)
+            self.__trigger_layout()
 
-    def updated_self_layout(self):
-        # whenever self layout occurs, the thread needs to layout the children.
+    def _needs_layout(self, canvas_item):
         self.__trigger_layout()
 
-    def repaint(self, drawing_context, immediate):
+    def _updated(self):
+        with self.__render_lock:
+            self.__needs_repaint = True
+            self.__pending_needs_repaint = True
+        self.__trigger_render()
+        super()._updated()
+
+    def _handle_end_update(self):
+        if self._layer_thread_suppress:
+            # pass through updates in the thread is suppressed, so that updates actually occur.
+            super()._handle_end_update()
+
+    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         if immediate:
-            self.repaint_immediate(drawing_context, self.__canvas_item.canvas_size)
+            self.repaint_immediate(drawing_context, self.canvas_size)
         else:
             layer_drawing_context = self.__layer_drawing_context
             if layer_drawing_context:
                 drawing_context.add(layer_drawing_context)
 
-    def needs_layout(self, canvas_item):
-        self.__trigger_layout()
-
-    def updated(self):
-        with self.__render_lock:
-            self.__needs_repaint = True
-            self.__pending_needs_repaint = True
-        self.__trigger_render()
+    def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
+        # If the render behavior is a layer, it will have its own cached drawing context. Use it.
+        self._repaint_template(drawing_context, immediate)
 
     def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
         orphan = len(self.__prepare_canvas_items) == 0
         if orphan:
-            self.__canvas_item._inserted(None)
+            self._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
         for canvas_item in copy.copy(self.__prepare_canvas_items):
             canvas_item.prepare_render()
-        self.__canvas_item._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-        self.__canvas_item._update_child_layouts(canvas_size, immediate=True)
+        self._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
+        self._update_child_layouts(canvas_size, immediate=True)
         self._layer_thread_suppress = layer_thread_suppress
         if orphan:
-            self.__canvas_item._removed(None)
+            self._removed(None)
 
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         orphan = len(self.__prepare_canvas_items) == 0
         if orphan:
-            self.__canvas_item._inserted(None)
+            self._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
         self._layer_thread_suppress = True
         for canvas_item in copy.copy(self.__prepare_canvas_items):
             canvas_item.prepare_render()
-        self.__canvas_item._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-        self.__canvas_item._update_child_layouts(canvas_size, immediate=True)
-        self.__canvas_item._repaint_children(drawing_context, immediate=True)
+        self._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
+        self._update_child_layouts(canvas_size, immediate=True)
+        self._repaint_children(drawing_context, immediate=True)
+        self._repaint(drawing_context)
         self._layer_thread_suppress = layer_thread_suppress
         if orphan:
-            self.__canvas_item._removed(None)
+            self._removed(None)
 
     def __repaint_loop(self):
         while True:
@@ -1851,14 +1780,16 @@ class ThreadedRenderBehavior:
             self.__pending_needs_layout = False
             self.__pending_needs_repaint = False
         if needs_repaint or needs_layout:
-            if self.__canvas_item._has_layout:
+            if self._has_layout:
                 try:
                     for canvas_item in copy.copy(self.__prepare_canvas_items):
                         canvas_item.prepare_render()
                     if needs_layout:
-                        self.__canvas_item._update_child_layouts(self.__layout_size)
+                        assert self.canvas_size is not None
+                        self._update_child_layouts(self.canvas_size)
                     drawing_context = DrawingContext.DrawingContext()
-                    self.__canvas_item._repaint_children(drawing_context)
+                    self._repaint_children(drawing_context)
+                    self._repaint(drawing_context)
                     self.__layer_drawing_context = drawing_context
                     self._repaint_finished(self.__layer_drawing_context)
                 except Exception as e:
@@ -1883,27 +1814,10 @@ class ThreadedRenderBehavior:
         with self.__render_lock:
             self.__needs_layout = True
             self.__pending_needs_layout = True
-            self.__layout_size = self.__canvas_item.canvas_size
         self.__trigger_render()
 
     def _repaint_finished(self, drawing_context):
-        self.__canvas_item._update_container()
-
-
-class RootRenderBehavior(ThreadedRenderBehavior):
-
-    def __init__(self, canvas_item: CanvasItemComposition, canvas_widget):
-        super().__init__(canvas_item)
-        self.__canvas_widget = canvas_widget
-
-    def _repaint_finished(self, drawing_context):
-        self.__canvas_widget.draw(drawing_context)
-
-
-class LayerCanvasItem(CanvasItemComposition):
-
-    def __init__(self):
-        super().__init__(render_behavior=ThreadedRenderBehavior(self))
+        self._update_container()
 
 
 class ScrollAreaCanvasItem(AbstractCanvasItem):
@@ -2432,7 +2346,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         return super(ScrollBarCanvasItem, self).mouse_position_changed(x, y, modifiers)
 
 
-class RootCanvasItem(CanvasItemComposition):
+class RootCanvasItem(LayerCanvasItem):
 
     """
         The root canvas item acts as a bridge between the higher level ui widget
@@ -2451,7 +2365,7 @@ class RootCanvasItem(CanvasItemComposition):
     """
 
     def __init__(self, canvas_widget, max_frame_rate=None):
-        super().__init__(render_behavior=RootRenderBehavior(self, canvas_widget))
+        super().__init__()
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked
@@ -2485,7 +2399,6 @@ class RootCanvasItem(CanvasItemComposition):
         self.__drag_tracking = False
         self.__drag_tracking_canvas_item = None
         self.__grab_canvas_item = None
-        self._metric_update_event = Event.Event()
         self._set_canvas_origin(Geometry.IntPoint())
 
     def close(self):
@@ -2518,6 +2431,12 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget = None
         super().close()
 
+    def _repaint_finished(self, drawing_context):
+        self.__canvas_widget.draw(drawing_context)
+
+    def refresh_layout(self):
+        self._needs_layout(self)
+
     @property
     def root_container(self):
         return self
@@ -2525,10 +2444,6 @@ class RootCanvasItem(CanvasItemComposition):
     @property
     def canvas_widget(self):
         return self.__canvas_widget
-
-    def _updated(self):
-        self._metric_update_event.fire()
-        super()._updated()
 
     @property
     def canvas_widget(self):

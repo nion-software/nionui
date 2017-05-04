@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import time
 import unittest
 
 # third party libraries
@@ -32,7 +33,7 @@ class TestCanvasItem(CanvasItem.AbstractCanvasItem):
 class TestCanvasItemClass(unittest.TestCase):
 
     def setUp(self):
-        pass
+        CanvasItem._threaded_rendering_enabled = False
 
     def tearDown(self):
         pass
@@ -1464,6 +1465,33 @@ class TestCanvasItemClass(unittest.TestCase):
             inner_layer_repaint_count = inner_layer._repaint_count
             test_canvas_item_repaint_count = test_canvas_item._repaint_count
             outer_layer.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(100, 100))
+            self.assertEqual(outer_layer_repaint_count + 1, outer_layer._repaint_count)
+            self.assertEqual(inner_layer_repaint_count + 1, inner_layer._repaint_count)
+            self.assertEqual(test_canvas_item_repaint_count + 1, test_canvas_item._repaint_count)
+
+    def test_repaint_threaded_paints_child_layers_and_their_elements_too(self):
+        CanvasItem._threaded_rendering_enabled = True
+        outer_layer = CanvasItem.LayerCanvasItem()
+        with contextlib.closing(outer_layer):
+            inner_composition = CanvasItem.CanvasItemComposition()
+            inner_layer = CanvasItem.LayerCanvasItem()
+            test_canvas_item = TestCanvasItemClass.TestCanvasItem()
+            outer_layer.add_canvas_item(inner_composition)
+            inner_composition.add_canvas_item(inner_layer)
+            inner_layer.add_canvas_item(test_canvas_item)
+            # update the outer layer with the initial size
+            outer_layer._update_self_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            # sleep a short time to allow thread to run
+            time.sleep(0.05)
+            # save the repaint counts
+            outer_layer_repaint_count = outer_layer._repaint_count
+            inner_layer_repaint_count = inner_layer._repaint_count
+            test_canvas_item_repaint_count = test_canvas_item._repaint_count
+            # update the canvas item and make sure everyone repaints
+            test_canvas_item.update()
+            # sleep a short time to allow thread to run
+            time.sleep(0.05)
+            # check the repaint counts were all incremented
             self.assertEqual(outer_layer_repaint_count + 1, outer_layer._repaint_count)
             self.assertEqual(inner_layer_repaint_count + 1, inner_layer._repaint_count)
             self.assertEqual(test_canvas_item_repaint_count + 1, test_canvas_item._repaint_count)

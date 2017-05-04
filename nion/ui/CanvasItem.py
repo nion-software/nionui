@@ -431,7 +431,7 @@ class AbstractCanvasItem:
 
     However, if this canvas item is composite, then ``layout_sizing`` is determined by the layout algorithm and then
     additionally constrained by this canvas item's ``sizing``. In this way, by leaving ``sizing`` unconstrained, the
-    layout can determine the sizing of this canvas item. Alternively, by adding a constraint to ``sizing``, the layout
+    layout can determine the sizing of this canvas item. Alternatively, by adding a constraint to ``sizing``, the layout
     can be constrained. This corresponds to the contents determining the size of the container vs. the container
     determining the size of the layout.
 
@@ -439,7 +439,7 @@ class AbstractCanvasItem:
     either restrain (implicitly or explicitly) the content or the container.
 
     Layout occurs when the structure of the item hierarchy changes, such as when a new canvas item is added to a
-    container. Clients can also call ``refresh_layout`` or ``layout`` explicitly as needed.
+    container. Clients can also call ``refresh_layout`` explicitly as needed.
 
     UPDATES AND DRAWING
 
@@ -672,7 +672,7 @@ class AbstractCanvasItem:
         """Update the layout with a new canvas_origin and canvas_size.
 
         canvas_origin and canvas_size are the external bounds.
-        
+
         This method will be called on the render thread.
 
         Subclasses can override this method to take action when the size of the canvas item changes, but they should
@@ -700,13 +700,14 @@ class AbstractCanvasItem:
 
     def refresh_layout(self):
         """Invalidate the layout and trigger layout.
-        
+
         Items get layout from their container, so the default implementation asks the container to layout.
         """
         if self.__container:
             self.__container._needs_layout(self)
 
     def _needs_layout(self, canvas_item):
+        # pass the needs layout up the chain.
         if self.__container:
             self.__container._needs_layout(canvas_item)
 
@@ -814,15 +815,20 @@ class AbstractCanvasItem:
         self._repaint_count += 1
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
+        """A wrapper method for _repaint.
+
+        Callers should always call this method instead of _repaint directly. This helps keep the _repaint
+        implementations simple and easy to understand.
+        """
         self._repaint(drawing_context)
 
     def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
         """Repaint if no cached version of the last paint is available.
-        
+
         If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
-        
+
         The cached drawing context is typically cleared during the update method.
-        
+
         Subclasses will typically not need to override this method, except in special cases.
         """
         if not self.__repaint_drawing_context:
@@ -1191,7 +1197,7 @@ class CanvasItemLayout(CanvasItemAbstractLayout):
     """
 
     def __init__(self, margins=None, spacing=None):
-        super(CanvasItemLayout, self).__init__(margins, spacing)
+        super().__init__(margins, spacing)
 
     def layout(self, canvas_origin, canvas_size, canvas_items, *, immediate=False):
         for canvas_item in canvas_items:
@@ -1218,7 +1224,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
     """
 
     def __init__(self, margins=None, spacing=None, alignment=None):
-        super(CanvasItemColumnLayout, self).__init__(margins, spacing)
+        super().__init__(margins, spacing)
         self.alignment = alignment
 
     def layout(self, canvas_origin, canvas_size, canvas_items, *, immediate=False):
@@ -1260,7 +1266,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
     """
 
     def __init__(self, margins=None, spacing=None, alignment=None):
-        super(CanvasItemRowLayout, self).__init__(margins, spacing)
+        super().__init__(margins, spacing)
         self.alignment = alignment
 
     def layout(self, canvas_origin, canvas_size, canvas_items, *, immediate=False):
@@ -1306,7 +1312,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
     """
 
     def __init__(self, size, margins=None, spacing=None):
-        super(CanvasItemGridLayout, self).__init__(margins, spacing)
+        super().__init__(margins, spacing)
         assert size.width > 0 and size.height > 0
         self.__size = size
         self.__columns = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]  # type: typing.List[typing.List[AbstractCanvasItem]]
@@ -1410,21 +1416,17 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
 
 
 class CanvasItemComposition(AbstractCanvasItem):
+    """A composite canvas item comprised of other canvas items.
 
-    """
-        A composite canvas item comprised of other canvas items.
+    Optionally includes a layout. Compositions without an explicit layout are stacked to fit this container.
 
-        Optionally includes a layout.
+    Access child canvas items using canvas_items.
 
-        All canvas messages are passed to children appropriately.
-
-        Access child canvas items using canvas_items.
-
-        Child canvas items with higher indexes are considered to be foremost.
+    Child canvas items with higher indexes are considered to be foremost.
     """
 
     def __init__(self):
-        super(CanvasItemComposition, self).__init__()
+        super().__init__()
         self.__canvas_items = []
         self.layout = CanvasItemLayout()
         self.__layout_lock = threading.RLock()
@@ -1436,7 +1438,7 @@ class CanvasItemComposition(AbstractCanvasItem):
             self.__canvas_items = None
             for canvas_item in canvas_items:
                 canvas_item.close()
-        super(CanvasItemComposition, self).close()
+        super().close()
 
     def _close(self):
         pass
@@ -1637,7 +1639,7 @@ class CanvasItemComposition(AbstractCanvasItem):
             if canvas_item.canvas_rect.contains_point(point):
                 canvas_point = point - Geometry.IntPoint.make(canvas_item.canvas_origin)
                 canvas_items.extend(canvas_item.canvas_items_at_point(canvas_point.x, canvas_point.y))
-        canvas_items.extend(super(CanvasItemComposition, self).canvas_items_at_point(x, y))
+        canvas_items.extend(super().canvas_items_at_point(x, y))
         return canvas_items
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
@@ -1659,6 +1661,7 @@ _threaded_rendering_enabled = True
 
 
 class LayerCanvasItem(CanvasItemComposition):
+    """A composite canvas item that does layout and repainting in a thread."""
 
     def __init__(self):
         super().__init__()
@@ -1844,7 +1847,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
     """
 
     def __init__(self, content=None):
-        super(ScrollAreaCanvasItem, self).__init__()
+        super().__init__()
         self.__content = None
         if content:
             self.content = content
@@ -1856,7 +1859,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         self.__content = None
         if content:
             content.close()
-        super(ScrollAreaCanvasItem, self).close()
+        super().close()
 
     @property
     def content(self):
@@ -1924,7 +1927,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
             self.__content._set_canvas_origin(canvas_origin)
 
     def _repaint(self, drawing_context):
-        super(ScrollAreaCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
         with drawing_context.saver():
             drawing_context.clip_rect(self.canvas_origin[1], self.canvas_origin[0], self.canvas_size[1], self.canvas_size[0])
             drawing_context.translate(self.__content.canvas_origin[1], self.__content.canvas_origin[0])
@@ -1937,7 +1940,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         if self.__content.canvas_rect.contains_point(point):
             canvas_point = point - Geometry.IntPoint.make(self.__content.canvas_origin)
             canvas_items.extend(self.__content.canvas_items_at_point(canvas_point.x, canvas_point.y))
-        canvas_items.extend(super(ScrollAreaCanvasItem, self).canvas_items_at_point(x, y))
+        canvas_items.extend(super().canvas_items_at_point(x, y))
         return canvas_items
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
@@ -2149,7 +2152,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
     """ A scroll bar for a scroll area. """
 
     def __init__(self, scroll_area_canvas_item, orientation:Orientation = None):
-        super(ScrollBarCanvasItem, self).__init__()
+        super().__init__()
         orientation = orientation if orientation is not None else Orientation.Vertical
         self.wants_mouse_events = True
         self.__scroll_area_canvas_item = scroll_area_canvas_item
@@ -2286,12 +2289,12 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         elif self.__orientation != Orientation.Vertical and x > thumb_rect.right:
             self.__adjust_thumb(1)
             return True
-        return super(ScrollBarCanvasItem, self).mouse_pressed(x, y, modifiers)
+        return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
         self.__tracking = False
         self.update()
-        return super(ScrollBarCanvasItem, self).mouse_released(x, y, modifiers)
+        return super().mouse_released(x, y, modifiers)
 
     def __adjust_thumb(self, amount):
         # adjust the position up or down one visible screen worth
@@ -2343,25 +2346,21 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             self.__scroll_area_canvas_item.content._set_canvas_origin(new_content_offset)
             self.__scroll_area_canvas_item.content.update()
             self.update()
-        return super(ScrollBarCanvasItem, self).mouse_position_changed(x, y, modifiers)
+        return super().mouse_position_changed(x, y, modifiers)
 
 
 class RootCanvasItem(LayerCanvasItem):
+    """A root layer to interface to the widget world.
 
-    """
-        The root canvas item acts as a bridge between the higher level ui widget
-        and a canvas hierarchy. It connects size notifications, mouse activity,
-        keyboard activity, focus activity, and drag and drop actions to the
-        canvas item.
+    The root canvas item acts as a bridge between the higher level ui widget and a canvas hierarchy. It connects size
+    notifications, mouse activity, keyboard activity, focus activity, and drag and drop actions to the canvas item.
 
-        The root canvas item provides a canvas_widget property which is the
-        canvas widget associated with this root item.
+    The root canvas item provides a canvas_widget property which is the canvas widget associated with this root item.
 
-        The root canvas may be focusable or not. There are two focus states that
-        this root canvas item handles: the widget focus and the canvas item focus.
-        The widget focus comes from the enclosing widget. If this root canvas item
-        has a widget focus, then it can also have a canvas item focus to specify
-        which specific canvas item is the focus in this root canvas item's hierarchy.
+    The root canvas may be focusable or not. There are two focus states that this root canvas item handles: the widget
+    focus and the canvas item focus. The widget focus comes from the enclosing widget. If this root canvas item has a
+    widget focus, then it can also have a canvas item focus to specify which specific canvas item is the focus in this
+    root canvas item's hierarchy.
     """
 
     def __init__(self, canvas_widget, max_frame_rate=None):
@@ -2740,7 +2739,7 @@ class BackgroundCanvasItem(AbstractCanvasItem):
     """ Canvas item to draw background_color. """
 
     def __init__(self, background_color="#888"):
-        super(BackgroundCanvasItem, self).__init__()
+        super().__init__()
         self.background_color = background_color
 
     def _repaint(self, drawing_context):
@@ -2771,7 +2770,7 @@ class CellCanvasItem(AbstractCanvasItem):
     """
 
     def __init__(self, cell=None):
-        super(CellCanvasItem, self).__init__()
+        super().__init__()
         self.__enabled = True
         self.__check_state = "unchecked"
         self.__mouse_inside = False
@@ -2783,7 +2782,7 @@ class CellCanvasItem(AbstractCanvasItem):
 
     def close(self):
         self.cell = None
-        super(CellCanvasItem, self).close()
+        super().close()
 
     @property
     def enabled(self):
@@ -2876,7 +2875,7 @@ class CellCanvasItem(AbstractCanvasItem):
 class TwistDownCell:
 
     def __init__(self):
-        super(TwistDownCell, self).__init__()
+        super().__init__()
         self.update_event = Event.Event()
 
     def paint_cell(self, drawing_context, rect, style):
@@ -2923,14 +2922,14 @@ class TwistDownCell:
 class TwistDownCanvasItem(CellCanvasItem):
 
     def __init__(self):
-        super(TwistDownCanvasItem, self).__init__()
+        super().__init__()
         self.cell = TwistDownCell()
         self.wants_mouse_events = True
         self.on_button_clicked = None
 
     def close(self):
         self.on_button_clicked = None
-        super(TwistDownCanvasItem, self).close()
+        super().close()
 
     def mouse_entered(self):
         self._mouse_inside = True
@@ -3086,13 +3085,13 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
     """ Canvas item button to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data, background_color=None, border_color=None):
-        super(BitmapButtonCanvasItem, self).__init__(rgba_bitmap_data, background_color, border_color)
+        super().__init__(rgba_bitmap_data, background_color, border_color)
         self.wants_mouse_events = True
         self.on_button_clicked = None
 
     def close(self):
         self.on_button_clicked = None
-        super(BitmapButtonCanvasItem, self).close()
+        super().close()
 
     def mouse_entered(self):
         self._mouse_inside = True
@@ -3116,7 +3115,7 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
 class StaticTextCanvasItem(AbstractCanvasItem):
 
     def __init__(self, text=None):
-        super(StaticTextCanvasItem, self).__init__()
+        super().__init__()
         self.__text = text if text is not None else str()
         self.__text_color = "#000"
         self.__text_disabled_color = "#888"
@@ -3463,7 +3462,7 @@ class EmptyCanvasItem(AbstractCanvasItem):
     """ Canvas item to act as a placeholder (spacer or stretch). """
 
     def __init__(self):
-        super(EmptyCanvasItem, self).__init__()
+        super().__init__()
 
 
 class RadioButtonGroup:
@@ -3503,7 +3502,7 @@ class RadioButtonGroup:
 
 class ProgressBarCanvasItem(AbstractCanvasItem):
     def __init__(self):
-        super(ProgressBarCanvasItem, self).__init__()
+        super().__init__()
         self.__enabled = True
         self.__progress = 0.0  # 0.0 to 1.0
         self.sizing.set_fixed_height(4)
@@ -3562,7 +3561,7 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
 
         drawing_context.restore()
 
-        super(ProgressBarCanvasItem, self)._repaint(drawing_context)
+        super()._repaint(drawing_context)
 
 
 class TimestampCanvasItem(AbstractCanvasItem):

@@ -1673,7 +1673,7 @@ class LayerCanvasItem(CanvasItemComposition):
         global _threaded_rendering_enabled
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_event = threading.Event()
-        self.__layer_thread = threading.Thread(target=self.__repaint_loop)
+        self.__layer_thread = threading.Thread(target=self.__repaint_loop, daemon=True)
         self.__layer_thread.start()
 
     def _close(self):

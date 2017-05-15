@@ -530,7 +530,10 @@ class ComboBoxWidget(Widget):
         self.items = binding.get_target_value()
         self.__items_binding = binding
         def update_items(items):
-            self.add_task("update_items", lambda: setattr(self, "items", items))
+            def update_items_():
+                if self._behavior:
+                    self.items = items
+            self.add_task("update_items", update_items_)
         self.__items_binding.target_setter = update_items
         self.on_items_changed = lambda items: self.__items_binding.update_source(items)
 
@@ -545,7 +548,10 @@ class ComboBoxWidget(Widget):
         def update_current_index(current_index):
             if current_index is not None and 0 <= current_index < len(self.__items):
                 item = self.__items[current_index]
-                self.add_task("update_current_index", lambda: setattr(self, "current_item", item))
+                def update_current_item_():
+                    if self._behavior:
+                        self.current_item = item
+                self.add_task("update_current_index", update_current_item_)
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
 
@@ -694,7 +700,10 @@ class CheckBoxWidget(Widget):
         self.checked = binding.get_target_value()
         self.__binding = binding
         def update_checked(checked):
-            self.add_task("update_checked", lambda: setattr(self, "checked", checked))
+            def update_checked_():
+                if self._behavior:
+                    self.checked = checked
+            self.add_task("update_checked", update_checked_)
         self.__binding.target_setter = update_checked
         self.on_checked_changed = lambda checked: self.__binding.update_source(checked)
 
@@ -706,7 +715,10 @@ class CheckBoxWidget(Widget):
         self.check_state = binding.get_target_value()
         self.__binding = binding
         def update_check_state(check_state):
-            self.add_task("update_check_state", lambda: setattr(self, "check_state", check_state))
+            def update_check_state_():
+                if self._behavior:
+                    self.check_state = check_state
+            self.add_task("update_check_state", update_check_state_)
         self.__binding.target_setter = update_check_state
         self.on_check_state_changed = lambda check_state: self.__binding.update_source(check_state)
 
@@ -749,7 +761,10 @@ class LabelWidget(Widget):
         self.text = binding.get_target_value()
         self.__binding = binding
         def update_text(text):
-            self.add_task("update_text", lambda: setattr(self, "text", text))
+            def update_text_():
+                if self._behavior:
+                    self.text = text
+            self.add_task("update_text", update_text_)
         self.__binding.target_setter = update_text
 
     def unbind_text(self):
@@ -841,7 +856,10 @@ class SliderWidget(Widget):
         self.value = binding.get_target_value()
         self.__binding = binding
         def update_value(value):
-            self.add_task("update_value", lambda: setattr(self, "value", value))
+            def update_value_():
+                if self._behavior:
+                    self.value = value
+            self.add_task("update_value", update_value_)
         self.__binding.target_setter = update_value
         self.on_value_changed = lambda value: self.__binding.update_source(value)
 
@@ -956,10 +974,11 @@ class LineEditWidget(Widget):
             self.__binding = None
         self.text = binding.get_target_value()
         def update_field(text):
-            if self.text != text and (not self.focused or self.selected_text == self.text):
-                self.text = text
-                if self.focused:
-                    self.select_all()
+            if self._behavior:
+                if self.text != text and (not self.focused or self.selected_text == self.text):
+                    self.text = text
+                    if self.focused:
+                        self.select_all()
         self.__binding = binding
         def update_text(text):
             self.add_task("update_text", lambda: update_field(text))
@@ -1136,14 +1155,13 @@ class TextEditWidget(Widget):
             self.__binding.close()
             self.__binding = None
         self.text = binding.get_target_value()
-        def update_field(text):
-            self.text = text
-            if self.focused:
-                pass # self.select_all()
         self.__binding = binding
         def update_text(text):
+            def update_text_():
+                if self._behavior:
+                    self.text = text
             if not self.__in_update:
-                self.add_task("update_text", lambda: update_field(text))
+                self.add_task("update_text", update_text_)
         self.__binding.target_setter = update_text
         def on_text_changed(text):
             self.__in_update = True

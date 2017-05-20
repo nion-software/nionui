@@ -1420,7 +1420,6 @@ class TreeWidget(Widget):
         self.on_item_clicked = None
         self.on_item_double_clicked = None
         self.on_item_key_pressed = None
-        self.on_focus_changed = None
 
         def handle_key_pressed(indexes, key):
             if callable(self.on_key_pressed):
@@ -1462,12 +1461,6 @@ class TreeWidget(Widget):
 
         self._behavior.on_tree_item_double_clicked = handle_tree_item_double_clicked
 
-        def handle_focus_changed(focused):
-            if callable(self.on_focus_changed):
-                self.on_focus_changed(focused)
-
-        self._behavior.on_focus_changed = handle_focus_changed
-
     def close(self):
         self.__item_model_controller = None
         self.on_key_pressed = None
@@ -1476,7 +1469,6 @@ class TreeWidget(Widget):
         self.on_item_clicked = None
         self.on_item_double_clicked = None
         self.on_item_key_pressed = None
-        self.on_focus_changed = None
         super().close()
 
     @property

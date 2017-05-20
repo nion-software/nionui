@@ -1276,7 +1276,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
     @focusable.setter
     def focusable(self, focusable):
         self.__focusable = focusable
-        self.proxy.Canvas_setFocusPolicy(self.widget, 15 if focusable else 0)
+        self.proxy.Widget_setFocusPolicy(self.widget, "wheel_focus" if focusable else "no_focus")
 
     def draw(self, drawing_context):
         # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), None)
@@ -1690,6 +1690,7 @@ class QtDockWidget:
         self.widget = widget
         self.widget._set_root_container(self)
         self.on_size_changed = None
+        self.on_focus_changed = None
         self.width = None
         self.height = None
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
@@ -1701,6 +1702,7 @@ class QtDockWidget:
         self.document_window.unregister_dock_widget(self)
         self.document_window = None
         self.on_size_changed = None
+        self.on_focus_changed = None
         self.widget = None
         self.native_dock_widget = None
         self.proxy = None
@@ -1744,6 +1746,14 @@ class QtDockWidget:
         self.height = height
         if callable(self.on_size_changed):
             self.on_size_changed(self.width, self.height)
+
+    def focusIn(self):
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(True)
+
+    def focusOut(self):
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(False)
 
 
 class QtUserInterface(UserInterface.UserInterface):

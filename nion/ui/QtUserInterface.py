@@ -456,6 +456,9 @@ class QtWidgetBehavior:
         self.__tool_tip = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
+        self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.widget)
+        self.__does_retain_focus = self.__focus_policy != "no_focus"
+        self._no_focus = "no_focus"
 
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -482,6 +485,16 @@ class QtWidgetBehavior:
                 self.proxy.Widget_setFocus(self.widget, 7)
             else:
                 self.proxy.Widget_clearFocus(self.widget)
+
+    @property
+    def does_retain_focus(self) -> bool:
+        return self.__does_retain_focus
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, value: bool) -> None:
+        self.__does_retain_focus = value
+        # no_focus, tab_focus, click_focus, strong_focus, wheel_focus
+        self.proxy.Widget_setFocusPolicy(self.widget, self.__focus_policy if value else self._no_focus)
 
     @property
     def visible(self):
@@ -1005,6 +1018,7 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.LineEdit_connect(self.widget, self)
         self.__binding = None
         self.__clear_button_enabled = False
+        self._no_focus = "click_focus"
 
     def close(self):
         self.on_editing_finished = None
@@ -1090,6 +1104,7 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
         self.on_key_pressed = None
         self.on_insert_mime_data = None
         self.proxy.TextEdit_connect(self.widget, self)
+        self._no_focus = "click_focus"
 
     def close(self):
         self.on_cursor_position_changed = None
@@ -1695,6 +1710,8 @@ class QtDockWidget:
         self.height = None
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
+        self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.native_dock_widget)
+        self.__panel_id = panel_id
 
     def close(self):
         self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
@@ -1707,6 +1724,9 @@ class QtDockWidget:
         self.native_dock_widget = None
         self.proxy = None
 
+    def refocus_widget(self, widget):
+        self.document_window.refocus_widget(widget)
+
     @property
     def focus_widget(self):
         def match_native_widget(widget):
@@ -1718,6 +1738,18 @@ class QtDockWidget:
                     return matched_widget
             return None
         return match_native_widget(self.widget)
+
+    @property
+    def does_retain_focus(self):
+        return self.proxy.Widget_getFocusPolicy(self.native_dock_widget) == "click_focus"
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, does_retain_focus: bool) -> None:
+        self.widget.does_retain_focus = does_retain_focus
+        if does_retain_focus:
+            self.proxy.Widget_setFocusPolicy(self.native_dock_widget, self.__focus_policy)
+        else:
+            self.proxy.Widget_setFocusPolicy(self.native_dock_widget, "click_focus")
 
     def queue_task(self, task):
         self.document_window.queue_task(task)

@@ -43,6 +43,14 @@ class CompositeWidgetBehavior:
         self.content_widget.focused = focused
 
     @property
+    def does_retain_focus(self) -> bool:
+        return self.content_widget.does_retain_focus
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, value: bool) -> None:
+        self.content_widget.does_retain_focus = value
+
+    @property
     def visible(self):
         return self.content_widget.visible
 

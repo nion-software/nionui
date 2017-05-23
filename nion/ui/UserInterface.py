@@ -112,6 +112,24 @@ class Widget:
     def focused(self, focused: bool) -> None:
         self._behavior.focused = focused
 
+    def refocus(self) -> None:
+        pass
+
+    def request_refocus(self) -> None:
+        root_container = self.root_container
+        if root_container:
+            root_container.refocus_widget(self)
+
+    @property
+    def does_retain_focus(self) -> bool:
+        return self._behavior.does_retain_focus
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, value: bool) -> None:
+        self._behavior.does_retain_focus = value
+        for widget in self._contained_widgets:
+            widget.does_retain_focus = value
+
     @property
     def visible(self) -> bool:
         return self._behavior.visible
@@ -203,6 +221,7 @@ class BoxWidget(Widget):
             alignment = self.alignment
         self.children.insert(index, child)
         child._set_root_container(self.root_container)
+        child.does_retain_focus = self.does_retain_focus
         self._behavior.insert(child, index, fill, alignment)
 
     def add(self, child, fill=False, alignment=None):
@@ -268,6 +287,7 @@ class SplitterWidget(Widget):
         self._behavior.add(child)
         self.children.append(child)
         child._set_root_container(self.root_container)
+        child.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag: str) -> None:
         self._behavior.restore_state(tag)
@@ -314,6 +334,7 @@ class TabWidget(Widget):
         self._behavior.add(child, label)
         self.children.append(child)
         child._set_root_container(self.root_container)
+        child.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag: str) -> None:
         self._behavior.restore_state(tag)
@@ -426,6 +447,7 @@ class ScrollAreaWidget(Widget):
         self._behavior.set_content(content)
         self.__content = content
         content._set_root_container(self.root_container)
+        content.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag):
         pass
@@ -552,6 +574,7 @@ class ComboBoxWidget(Widget):
                     if self._behavior:
                         self.current_item = item
                 self.add_task("update_current_index", update_current_item_)
+                self.request_refocus()
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
 
@@ -967,6 +990,9 @@ class LineEditWidget(Widget):
         self.select_all()
         return True
 
+    def refocus(self):
+        self.select_all()
+
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         if self.__binding:
@@ -986,12 +1012,12 @@ class LineEditWidget(Widget):
         self.on_editing_finished = lambda text: self.__binding.update_source(text)
         def return_pressed():
             text = self.text
-            self.select_all()
             self.__binding.update_source(text)
+            self.request_refocus()
         def escape_pressed():
             text = self.__last_text
-            self.select_all()
             self.__binding.update_source(text)
+            self.request_refocus()
         self.on_return_pressed = return_pressed
         self.on_escape_pressed = escape_pressed
 
@@ -1130,6 +1156,9 @@ class TextEditWidget(Widget):
 
     def select_all(self):
         self._behavior.select_all()
+
+    def refocus(self):
+        self.select_all()
 
     def move_cursor_position(self, operation, mode=None, n=1):
         self._behavior.move_cursor_position(operation, mode, n)
@@ -1510,6 +1539,7 @@ class Window:
         self.on_activation_changed = None
         self.on_size_changed = None
         self.on_position_changed = None
+        self.on_refocus_widget = None
         self.pos_x = None
         self.pos_y = None
         self.width = None
@@ -1531,6 +1561,7 @@ class Window:
         self.on_activation_changed = None
         self.on_size_changed = None
         self.on_position_changed = None
+        self.on_refocus_widget = None
 
     def request_close(self):
         raise NotImplemented()
@@ -1578,6 +1609,10 @@ class Window:
 
     def _get_focus_widget(self):
         raise NotImplemented()
+
+    def refocus_widget(self, widget):
+        if callable(self.on_refocus_widget):
+            self.on_refocus_widget(widget)
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
         raise NotImplemented()

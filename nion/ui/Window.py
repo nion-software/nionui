@@ -36,6 +36,7 @@ class Window:
         self.__document_window.on_activation_changed = self.activation_changed
         self.__document_window.on_size_changed = self.size_changed
         self.__document_window.on_position_changed = self.position_changed
+        self.__document_window.on_refocus_widget = self.refocus_widget
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         # configure the event loop object
@@ -141,6 +142,9 @@ class Window:
         # subclasses can override this method to save geometry and state
         # subclasses can also cancel closing by not calling super() (or close()).
         self.close()
+
+    def refocus_widget(self, widget):
+        widget.refocus()
 
     def __save_bounds(self):
         if self.__shown and self.__persistent_id:

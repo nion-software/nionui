@@ -195,6 +195,8 @@ class Widget:
         pass
     def select_all(self):
         pass
+    def request_refocus(self):
+        pass
     @property
     def text(self):
         return self.__text

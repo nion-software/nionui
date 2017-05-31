@@ -1853,6 +1853,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
             self.content = content
         self.auto_resize_contents = False
         self._constrain_position = True
+        self.content_updated_event = Event.Event()
 
     def close(self):
         content = self.__content
@@ -1925,6 +1926,7 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
             canvas_origin = Geometry.IntPoint(x=canvas_origin.x, y=max(min(canvas_origin.y, 0), -scroll_range_v))
             canvas_origin = Geometry.IntPoint(x=max(min(canvas_origin.x, 0), -scroll_range_h), y=canvas_origin.y)
             self.__content._set_canvas_origin(canvas_origin)
+            self.content_updated_event.fire()
 
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
@@ -2156,12 +2158,18 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         orientation = orientation if orientation is not None else Orientation.Vertical
         self.wants_mouse_events = True
         self.__scroll_area_canvas_item = scroll_area_canvas_item
+        self.__scroll_area_canvas_item_content_updated_listener = self.__scroll_area_canvas_item.content_updated_event.listen(self.update)
         self.__tracking = False
         self.__orientation = orientation
         if self.__orientation == Orientation.Vertical:
             self.sizing.set_fixed_width(16)
         else:
             self.sizing.set_fixed_height(16)
+
+    def close(self):
+        self.__scroll_area_canvas_item_content_updated_listener.close()
+        self.__scroll_area_canvas_item_content_updated_listener = None
+        super().close()
 
     def _repaint(self, drawing_context):
         # canvas size, thumb rect

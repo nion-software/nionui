@@ -258,6 +258,15 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super().mouse_position_changed(x, y, modifiers)
 
+    def mouse_double_clicked(self, x, y, modifiers):
+        mouse_index = self.__get_item_index_at(x, y)
+        max_index = self.__delegate.item_count
+        if mouse_index >= 0 and mouse_index < max_index:
+            if callable(self.__delegate.on_mouse_double_clicked):
+                if self.__delegate.on_mouse_double_clicked(mouse_index, x, y, modifiers):
+                    return True
+        return super().mouse_double_clicked(x, y, modifiers)
+
     def __make_selection_visible(self, top):
         if self.__delegate:
             selected_indexes = list(self.__selection.indexes)

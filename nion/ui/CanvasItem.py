@@ -1636,6 +1636,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_items = []
         point = Geometry.IntPoint(x=x, y=y)
         for canvas_item in reversed(self.visible_canvas_items):
+            # the visible items can be changed while this method is running from the layout thread.
+            # and yet we don't want to allow this to occur; maybe the layout thread should have some
+            # sort of pending system, where once methods like this exit, they're allowed to update...?
             if canvas_item.canvas_rect.contains_point(point):
                 canvas_point = point - Geometry.IntPoint.make(canvas_item.canvas_origin)
                 canvas_items.extend(canvas_item.canvas_items_at_point(canvas_point.x, canvas_point.y))

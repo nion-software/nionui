@@ -1694,6 +1694,10 @@ class LayerCanvasItem(CanvasItemComposition):
             self.__layer_drawing_context = None
 
     @property
+    def _needs_layout_for_testing(self):
+        return self.__needs_layout
+
+    @property
     def layer_container(self) -> "CanvasItemComposition":
         return self
 
@@ -1740,16 +1744,18 @@ class LayerCanvasItem(CanvasItemComposition):
         # If the render behavior is a layer, it will have its own cached drawing context. Use it.
         self._repaint_template(drawing_context, immediate)
 
-    def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
+    def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool=True) -> None:
         orphan = len(self.__prepare_canvas_items) == 0
         if orphan:
             self._inserted(None)
-        layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
-        for canvas_item in copy.copy(self.__prepare_canvas_items):
-            canvas_item.prepare_render()
-        self._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-        self._update_child_layouts(canvas_size, immediate=True)
-        self._layer_thread_suppress = layer_thread_suppress
+        if force or self.__needs_layout:
+            self.__needs_layout = False
+            layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
+            for canvas_item in copy.copy(self.__prepare_canvas_items):
+                canvas_item.prepare_render()
+            self._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
+            self._update_child_layouts(canvas_size, immediate=True)
+            self._layer_thread_suppress = layer_thread_suppress
         if orphan:
             self._removed(None)
 

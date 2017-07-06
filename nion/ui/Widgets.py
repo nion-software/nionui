@@ -246,6 +246,7 @@ class StringListWidget(CompositeWidgetBase):
     def items(self, value):
         self.__items = value
         self.__list_canvas_item_delegate.items = value
+        self.__list_canvas_item.refresh_layout()
         self.__list_canvas_item.update()
 
     @property

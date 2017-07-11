@@ -120,6 +120,8 @@ class Window:
         self.__periodic_set.perform_tasks()
         self.__event_loop.stop()
         self.__event_loop.run_forever()
+        if self.app:
+            self.app.periodic()
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:

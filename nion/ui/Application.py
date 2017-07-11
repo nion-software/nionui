@@ -34,8 +34,16 @@ class Application(object):
         self.ui.close()
 
     def start(self):
-        """The start method should create a document window that will be the focus of the UI."""
+        """The start method should create a window that will be the focus of the UI."""
         raise NotImplemented()
+
+    def exit(self):
+        """The exit method should request to close or close the window."""
+        raise NotImplemented()
+
+    def periodic(self):
+        """The periodic method can be overridden to implement periodic behavior."""
+        pass
 
 
 def make_ui(bootstrap_args):

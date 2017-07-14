@@ -476,7 +476,7 @@ class QtWidgetBehavior:
 
     @property
     def focused(self):
-        return self.proxy.Widget_hasFocus(self.widget)
+        return self.proxy.Widget_hasFocus(self.widget) != 0
 
     @focused.setter
     def focused(self, focused):

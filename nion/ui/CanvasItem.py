@@ -589,6 +589,7 @@ class AbstractCanvasItem:
         """ Set whether the canvas item is focused. Only called from container. """
         if focused != self.__focused:
             self.__focused = focused
+            self.update()
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
 

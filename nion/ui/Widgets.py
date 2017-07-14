@@ -168,6 +168,7 @@ class StringListWidget(CompositeWidgetBase):
         content_widget = self.content_widget
         self.on_selection_changed = None
         self.on_item_selected = None
+        self.on_cancel = None
         stringify_item = str if stringify_item is None else stringify_item
 
         class ListCanvasItemDelegate:
@@ -195,6 +196,10 @@ class StringListWidget(CompositeWidgetBase):
                 pass
 
             def on_key_pressed(self, key):
+                if key.is_escape:
+                    if callable(self.__string_list_widget.on_cancel):
+                        self.__string_list_widget.on_cancel()
+                        return True
                 return False
 
             def on_drag_started(self, index, x, y, modifiers):
@@ -238,6 +243,16 @@ class StringListWidget(CompositeWidgetBase):
 
         content_widget.add(canvas_widget)
 
+        self.__canvas_widget = canvas_widget
+
+    @property
+    def focused(self) -> bool:
+        return self.__canvas_widget.focused and self.__list_canvas_item.focused
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        self.__list_canvas_item.request_focus()
+
     @property
     def items(self):
         return self.__items
@@ -252,6 +267,10 @@ class StringListWidget(CompositeWidgetBase):
     @property
     def selected_items(self) -> AbstractSet[int]:
         return self.__selection.indexes
+
+    def set_selected_index(self, index: int) -> None:
+        self.__selection.set(index)
+        self.__list_canvas_item.make_selection_visible()
 
     def close(self) -> None:
         self.__selection_changed_event_listener.close()

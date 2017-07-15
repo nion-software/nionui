@@ -4,6 +4,7 @@
 
 # standard libraries
 import gettext
+import sys
 
 # typing
 from typing import Callable
@@ -63,6 +64,7 @@ class OkCancelDialog(Window.Window):
             button_row.add_spacing(13)
 
         content_column.add(button_row)
+        if sys.platform == 'linux': content_column.add_spacing(13)
 
         self.attach_widget(content_column)
 
@@ -101,6 +103,7 @@ class ActionDialog(Window.Window):
         self.button_row.add_stretch()
 
         content_column.add(self.button_row)
+        if sys.platform == 'linux': content_column.add_spacing(13)
 
         self.attach_widget(content_column)
 

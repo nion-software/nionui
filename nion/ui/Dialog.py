@@ -13,7 +13,7 @@ from typing import Callable
 
 # local libraries
 from nion.ui import Window
-
+from nion.ui import UserInterface
 
 _ = gettext.gettext
 
@@ -63,6 +63,7 @@ class OkCancelDialog(Window.Window):
             button_row.add_spacing(13)
 
         content_column.add(button_row)
+        content_column.add_spacing(8)
 
         self.attach_widget(content_column)
 
@@ -101,6 +102,7 @@ class ActionDialog(Window.Window):
         self.button_row.add_stretch()
 
         content_column.add(self.button_row)
+        content_column.add_spacing(8)
 
         self.attach_widget(content_column)
 
@@ -114,7 +116,7 @@ class ActionDialog(Window.Window):
             self.on_close()
         super().about_to_close(geometry, state)
 
-    def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> None:
+    def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> UserInterface.PushButtonWidget:
         def on_clicked():
             do_close = on_clicked_fn()
             if do_close:
@@ -124,3 +126,4 @@ class ActionDialog(Window.Window):
         button.on_clicked = on_clicked
         self.button_row.add(button)
         self.button_row.add_spacing(13)
+        return button

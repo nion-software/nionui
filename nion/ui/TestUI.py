@@ -264,6 +264,10 @@ class Widget:
             if found_widget:
                 return found_widget
         return None
+    def size_to_content(self):
+        pass
+    def set_sizes(self, sizes):
+        pass
 
 
 class MenuItem:

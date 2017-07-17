@@ -641,6 +641,9 @@ class QtSplitterWidgetBehavior(QtWidgetBehavior):
     def save_state(self, tag):
         self.proxy.Splitter_saveState(self.widget, tag)
 
+    def set_sizes(self, sizes: typing.Sequence[int]) -> None:
+        self.proxy.Splitter_setSizes(self.widget, sizes)
+
 
 class QtTabWidgetBehavior(QtWidgetBehavior):
 
@@ -1392,7 +1395,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
         properties = copy.deepcopy(properties) if properties is not None else dict()
-        properties["stylesheet"] = "* { border: none; background-color: '#EEEEEE'; } TreeWidget { margin-top: 4px }"
+        properties["stylesheet"] = "* { border: none; background-color: '#EEEEEE'; } TreeWidget { margin-top: 0px }"
         super().__init__(proxy, "pytree", properties)
         self.proxy.TreeWidget_connect(self.widget, self)
         self.__item_model_controller = None
@@ -1439,6 +1442,9 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
 
     def clear_current_row(self):
         self.proxy.TreeWidget_setCurrentRow(self.widget, -1, -1, 0)
+
+    def size_to_content(self):
+        self.proxy.TreeWidget_resizeToContent(self.widget)
 
     def keyPressed(self, indexes, text, key, raw_modifiers):
         if callable(self.on_key_pressed):

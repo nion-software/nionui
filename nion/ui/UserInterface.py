@@ -295,6 +295,9 @@ class SplitterWidget(Widget):
     def save_state(self, tag: str) -> None:
         self._behavior.save_state(tag)
 
+    def set_sizes(self, sizes: typing.Sequence[int]) -> None:
+        self._behavior.set_sizes(sizes)
+
 
 class TabWidget(Widget):
 
@@ -1521,6 +1524,9 @@ class TreeWidget(Widget):
 
     def clear_current_row(self):
         self._behavior.clear_current_row()
+
+    def size_to_content(self):
+        self._behavior.size_to_content()
 
 
 class Window:

@@ -615,6 +615,9 @@ class QtBoxWidgetBehavior(QtWidgetBehavior):
         self.proxy.Widget_addSpacing(self.widget, spacing)
         return QtBoxSpacing(spacing)
 
+    def remove_all(self) -> None:
+        self.proxy.Widget_removeAll(self.widget)
+
 
 class QtSplitterWidgetBehavior(QtWidgetBehavior):
 

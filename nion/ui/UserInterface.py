@@ -238,6 +238,7 @@ class BoxWidget(Widget):
     def remove_all(self) -> None:
         for child in reversed(copy.copy(self.children)):
             self.remove(child)
+        self._behavior.remove_all()  # spacing and stretches for Qt
 
     def add_stretch(self) -> None:
         child = self._behavior.add_stretch()

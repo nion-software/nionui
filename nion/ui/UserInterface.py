@@ -1532,7 +1532,8 @@ class TreeWidget(Widget):
 
 class Window:
 
-    def __init__(self, title):
+    def __init__(self, parent_window, title):
+        self.parent_window = parent_window
         self.root_widget = None
         self.has_event_loop = True
         self.window_style = "window"
@@ -1556,6 +1557,7 @@ class Window:
     def close(self):
         # this is a callback and should not be invoked directly from Python;
         # call request_close instead.
+        self.parent_window = None
         if self.root_widget:
             self.root_widget.close()
             self.root_widget = None
@@ -1735,7 +1737,7 @@ class UserInterface(abc.ABC):
     # window elements
 
     @abc.abstractmethod
-    def create_document_window(self, title=None) -> Window:
+    def create_document_window(self, title=None, parent_window: Window=None) -> Window:
         ...
 
     @abc.abstractmethod

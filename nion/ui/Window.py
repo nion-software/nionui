@@ -19,10 +19,11 @@ _ = gettext.gettext
 
 class Window:
 
-    def __init__(self, ui: UserInterface.UserInterface, app=None, window_style=None, persistent_id=None):
+    def __init__(self, ui: UserInterface.UserInterface, app=None, parent_window=None, window_style=None, persistent_id=None):
         self.ui = ui
         self.app = app
-        self.__document_window = self.ui.create_document_window()
+        parent_window = parent_window._document_window if parent_window else None
+        self.__document_window = self.ui.create_document_window(parent_window=parent_window)
         if window_style:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id

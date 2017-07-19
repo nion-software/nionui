@@ -83,9 +83,10 @@ class ActionDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, title: str=None, app=None, persistent_id=None, window_style=None):
-        window_style = window_style if window_style else "floating"
-        super().__init__(ui, app=app, persistent_id=persistent_id, window_style=window_style)
+    def __init__(self, ui, title: str=None, app=None, parent_window=None, persistent_id=None, window_style=None):
+        if window_style is None:
+            window_style = "tool"
+        super().__init__(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
 
         self.on_close = None
 

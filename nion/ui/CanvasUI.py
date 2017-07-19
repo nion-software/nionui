@@ -415,8 +415,8 @@ class CanvasWidgetBehavior(WidgetBehavior):
 
 class Window(UserInterface.Window):
 
-    def __init__(self, ui, title):
-        super().__init__(title)
+    def __init__(self, ui, parent_window, title):
+        super().__init__(parent_window, title)
         self.ui = ui
 
     def close(self):
@@ -549,8 +549,8 @@ class CanvasUserInterface(UserInterface.UserInterface):
 
     # window elements
 
-    def create_document_window(self, title=None):
-        document_window = Window(self, title)
+    def create_document_window(self, title=None, parent_window=None):
+        document_window = Window(self, parent_window, title)
         self.__document_windows.append(document_window)
         document_window.handle_size_changed(Geometry.IntSize(height=720, width=960))
         return document_window

@@ -1595,10 +1595,11 @@ class QtMenu:
 
 class QtWindow(UserInterface.Window):
 
-    def __init__(self, proxy, title):
-        super().__init__(title)
+    def __init__(self, proxy, parent, title):
+        super().__init__(parent, title)
         self.proxy = proxy
-        self.native_document_window = self.proxy.DocumentWindow_create(title)
+        parent_native = parent.native_document_window if parent else None
+        self.native_document_window = self.proxy.DocumentWindow_create(parent_native, title)
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
 
     def close(self):
@@ -1821,8 +1822,8 @@ class QtUserInterface(UserInterface.UserInterface):
 
     # window elements
 
-    def create_document_window(self, title=None):
-        return QtWindow(self.proxy, title)
+    def create_document_window(self, title=None, parent_window=None):
+        return QtWindow(self.proxy, parent_window, title)
 
     def destroy_document_window(self, document_window):
         document_window.close()

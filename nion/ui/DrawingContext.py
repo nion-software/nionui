@@ -100,6 +100,12 @@ class DrawingContext:
             elif command_id == "arcTo":
                 x1, y1, x2, y2, r = command_args
                 js += "ctx.arcTo({0}, {1}, {2}, {3}, {4});".format(x1, y1, x2, y2, r)
+            elif command_id == "cubicTo":
+                x1, y1, x2, y2, x, y = command_args
+                js += "ctx.bezierCurveTo({0}, {1}, {2}, {3}, {4}, {5});".format(x1, y1, x2, y2, x, y)
+            elif command_id == "quadraticTo":
+                x1, y1, x, y = command_args
+                js += "ctx.quadraticCurveTo({0}, {1}, {2}, {3});".format(x1, y1, x, y)
             elif command_id == "image":
                 w, h, image, image_id, a, b, c, d = command_args
                 js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
@@ -230,6 +236,10 @@ class DrawingContext:
             elif command_id == "arcTo":
                 x1, y1, x2, y2, r = command_args
                 # js += "ctx.arcTo({0}, {1}, {2}, {3}, {4});".format(x1, y1, x2, y2, r)
+            elif command_id == "cubicTo":
+                path += " C {0} {1}, {2} {3}, {4} {5}".format(*command_args)
+            elif command_id == "quadraticTo":
+                path += " Q {0} {1}, {2} {3}".format(*command_args)
             elif command_id == "clip":
                 x, y, w, h = command_args
                 clip_id = "clip" + str(next_clip_id)
@@ -421,6 +431,14 @@ class DrawingContext:
     def arc_to(self, x1, y1, x2, y2, r):
         self.commands.append(("arcTo", float(x1), float(y1), float(x2), float(y2), float(r)))
         self.binary_commands.extend(struct.pack("4sfffff", b"arct", float(x1), float(y1), float(x2), float(y2), float(r)))
+
+    def bezier_curve_to(self, x1, y1, x2, y2, x, y):
+        self.commands.append(("cubicTo", float(x1), float(y1), float(x2), float(y2), float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sffffff", b"cubc", float(x1), float(y1), float(x2), float(y2), float(x), float(y)))
+
+    def quadratic_curve_to(self, x1, y1, x, y):
+        self.commands.append(("quadraticTo", float(x1), float(y1), float(x), float(y)))
+        self.binary_commands.extend(struct.pack("4sffff", b"quad", float(x1), float(y1), float(x), float(y)))
 
     def draw_image(self, img, x, y, width, height):
         # img should be rgba pack, uint32

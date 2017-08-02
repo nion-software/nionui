@@ -1090,11 +1090,11 @@ class TextEditWidget(Widget):
 
         self._behavior.on_key_pressed = handle_key_pressed
 
-        def handle_insert_from_mime_data(mime_data):
+        def handle_insert_mime_data(mime_data):
             if callable(self.on_insert_mime_data):
                 self.on_insert_mime_data(mime_data)
 
-        self._behavior.on_insert_from_mime_data = handle_insert_from_mime_data
+        self._behavior.on_insert_mime_data = handle_insert_mime_data
 
     def close(self):
         if self.__binding:

@@ -28,9 +28,29 @@ class IndexedSelection(object):
         self.__anchor_index = None
         self.selection_style = selection_style if selection_style else Style.multiple
 
+    def __copy__(self):
+        return type(self)(self.__indexes, self.__anchor_index)
+
+    def __eq__(self, other):
+        return other is not None and self.indexes == other.indexes and self.anchor_index == other.anchor_index
+
+    def __ne__(self, other):
+        return other is None or self.indexes != other.indexes or self.anchor_index != other.anchor_index
+
     @property
     def changed_event(self):
         return self.__changed_event
+
+    @property
+    def current_index(self):
+        if len(self.__indexes) == 1:
+            for index in self.__indexes:
+                return index
+        return None
+
+    @property
+    def anchor_index(self):
+        return self.__anchor_index
 
     @property
     def has_selection(self):
@@ -86,6 +106,10 @@ class IndexedSelection(object):
             pass
         else:
             self.clear()
+
+    def add_range(self, range):
+        for index in range:
+            self.add(index)
 
     def set_multiple(self, indexes):
         if self.selection_style in (Style.multiple, ):

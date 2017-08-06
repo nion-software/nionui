@@ -1462,13 +1462,11 @@ class CanvasItemComposition(AbstractCanvasItem):
         return list()
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
+        """Override from abstract canvas item."""
         self._update_layout(canvas_origin, canvas_size, immediate=immediate)
 
     def _update_layout(self, canvas_origin, canvas_size, *, immediate=False):
-        """Override from abstract canvas item.
-
-        After calling the super class, ask the layout object to layout the list of canvas items in this object.
-        """
+        """Private method, but available to tests."""
         with self.__layout_lock:
             if self.__canvas_items is not None:
                 assert canvas_origin is not None
@@ -2027,16 +2025,17 @@ class SplitterCanvasItem(CanvasItemComposition):
         super().remove_canvas_item(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
+        canvas_items = copy.copy(self.canvas_items)
         origins, sizes = self.__calculate_layout(canvas_size)
         if self.orientation == "horizontal":
-            for canvas_item, (origin, size) in zip(self.canvas_items, zip(origins, sizes)):
+            for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
                 canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
             for sizing, size in zip(self.sizings, sizes):
                 sizing.preferred_height = size
         else:
-            for canvas_item, (origin, size) in zip(self.canvas_items, zip(origins, sizes)):
+            for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
                 canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
@@ -2045,6 +2044,10 @@ class SplitterCanvasItem(CanvasItemComposition):
         # instead of calling the canvas item composition, call the one for abstract canvas item.
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
+        # the next update is required because the children will trigger updates; but the updates
+        # might not go all the way up the chain if this splitter has no layout. by now, it will
+        # have a layout, so force an update.
+        self.update()
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None

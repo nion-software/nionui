@@ -1669,15 +1669,12 @@ class LayerCanvasItem(CanvasItemComposition):
         super().__init__()
         self.__layer_drawing_context = None
         self.__cancel = False
-        self.__render_lock = threading.RLock()
         self.__needs_layout = False
         self.__needs_repaint = False
-        self.__pending_needs_layout = False
-        self.__pending_needs_repaint = False
         self.__prepare_canvas_items = list()
         global _threaded_rendering_enabled
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
-        self.__layer_thread_event = threading.Event()
+        self.__layer_thread_condition = threading.Condition()
         self.__layer_thread = threading.Thread(target=self.__repaint_loop, daemon=True)
         self.__layer_thread.start()
 
@@ -1687,7 +1684,8 @@ class LayerCanvasItem(CanvasItemComposition):
     def _stop_render_behavior(self):
         if self.__layer_thread:
             self.__cancel = True
-            self.__layer_thread_event.set()
+            with self.__layer_thread_condition:
+                self.__layer_thread_condition.notify()
             self.__layer_thread.join()
             self.__layer_thread = None
             self.__layer_drawing_context = None
@@ -1720,10 +1718,10 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__trigger_layout()
 
     def _updated(self):
-        with self.__render_lock:
+        with self.__layer_thread_condition:
             self.__needs_repaint = True
-            self.__pending_needs_repaint = True
-        self.__trigger_render()
+            if not self._layer_thread_suppress:
+                self.__layer_thread_condition.notify()
         super()._updated()
 
     def _handle_end_update(self):
@@ -1775,57 +1773,41 @@ class LayerCanvasItem(CanvasItemComposition):
             self._removed(None)
 
     def __repaint_loop(self):
-        while True:
-            self.__layer_thread_event.wait()
-            self.__layer_thread_event.clear()
-            if self.__cancel:
-                break
-            if self._layer_thread_suppress:
-                continue
-            self.__repaint_loop_one()
-
-    def __repaint_loop_one(self):
-        with self.__render_lock:
-            needs_layout = self.__needs_layout
-            needs_repaint = self.__needs_repaint
-            self.__pending_needs_layout = False
-            self.__pending_needs_repaint = False
-        if needs_repaint or needs_layout:
-            if self._has_layout:
-                try:
-                    for canvas_item in copy.copy(self.__prepare_canvas_items):
-                        canvas_item.prepare_render()
-                    if needs_layout:
-                        assert self.canvas_size is not None
-                        self._update_child_layouts(self.canvas_size)
-                    drawing_context = DrawingContext.DrawingContext()
-                    self._repaint_children(drawing_context)
-                    self._repaint(drawing_context)
-                    self.__layer_drawing_context = drawing_context
-                    self._repaint_finished(self.__layer_drawing_context)
-                except Exception as e:
-                    import traceback
-                    logging.debug("CanvasItem Render Error: %s", e)
-                    traceback.print_exc()
-                    traceback.print_stack()
-                with self.__render_lock:
-                    # handle condition where layout or repaint was requested
-                    # during this render.
-                    self.__needs_layout = self.__pending_needs_layout
-                    self.__needs_repaint = self.__pending_needs_repaint
-                    # make sure we re-trigger if necessary
-                    if self.__needs_layout or self.__needs_repaint:
-                        self.__trigger_render()
-
-    def __trigger_render(self):
-        if not self._layer_thread_suppress:
-            self.__layer_thread_event.set()
+        while not self.__cancel:
+            with self.__layer_thread_condition:
+                self.__layer_thread_condition.wait()
+            while True:
+                with self.__layer_thread_condition:
+                    needs_layout = self.__needs_layout
+                    needs_repaint = self.__needs_repaint
+                    self.__needs_layout = False
+                    self.__needs_repaint = False
+                if not self.__cancel and not self._layer_thread_suppress and (needs_repaint or needs_layout):
+                    if self._has_layout:
+                        try:
+                            for canvas_item in copy.copy(self.__prepare_canvas_items):
+                                canvas_item.prepare_render()
+                            if needs_layout:
+                                assert self.canvas_size is not None
+                                self._update_child_layouts(self.canvas_size)
+                            drawing_context = DrawingContext.DrawingContext()
+                            self._repaint_children(drawing_context)
+                            self._repaint(drawing_context)
+                            self.__layer_drawing_context = drawing_context
+                            self._repaint_finished(self.__layer_drawing_context)
+                        except Exception as e:
+                            import traceback
+                            logging.debug("CanvasItem Render Error: %s", e)
+                            traceback.print_exc()
+                            traceback.print_stack()
+                else:
+                    break
 
     def __trigger_layout(self):
-        with self.__render_lock:
+        with self.__layer_thread_condition:
             self.__needs_layout = True
-            self.__pending_needs_layout = True
-        self.__trigger_render()
+            if not self._layer_thread_suppress:
+                self.__layer_thread_condition.notify()
 
     def _repaint_finished(self, drawing_context):
         self._update_container()

@@ -13,9 +13,9 @@ from typing import AbstractSet
 
 # local libraries
 from nion.ui import Dialog
-from nion.ui import Selection
 from nion.ui import Widgets
 from nion.utils import Event
+from nion.utils import Selection
 
 _ = gettext.gettext
 

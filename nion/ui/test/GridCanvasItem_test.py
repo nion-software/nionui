@@ -7,8 +7,8 @@ import unittest
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import GridCanvasItem
-from nion.ui import Selection
 from nion.utils import Geometry
+from nion.utils import Selection
 
 
 class GridCanvasItemDelegate:

@@ -1093,6 +1093,9 @@ class TextEditWidget(Widget):
         def handle_insert_mime_data(mime_data):
             if callable(self.on_insert_mime_data):
                 self.on_insert_mime_data(mime_data)
+            else:
+                text = mime_data.data_as_string("text/plain")
+                self.insert_text(text)
 
         self._behavior.on_insert_mime_data = handle_insert_mime_data
 

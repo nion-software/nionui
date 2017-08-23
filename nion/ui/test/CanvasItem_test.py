@@ -741,6 +741,8 @@ class TestCanvasItemClass(unittest.TestCase):
             self.mouse_pressed_pos = None
             self.drag_inside = False
             self.drag_pos = None
+            self.repaint_count = 0
+            self.repaint_delay = 0.0
 
         def mouse_entered(self):
             self.mouse_inside = True
@@ -770,6 +772,11 @@ class TestCanvasItemClass(unittest.TestCase):
 
         def drop(self, mime_data, x, y):
             return "copy"
+
+        def _repaint(self, drawing_context):
+            self.repaint_count += 1
+            time.sleep(self.repaint_delay)
+            super()._repaint(drawing_context)
 
     def test_mouse_tracking_on_topmost_non_overlapped_canvas_item(self):
         ui = TestUI.UserInterface()
@@ -1495,6 +1502,21 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(outer_layer_repaint_count + 1, outer_layer._repaint_count)
             self.assertEqual(inner_layer_repaint_count + 1, inner_layer._repaint_count)
             self.assertEqual(test_canvas_item_repaint_count + 1, test_canvas_item._repaint_count)
+
+    def test_update_during_repaint_triggers_another_repaint(self):
+        CanvasItem._threaded_rendering_enabled = True
+        outer_layer = CanvasItem.LayerCanvasItem()
+        with contextlib.closing(outer_layer):
+            test_canvas_item = TestCanvasItemClass.TestCanvasItem()
+            test_canvas_item.repaint_delay = 0.05
+            outer_layer.add_canvas_item(test_canvas_item)
+            # update the outer layer with the initial size
+            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480), immediate=True)
+            # sleep a short time to allow thread to run
+            time.sleep(test_canvas_item.repaint_delay / 2)
+            test_canvas_item.update()
+            time.sleep(test_canvas_item.repaint_delay * 2)
+            self.assertEqual(test_canvas_item.repaint_count, 2)
 
 
 if __name__ == '__main__':

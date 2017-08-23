@@ -471,6 +471,7 @@ class AbstractCanvasItem:
         self.__thread = threading.current_thread()
         self.__update_level_lock = threading.RLock()
         self.__update_level = 0
+        self.__pending_update = True
         self.__repaint_drawing_context = None
         # stats for testing
         self._update_count = 0
@@ -795,7 +796,7 @@ class AbstractCanvasItem:
 
             Subclasses can override to handle specially.
         """
-        self.__repaint_drawing_context = None
+        self.__pending_update = True
 
     @contextlib.contextmanager
     def update_context(self):
@@ -823,6 +824,10 @@ class AbstractCanvasItem:
         """
         self._repaint(drawing_context)
 
+    @property
+    def _pending_update(self):
+        return self.__pending_update
+
     def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
         """Repaint if no cached version of the last paint is available.
 
@@ -832,7 +837,8 @@ class AbstractCanvasItem:
 
         Subclasses will typically not need to override this method, except in special cases.
         """
-        if not self.__repaint_drawing_context:
+        pending_update, self.__pending_update = self.__pending_update, False
+        if pending_update:
             repaint_drawing_context = DrawingContext.DrawingContext()
             self._repaint_template(repaint_drawing_context, immediate)
             self.__repaint_drawing_context = repaint_drawing_context

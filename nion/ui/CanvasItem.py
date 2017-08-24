@@ -1636,11 +1636,11 @@ class CanvasItemComposition(AbstractCanvasItem):
                     canvas_item._repaint_if_needed(drawing_context, immediate=immediate)
         self._draw_border(drawing_context)
 
-    def canvas_items_at_point(self, x, y):
+    def _canvas_items_at_point(self, visible_canvas_items, x, y):
         """Returns list of canvas items under x, y, ordered from back to front."""
         canvas_items = []
         point = Geometry.IntPoint(x=x, y=y)
-        for canvas_item in reversed(self.visible_canvas_items):
+        for canvas_item in reversed(visible_canvas_items):
             # the visible items can be changed while this method is running from the layout thread.
             # and yet we don't want to allow this to occur; maybe the layout thread should have some
             # sort of pending system, where once methods like this exit, they're allowed to update...?
@@ -1649,6 +1649,10 @@ class CanvasItemComposition(AbstractCanvasItem):
                 canvas_items.extend(canvas_item.canvas_items_at_point(canvas_point.x, canvas_point.y))
         canvas_items.extend(super().canvas_items_at_point(x, y))
         return canvas_items
+
+    def canvas_items_at_point(self, x, y):
+        """Returns list of canvas items under x, y, ordered from back to front."""
+        return self._canvas_items_at_point(self.visible_canvas_items, x, y)
 
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
         # always give the mouse canvas item priority (for tracking outside bounds)
@@ -1956,18 +1960,21 @@ class SplitterCanvasItem(CanvasItemComposition):
         super().__init__()
         self.orientation = orientation if orientation else "vertical"
         self.wants_mouse_events = True
-        self.sizings = []
+        self.__lock = threading.RLock()
+        self.__sizings = []
+        self.__canvas_items = []
+        self.__actual_sizings = []
         self.__tracking = False
 
-    def __calculate_layout(self, canvas_size):
+    def __calculate_layout(self, canvas_size, sizings):
         if self.orientation == "horizontal":
             content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).height
-            constraints = [sizing.get_height_constraint(content_size) for sizing in self.sizings]
+            constraints = [sizing.get_height_constraint(content_size) for sizing in sizings]
         else:
             content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).width
-            constraints = [sizing.get_width_constraint(content_size) for sizing in self.sizings]
+            constraints = [sizing.get_width_constraint(content_size) for sizing in sizings]
         return constraint_solve(content_origin, content_size, constraints)
 
     @property
@@ -1978,18 +1985,24 @@ class SplitterCanvasItem(CanvasItemComposition):
                 content_size = Geometry.IntSize.make(self.canvas_size).height
             else:
                 content_size = Geometry.IntSize.make(self.canvas_size).width
-            _, sizes = self.__calculate_layout(self.canvas_size)
+            with self.__lock:
+                sizings = copy.deepcopy(self.__sizings)
+            _, sizes = self.__calculate_layout(self.canvas_size, sizings)
             return [float(size) / content_size for size in sizes]
         return None
 
     @splits.setter
     def splits(self, splits):
-        assert len(splits) == len(self.sizings)
-        for split, sizing in zip(splits, self.sizings):
+        with self.__lock:
+            sizings = copy.deepcopy(self.__sizings)
+        assert len(splits) == len(sizings)
+        for split, sizing in zip(splits, sizings):
             if self.orientation == "horizontal":
                 sizing.preferred_height = split
             else:
                 sizing.preferred_width = split
+        with self.__lock:
+            self.__sizings = sizings
         self.refresh_layout()
 
     def _insert_canvas_item_direct(self, before_index, canvas_item, pos=None):
@@ -2005,30 +2018,44 @@ class SplitterCanvasItem(CanvasItemComposition):
             sizing.preferred_width = None
             if sizing.minimum_width is None:
                 sizing.minimum_width = 0.1
-        self.sizings.insert(before_index, sizing)
+        with self.__lock:
+            self.__sizings.insert(before_index, sizing)
         super().insert_canvas_item(before_index, canvas_item)
 
     def remove_canvas_item(self, canvas_item):
-        del self.sizings[self.canvas_items.index(canvas_item)]
+        with self.__lock:
+            del self.__sizings[self.canvas_items.index(canvas_item)]
         super().remove_canvas_item(canvas_item)
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
-        canvas_items = copy.copy(self.canvas_items)
-        origins, sizes = self.__calculate_layout(canvas_size)
+        with self.__lock:
+            canvas_items = copy.copy(self.canvas_items)
+            sizings = copy.deepcopy(self.__sizings)
+        assert len(canvas_items) == len(sizings)
+        origins, sizes = self.__calculate_layout(canvas_size, sizings)
         if self.orientation == "horizontal":
             for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
                 canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
-            for sizing, size in zip(self.sizings, sizes):
+                assert canvas_item._has_layout
+            for sizing, size in zip(sizings, sizes):
                 sizing.preferred_height = size
         else:
             for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
                 canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
-            for sizing, size in zip(self.sizings, sizes):
+                assert canvas_item._has_layout
+            for sizing, size in zip(sizings, sizes):
                 sizing.preferred_width = size
+        for canvas_item in canvas_items:
+            if not canvas_item._has_layout:
+                print(f"{canvas_items.index(canvas_item)}")
+            assert canvas_item._has_layout
+        with self.__lock:
+            self.__actual_sizings = sizings
+            self.__canvas_items = canvas_items
         # instead of calling the canvas item composition, call the one for abstract canvas item.
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
@@ -2039,7 +2066,10 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_size)
+        with self.__lock:
+            canvas_items = copy.copy(self.__canvas_items)
+            sizings = copy.deepcopy(self.__actual_sizings)
+        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for origin in origins[1:]:  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -2048,12 +2078,14 @@ class SplitterCanvasItem(CanvasItemComposition):
             for origin in origins[1:]:  # don't check the '0' origin
                 if abs(x - origin) < 6:
                     return [self]
-        return super().canvas_items_at_point(x, y)
+        return self._canvas_items_at_point(canvas_items, x, y)
 
     def _repaint(self, drawing_context):
         super()._repaint(drawing_context)
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_size)
+        with self.__lock:
+            sizings = copy.deepcopy(self.__actual_sizings)
+        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
         drawing_context.save()
         try:
             drawing_context.begin_path()
@@ -2071,7 +2103,9 @@ class SplitterCanvasItem(CanvasItemComposition):
             drawing_context.restore()
 
     def __hit_test(self, x, y, modifiers):
-        origins, _ = self.__calculate_layout(self.canvas_size)
+        with self.__lock:
+            sizings = copy.deepcopy(self.__actual_sizings)
+        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -2084,15 +2118,17 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def mouse_pressed(self, x, y, modifiers):
         assert self.canvas_origin is not None and self.canvas_size is not None
-        origins, _ = self.__calculate_layout(self.canvas_size)
+        with self.__lock:
+            sizings = copy.deepcopy(self.__actual_sizings)
+        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
                     self.__tracking_start_index = index
-                    self.__tracking_start_preferred = self.sizings[index].preferred_height
-                    self.__tracking_start_preferred_next = self.sizings[index + 1].preferred_height
+                    self.__tracking_start_preferred = sizings[index].preferred_height
+                    self.__tracking_start_preferred_next = sizings[index + 1].preferred_height
                     return True
         else:
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
@@ -2100,8 +2136,8 @@ class SplitterCanvasItem(CanvasItemComposition):
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
                     self.__tracking_start_index = index
-                    self.__tracking_start_preferred = self.sizings[index].preferred_width
-                    self.__tracking_start_preferred_next = self.sizings[index + 1].preferred_width
+                    self.__tracking_start_preferred = sizings[index].preferred_width
+                    self.__tracking_start_preferred_next = sizings[index + 1].preferred_width
                     return True
         return super().mouse_pressed(x, y, modifiers)
 
@@ -2111,30 +2147,38 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def mouse_position_changed(self, x, y, modifiers):
         if self.__tracking:
+            with self.__lock:
+                sizings = copy.deepcopy(self.__actual_sizings)
             if self.orientation == "horizontal":
                 offset = y - self.__tracking_start_pos.y
-                self.sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
-                self.sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
+                sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
+                sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
             else:
                 offset = x - self.__tracking_start_pos.x
-                self.sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
-                self.sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
+                sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
+                sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
             # fix the size of all children except for the two in question
-            old_sizings = copy.deepcopy(self.sizings)
-            for index, sizing in enumerate(self.sizings):
+            old_sizings = copy.deepcopy(sizings)
+            for index, sizing in enumerate(sizings):
                 if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
                     if self.orientation == "horizontal":
                         sizing.set_fixed_width(sizing.preferred_height)
                     else:
                         sizing.set_fixed_width(sizing.preferred_width)
             # update the layout
+            with self.__lock:
+                self.__sizings = sizings
             self.refresh_layout()
             self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
             # restore the freedom of the others
-            for index, pair in enumerate(zip(old_sizings, self.sizings)):
+            with self.__lock:
+                sizings = copy.deepcopy(self.__actual_sizings)
+            for index, pair in enumerate(zip(old_sizings, sizings)):
                 old_sizing, sizing = pair
                 if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
                     sizing.copy_from(old_sizing)
+            with self.__lock:
+                self.__sizings = sizings
             return True
         else:
             control = self.__hit_test(x, y, modifiers)

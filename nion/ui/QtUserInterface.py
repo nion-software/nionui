@@ -454,6 +454,7 @@ class QtWidgetBehavior:
         self.__visible = True
         self.__enabled = True
         self.__tool_tip = None
+        self.on_ui_activity = None
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.widget)
@@ -473,6 +474,10 @@ class QtWidgetBehavior:
 
     def _set_root_container(self, root_container):
         pass
+
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
 
     @property
     def focused(self):
@@ -536,21 +541,26 @@ class QtWidgetBehavior:
             self.__tool_tip = tool_tip
 
     def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
+        self._register_ui_activity()
         def drag_finished(action):
+            self._register_ui_activity()
             if drag_finished_fn:
                 drag_finished_fn(action)
         drag = QtDrag(self.proxy, self.widget, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished)
         drag.execute()
 
     def contextMenuEvent(self, x, y, gx, gy):
+        self._register_ui_activity()
         if self.on_context_menu_event:
             self.on_context_menu_event(x, y, gx, gy)
 
     def focusIn(self):
+        self._register_ui_activity()
         if self.on_focus_changed:
             self.on_focus_changed(True)
 
     def focusOut(self):
+        self._register_ui_activity()
         if self.on_focus_changed:
             self.on_focus_changed(False)
 
@@ -671,6 +681,7 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         pass
 
     def currentTabChanged(self, index):
+        self._register_ui_activity()
         if callable(self.on_current_index_changed):
             self.on_current_index_changed(index)
 
@@ -714,6 +725,7 @@ class QtScrollAreaWidgetBehavior(QtWidgetBehavior):
         self.proxy.ScrollArea_setWidget(self.widget, extract_widget(content))
 
     def sizeChanged(self, width, height):
+        self._register_ui_activity()
         if callable(self.on_size_changed):
             self.on_size_changed(width, height)
 
@@ -759,6 +771,7 @@ class QtComboBoxWidgetBehavior(QtWidgetBehavior):
 
     # this message comes from Qt implementation
     def currentTextChanged(self, text):
+        self._register_ui_activity()
         if callable(self.on_current_text_changed):
             self.on_current_text_changed(text)
 
@@ -799,6 +812,7 @@ class QtPushButtonWidgetBehavior(QtWidgetBehavior):
         self.proxy.PushButton_setIcon(self.widget, width, height, rgba_data)
 
     def clicked(self):
+        self._register_ui_activity()
         if callable(self.on_clicked):
             self.on_clicked()
 
@@ -847,6 +861,7 @@ class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
         self.proxy.RadioButton_setChecked(self.widget, value)
 
     def clicked(self):
+        self._register_ui_activity()
         if callable(self.on_clicked):
             self.on_clicked()
 
@@ -913,6 +928,7 @@ class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
         self.proxy.CheckBox_setCheckState(self.widget, str(value))
 
     def stateChanged(self, check_state):
+        self._register_ui_activity()
         if callable(self.on_check_state_changed):
             self.on_check_state_changed(check_state)
 
@@ -994,20 +1010,24 @@ class QtSliderWidgetBehavior(QtWidgetBehavior):
         return self.__pressed
 
     def valueChanged(self, value):
+        self._register_ui_activity()
         if callable(self.on_value_changed):
             self.on_value_changed(value)
 
     def sliderPressed(self):
+        self._register_ui_activity()
         self.__pressed = True
         if callable(self.on_slider_pressed):
             self.on_slider_pressed()
 
     def sliderReleased(self):
+        self._register_ui_activity()
         self.__pressed = False
         if callable(self.on_slider_released):
             self.on_slider_released()
 
     def sliderMoved(self, value):
+        self._register_ui_activity()
         if callable(self.on_slider_moved):
             self.on_slider_moved(value)
 
@@ -1074,25 +1094,30 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.LineEdit_selectAll(self.widget)
 
     def editingFinished(self, text):
+        self._register_ui_activity()
         if self.on_editing_finished:
             self.on_editing_finished(text)
 
     def escapePressed(self):
+        self._register_ui_activity()
         if callable(self.on_escape_pressed):
             return self.on_escape_pressed()
         return False
 
     def returnPressed(self):
+        self._register_ui_activity()
         if callable(self.on_return_pressed):
             return self.on_return_pressed()
         return False
 
     def keyPressed(self, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_key_pressed):
             return self.on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
     def textEdited(self, text):
+        self._register_ui_activity()
         if callable(self.on_text_edited):
             self.on_text_edited(text)
 
@@ -1206,33 +1231,40 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.TextEdit_setWordWrapMode(self.widget, value)
 
     def cursorPositionChanged(self):
+        self._register_ui_activity()
         if callable(self.on_cursor_position_changed):
             self.on_cursor_position_changed(self.cursor_position)
 
     def selectionChanged(self):
+        self._register_ui_activity()
         if callable(self.on_selection_changed):
             self.on_selection_changed(self.selection)
 
     def textChanged(self):
+        self._register_ui_activity()
         if callable(self.on_text_changed):
             self.on_text_changed(self.text)
 
     def escapePressed(self):
+        self._register_ui_activity()
         if callable(self.on_escape_pressed):
             return self.on_escape_pressed()
         return False
 
     def returnPressed(self):
+        self._register_ui_activity()
         if callable(self.on_return_pressed):
             return self.on_return_pressed()
         return False
 
     def keyPressed(self, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_key_pressed):
             return self.on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
     def insertFromMimeData(self, raw_mime_data):
+        self._register_ui_activity()
         mime_data = QtMimeData(self.proxy, raw_mime_data)
         if callable(self.on_insert_mime_data):
             self.on_insert_mime_data(mime_data)
@@ -1328,18 +1360,22 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             self.on_mouse_exited()
 
     def mouseClicked(self, x, y, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_mouse_clicked):
             self.on_mouse_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def mouseDoubleClicked(self, x, y, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_mouse_double_clicked):
             self.on_mouse_double_clicked(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def mousePressed(self, x, y, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_mouse_pressed):
             self.on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def mouseReleased(self, x, y, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_mouse_released):
             self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
 
@@ -1348,48 +1384,58 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def grabbedMousePositionChanged(self, dx, dy, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_grabbed_mouse_position_changed):
             self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
 
     def wheelChanged(self, x, y, dx, dy, is_horizontal):
+        self._register_ui_activity()
         if callable(self.on_wheel_changed):
             self.on_wheel_changed(x, y, dx, dy, is_horizontal)
 
     def sizeChanged(self, width, height):
+        self._register_ui_activity()
         if callable(self.on_size_changed):
             self.on_size_changed(width, height)
 
     def keyPressed(self, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_key_pressed):
             return self.on_key_pressed(QtKey(text, key, raw_modifiers))
         return False
 
     def keyReleased(self, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_key_released):
             return self.on_key_released(QtKey(text, key, raw_modifiers))
         return False
 
     def dragEnterEvent(self, raw_mime_data):
+        self._register_ui_activity()
         if callable(self.on_drag_enter):
             return self.on_drag_enter(QtMimeData(self.proxy, raw_mime_data))
         return "ignore"
 
     def dragLeaveEvent(self):
+        self._register_ui_activity()
         if callable(self.on_drag_leave):
             return self.on_drag_leave()
         return "ignore"
 
     def dragMoveEvent(self, raw_mime_data, x, y):
+        self._register_ui_activity()
         if callable(self.on_drag_move):
             return self.on_drag_move(QtMimeData(self.proxy, raw_mime_data), x, y)
         return "ignore"
 
     def dropEvent(self, raw_mime_data, x, y):
+        self._register_ui_activity()
         if callable(self.on_drop):
             return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
         return "ignore"
 
     def panGesture(self, delta_x, delta_y):
+        self._register_ui_activity()
         if callable(self.on_pan_gesture):
             self.on_pan_gesture(delta_x, delta_y)
 
@@ -1450,6 +1496,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.proxy.TreeWidget_resizeToContent(self.widget)
 
     def keyPressed(self, indexes, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_key_pressed):
             return self.on_key_pressed(indexes, QtKey(text, key, raw_modifiers))
         return False
@@ -1459,29 +1506,35 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
             self.on_tree_item_changed(index, parent_row, parent_id)
 
     def treeSelectionChanged(self, selected_indexes):
+        self._register_ui_activity()
         if callable(self.on_tree_selection_changed):
             self.on_tree_selection_changed(selected_indexes)
 
     def treeItemKeyPressed(self, index, parent_row, parent_id, text, key, raw_modifiers):
+        self._register_ui_activity()
         if callable(self.on_tree_item_key_pressed):
             return self.on_tree_item_key_pressed(index, parent_row, parent_id, QtKey(text, key, raw_modifiers))
         return False
 
     def treeItemClicked(self, index, parent_row, parent_id):
+        self._register_ui_activity()
         if callable(self.on_tree_item_clicked):
             return self.on_tree_item_clicked(index, parent_row, parent_id)
         return False
 
     def treeItemDoubleClicked(self, index, parent_row, parent_id):
+        self._register_ui_activity()
         if callable(self.on_tree_item_double_clicked):
             return self.on_tree_item_double_clicked(index, parent_row, parent_id)
         return False
 
     def focusIn(self):
+        self._register_ui_activity()
         if callable(self.on_focus_changed):
             self.on_focus_changed(True)
 
     def focusOut(self):
+        self._register_ui_activity()
         if callable(self.on_focus_changed):
             self.on_focus_changed(False)
 
@@ -1492,6 +1545,7 @@ class QtAction:
         self.proxy = proxy
         self.native_action = native_action  # action is not connected since native_action will not by PyAction
         self.on_triggered = None
+        self.on_ui_activity = None
 
     def close(self):
         self.proxy = None
@@ -1502,6 +1556,10 @@ class QtAction:
         self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
 
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
+
     # public method to trigger button
     def trigger(self):
         if self.on_triggered:
@@ -1509,6 +1567,7 @@ class QtAction:
 
     # comes from the Qt code
     def triggered(self):
+        self._register_ui_activity()
         self.trigger()
 
     @property
@@ -1552,11 +1611,16 @@ class QtMenu:
         self.on_about_to_show = None
         self.on_about_to_hide = None
 
+    def _register_ui_activity(self):
+        self.document_window._register_ui_activity()
+
     def aboutToShow(self):
+        self._register_ui_activity()
         if self.on_about_to_show:
             self.on_about_to_show()
 
     def aboutToHide(self):
+        self._register_ui_activity()
         if self.on_about_to_hide:
             self.on_about_to_hide()
 
@@ -1564,6 +1628,7 @@ class QtMenu:
         action = QtAction(self.proxy)
         action.create(self.document_window, title, key_sequence, role)
         action.on_triggered = callback
+        action.on_ui_activity = self._register_ui_activity
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
         return action
 
@@ -1580,6 +1645,7 @@ class QtMenu:
         action = QtAction(self.proxy)
         action.create(self.document_window, title, key_sequence, role)
         action.on_triggered = callback
+        action.on_ui_activity = self._register_ui_activity
         self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
         return action
 
@@ -1674,12 +1740,15 @@ class QtWindow(UserInterface.Window):
         self._handle_periodic()
 
     def aboutToShow(self):
+        self._register_ui_activity()
         self._handle_about_to_show()
 
     def activationChanged(self, activated):
+        self._register_ui_activity()
         self._handle_activation_changed(activated)
 
     def aboutToClose(self, geometry, state):
+        self._register_ui_activity()
         self._handle_about_to_close(geometry, state)
 
     def add_menu(self, title):
@@ -1700,9 +1769,11 @@ class QtWindow(UserInterface.Window):
         return geometry, state
 
     def sizeChanged(self, width, height):
+        self._register_ui_activity()
         self._handle_size_changed(width, height)
 
     def positionChanged(self, x, y):
+        self._register_ui_activity()
         self._handle_position_changed(x, y)
 
 
@@ -1716,6 +1787,7 @@ class QtDockWidget:
         self.widget._set_root_container(self)
         self.on_size_changed = None
         self.on_focus_changed = None
+        self.on_ui_activity = None
         self.width = None
         self.height = None
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
@@ -1730,9 +1802,14 @@ class QtDockWidget:
         self.document_window = None
         self.on_size_changed = None
         self.on_focus_changed = None
+        self.on_ui_activity = None
         self.widget = None
         self.native_dock_widget = None
         self.proxy = None
+
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
 
     def refocus_widget(self, widget):
         self.document_window.refocus_widget(widget)
@@ -1775,25 +1852,32 @@ class QtDockWidget:
 
     @property
     def toggle_action(self):
-        return QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
+        action = QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
+        action.on_ui_activity = self._register_ui_activity
+        return action
 
     def show(self):
+        self._register_ui_activity()
         self.proxy.Widget_show(self.native_dock_widget)
 
     def hide(self):
+        self._register_ui_activity()
         self.proxy.Widget_hide(self.native_dock_widget)
 
     def sizeChanged(self, width, height):
+        self._register_ui_activity()
         self.width = width
         self.height = height
         if callable(self.on_size_changed):
             self.on_size_changed(self.width, self.height)
 
     def focusIn(self):
+        self._register_ui_activity()
         if callable(self.on_focus_changed):
             self.on_focus_changed(True)
 
     def focusOut(self):
+        self._register_ui_activity()
         if callable(self.on_focus_changed):
             self.on_focus_changed(False)
 

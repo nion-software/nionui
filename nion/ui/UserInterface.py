@@ -27,6 +27,7 @@ class Widget:
 
     def __init__(self, widget_behavior):
         self.__behavior = widget_behavior
+        self.__behavior.on_ui_activity = self._register_ui_activity
         self.__root_container = None  # the document window
         self.on_context_menu_event = None
         self.on_focus_changed = None
@@ -62,6 +63,10 @@ class Widget:
     def _set_root_container(self, root_container):
         self.__root_container = root_container
         self._behavior._set_root_container(root_container)
+
+    def _register_ui_activity(self):
+        if self.__root_container:
+            self.__root_container._register_ui_activity()
 
     @property
     def _contained_widgets(self):
@@ -1551,6 +1556,7 @@ class Window:
         self.on_size_changed = None
         self.on_position_changed = None
         self.on_refocus_widget = None
+        self.on_ui_activity = None
         self.pos_x = None
         self.pos_y = None
         self.width = None
@@ -1577,6 +1583,10 @@ class Window:
 
     def request_close(self):
         raise NotImplemented()
+
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
 
     # attach the root widget to this window
     # the root widget must respond to _set_root_container

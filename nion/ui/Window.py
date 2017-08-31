@@ -38,6 +38,7 @@ class Window:
         self.__document_window.on_size_changed = self.size_changed
         self.__document_window.on_position_changed = self.position_changed
         self.__document_window.on_refocus_widget = self.refocus_widget
+        self.__document_window.on_ui_activity = self._register_ui_activity
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         # configure the event loop object
@@ -110,6 +111,9 @@ class Window:
 
     def request_close(self) -> None:
         self.__document_window.request_close()
+
+    def _register_ui_activity(self) -> None:
+        pass
 
     def finish_periodic(self) -> None:
         # recognize when we're running as test and finish out periodic operations

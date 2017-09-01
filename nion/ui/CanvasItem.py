@@ -1535,6 +1535,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_item._inserted(self)
         self.layout.add_canvas_item(canvas_item, pos)
         self.refresh_layout()
+        self.update()
         return canvas_item
 
     def insert_spacing(self, before_index, spacing):
@@ -1565,6 +1566,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_item.container = None
         self.__canvas_items.remove(canvas_item)
         self.refresh_layout()
+        self.update()
 
     def remove_canvas_item(self, canvas_item):
         """ Remove canvas item from layout. Canvas item is closed. """

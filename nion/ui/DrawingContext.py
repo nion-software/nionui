@@ -14,9 +14,9 @@ import io
 import logging
 import math
 import struct
+import sys
 import time
 import threading
-import uuid
 import xml.sax.saxutils
 
 # third party libraries
@@ -27,6 +27,62 @@ import scipy.misc
 # None
 
 # pylint: disable=star-args
+
+
+def get_rgba_view_from_rgba_data(rgba_data):
+    return rgba_data.view(numpy.uint8).reshape(rgba_data.shape + (4,))
+
+
+def get_rgba_data_from_rgba(rgba_image):
+    return rgba_image.view(numpy.uint32).reshape(rgba_image.shape[:-1])
+
+
+def get_byte_view(rgba_image):
+    return rgba_image.view(numpy.uint8).reshape(rgba_image.shape + (-1, ))
+
+
+def get_red_view(rgba_image, byteorder=None):
+    if byteorder is None:
+        byteorder = sys.byteorder
+    bytes = get_byte_view(rgba_image)
+    assert bytes.shape[-1] == 4
+    if byteorder == 'little':
+        return bytes[..., 2]  # strip A off BGRA
+    else:
+        return bytes[..., 1]  # strip A off ARGB
+
+
+def get_green_view(rgba_image, byteorder=None):
+    if byteorder is None:
+        byteorder = sys.byteorder
+    bytes = get_byte_view(rgba_image)
+    assert bytes.shape[-1] == 4
+    if byteorder == 'little':
+        return bytes[..., 1]  # strip A off BGRA
+    else:
+        return bytes[..., 2]  # strip A off ARGB
+
+
+def get_blue_view(rgba_image, byteorder=None):
+    if byteorder is None:
+        byteorder = sys.byteorder
+    bytes = get_byte_view(rgba_image)
+    assert bytes.shape[-1] == 4
+    if byteorder == 'little':
+        return bytes[..., 0]  # strip A off BGRA
+    else:
+        return bytes[..., 3]  # strip A off ARGB
+
+
+def get_alpha_view(rgba_image, byteorder=None):
+    if byteorder is None:
+        byteorder = sys.byteorder
+    bytes = get_byte_view(rgba_image)
+    assert bytes.shape[-1] == 4
+    if byteorder == 'little':
+        return bytes[..., 3]  # A of BGRA
+    else:
+        return bytes[..., 0]  # A of ARGB
 
 
 class DrawingContext:
@@ -108,6 +164,9 @@ class DrawingContext:
                 js += "ctx.quadraticCurveTo({0}, {1}, {2}, {3});".format(x1, y1, x, y)
             elif command_id == "image":
                 w, h, image, image_id, a, b, c, d = command_args
+                js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
+            elif command_id == "data":
+                w, h, data, data_id, a, b, c, d, low, high, color_table = command_args
                 js += "ctx.rect({0}, {1}, {2}, {3});".format(a, b, c, d)
             elif command_id == "stroke":
                 js += "ctx.stroke();"
@@ -259,6 +318,34 @@ class DrawingContext:
                 w, h, image, image_id, a, b, c, d = command_args
                 png_file = io.BytesIO()
                 scipy.misc.imsave(png_file, image, "png")
+                png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
+                transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
+                svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
+                svg += svg_format_str.format(a, b, c, d, png_encoded, transform_str)
+            elif command_id == "data":
+                w, h, data, data_id, a, b, c, d, low, high, color_table, color_table_image_id = command_args
+                m = 255.0 / (high - low) if high != low else 1
+                image = numpy.empty(data.shape, numpy.uint32)
+                if color_table is not None:
+                    adj_color_table = numpy.empty(color_table.shape, numpy.uint32)
+                    # ordering of color_table is BGRA
+                    # ordering of adj_color_table is RGBA
+                    get_byte_view(adj_color_table)[:, 0] = get_byte_view(color_table)[:, 2]
+                    get_byte_view(adj_color_table)[:, 1] = get_byte_view(color_table)[:, 1]
+                    get_byte_view(adj_color_table)[:, 2] = get_byte_view(color_table)[:, 0]
+                    get_byte_view(adj_color_table)[:, 3] = get_byte_view(color_table)[:, 3]
+                    clipped_array = numpy.clip((m * (data - low)).astype(numpy.int), 0, 255).astype(numpy.uint8)
+                    image[:] = adj_color_table[clipped_array]
+                else:
+                    clipped_array = numpy.clip(data, low, high)
+                    numpy.subtract(clipped_array, low, out=clipped_array)
+                    numpy.multiply(clipped_array, m, out=clipped_array)
+                    get_red_view(image)[:] = clipped_array
+                    get_green_view(image)[:] = clipped_array
+                    get_blue_view(image)[:] = clipped_array
+                    get_alpha_view(image)[:] = 255
+                png_file = io.BytesIO()
+                scipy.misc.imsave(png_file, get_rgba_view_from_rgba_data(image), "png")
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
@@ -450,6 +537,24 @@ class DrawingContext:
             ("image", img.shape[1], img.shape[0], img, int(image_id), float(x), float(y), float(width), float(height)))
         self.images[str(image_id)] = img
         self.binary_commands.extend(struct.pack("4siiiffff", b"imag", img.shape[1], img.shape[0], int(image_id), float(x), float(y), float(width), float(height)))
+
+    def draw_data(self, img, x, y, width, height, low, high, color_map_data):
+        # img should be float
+        assert img.dtype == numpy.float32
+        with DrawingContext.__image_id_lock:
+            DrawingContext.__image_id += 1
+            image_id = DrawingContext.__image_id
+            if color_map_data is not None:
+                DrawingContext.__image_id += 1
+                color_map_image_id = DrawingContext.__image_id
+            else:
+                color_map_image_id = 0
+        self.images[str(image_id)] = img
+        if color_map_data is not None:
+            self.images[str(color_map_image_id)] = color_map_data
+        self.commands.append(
+            ("data", img.shape[1], img.shape[0], img, int(image_id), float(x), float(y), float(width), float(height), float(low), float(high), color_map_data, int(color_map_image_id)))
+        self.binary_commands.extend(struct.pack("4siiiffffffi", b"data", img.shape[1], img.shape[0], int(image_id), float(x), float(y), float(width), float(height), float(low), float(high), int(color_map_image_id)))
 
     def stroke(self):
         self.commands.append(("stroke", ))

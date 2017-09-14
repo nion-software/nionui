@@ -3010,12 +3010,26 @@ class BitmapCell:
     def __init__(self, rgba_bitmap_data=None, background_color=None, border_color=None):
         super().__init__()
         self.__rgba_bitmap_data = rgba_bitmap_data
+        self.__data = None
+        self.__display_limits = None
+        self.__color_map_data = None
         self.__background_color = background_color
         self.__border_color = border_color
         self.update_event = Event.Event()
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data, trigger_update=True):
         self.__rgba_bitmap_data = rgba_bitmap_data
+        self.__data = None
+        self.__display_limits = None
+        self.__color_map_data = None
+        if trigger_update:
+            self.update_event.fire()
+
+    def set_data(self, data, display_limits, color_map_data, trigger_update=True):
+        self.__rgba_bitmap_data = None
+        self.__data = data
+        self.__display_limits = display_limits
+        self.__color_map_data = color_map_data
         if trigger_update:
             self.update_event.fire()
 
@@ -3067,6 +3081,7 @@ class BitmapCell:
         rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
 
         bitmap_data = self.rgba_bitmap_data
+        raw_data = self.__data
 
         # draw the background
         if background_color:
@@ -3085,6 +3100,16 @@ class BitmapCell:
                     display_top = display_rect.top
                     display_left = display_rect.left
                     drawing_context.draw_image(bitmap_data, display_left, display_top, display_width, display_height)
+        if raw_data is not None:
+            image_size = raw_data.shape
+            if image_size[0] > 0 and image_size[1] > 0:
+                display_rect = Geometry.fit_to_size(rect, image_size)
+                display_height = display_rect.height
+                display_width = display_rect.width
+                if display_rect and display_width > 0 and display_height > 0:
+                    display_top = display_rect.top
+                    display_left = display_rect.left
+                    drawing_context.draw_data(raw_data, display_left, display_top, display_width, display_height, self.__display_limits[0], self.__display_limits[1], self.__color_map_data)
         # draw the overlay style
         if overlay_color:
             drawing_context.begin_path()
@@ -3109,6 +3134,9 @@ class BitmapCanvasItem(CellCanvasItem):
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data, trigger_update=True):
         self.cell.set_rgba_bitmap_data(rgba_bitmap_data, trigger_update)
+
+    def set_data(self, data, display_limits, color_map_data, trigger_update=True):
+        self.cell.set_data(data, display_limits, color_map_data, trigger_update)
 
     @property
     def rgba_bitmap_data(self):

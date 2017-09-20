@@ -481,7 +481,7 @@ class QtWidgetBehavior:
 
     @property
     def focused(self):
-        return self.proxy.Widget_hasFocus(self.widget) != 0
+        return bool(self.proxy.Widget_hasFocus(self.widget))
 
     @focused.setter
     def focused(self, focused):
@@ -854,7 +854,7 @@ class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
 
     @property
     def checked(self):
-        return self.proxy.RadioButton_getChecked(self.widget)
+        return bool(self.proxy.RadioButton_getChecked(self.widget))
 
     @checked.setter
     def checked(self, value):
@@ -913,7 +913,7 @@ class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
 
     @property
     def tristate(self):
-        return self.proxy.CheckBox_getIsTristate(self.widget)
+        return bool(self.proxy.CheckBox_getIsTristate(self.widget))
 
     @tristate.setter
     def tristate(self, value):
@@ -1084,7 +1084,7 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
 
     @property
     def editable(self) -> bool:
-        return self.proxy.LineEdit_getEditable(self.widget)
+        return bool(self.proxy.LineEdit_getEditable(self.widget))
 
     @editable.setter
     def editable(self, editable: bool) -> None:
@@ -1165,7 +1165,7 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
     @property
     def editable(self):
-        return self.proxy.TextEdit_getEditable(self.widget)
+        return bool(self.proxy.TextEdit_getEditable(self.widget))
 
     @editable.setter
     def editable(self, value):
@@ -1580,7 +1580,7 @@ class QtAction:
 
     @property
     def checked(self):
-        return self.proxy.Action_getChecked(self.native_action) if self.native_action else False
+        return bool(self.proxy.Action_getChecked(self.native_action)) if self.native_action else False
 
     @checked.setter
     def checked(self, checked):
@@ -1588,7 +1588,7 @@ class QtAction:
 
     @property
     def enabled(self):
-        return self.proxy.Action_getEnabled(self.native_action) if self.native_action else True
+        return bool(self.proxy.Action_getEnabled(self.native_action)) if self.native_action else True
 
     @enabled.setter
     def enabled(self, enabled):

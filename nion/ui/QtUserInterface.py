@@ -895,6 +895,7 @@ class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy, properties):
         super().__init__(proxy, "checkbox", properties)
         self.on_check_state_changed = None
+        self.__blocked = False  # setting check state programmatically shouldn't notify
         self.__text = None
         self.proxy.CheckBox_connect(self.widget, self)
 
@@ -925,12 +926,17 @@ class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
 
     @check_state.setter
     def check_state(self, value):
-        self.proxy.CheckBox_setCheckState(self.widget, str(value))
+        self.__blocked = True
+        try:
+            self.proxy.CheckBox_setCheckState(self.widget, str(value))
+        finally:
+            self.__blocked = False
 
     def stateChanged(self, check_state):
-        self._register_ui_activity()
-        if callable(self.on_check_state_changed):
-            self.on_check_state_changed(check_state)
+        if not self.__blocked:
+            self._register_ui_activity()
+            if callable(self.on_check_state_changed):
+                self.on_check_state_changed(check_state)
 
 
 class QtLabelWidgetBehavior(QtWidgetBehavior):

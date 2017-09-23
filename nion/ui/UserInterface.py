@@ -917,16 +917,14 @@ class LineEditWidget(Widget):
 
         def handle_escape_pressed():
             if callable(self.on_escape_pressed):
-                self.on_escape_pressed()
-                return True
+                return self.on_escape_pressed()
             return False
 
         self._behavior.on_escape_pressed = handle_escape_pressed
 
         def handle_return_pressed():
             if callable(self.on_return_pressed):
-                self.on_return_pressed()
-                return True
+                return self.on_return_pressed()
             return False
 
         self._behavior.on_return_pressed = handle_return_pressed
@@ -1023,10 +1021,12 @@ class LineEditWidget(Widget):
             text = self.text
             self.__binding.update_source(text)
             self.request_refocus()
+            return False
         def escape_pressed():
             text = self.__last_text
             self.__binding.update_source(text)
             self.request_refocus()
+            return False
         self.on_return_pressed = return_pressed
         self.on_escape_pressed = escape_pressed
 

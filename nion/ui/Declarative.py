@@ -11,21 +11,28 @@ _ = gettext.gettext
 
 class DeclarativeUI:
 
+    # ----: row
+    # ----: column
+    # ----: spacing
+    # ----: stretch
+    # ----: label
     # TODO: text edit
-    # TODO: label
-    # TODO: line edit
+    # ----: line edit
     # TODO: scroll area
     # TODO: group box
     # TODO: label
     # TODO: tool tips
     # TODO: expander
     # TODO: border
+    # ----: push button
+    # ----: checkbox
     # TODO: combobox
     # TODO: splitter
     # TODO: image
     # TODO: stack
     # TODO: tab
     # TODO: data view
+    # TODO: component
     # TODO: list view
     # TODO: tree view
     # TODO: slider
@@ -39,6 +46,7 @@ class DeclarativeUI:
     # TODO: windows
     # TODO: thumbnails
     # TODO: display panels
+    # TODO: periodic
 
     def __init__(self):
         pass
@@ -65,10 +73,57 @@ class DeclarativeUI:
     def create_stretch(self):
         return {"type": "stretch"}
 
-    def create_push_button(self, *,
+    def create_label(self, *,
+                     text: str=None,
+                     name=None):
+        d = {"type": "text_label"}
+        if text is not None:
+            d["text"] = text
+        if name is not None:
+            d["name"] = name
+        return d
+
+    def create_line_edit(self, *,
                          text: str=None,
                          name=None,
-                         on_clicked=None):
+                         editable=None,
+                         placeholder_text=None,
+                         clear_button_enabled=None,
+                         on_editing_finished=None,
+                         on_escape_pressed=None,
+                         on_return_pressed=None,
+                         on_key_pressed=None,
+                         on_text_edited=None,
+                         text_binding=None):
+        d = {"type": "line_edit"}
+        if text is not None:
+            d["text"] = text
+        if name is not None:
+            d["name"] = name
+        if editable is not None:
+            d["editable"] = editable
+        if placeholder_text is not None:
+            d["placeholder_text"] = placeholder_text
+        if clear_button_enabled is not None:
+            d["clear_button_enabled"] = clear_button_enabled
+        if on_editing_finished is not None:
+            d["on_editing_finished"] = on_editing_finished
+        if on_escape_pressed is not None:
+            d["on_escape_pressed"] = on_escape_pressed
+        if on_return_pressed is not None:
+            d["on_return_pressed"] = on_return_pressed
+        if on_key_pressed is not None:
+            d["on_key_pressed"] = on_key_pressed
+        if on_text_edited is not None:
+            d["on_text_edited"] = on_text_edited
+        if text_binding is not None:
+            d["text_binding"] = text_binding
+        return d
+
+    def create_push_button(self, *,
+                           text: str=None,
+                           name=None,
+                           on_clicked=None):
         d = {"type": "push_button"}
         if text is not None:
             d["text"] = text
@@ -109,17 +164,25 @@ class DeclarativeUI:
             d["check_state_binding"] = check_state_binding
         return d
 
-    def create_modeless_dialog(self, content, *, title: str=None):
+    def create_modeless_dialog(self, content, *, title: str=None, resources=None):
         d = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
+        if resources is not None:
+            d["resources"] = resources
         return d
 
-    def add_children(self, container, *items):
-        children = container.setdefault("children", list())
-        for item in items:
-            children.append(item)
-        return container
+    def define_component(self, content, create_handler_method_name, events=None):
+        d = {"type": "component", "content": content, "create_handler_method_name": create_handler_method_name}
+        if events is not None:
+            d["events"] = events
+        return d
+
+    def create_component(self, identifier, properties, **kwargs):
+        d = {"type": "component", "identifier": identifier, "properties": properties}
+        for k, v in kwargs.items():
+            d[k] = v
+        return d
 
 
 def connect_name(widget, d, handler):
@@ -128,12 +191,18 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
-def connect_event(widget, d, handler, event_str):
+def connect_event(widget, source, d, handler, event_str, arg_names):
     event_method_name = d.get(event_str, None)
     if event_method_name:
         event_fn = getattr(handler, event_method_name)
         if event_fn:
-            setattr(widget, event_str, event_fn)
+            def trampoline(*args, **kwargs):
+                combined_args = dict()
+                for arg_name, arg in zip(arg_names, args):
+                    combined_args[arg_name] = arg
+                combined_args.update(kwargs)
+                event_fn(widget, **combined_args)
+            setattr(source, event_str, trampoline)
         else:
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
 
@@ -154,6 +223,13 @@ def construct(ui, window, d, handler):
         title = d.get("title", _("Untitled"))
         persistent_id = d.get("persistent_id")
         content = d.get("content")
+        resources = d.get("resources", dict())
+        for k, v in resources.items():
+            resources[k] = v
+        if not hasattr(handler, "resources"):
+            handler.resources = resources
+        else:
+            handler.resources.update(resources)
         dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
         dialog._create_menus()
         dialog.content.add(construct(ui, window, content, handler))
@@ -184,6 +260,41 @@ def construct(ui, window, d, handler):
             else:
                 row_widget.add(construct(ui, window, child, handler))
         return row_widget
+    elif d_type == "text_label":
+        text = d.get("text", None)
+        widget = ui.create_label_widget(text)
+        if handler:
+            connect_name(widget, d, handler)
+        return widget
+    elif d_type == "line_edit":
+        text = d.get("text", None)
+        editable = d.get("editable", None)
+        placeholder_text = d.get("placeholder_text", None)
+        clear_button_enabled = d.get("clear_button_enabled", None)
+        widget = ui.create_line_edit_widget()
+        widget.text = text
+        if editable is not None:
+            widget.editable = editable
+        if placeholder_text is not None:
+            widget.placeholder_text = placeholder_text
+        if clear_button_enabled is not None:
+            widget.clear_button_enabled = clear_button_enabled
+        if handler:
+            connect_name(widget, d, handler)
+            connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
+            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+            connect_event(widget, widget, d, handler, "on_return_pressed", [])
+            connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
+            connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+            connect_binding(widget, d, handler, "text_binding", "bind_text")
+        return widget
+    elif d_type == "push_button":
+        text = d.get("text", None)
+        widget = ui.create_push_button_widget(text)
+        if handler:
+            connect_name(widget, d, handler)
+            connect_event(widget, widget, d, handler, "on_clicked", [])
+        return widget
     elif d_type == "check_box":
         text = d.get("text", None)
         checked = d.get("checked", None)
@@ -198,16 +309,43 @@ def construct(ui, window, d, handler):
             widget.checked = checked
         if handler:
             connect_name(widget, d, handler)
-            connect_event(widget, d, handler, "on_checked_changed")
-            connect_event(widget, d, handler, "on_check_state_changed")
+            connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
+            connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
             connect_binding(widget, d, handler, "checked_binding", "bind_checked")
             connect_binding(widget, d, handler, "check_state_binding", "bind_check_state")
         return widget
-    elif d_type == "push_button":
-        text = d.get("text", None)
-        widget = ui.create_push_button_widget(text)
-        if handler:
-            connect_name(widget, d, handler)
-            connect_event(widget, d, handler, "on_clicked")
-        return widget
+    elif d_type == "component":
+        # a component needs to be registered before it is instantiated.
+        # look up the identifier in the handler resoureces.
+        identifier = d.get("identifier", None)
+        component = handler.resources.get(identifier)
+        if component:
+            assert component.get("type") == "component"
+            # the component will have a content portion, which is just a widget description.
+            # it will also have a function to create its handler. finally the component will
+            # have a list of events that to be connected.
+            content = component.get("content")
+            create_handler_method_name = component.get("create_handler_method_name")
+            events = component.get("events", list())
+            # create the handler first, but don't initialize it.
+            component_handler = getattr(handler, create_handler_method_name)() if create_handler_method_name and hasattr(handler, create_handler_method_name) else None
+            if component_handler:
+                # set properties in the component from the properties dict
+                for k, v in d.get("properties", dict()).items():
+                    # print(f"setting property {k} to {v}")
+                    setattr(component_handler, k, v)
+            # now construct the widget
+            widget = construct(ui, window, content, component_handler)
+            if handler:
+                # connect the name to the handler if desired
+                connect_name(widget, d, handler)
+                # since the handler is custom to the widget, make a way to retrieve it from the widget
+                widget.handler = component_handler
+                if component_handler and hasattr(component_handler, "init_component"):
+                    component_handler.init_component()
+                # connect events
+                for event in events:
+                    # print(f"connecting {event['event']} ({event['parameters']})")
+                    connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
+            return widget
     return None

@@ -1,5 +1,6 @@
 # standard libraries
 import gettext
+import re
 
 # local libraries
 from nion.ui import Dialog
@@ -32,7 +33,7 @@ class DeclarativeUI:
     # TODO: stack
     # TODO: tab
     # TODO: data view
-    # TODO: component
+    # ----: component
     # TODO: list view
     # TODO: tree view
     # TODO: slider
@@ -47,6 +48,8 @@ class DeclarativeUI:
     # TODO: thumbnails
     # TODO: display panels
     # TODO: periodic
+    # ----: bindings
+    # TODO: commands
 
     def __init__(self):
         pass
@@ -191,6 +194,29 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
+def connect_string(widget, d, handler, property, finishes):
+    s = d.get(property)
+    m = re.match("^@binding\((.+)\)$", s if s else "")
+    # print(f"{s}, {m}, {m.group(1) if m else 'NA'}")
+    if m:
+        b = m.group(1)
+        parts = [p.strip() for p in b.split(',')]
+        def finish_binding():
+            handler_property_path = parts[0].split('.')
+            source = handler
+            for p in handler_property_path[:-1]:
+                source = getattr(source, p.strip())
+            converter = None
+            for part in parts:
+                if part.startswith("converter="):
+                    converter = getattr(handler, part[len("converter="):])
+            binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+            getattr(widget, "bind_" + property)(binding)
+        finishes.append(finish_binding)
+    else:
+        setattr(widget, property, s)
+
+
 def connect_event(widget, source, d, handler, event_str, arg_names):
     event_method_name = d.get(event_str, None)
     if event_method_name:
@@ -217,7 +243,7 @@ def connect_binding(widget, d, handler, binding_str, binding_connector):
             print("WARNING: '" + binding_str + "' binding " + binding_name + " not found in handler.")
 
 
-def construct(ui, window, d, handler):
+def construct(ui, window, d, handler, finishes=None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
         title = d.get("title", _("Untitled"))
@@ -230,9 +256,12 @@ def construct(ui, window, d, handler):
             handler.resources = resources
         else:
             handler.resources.update(resources)
+        finishes = list()
         dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
         dialog._create_menus()
-        dialog.content.add(construct(ui, window, content, handler))
+        dialog.content.add(construct(ui, window, content, handler, finishes))
+        for finish in finishes:
+            finish()
         def close_handler():
             if handler and hasattr(handler, "close"):
                 handler.close()
@@ -247,7 +276,7 @@ def construct(ui, window, d, handler):
             elif child.get("type") == "stretch":
                 column_widget.add_stretch()
             else:
-                column_widget.add(construct(ui, window, child, handler))
+                column_widget.add(construct(ui, window, child, handler, finishes))
         return column_widget
     elif d_type == "row":
         row_widget = ui.create_row_widget()
@@ -258,21 +287,19 @@ def construct(ui, window, d, handler):
             elif child.get("type") == "stretch":
                 row_widget.add_stretch()
             else:
-                row_widget.add(construct(ui, window, child, handler))
+                row_widget.add(construct(ui, window, child, handler, finishes))
         return row_widget
     elif d_type == "text_label":
-        text = d.get("text", None)
-        widget = ui.create_label_widget(text)
+        widget = ui.create_label_widget()
         if handler:
+            connect_string(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
         return widget
     elif d_type == "line_edit":
-        text = d.get("text", None)
         editable = d.get("editable", None)
         placeholder_text = d.get("placeholder_text", None)
         clear_button_enabled = d.get("clear_button_enabled", None)
         widget = ui.create_line_edit_widget()
-        widget.text = text
         if editable is not None:
             widget.editable = editable
         if placeholder_text is not None:
@@ -281,6 +308,7 @@ def construct(ui, window, d, handler):
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
+            connect_string(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
@@ -335,7 +363,7 @@ def construct(ui, window, d, handler):
                     # print(f"setting property {k} to {v}")
                     setattr(component_handler, k, v)
             # now construct the widget
-            widget = construct(ui, window, content, component_handler)
+            widget = construct(ui, window, content, component_handler, finishes)
             if handler:
                 # connect the name to the handler if desired
                 connect_name(widget, d, handler)

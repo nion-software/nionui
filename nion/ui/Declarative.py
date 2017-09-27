@@ -26,7 +26,7 @@ class DeclarativeUI:
     # TODO: expander
     # TODO: border
     # ----: push button
-    # ----: checkbox
+    # ----: check box
     # TODO: combobox
     # TODO: splitter
     # TODO: image
@@ -50,6 +50,7 @@ class DeclarativeUI:
     # TODO: periodic
     # ----: bindings
     # TODO: commands
+    # TODO: standard dialog boxes, open, save, print
 
     def __init__(self):
         pass
@@ -167,6 +168,22 @@ class DeclarativeUI:
             d["check_state_binding"] = check_state_binding
         return d
 
+    def create_combo_box(self, *,
+                         name=None,
+                         items=None,
+                         current_index=None,
+                         on_current_index_changed=None):
+        d = {"type": "combo_box"}
+        if name is not None:
+            d["name"] = name
+        if items is not None:
+            d["items"] = items
+        if current_index is not None:
+            d["current_index"] = current_index
+        if on_current_index_changed is not None:
+            d["on_current_index_changed"] = on_current_index_changed
+        return d
+
     def create_modeless_dialog(self, content, *, title: str=None, resources=None):
         d = {"type": "modeless_dialog", "content": content}
         if title is not None:
@@ -194,10 +211,10 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
-def connect_string(widget, d, handler, property, finishes):
-    s = d.get(property)
-    m = re.match("^@binding\((.+)\)$", s if s else "")
-    # print(f"{s}, {m}, {m.group(1) if m else 'NA'}")
+def connect_value(widget, d, handler, property, finishes):
+    v = d.get(property)
+    m = re.match("^@binding\((.+)\)$", v if v else "")
+    # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
     if m:
         b = m.group(1)
         parts = [p.strip() for p in b.split(',')]
@@ -214,7 +231,7 @@ def connect_string(widget, d, handler, property, finishes):
             getattr(widget, "bind_" + property)(binding)
         finishes.append(finish_binding)
     else:
-        setattr(widget, property, s)
+        setattr(widget, property, v)
 
 
 def connect_event(widget, source, d, handler, event_str, arg_names):
@@ -262,6 +279,8 @@ def construct(ui, window, d, handler, finishes=None):
         dialog.content.add(construct(ui, window, content, handler, finishes))
         for finish in finishes:
             finish()
+        if handler and hasattr(handler, "init_handler"):
+            handler.init_handler()
         def close_handler():
             if handler and hasattr(handler, "close"):
                 handler.close()
@@ -292,7 +311,7 @@ def construct(ui, window, d, handler, finishes=None):
     elif d_type == "text_label":
         widget = ui.create_label_widget()
         if handler:
-            connect_string(widget, d, handler, "text", finishes)
+            connect_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
         return widget
     elif d_type == "line_edit":
@@ -308,7 +327,7 @@ def construct(ui, window, d, handler, finishes=None):
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
-            connect_string(widget, d, handler, "text", finishes)
+            connect_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
@@ -341,6 +360,14 @@ def construct(ui, window, d, handler, finishes=None):
             connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
             connect_binding(widget, d, handler, "checked_binding", "bind_checked")
             connect_binding(widget, d, handler, "check_state_binding", "bind_check_state")
+        return widget
+    elif d_type == "combo_box":
+        items = d.get("items", None)
+        widget = ui.create_combo_box_widget(items=items)
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "current_index", finishes)
+            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.

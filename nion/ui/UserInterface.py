@@ -481,6 +481,7 @@ class ComboBoxWidget(Widget):
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
+        self.on_current_index_changed = None
         self.item_getter = item_getter
         self.items = items if items else []
         self.__current_item_binding = None
@@ -491,6 +492,8 @@ class ComboBoxWidget(Widget):
                 self.on_current_text_changed(text)
             if callable(self.on_current_item_changed):
                 self.on_current_item_changed(self.current_item)
+            if callable(self.on_current_index_changed):
+                self.on_current_index_changed(self.current_index)
 
         self._behavior.on_current_text_changed = handle_current_text_changed
 
@@ -507,6 +510,7 @@ class ComboBoxWidget(Widget):
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
+        self.on_current_index_changed = None
         super().close()
 
     @property
@@ -585,7 +589,7 @@ class ComboBoxWidget(Widget):
                 self.add_task("update_current_index", update_current_item_)
                 self.request_refocus()
         self.__current_item_binding.target_setter = update_current_index
-        self.on_current_item_changed = lambda item: self.__current_item_binding.update_source(self.__items.index(item))
+        self.on_current_index_changed = lambda index: self.__current_item_binding.update_source(index)
 
 
 class PushButtonWidget(Widget):

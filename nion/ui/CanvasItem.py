@@ -2053,7 +2053,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 sizing.preferred_width = size
         for canvas_item in canvas_items:
             if not canvas_item._has_layout:
-                print(f"{canvas_items.index(canvas_item)}")
+                print("{canvas_items.index(canvas_item)}")
             assert canvas_item._has_layout
         with self.__lock:
             self.__actual_sizings = sizings

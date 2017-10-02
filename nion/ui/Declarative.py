@@ -21,19 +21,19 @@ class DeclarativeUI:
     # ----: line edit
     # TODO: scroll area
     # TODO: group box
-    # TODO: label
     # TODO: tool tips
     # TODO: expander
     # TODO: border
     # ----: push button
     # ----: check box
-    # TODO: combobox
+    # ----: combo box
     # TODO: splitter
     # TODO: image
     # TODO: stack
     # TODO: tab
     # TODO: data view
     # ----: component
+    # TODO: part
     # TODO: list view
     # TODO: tree view
     # TODO: slider
@@ -50,21 +50,25 @@ class DeclarativeUI:
     # TODO: periodic
     # ----: bindings
     # TODO: commands
-    # TODO: standard dialog boxes, open, save, print
+    # TODO: standard dialog boxes, open, save, print, confirm
 
     def __init__(self):
         pass
 
-    def create_column(self, *d_children):
+    def create_column(self, *d_children, spacing=None):
         d = {"type": "column"}
+        if spacing is not None:
+            d["spacing"] = spacing
         if len(d_children) > 0:
             children = d.setdefault("children", list())
             for d_child in d_children:
                 children.append(d_child)
         return d
 
-    def create_row(self, *d_children):
+    def create_row(self, *d_children, spacing=None):
         d = {"type": "row"}
+        if spacing is not None:
+            d["spacing"] = spacing
         if len(d_children) > 0:
             children = d.setdefault("children", list())
             for d_child in d_children:
@@ -184,10 +188,12 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
-    def create_modeless_dialog(self, content, *, title: str=None, resources=None):
+    def create_modeless_dialog(self, content, *, title: str=None, resources=None, margin=None):
         d = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
+        if margin is not None:
+            d["margin"] = margin
         if resources is not None:
             d["resources"] = resources
         return d
@@ -264,6 +270,7 @@ def construct(ui, window, d, handler, finishes=None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
         title = d.get("title", _("Untitled"))
+        margin = d.get("margin")
         persistent_id = d.get("persistent_id")
         content = d.get("content")
         resources = d.get("resources", dict())
@@ -276,7 +283,18 @@ def construct(ui, window, d, handler, finishes=None):
         finishes = list()
         dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
         dialog._create_menus()
-        dialog.content.add(construct(ui, window, content, handler, finishes))
+        outer_row = ui.create_row_widget()
+        outer_column = ui.create_column_widget()
+        inner_content = construct(ui, window, content, handler, finishes)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        outer_column.add(inner_content)
+        outer_row.add(outer_column)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        dialog.content.add(outer_row)
         for finish in finishes:
             finish()
         if handler and hasattr(handler, "init_handler"):
@@ -288,25 +306,35 @@ def construct(ui, window, d, handler, finishes=None):
         return dialog
     elif d_type == "column":
         column_widget = ui.create_column_widget()
+        spacing = d.get("spacing")
         children = d.get("children", list())
+        first = True
         for child in children:
+            if not first and spacing is not None:
+                column_widget.add_spacing(spacing)
             if child.get("type") == "spacing":
                 column_widget.add_spacing(child.get("size", 0))
             elif child.get("type") == "stretch":
                 column_widget.add_stretch()
             else:
                 column_widget.add(construct(ui, window, child, handler, finishes))
+            first = False
         return column_widget
     elif d_type == "row":
         row_widget = ui.create_row_widget()
+        spacing = d.get("spacing")
         children = d.get("children", list())
+        first = True
         for child in children:
+            if not first and spacing is not None:
+                row_widget.add_spacing(spacing)
             if child.get("type") == "spacing":
                 row_widget.add_spacing(child.get("size", 0))
             elif child.get("type") == "stretch":
                 row_widget.add_stretch()
             else:
                 row_widget.add(construct(ui, window, child, handler, finishes))
+            first = False
         return row_widget
     elif d_type == "text_label":
         widget = ui.create_label_widget()

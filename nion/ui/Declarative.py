@@ -175,6 +175,7 @@ class DeclarativeUI:
     def create_combo_box(self, *,
                          name=None,
                          items=None,
+                         items_ref=None,
                          current_index=None,
                          on_current_index_changed=None):
         d = {"type": "combo_box"}
@@ -182,6 +183,8 @@ class DeclarativeUI:
             d["name"] = name
         if items is not None:
             d["items"] = items
+        if items_ref is not None:
+            d["items_ref"] = items_ref
         if current_index is not None:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
@@ -217,7 +220,7 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
-def connect_value(widget, d, handler, property, finishes):
+def connect_string(widget, d, handler, property, finishes):
     v = d.get(property)
     m = re.match("^@binding\((.+)\)$", v if v else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
@@ -238,6 +241,30 @@ def connect_value(widget, d, handler, property, finishes):
         finishes.append(finish_binding)
     else:
         setattr(widget, property, v)
+
+
+def connect_value(widget, d, handler, property, finishes, binding_name=None):
+    binding_name = binding_name if binding_name else property
+    v = d.get(property)
+    m = re.match("^@binding\((.+)\)$", v if v else "")
+    # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
+    if m:
+        b = m.group(1)
+        parts = [p.strip() for p in b.split(',')]
+        def finish_binding():
+            handler_property_path = parts[0].split('.')
+            source = handler
+            for p in handler_property_path[:-1]:
+                source = getattr(source, p.strip())
+            converter = None
+            for part in parts:
+                if part.startswith("converter="):
+                    converter = getattr(handler, part[len("converter="):])
+            binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+            getattr(widget, "bind_" + binding_name)(binding)
+        finishes.append(finish_binding)
+    elif v is not None:
+        setattr(widget, binding_name, getattr(handler, v))
 
 
 def connect_event(widget, source, d, handler, event_str, arg_names):
@@ -339,7 +366,7 @@ def construct(ui, window, d, handler, finishes=None):
     elif d_type == "text_label":
         widget = ui.create_label_widget()
         if handler:
-            connect_value(widget, d, handler, "text", finishes)
+            connect_string(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
         return widget
     elif d_type == "line_edit":
@@ -355,7 +382,7 @@ def construct(ui, window, d, handler, finishes=None):
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "text", finishes)
+            connect_string(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
@@ -395,6 +422,7 @@ def construct(ui, window, d, handler, finishes=None):
         if handler:
             connect_name(widget, d, handler)
             connect_value(widget, d, handler, "current_index", finishes)
+            connect_value(widget, d, handler, "items_ref", finishes, binding_name="items")
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "component":

@@ -14,7 +14,6 @@ setuptools.setup(
     description="Nion UI framework.",
     long_description=open(readme_path).read(),
     url="https://github.com/nion-software/nionui",
-    namespace_packages=['nion', 'nionui_app'],
     packages=["nion.ui", "nionui_app.none"],
     install_requires=['scipy', 'numpy', 'nionutils'],
     license='Apache 2.0',

@@ -536,7 +536,8 @@ class ComboBoxWidget(Widget):
 
     @property
     def current_index(self) -> int:
-        return self.items.index(self.current_text) if self.current_text in self.items else None
+        current_item = self.current_item
+        return self.items.index(current_item) if current_item in self.items else None
 
     @current_index.setter
     def current_index(self, value: int) -> None:

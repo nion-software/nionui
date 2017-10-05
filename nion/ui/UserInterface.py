@@ -310,6 +310,7 @@ class TabWidget(Widget):
     def __init__(self, widget_behavior):
         super().__init__(widget_behavior)
         self.children = []
+        self.__current_index_binding = None
         self.on_current_index_changed = None
 
         def handle_current_index_changed(index):
@@ -351,12 +352,38 @@ class TabWidget(Widget):
     def save_state(self, tag: str) -> None:
         self._behavior.save_state(tag)
 
+    @property
+    def current_index(self):
+        return self._behavior.current_index
+
+    @current_index.setter
+    def current_index(self, index):
+        self._behavior.current_index = index
+
+    def bind_current_index(self, binding):
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        current_index = binding.get_target_value()
+        if current_index is not None and 0 <= current_index < len(self.children):
+            self.current_index = current_index
+        self.__current_index_binding = binding
+        def update_current_index(current_index):
+            if current_index is not None and 0 <= current_index < len(self.children):
+                def update_current_index_():
+                    if self._behavior:
+                        self.current_index = current_index
+                self.add_task("update_current_index", update_current_index_)
+        self.__current_index_binding.target_setter = update_current_index
+        self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
+
 
 class StackWidget(Widget):
 
     def __init__(self, widget_behavior):
         super().__init__(widget_behavior)
         self.children = []
+        self.__current_index_binding = None
 
     def close(self):
         for child in self.children:
@@ -400,6 +427,23 @@ class StackWidget(Widget):
     @current_index.setter
     def current_index(self, index):
         self._behavior.current_index = index
+
+    def bind_current_index(self, binding):
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        current_index = binding.get_target_value()
+        if current_index is not None and 0 <= current_index < len(self.children):
+            self.current_index = current_index
+        self.__current_index_binding = binding
+        def update_current_index(current_index):
+            if current_index is not None and 0 <= current_index < len(self.children):
+                def update_current_index_():
+                    if self._behavior:
+                        self.current_index = current_index
+                self.add_task("update_current_index", update_current_index_)
+        self.__current_index_binding.target_setter = update_current_index
+        self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
 
 
 class ScrollAreaWidget(Widget):

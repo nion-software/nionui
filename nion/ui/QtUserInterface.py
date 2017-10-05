@@ -664,6 +664,7 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         properties = copy.deepcopy(properties) if properties is not None else dict()
         properties["stylesheet"] = "background-color: '#FFF'"
         super().__init__(proxy, "tab", properties)
+        self.__current_index = -1
         self.on_current_index_changed = None
         self.proxy.TabWidget_connect(self.widget, self)
 
@@ -684,6 +685,15 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         self._register_ui_activity()
         if callable(self.on_current_index_changed):
             self.on_current_index_changed(index)
+
+    @property
+    def current_index(self):
+        return self.__current_index
+
+    @current_index.setter
+    def current_index(self, index):
+        self.__current_index = index
+        self.proxy.TabWidget_setCurrentIndex(self.widget, index)
 
 
 class QtStackWidgetBehavior(QtWidgetBehavior):

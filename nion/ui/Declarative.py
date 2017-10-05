@@ -16,6 +16,8 @@ class DeclarativeUI:
     # ----: column
     # ----: spacing
     # ----: stretch
+    # ----: stack
+    # ----: tab
     # ----: label
     # TODO: text edit
     # ----: line edit
@@ -29,8 +31,6 @@ class DeclarativeUI:
     # ----: combo box
     # TODO: splitter
     # TODO: image
-    # TODO: stack
-    # TODO: tab
     # TODO: data view
     # ----: component
     # TODO: part
@@ -80,6 +80,37 @@ class DeclarativeUI:
 
     def create_stretch(self):
         return {"type": "stretch"}
+
+    def create_tab(self, label, content):
+        return {"type": "tab", "label": label, "content": content}
+
+    def create_tabs(self, *d_tabs, name=None, current_index=None, on_current_index_changed=None):
+        d = {"type": "tabs"}
+        if len(d_tabs) > 0:
+            children = d.setdefault("tabs", list())
+            for d_child in d_tabs:
+                children.append(d_child)
+        if name is not None:
+            d["name"] = name
+        if current_index is not None:
+            d["current_index"] = current_index
+        if on_current_index_changed is not None:
+            d["on_current_index_changed"] = on_current_index_changed
+        return d
+
+    def create_stack(self, *d_children, name=None, current_index=None, on_current_index_changed=None):
+        d = {"type": "stack"}
+        if len(d_children) > 0:
+            children = d.setdefault("children", list())
+            for d_child in d_children:
+                children.append(d_child)
+        if name is not None:
+            d["name"] = name
+        if current_index is not None:
+            d["current_index"] = current_index
+        if on_current_index_changed is not None:
+            d["on_current_index_changed"] = on_current_index_changed
+        return d
 
     def create_label(self, *,
                      text: str=None,
@@ -423,6 +454,24 @@ def construct(ui, window, d, handler, finishes=None):
             connect_name(widget, d, handler)
             connect_value(widget, d, handler, "current_index", finishes)
             connect_value(widget, d, handler, "items_ref", finishes, binding_name="items")
+            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "tabs":
+        widget = ui.create_tab_widget()
+        for tab in d.get("tabs", list()):
+            widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "current_index", finishes)
+            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "stack":
+        widget = ui.create_stack_widget()
+        for child in d.get("children", list()):
+            widget.add(construct(ui, window, child, handler, finishes))
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "component":

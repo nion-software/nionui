@@ -222,6 +222,35 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
+    def create_slider(self, *,
+                      name=None,
+                      value=None,
+                      minimum=None,
+                      maximum=None,
+                      on_value_changed=None,
+                      on_slider_pressed=None,
+                      on_slider_released=None,
+                      on_slider_moved=None,
+                      ):
+        d = {"type": "slider"}
+        if name is not None:
+            d["name"] = name
+        if value is not None:
+            d["value"] = value
+        if minimum is not None:
+            d["minimum"] = minimum
+        if maximum is not None:
+            d["maximum"] = maximum
+        if on_value_changed is not None:
+            d["on_value_changed"] = on_value_changed
+        if on_slider_pressed is not None:
+            d["on_slider_pressed"] = on_slider_pressed
+        if on_slider_released is not None:
+            d["on_slider_released"] = on_slider_released
+        if on_slider_moved is not None:
+            d["on_slider_moved"] = on_slider_moved
+        return d
+
     def create_modeless_dialog(self, content, *, title: str=None, resources=None, margin=None):
         d = {"type": "modeless_dialog", "content": content}
         if title is not None:
@@ -455,6 +484,20 @@ def construct(ui, window, d, handler, finishes=None):
             connect_value(widget, d, handler, "current_index", finishes)
             connect_value(widget, d, handler, "items_ref", finishes, binding_name="items")
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "slider":
+        minimum = d.get("minimum", 0)
+        maximum = d.get("maximum", 100)
+        widget = ui.create_slider_widget()
+        widget.minimum = minimum
+        widget.maximum = maximum
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "value", finishes)
+            connect_event(widget, widget, d, handler, "on_value_changed", ["value"])
+            connect_event(widget, widget, d, handler, "on_slider_pressed", [])
+            connect_event(widget, widget, d, handler, "on_slider_released", [])
+            connect_event(widget, widget, d, handler, "on_slider_moved", ["value"])
         return widget
     elif d_type == "tabs":
         widget = ui.create_tab_widget()

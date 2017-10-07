@@ -1500,6 +1500,73 @@ class CanvasWidget(Widget):
         return False
 
 
+class ProgressBarWidget(CanvasWidget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.__value = 0
+        self.__minimum = 0
+        self.__maximum = 0
+        self.on_value_changed = None
+        self.__binding = None
+
+        self.__progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
+        self.__progress_bar_canvas_item.sizing.set_fixed_width(500)
+        self.__progress_bar_canvas_item.sizing.set_fixed_height(20)
+        self.canvas_item.add_canvas_item(self.__progress_bar_canvas_item)
+
+    def close(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_value")
+        self.on_value_changed = None
+        super().close()
+
+    @property
+    def value(self):
+        return self.__value
+
+    @value.setter
+    def value(self, value):
+        if value != self.__value:
+            self.__value = value
+            self.__progress_bar_canvas_item.progress = (value - self.__minimum) / (self.__maximum - self.__minimum) if self.__maximum != self.__minimum else 0.0
+            if callable(self.on_value_changed):
+                self.on_value_changed(value)
+
+    @property
+    def minimum(self):
+        return self.__minimum
+
+    @minimum.setter
+    def minimum(self, minimum):
+        self.__minimum = minimum
+
+    @property
+    def maximum(self):
+        return self.__maximum
+
+    @maximum.setter
+    def maximum(self, maximum):
+        self.__maximum = maximum
+
+    # bind to value. takes ownership of binding.
+    def bind_value(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.value = binding.get_target_value()
+        self.__binding = binding
+        def update_value(value):
+            def update_value_():
+                if self._behavior:
+                    self.value = value
+            self.add_task("update_value", update_value_)
+        self.__binding.target_setter = update_value
+        self.on_value_changed = lambda value: self.__binding.update_source(value)
+
+
 class TreeWidget(Widget):
 
     def __init__(self, widget_behavior):
@@ -1854,6 +1921,10 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def create_slider_widget(self, properties=None) -> SliderWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_progress_bar_widget(self, properties=None) -> ProgressBarWidget:
         ...
 
     @abc.abstractmethod

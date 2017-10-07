@@ -29,18 +29,18 @@ class DeclarativeUI:
     # ----: push button
     # ----: check box
     # ----: combo box
+    # TODO: radio buttons
     # TODO: splitter
     # TODO: image
-    # TODO: data view
     # ----: component
     # TODO: part
+    # TODO: data view
     # TODO: list view
     # TODO: tree view
-    # TODO: slider
+    # ----: slider
     # TODO: menus
     # TODO: context menu
-    # TODO: radio buttons
-    # TODO: progress bar
+    # ----: progress bar
     # TODO: key handler
     # TODO: canvas
     # TODO: dock panels
@@ -249,6 +249,22 @@ class DeclarativeUI:
             d["on_slider_released"] = on_slider_released
         if on_slider_moved is not None:
             d["on_slider_moved"] = on_slider_moved
+        return d
+
+    def create_progress_bar(self, *,
+                      name=None,
+                      value=None,
+                      minimum=None,
+                      maximum=None):
+        d = {"type": "progress_bar"}
+        if name is not None:
+            d["name"] = name
+        if value is not None:
+            d["value"] = value
+        if minimum is not None:
+            d["minimum"] = minimum
+        if maximum is not None:
+            d["maximum"] = maximum
         return d
 
     def create_modeless_dialog(self, content, *, title: str=None, resources=None, margin=None):
@@ -498,6 +514,16 @@ def construct(ui, window, d, handler, finishes=None):
             connect_event(widget, widget, d, handler, "on_slider_pressed", [])
             connect_event(widget, widget, d, handler, "on_slider_released", [])
             connect_event(widget, widget, d, handler, "on_slider_moved", ["value"])
+        return widget
+    elif d_type == "progress_bar":
+        minimum = d.get("minimum", 0)
+        maximum = d.get("maximum", 100)
+        widget = ui.create_progress_bar_widget(properties={"height": 18, "min-width": 64})
+        widget.minimum = minimum
+        widget.maximum = maximum
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "value", finishes)
         return widget
     elif d_type == "tabs":
         widget = ui.create_tab_widget()

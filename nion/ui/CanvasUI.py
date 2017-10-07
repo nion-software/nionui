@@ -597,6 +597,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def create_slider_widget(self, properties=None):
         raise NotImplementedError()
 
+    def create_progress_bar_widget(self, properties=None):
+        raise NotImplementedError()
+
     def create_line_edit_widget(self, properties=None):
         raise NotImplementedError()
 

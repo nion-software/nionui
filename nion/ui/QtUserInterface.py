@@ -1966,6 +1966,9 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_slider_widget(self, properties=None):
         return UserInterface.SliderWidget(QtSliderWidgetBehavior(self.proxy, properties))
 
+    def create_progress_bar_widget(self, properties=None):
+        return UserInterface.ProgressBarWidget(QtCanvasWidgetBehavior(self.proxy, properties))
+
     def create_line_edit_widget(self, properties=None):
         return UserInterface.LineEditWidget(QtLineEditWidgetBehavior(self.proxy, properties))
 

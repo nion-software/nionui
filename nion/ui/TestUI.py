@@ -573,6 +573,8 @@ class UserInterface:
         return Widget()
     def create_slider_widget(self, properties=None):
         return Widget()
+    def create_progress_bar_widget(self, properties=None):
+        return Widget()
     def create_line_edit_widget(self, properties=None):
         return Widget()
     def create_text_edit_widget(self, properties=None):

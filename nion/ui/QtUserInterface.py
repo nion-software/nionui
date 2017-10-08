@@ -718,6 +718,30 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         self.proxy.StackWidget_setCurrentIndex(self.widget, index)
 
 
+class QtGroupWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy, properties):
+        print("initing")
+        super().__init__(proxy, "group", properties)
+        print("initing+")
+        self.__title = None
+
+    def add(self, child: UserInterface.Widget) -> None:
+        self.proxy.Widget_addWidget(self.widget, extract_widget(child))
+
+    def remove(self, child: UserInterface.Widget) -> None:
+        self.proxy.Widget_removeWidget(self.widget, extract_widget(child))
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self.__title = value
+        self.proxy.GroupBoxWidget_setTitle(self.widget, notnone(value))
+
+
 class QtScrollAreaWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
@@ -1944,6 +1968,9 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def create_stack_widget(self, properties=None):
         return UserInterface.StackWidget(QtStackWidgetBehavior(self.proxy, properties))
+
+    def create_group_widget(self, properties=None):
+        return UserInterface.GroupWidget(QtGroupWidgetBehavior(self.proxy, properties))
 
     def create_scroll_area_widget(self, properties=None):
         return UserInterface.ScrollAreaWidget(QtScrollAreaWidgetBehavior(self.proxy, properties))

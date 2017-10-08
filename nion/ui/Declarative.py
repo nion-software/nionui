@@ -22,7 +22,8 @@ class DeclarativeUI:
     # TODO: text edit
     # ----: line edit
     # TODO: scroll area
-    # TODO: group box
+    # ----: group box
+    # ----: status bar
     # TODO: tool tips
     # TODO: expander
     # TODO: border
@@ -110,6 +111,16 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        return d
+
+    def create_group(self, content, name=None, title=None, margin=None):
+        d = {"type": "group", "content": content}
+        if name is not None:
+            d["name"] = name
+        if title is not None:
+            d["title"] = title
+        if margin is not None:
+            d["margin"] = margin
         return d
 
     def create_label(self, *,
@@ -542,6 +553,26 @@ def construct(ui, window, d, handler, finishes=None):
             connect_name(widget, d, handler)
             connect_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "group":
+        widget = ui.create_group_widget()
+        margin = d.get("margin")
+        content = d.get("content")
+        outer_row = ui.create_row_widget()
+        outer_column = ui.create_column_widget()
+        inner_content = construct(ui, window, content, handler, finishes)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        outer_column.add(inner_content)
+        outer_row.add(outer_column)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        widget.add(outer_row)
+        if handler:
+            connect_name(widget, d, handler)
+            connect_string(widget, d, handler, "title", finishes)
         return widget
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.

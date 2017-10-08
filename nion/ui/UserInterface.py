@@ -446,6 +446,58 @@ class StackWidget(Widget):
         self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
 
 
+class GroupWidget(Widget):
+
+    def __init__(self, widget_behavior):
+        super().__init__(widget_behavior)
+        self.children = []
+        self.__title = None
+
+    def close(self):
+        for child in self.children:
+            child.close()
+        self.children = None
+        super().close()
+
+    def _set_root_container(self, root_container):
+        super()._set_root_container(root_container)
+        for child in self.children:
+            child._set_root_container(root_container)
+
+    @property
+    def _contained_widgets(self):
+        return copy.copy(self.children)
+
+    def periodic(self):
+        super().periodic()
+        for child in self.children:
+            child.periodic()
+
+    def add(self, child: Widget) -> None:
+        self._behavior.add(child)
+        self.children.append(child)
+        child._set_root_container(self.root_container)
+
+    def remove(self, child: Widget) -> None:
+        self._behavior.remove(child)
+        child._set_root_container(None)
+        self.children.remove(child)
+        child.close()
+
+    def remove_all(self):
+        while len(self.children) > 0:
+            self.remove(self.children[-1])
+
+    @property
+    def title(self) -> str:
+        return self.__title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self.__title = value
+        self._behavior.title = value
+
+
 class ScrollAreaWidget(Widget):
 
     def __init__(self, widget_behavior):
@@ -1893,6 +1945,10 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def create_stack_widget(self, properties=None) -> StackWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_group_widget(self, properties=None) -> GroupWidget:
         ...
 
     @abc.abstractmethod

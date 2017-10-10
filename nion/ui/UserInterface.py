@@ -731,15 +731,24 @@ class RadioButtonWidget(Widget):
         self.on_clicked = None
         self.text = text
         self.icon = None
+        self.__value = None
+        self.__group_value = None
+        self.__on_group_value_changed = None
+        self.__binding = None
 
         def handle_clicked():
+            if self.__value is not None:
+                self.group_value = self.__value
             if callable(self.on_clicked):
                 self.on_clicked()
 
         self._behavior.on_clicked = handle_clicked
 
     def close(self):
-        self.on_clicked = None
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.clear_task("update_checked")
         super().close()
 
     @property
@@ -765,6 +774,41 @@ class RadioButtonWidget(Widget):
     @checked.setter
     def checked(self, value):
         self._behavior.checked = value
+
+    @property
+    def value(self):
+        return self.__value
+
+    @value.setter
+    def value(self, value):
+        self.__value = value
+        self.checked = self.__group_value == self.__value
+
+    @property
+    def group_value(self):
+        return self.__group_value
+
+    @group_value.setter
+    def group_value(self, group_value):
+        self.__group_value = group_value
+        self.checked = self.__group_value == self.__value
+        if callable(self.__on_group_value_changed):
+            self.__on_group_value_changed(group_value)
+
+    # bind to value. takes ownership of binding.
+    def bind_group_value(self, binding):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.group_value = binding.get_target_value()
+        self.__binding = binding
+        def update_checked(group_value):
+            def update_checked_():
+                if self._behavior:
+                    self.group_value = group_value
+            self.add_task("update_checked", update_checked_)
+        self.__binding.target_setter = update_checked
+        self.__on_group_value_changed = lambda group_value: self.__binding.update_source(group_value)
 
 
 class CheckBoxWidget(Widget):

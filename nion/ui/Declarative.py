@@ -32,7 +32,7 @@ class DeclarativeUI:
     # ----: push button
     # ----: check box
     # ----: combo box
-    # TODO: radio buttons
+    # ----: radio buttons
     # TODO: splitter
     # TODO: image
     # ----: component
@@ -233,6 +233,22 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        return d
+
+    def create_radio_button(self, *,
+                            name=None,
+                            text=None,
+                            value=None,
+                            group_value=None):
+        d = {"type": "radio_button"}
+        if name is not None:
+            d["name"] = name
+        if text is not None:
+            d["text"] = text
+        if value is not None:
+            d["value"] = value
+        if group_value is not None:
+            d["group_value"] = group_value
         return d
 
     def create_slider(self, *,
@@ -565,6 +581,15 @@ def construct(ui, window, d, handler, finishes=None):
             connect_value(widget, d, handler, "current_index", finishes)
             connect_value(widget, d, handler, "items_ref", finishes, binding_name="items")
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "radio_button":
+        text = d.get("text", None)
+        value = d.get("value", None)
+        widget = ui.create_radio_button_widget(text)
+        widget.value = value
+        if handler:
+            connect_name(widget, d, handler)
+            connect_value(widget, d, handler, "group_value", finishes)
         return widget
     elif d_type == "slider":
         minimum = d.get("minimum", 0)

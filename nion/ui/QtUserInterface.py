@@ -721,9 +721,7 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
 class QtGroupWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        print("initing")
         super().__init__(proxy, "group", properties)
-        print("initing+")
         self.__title = None
 
     def add(self, child: UserInterface.Widget) -> None:

@@ -16,8 +16,10 @@ from . import Converters
 from . import Groups
 from . import LineEdits
 from . import ProgressBars
+from . import RadioButtons
 from . import Sliders
 from . import Stacks
+from . import StatusBar
 from . import Tabs
 
 _ = gettext.gettext
@@ -45,8 +47,10 @@ def main(args, bootstrap_args):
          (Groups, "groups", _("Groups")),
          (LineEdits, "line_edits", _("Line Edits")),
          (ProgressBars, "progress_bars", _("Progress Bars")),
+         (RadioButtons, "radio_buttons", _("Radio Buttons")),
          (Sliders, "sliders", _("Sliders")),
          (Stacks, "stacks", _("Stacks")),
+         (StatusBar, "status_bar", _("Status Bar")),
          (Tabs, "tabs", _("Tabs")),
          ]
 

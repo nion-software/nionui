@@ -3,7 +3,9 @@ import gettext
 import re
 
 # local libraries
+from nion.ui import Application
 from nion.ui import Dialog
+from nion.ui import Window
 from nion.utils import Binding
 
 
@@ -288,13 +290,24 @@ class DeclarativeUI:
             d["resources"] = resources
         return d
 
+    def create_window(self, content, *, title: str=None, resources=None, margin=None):
+        d = {"type": "window", "content": content}
+        if title is not None:
+            d["title"] = title
+        if margin is not None:
+            d["margin"] = margin
+        if resources is not None:
+            d["resources"] = resources
+        return d
+
     def define_component(self, content, create_handler_method_name, events=None):
         d = {"type": "component", "content": content, "create_handler_method_name": create_handler_method_name}
         if events is not None:
             d["events"] = events
         return d
 
-    def create_component(self, identifier, properties, **kwargs):
+    def create_component_instance(self, identifier, properties=None, **kwargs):
+        properties = properties if properties is not None else dict()
         d = {"type": "component", "identifier": identifier, "properties": properties}
         for k, v in kwargs.items():
             d[k] = v
@@ -378,6 +391,47 @@ def connect_binding(widget, d, handler, binding_str, binding_connector):
             getattr(widget, binding_connector)(binding)
         else:
             print("WARNING: '" + binding_str + "' binding " + binding_name + " not found in handler.")
+
+
+def run_window(app, d, handler):
+    ui = app.ui
+    d_type = d.get("type")
+    if d_type == "window":
+        title = d.get("title", _("Untitled"))
+        margin = d.get("margin")
+        persistent_id = d.get("persistent_id")
+        content = d.get("content")
+        resources = d.get("resources", dict())
+        for k, v in resources.items():
+            resources[k] = v
+        if not hasattr(handler, "resources"):
+            handler.resources = resources
+        else:
+            handler.resources.update(resources)
+        finishes = list()
+        window = Window.Window(ui, app=app, persistent_id=persistent_id)
+        outer_row = ui.create_row_widget()
+        outer_column = ui.create_column_widget()
+        inner_content = construct(ui, window, content, handler, finishes)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        outer_column.add(inner_content)
+        outer_row.add(outer_column)
+        if margin is not None:
+            outer_row.add_spacing(margin)
+            outer_column.add_spacing(margin)
+        window.attach_widget(outer_row)
+        window.show()
+        for finish in finishes:
+            finish()
+        if handler and hasattr(handler, "init_handler"):
+            handler.init_handler()
+        def close_handler():
+            if handler and hasattr(handler, "close"):
+                handler.close()
+        window.on_close = close_handler
+        return window
 
 
 def construct(ui, window, d, handler, finishes=None):
@@ -609,3 +663,13 @@ def construct(ui, window, d, handler, finishes=None):
                     connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
             return widget
     return None
+
+def run_ui(args, bootstrap_args, d, handler):
+
+    def start():
+        run_window(app, d, handler)
+        return True
+
+    app = Application.Application(Application.make_ui(bootstrap_args), on_start=start)
+    app.initialize()
+    return app

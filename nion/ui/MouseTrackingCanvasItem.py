@@ -69,12 +69,12 @@ def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: 
     tracking_canvas_item.on_mouse_position_changed_by = mouse_position_changed_by_fn
     tracking_canvas_item.add_canvas_item(canvas_item)
 
-    async def close_window(document_window):
+    async def handle_close_later(document_window):
         document_window.request_close()
 
     def handle_close(document_window):
         tracking_canvas_item.release_mouse()
-        event_loop.create_task(close_window(document_window))
+        event_loop.create_task(handle_close_later(document_window))
 
     def activation_changed(document_window, activated):
         if not activated:
@@ -83,6 +83,11 @@ def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: 
     # create the popup window
     document_window = ui.create_document_window()
     document_window.window_style = "mousegrab"
+
+    def close_window(geometry, state):
+        ui.destroy_document_window(document_window)
+
+    document_window.on_about_to_close = close_window
 
     document_window.on_activation_changed = functools.partial(activation_changed, document_window)
     tracking_canvas_item.on_close = functools.partial(handle_close, document_window)

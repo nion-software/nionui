@@ -39,7 +39,8 @@ class Handler:
 
             def value_changed(self, widget, text):
                 self.value = text
-                widget.select_all()
+                if widget.focused:
+                    widget.select_all()
                 if callable(self.on_value_changed):
                     self.on_value_changed(value=text)
 

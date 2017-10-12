@@ -10,7 +10,8 @@ class Handler:
 
     def hello1_updated(self, widget, text):
         self.hello1_label.text = text
-        widget.select_all()
+        if widget.focused:
+            widget.select_all()
 
     # method 2: dialog handler becomes a model, explicit handling of hello2_text model property
 

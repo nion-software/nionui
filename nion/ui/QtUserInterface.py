@@ -661,8 +661,6 @@ class QtSplitterWidgetBehavior(QtWidgetBehavior):
 class QtTabWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy, properties):
-        properties = copy.deepcopy(properties) if properties is not None else dict()
-        properties["stylesheet"] = "background-color: '#FFF'"
         super().__init__(proxy, "tab", properties)
         self.__current_index = -1
         self.on_current_index_changed = None

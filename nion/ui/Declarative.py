@@ -58,20 +58,24 @@ class DeclarativeUI:
     def __init__(self):
         pass
 
-    def create_column(self, *d_children, spacing=None):
+    def create_column(self, *d_children, spacing=None, margin=None):
         d = {"type": "column"}
         if spacing is not None:
             d["spacing"] = spacing
+        if margin is not None:
+            d["margin"] = margin
         if len(d_children) > 0:
             children = d.setdefault("children", list())
             for d_child in d_children:
                 children.append(d_child)
         return d
 
-    def create_row(self, *d_children, spacing=None):
+    def create_row(self, *d_children, spacing=None, margin=None):
         d = {"type": "row"}
         if spacing is not None:
             d["spacing"] = spacing
+        if margin is not None:
+            d["margin"] = margin
         if len(d_children) > 0:
             children = d.setdefault("children", list())
             for d_child in d_children:
@@ -450,6 +454,20 @@ def run_window(app, d, handler):
         return window
 
 
+def construct_margin(ui, content, margin):
+    if margin:
+        column = ui.create_column_widget()
+        column.add_spacing(margin)
+        column.add(content)
+        column.add_spacing(margin)
+        row = ui.create_row_widget()
+        row.add_spacing(margin)
+        row.add(column)
+        row.add_spacing(margin)
+        content = row
+    return content
+
+
 def construct(ui, window, d, handler, finishes=None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
@@ -491,6 +509,7 @@ def construct(ui, window, d, handler, finishes=None):
     elif d_type == "column":
         column_widget = ui.create_column_widget()
         spacing = d.get("spacing")
+        margin = d.get("margin")
         children = d.get("children", list())
         first = True
         for child in children:
@@ -503,10 +522,11 @@ def construct(ui, window, d, handler, finishes=None):
             else:
                 column_widget.add(construct(ui, window, child, handler, finishes))
             first = False
-        return column_widget
+        return construct_margin(ui, column_widget, margin)
     elif d_type == "row":
         row_widget = ui.create_row_widget()
         spacing = d.get("spacing")
+        margin = d.get("margin")
         children = d.get("children", list())
         first = True
         for child in children:
@@ -519,7 +539,7 @@ def construct(ui, window, d, handler, finishes=None):
             else:
                 row_widget.add(construct(ui, window, child, handler, finishes))
             first = False
-        return row_widget
+        return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
         widget = ui.create_label_widget()
         if handler:

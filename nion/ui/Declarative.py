@@ -340,7 +340,11 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
-def connect_string(widget, d, handler, property, finishes):
+def connect_string_value(widget, d, handler, property, finishes):
+    """Connects a value in the property, but also allows binding.
+
+    A value means the value for the property is directly contained in the string.
+    """
     v = d.get(property)
     m = re.match("^@binding\((.+)\)$", v if v else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
@@ -363,7 +367,11 @@ def connect_string(widget, d, handler, property, finishes):
         setattr(widget, property, v)
 
 
-def connect_value(widget, d, handler, property, finishes, binding_name=None):
+def connect_reference_value(widget, d, handler, property, finishes, binding_name=None):
+    """Connects a reference to the property, but also allows binding.
+
+    A reference means the property specifies a property in the handler.
+    """
     binding_name = binding_name if binding_name else property
     v = d.get(property)
     m = re.match("^@binding\((.+)\)$", v if v else "")
@@ -401,16 +409,6 @@ def connect_event(widget, source, d, handler, event_str, arg_names):
             setattr(source, event_str, trampoline)
         else:
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
-
-
-def connect_binding(widget, d, handler, binding_str, binding_connector):
-    binding_name = d.get(binding_str, None)
-    if binding_name:
-        binding = getattr(handler, binding_name)
-        if binding and isinstance(binding, Binding.Binding):
-            getattr(widget, binding_connector)(binding)
-        else:
-            print("WARNING: '" + binding_str + "' binding " + binding_name + " not found in handler.")
 
 
 def run_window(app, d, handler):
@@ -543,7 +541,7 @@ def construct(ui, window, d, handler, finishes=None):
     elif d_type == "text_label":
         widget = ui.create_label_widget()
         if handler:
-            connect_string(widget, d, handler, "text", finishes)
+            connect_string_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
         return widget
     elif d_type == "line_edit":
@@ -559,13 +557,12 @@ def construct(ui, window, d, handler, finishes=None):
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
-            connect_string(widget, d, handler, "text", finishes)
+            connect_string_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
             connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
-            connect_binding(widget, d, handler, "text_binding", "bind_text")
         return widget
     elif d_type == "push_button":
         text = d.get("text", None)
@@ -588,18 +585,18 @@ def construct(ui, window, d, handler, finishes=None):
             widget.checked = checked
         if handler:
             connect_name(widget, d, handler)
+            connect_reference_value(widget, d, handler, "checked", finishes)
+            connect_reference_value(widget, d, handler, "check_state", finishes)
             connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
             connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
-            connect_binding(widget, d, handler, "checked_binding", "bind_checked")
-            connect_binding(widget, d, handler, "check_state_binding", "bind_check_state")
         return widget
     elif d_type == "combo_box":
         items = d.get("items", None)
         widget = ui.create_combo_box_widget(items=items)
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "current_index", finishes)
-            connect_value(widget, d, handler, "items_ref", finishes, binding_name="items")
+            connect_reference_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items")
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "radio_button":
@@ -609,7 +606,7 @@ def construct(ui, window, d, handler, finishes=None):
         widget.value = value
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "group_value", finishes)
+            connect_reference_value(widget, d, handler, "group_value", finishes)
         return widget
     elif d_type == "slider":
         minimum = d.get("minimum", 0)
@@ -619,7 +616,7 @@ def construct(ui, window, d, handler, finishes=None):
         widget.maximum = maximum
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "value", finishes)
+            connect_reference_value(widget, d, handler, "value", finishes)
             connect_event(widget, widget, d, handler, "on_value_changed", ["value"])
             connect_event(widget, widget, d, handler, "on_slider_pressed", [])
             connect_event(widget, widget, d, handler, "on_slider_released", [])
@@ -633,7 +630,7 @@ def construct(ui, window, d, handler, finishes=None):
         widget.maximum = maximum
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "value", finishes)
+            connect_reference_value(widget, d, handler, "value", finishes)
         return widget
     elif d_type == "tabs":
         widget = ui.create_tab_widget()
@@ -641,7 +638,7 @@ def construct(ui, window, d, handler, finishes=None):
             widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "stack":
@@ -650,7 +647,7 @@ def construct(ui, window, d, handler, finishes=None):
             widget.add(construct(ui, window, child, handler, finishes))
         if handler:
             connect_name(widget, d, handler)
-            connect_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "group":
@@ -671,7 +668,7 @@ def construct(ui, window, d, handler, finishes=None):
         widget.add(outer_row)
         if handler:
             connect_name(widget, d, handler)
-            connect_string(widget, d, handler, "title", finishes)
+            connect_string_value(widget, d, handler, "title", finishes)
         return widget
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.

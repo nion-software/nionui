@@ -29,6 +29,8 @@ class Widget:
         self.__behavior = widget_behavior
         self.__behavior.on_ui_activity = self._register_ui_activity
         self.__root_container = None  # the document window
+        self.__pending_keyed_tasks = list()
+        self.__pending_queued_tasks = list()
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.widget_id = None
@@ -63,6 +65,15 @@ class Widget:
     def _set_root_container(self, root_container):
         self.__root_container = root_container
         self._behavior._set_root_container(root_container)
+        if self.__root_container:
+            pending_keyed_tasks = self.__pending_keyed_tasks
+            self.__pending_keyed_tasks = list()
+            for key, task in pending_keyed_tasks:
+                self.add_task(key, task)
+            pending_queued_tasks = self.__pending_queued_tasks
+            self.__pending_queued_tasks = list()
+            for task in pending_queued_tasks:
+                self.queue_task(task)
 
     def _register_ui_activity(self):
         if self.__root_container:
@@ -96,18 +107,28 @@ class Widget:
         root_container = self.root_container
         if root_container:
             root_container.add_task(key + str(id(self)), task)
+        else:
+            self.__pending_keyed_tasks.append((key, task))
 
     # thread safe
     def clear_task(self, key):
         root_container = self.root_container
         if root_container:
             root_container.clear_task(key + str(id(self)))
+        else:
+            pending_keyed_tasks = self.__pending_keyed_tasks
+            self.__pending_keyed_tasks = list()
+            for pending_key, task in pending_keyed_tasks:
+                if key != pending_key:
+                    self.__pending_keyed_tasks.append((key, task))
 
     # thread safe
     def queue_task(self, task):
         root_container = self.root_container
         if root_container:
             root_container.queue_task(task)
+        else:
+            self.__pending_queued_tasks.append(task)
 
     @property
     def focused(self) -> bool:

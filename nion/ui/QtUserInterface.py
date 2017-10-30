@@ -974,6 +974,7 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy, properties):
         super().__init__(proxy, "label", properties)
         self.__text = None
+        self.__text_color = None
         self.__word_wrap = False
 
     @property
@@ -983,7 +984,11 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
     @text.setter
     def text(self, text):
         self.__text = text if text else ""
-        self.proxy.Label_setText(self.widget, notnone(self.__text))
+        self.__update_text()
+
+    def set_text_color(self, color):
+        self.__text_color = color
+        self.__update_text()
 
     @property
     def word_wrap(self):
@@ -993,6 +998,12 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
     def word_wrap(self, value):
         self.__word_wrap = value
         self.proxy.Label_setWordWrap(self.widget, value)
+
+    def __update_text(self):
+        text = notnone(self.__text)
+        if self.__text_color:
+            text = "<font color='" + self.__text_color + "'>" + text + "</font>"
+        self.proxy.Label_setText(self.widget, text)
 
 
 class QtSliderWidgetBehavior(QtWidgetBehavior):
@@ -1252,6 +1263,8 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
             self.proxy.TextEdit_setTextColor(self.widget, 128, 0, 128)
         elif color == "brown":
             self.proxy.TextEdit_setTextColor(self.widget, 150, 75, 0)
+        elif color == "gray":
+            self.proxy.TextEdit_setTextColor(self.widget, 128, 128, 128)
         elif color == "black":
             self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 0)
         else:

@@ -926,6 +926,7 @@ class LabelWidget(Widget):
     def __init__(self, widget_behavior, text):
         super().__init__(widget_behavior)
         self.text = text
+        self.__text_color = None
         self.__binding = None
 
     def close(self):
@@ -942,6 +943,15 @@ class LabelWidget(Widget):
     @text.setter
     def text(self, text: str) -> None:
         self._behavior.text = text
+
+    @property
+    def text_color(self):
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value):
+        self.__text_color = value
+        self._behavior.set_text_color(value)
 
     @property
     def word_wrap(self):

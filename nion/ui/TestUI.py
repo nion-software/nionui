@@ -179,8 +179,6 @@ class Widget:
         self.index = index
         self.parent_row = parent_row
         self.parent_id = parent_id
-        if self.on_selection_changed:
-            self.on_selection_changed([(self.index, self.parent_row, self.parent_id)])
     def clear_current_row(self):
         self.set_current_row(-1, -1, 0)
     def set_selected_indexes(self, selected_indexes):

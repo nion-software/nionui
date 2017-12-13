@@ -1505,6 +1505,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.on_tree_item_key_pressed = None
         self.on_focus_changed = None
         self.__selection_mode = "single"
+        self.__block_selected_changed = False
 
     def close(self):
         self.__item_model_controller = None
@@ -1536,10 +1537,20 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.proxy.TreeWidget_setModel(self.widget, item_model_controller.py_item_model)
 
     def set_current_row(self, index, parent_row, parent_id):
-        self.proxy.TreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
+        old_block_selected_changed = self.__block_selected_changed
+        self.__block_selected_changed = True
+        try:
+            self.proxy.TreeWidget_setCurrentRow(self.widget, index, parent_row, parent_id)
+        finally:
+            self.__block_selected_changed = old_block_selected_changed
 
     def clear_current_row(self):
-        self.proxy.TreeWidget_setCurrentRow(self.widget, -1, -1, 0)
+        old_block_selected_changed = self.__block_selected_changed
+        self.__block_selected_changed = True
+        try:
+            self.proxy.TreeWidget_setCurrentRow(self.widget, -1, -1, 0)
+        finally:
+            self.__block_selected_changed = old_block_selected_changed
 
     def size_to_content(self):
         self.proxy.TreeWidget_resizeToContent(self.widget)
@@ -1556,8 +1567,9 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
 
     def treeSelectionChanged(self, selected_indexes):
         self._register_ui_activity()
-        if callable(self.on_tree_selection_changed):
-            self.on_tree_selection_changed(selected_indexes)
+        if not self.__block_selected_changed:
+            if callable(self.on_tree_selection_changed):
+                self.on_tree_selection_changed(selected_indexes)
 
     def treeItemKeyPressed(self, index, parent_row, parent_id, text, key, raw_modifiers):
         self._register_ui_activity()

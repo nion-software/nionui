@@ -844,6 +844,10 @@ class AbstractCanvasItem:
             self.__repaint_drawing_context = repaint_drawing_context
         drawing_context.add(self.__repaint_drawing_context)
 
+    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
+        self.update_layout(Geometry.IntPoint(), canvas_size)
+        self._repaint_template(drawing_context, immediate=True)
+
     def _draw_background(self, drawing_context):
         """Draw the background. Subclasses can call this."""
         background_color = self.__background_color

@@ -1803,6 +1803,13 @@ class LayerCanvasItem(CanvasItemComposition):
                         try:
                             for canvas_item in copy.copy(self.__prepare_canvas_items):
                                 canvas_item.prepare_render()
+                                # layout or repaint that occurs during prepare render should be handled
+                                # but not trigger another repaint after this one.
+                                with self.__layer_thread_condition:
+                                    needs_layout = needs_layout or self.__needs_layout
+                                    needs_repaint = needs_repaint or self.__needs_repaint
+                                    self.__needs_layout = False
+                                    self.__needs_repaint = False
                             if needs_layout:
                                 assert self.canvas_size is not None
                                 self._update_child_layouts(self.canvas_size)

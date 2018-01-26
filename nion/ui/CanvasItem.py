@@ -1074,7 +1074,6 @@ class CanvasItemAbstractLayout:
         sizing.preferred_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
-                old_sizing = copy.deepcopy(sizing)
                 canvas_item_sizing = canvas_item.layout_sizing
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "preferred_height", max, True)

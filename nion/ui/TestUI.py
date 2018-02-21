@@ -527,6 +527,25 @@ class MimeData:
         self.mime_data[format] = text
 
 
+class ButtonGroup:
+
+    def __init__(self):
+        self.on_button_clicked = None
+
+    def close(self):
+        self.on_button_clicked = None
+
+    def add_button(self, radio_button, button_id):
+        pass
+
+    def remove_button(self, radio_button):
+        pass
+
+    def clicked(self, button_id):
+        if self.on_button_clicked:
+            self.on_button_clicked(button_id)
+
+
 # define a dummy user interface to use during tests
 class UserInterface:
     def __init__(self):
@@ -544,7 +563,7 @@ class UserInterface:
     def destroy_document_window(self, document_window):
         document_window.close()
     def create_button_group(self):
-        return Widget()
+        return ButtonGroup()
     def create_row_widget(self, alignment=None, properties=None):
         return Widget()
     def create_column_widget(self, alignment=None, properties=None):

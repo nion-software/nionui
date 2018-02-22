@@ -1977,6 +1977,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.__canvas_items = []
         self.__actual_sizings = []
         self.__tracking = False
+        self.on_splits_changed = None
 
     def __calculate_layout(self, canvas_size, sizings):
         if self.orientation == "horizontal":
@@ -2153,6 +2154,8 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def mouse_released(self, x, y, modifiers):
         self.__tracking = False
+        if callable(self.on_splits_changed):
+            self.on_splits_changed()
         return True
 
     def mouse_position_changed(self, x, y, modifiers):

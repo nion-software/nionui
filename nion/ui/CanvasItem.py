@@ -34,6 +34,8 @@ class Orientation(enum.Enum):
     Vertical = 0
     Horizontal = 1
 
+MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
+
 
 class Constraint:
 
@@ -964,8 +966,16 @@ class AbstractCanvasItem:
             return getattr(self, method)(*args, **kwargs)
         return False
 
-    def _will_dispatch(self, method: str) -> bool:
-        return hasattr(self, method)
+    def _get_menu_item_state(self, command_id: str):
+        handle_method = "handle_" + command_id
+        menu_item_state_method = "get_" + command_id + "_menu_item_state"
+        if hasattr(self, menu_item_state_method):
+            menu_item_state = getattr(self, menu_item_state_method)()
+            if menu_item_state:
+                return menu_item_state
+        if hasattr(self, handle_method):
+            return MenuItemState(title=None, enabled=True, checked=False)
+        return None
 
     def simulate_click(self, p, modifiers=None):
         modifiers = KeyboardModifiers() if not modifiers else modifiers
@@ -2452,7 +2462,7 @@ class RootCanvasItem(LayerCanvasItem):
         self.__canvas_widget.on_drop = self.__drop
         self.__canvas_widget.on_pan_gesture = self.pan_gesture
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
-        self.__canvas_widget.on_will_dispatch = self.__will_dispatch
+        self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
         self.__max_frame_rate = float(max_frame_rate) if max_frame_rate is not None else DEFAULT_MAX_FRAME_RATE
         self.__drawing_context_updated = False
@@ -2591,11 +2601,13 @@ class RootCanvasItem(LayerCanvasItem):
             return focused_item._dispatch_any(method, *args, **kwargs)
         return False
 
-    def __will_dispatch(self, method: str) -> bool:
+    def __get_menu_item_state(self, command_id: str):
         focused_item = self.focused_item
         if focused_item:
-            return focused_item._will_dispatch(method)
-        return False
+            menu_item_state = focused_item._get_menu_item_state(command_id)
+            if menu_item_state:
+                return menu_item_state
+        return None
 
     def _cursor_shape_changed(self, item):
         if item == self.__mouse_tracking_canvas_item:

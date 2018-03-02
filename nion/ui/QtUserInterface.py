@@ -1607,6 +1607,7 @@ class QtAction:
         self.native_action = native_action  # action is not connected since native_action will not by PyAction
         self.on_triggered = None
         self.on_ui_activity = None
+        self.__title = None
 
     def close(self):
         self.proxy = None
@@ -1616,6 +1617,7 @@ class QtAction:
     def create(self, document_window, title, key_sequence, role):
         self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
+        self.__title = title
 
     def _register_ui_activity(self):
         if callable(self.on_ui_activity):
@@ -1638,6 +1640,7 @@ class QtAction:
     @title.setter
     def title(self, value):
         self.proxy.Action_setTitle(self.native_action, value)
+        self.__title = value
 
     @property
     def checked(self):
@@ -1654,6 +1657,20 @@ class QtAction:
     @enabled.setter
     def enabled(self, enabled):
         self.proxy.Action_setEnabled(self.native_action, enabled)
+
+    def apply_state(self, menu_item_state: UserInterface.MenuItemState) -> None:
+        if menu_item_state and menu_item_state.title is not None:
+            self.title = menu_item_state.title
+        else:
+            self.title = self.__title
+        if menu_item_state and menu_item_state.checked is not None:
+            self.checked = menu_item_state.checked
+        else:
+            self.checked = False
+        if menu_item_state and menu_item_state.enabled is not None:
+            self.enabled = menu_item_state.enabled
+        else:
+            self.enabled = False
 
 
 class QtMenu:

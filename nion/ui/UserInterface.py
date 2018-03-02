@@ -23,6 +23,11 @@ def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
 
 
+FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+
+MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
+
+
 class Widget:
 
     def __init__(self, widget_behavior):
@@ -199,8 +204,16 @@ class Widget:
             return getattr(self, method)(*args, **kwargs)
         return False
 
-    def _will_dispatch(self, method) -> bool:
-        return hasattr(self, method)
+    def _get_menu_item_state(self, command_id: str) -> typing.Optional[MenuItemState]:
+        handle_method = "handle_" + command_id
+        menu_item_state_method = "get_" + command_id + "_menu_item_state"
+        if hasattr(self, menu_item_state_method):
+            menu_item_state = getattr(self, menu_item_state_method)()
+            if menu_item_state:
+                return menu_item_state
+        if hasattr(self, handle_method):
+            return MenuItemState(title=None, enabled=True, checked=False)
+        return None
 
 
 class BoxWidget(Widget):
@@ -1399,7 +1412,7 @@ class CanvasWidget(Widget):
         super().__init__(widget_behavior)
         self.on_periodic = None
         self.on_dispatch_any = None
-        self.on_will_dispatch = None
+        self.on_get_menu_item_state = None
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_clicked = None
@@ -1543,7 +1556,7 @@ class CanvasWidget(Widget):
         # messages generated from this class
         self.on_periodic = None
         self.on_dispatch_any = None
-        self.on_will_dispatch = None
+        self.on_get_menu_item_state = None
         # messages passed on from the behavior
         self.on_mouse_entered = None
         self.on_mouse_exited = None
@@ -1621,10 +1634,12 @@ class CanvasWidget(Widget):
             return self.on_dispatch_any(method, *args, **kwargs)
         return False
 
-    def _will_dispatch(self, method) -> bool:
-        if callable(self.on_will_dispatch):
-            return self.on_will_dispatch(method)
-        return False
+    def _get_menu_item_state(self, command_id: str) -> typing.Optional[MenuItemState]:
+        if callable(self.on_get_menu_item_state):
+            menu_item_state = self.on_get_menu_item_state(command_id)
+            if menu_item_state:
+                return menu_item_state
+        return None
 
 
 class ProgressBarWidget(CanvasWidget):
@@ -1965,9 +1980,6 @@ class Window:
         self.pos_y = y
         if callable(self.on_position_changed):
             self.on_position_changed(self.pos_x, self.pos_y)
-
-
-FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
 
 class UserInterface(abc.ABC):

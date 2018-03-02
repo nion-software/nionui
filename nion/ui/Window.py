@@ -268,35 +268,49 @@ class Window:
                 return True
         return False
 
-    def _will_focus_widget_dispatch(self, method: str) -> bool:
+    def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
+        # if there is a specific menu item state for the command_id, use it
+        # otherwise, if the handle method exists, return an enabled menu item
+        # otherwise, don't handle
+        handle_method = "handle_" + command_id
+        menu_item_state_method = "get_" + command_id + "_menu_item_state"
+        if hasattr(self, menu_item_state_method):
+            menu_item_state = getattr(self, menu_item_state_method)()
+            if menu_item_state:
+                return menu_item_state
+        if hasattr(self, handle_method):
+            return UserInterface.MenuItemState(title=None, enabled=True, checked=False)
+        return None
+
+    def _get_focus_widget_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
         focus_widget = self.focus_widget
-        if focus_widget and focus_widget._will_dispatch(method):
-            return True
-        if hasattr(self, method):
-            return True
-        return False
+        if focus_widget:
+            menu_item_state = focus_widget._get_menu_item_state(command_id)
+            if menu_item_state:
+                return menu_item_state
+        return self._get_menu_item_state(command_id)
 
     # standarad menu items
 
     def _file_menu_about_to_show(self):
         self._close_action.enabled = True
-        self._page_setup_action.enabled = self._will_focus_widget_dispatch("handle_page_setup")
-        self._print_action.enabled = self._will_focus_widget_dispatch("handle_print")
+        self._page_setup_action.apply_state(self._get_focus_widget_menu_item_state("page_setup"))
+        self._print_action.apply_state(self._get_focus_widget_menu_item_state("print"))
         self._quit_action.enabled = True
 
     def _edit_menu_about_to_show(self):
-        self._undo_action.enabled = self._will_focus_widget_dispatch("handle_undo")
-        self._redo_action.enabled = self._will_focus_widget_dispatch("handle_redo")
-        self._cut_action.enabled = self._will_focus_widget_dispatch("handle_cut")
-        self._copy_action.enabled = self._will_focus_widget_dispatch("handle_copy")
-        self._paste_action.enabled = self._will_focus_widget_dispatch("handle_paste")
-        self._delete_action.enabled = self._will_focus_widget_dispatch("handle_delete")
-        self._select_all_action.enabled = self._will_focus_widget_dispatch("handle_select_all")
+        self._undo_action.apply_state(self._get_focus_widget_menu_item_state("undo"))
+        self._redo_action.apply_state(self._get_focus_widget_menu_item_state("redo"))
+        self._cut_action.apply_state(self._get_focus_widget_menu_item_state("cut"))
+        self._copy_action.apply_state(self._get_focus_widget_menu_item_state("copy"))
+        self._paste_action.apply_state(self._get_focus_widget_menu_item_state("paste"))
+        self._delete_action.apply_state(self._get_focus_widget_menu_item_state("delete"))
+        self._select_all_action.apply_state(self._get_focus_widget_menu_item_state("select_all"))
 
     def _window_menu_about_to_show(self):
-        self._minimize_action.enabled = self._will_focus_widget_dispatch("handle_minimize")
-        self._zoom_action.enabled = self._will_focus_widget_dispatch("handle_zoom")
-        self._bring_to_front_action.enabled = self._will_focus_widget_dispatch("handle_bring_to_front")
+        self._minimize_action.apply_state(self._get_focus_widget_menu_item_state("minimize"))
+        self._zoom_action.apply_state(self._get_focus_widget_menu_item_state("zoom"))
+        self._bring_to_front_action.apply_state(self._get_focus_widget_menu_item_state("bring_to_front"))
 
     def _page_setup(self):
         self._dispatch_any_to_focus_widget("handle_page_setup")

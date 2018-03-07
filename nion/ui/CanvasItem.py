@@ -1987,6 +1987,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.__canvas_items = []
         self.__actual_sizings = []
         self.__tracking = False
+        self.on_splits_will_change = None
         self.on_splits_changed = None
 
     def __calculate_layout(self, canvas_size, sizings):
@@ -2150,6 +2151,8 @@ class SplitterCanvasItem(CanvasItemComposition):
                     self.__tracking_start_index = index
                     self.__tracking_start_preferred = sizings[index].preferred_height
                     self.__tracking_start_preferred_next = sizings[index + 1].preferred_height
+                    if callable(self.on_splits_will_change):
+                        self.on_splits_will_change()
                     return True
         else:
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
@@ -2159,6 +2162,8 @@ class SplitterCanvasItem(CanvasItemComposition):
                     self.__tracking_start_index = index
                     self.__tracking_start_preferred = sizings[index].preferred_width
                     self.__tracking_start_preferred_next = sizings[index + 1].preferred_width
+                    if callable(self.on_splits_will_change):
+                        self.on_splits_will_change()
                     return True
         return super().mouse_pressed(x, y, modifiers)
 

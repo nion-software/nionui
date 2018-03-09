@@ -207,6 +207,10 @@ class Widget:
         self.__text = self.__text_binding.get_target_value()
         self.__text_binding.target_setter = lambda t: setattr(self, "text", t)
         self.on_editing_finished = lambda text: self.__text_binding.update_source(text)
+    def bind_checked(self, binding):
+        self.__binding = binding
+        self.checked = self.__binding.get_target_value()
+        self.on_checked_changed = lambda value: self.__binding.update_source(value)
     def bind_check_state(self, binding):
         self.__binding = binding
         self.check_state = self.__binding.get_target_value()
@@ -216,6 +220,7 @@ class Widget:
     def bind_value(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()
+        self.on_value_changed = lambda value: self.__binding.update_source(value)
     def bind_current_index(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()

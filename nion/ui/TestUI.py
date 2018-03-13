@@ -557,6 +557,7 @@ class UserInterface:
         CanvasItem._threaded_rendering_enabled = False
         self.popup = None
         self.popup_pos = None
+        self.clipboard = MimeData()
     def close(self):
         pass
     def create_mime_data(self):
@@ -659,3 +660,21 @@ class UserInterface:
         return menu
     def create_sub_menu(self, document_window):
         return Menu()
+
+    # clipboard
+
+    def clipboard_clear(self):
+        self.clipboard = MimeData()
+
+    def clipboard_mime_data(self):
+        return self.clipboard
+
+    def clipboard_set_mime_data(self, mime_data):
+        self.clipboard = mime_data
+
+    def clipboard_set_text(self, text):
+        self.clipboard = MimeData()
+        self.clipboard.set_data_as_string('text', text)
+
+    def clipboard_text(self):
+        self.clipboard.data_as_string('text')

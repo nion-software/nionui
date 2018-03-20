@@ -54,6 +54,7 @@ class DeclarativeUI:
     # ----: bindings
     # TODO: commands
     # TODO: standard dialog boxes, open, save, print, confirm
+    # TODO: all static text (checkbox 'text') should be bindable
 
     def __init__(self):
         pass
@@ -129,9 +130,7 @@ class DeclarativeUI:
             d["margin"] = margin
         return d
 
-    def create_label(self, *,
-                     text: str=None,
-                     name=None):
+    def create_label(self, *, text: str=None, name=None):
         d = {"type": "text_label"}
         if text is not None:
             d["text"] = text
@@ -149,8 +148,7 @@ class DeclarativeUI:
                          on_escape_pressed=None,
                          on_return_pressed=None,
                          on_key_pressed=None,
-                         on_text_edited=None,
-                         text_binding=None):
+                         on_text_edited=None):
         d = {"type": "line_edit"}
         if text is not None:
             d["text"] = text
@@ -172,14 +170,9 @@ class DeclarativeUI:
             d["on_key_pressed"] = on_key_pressed
         if on_text_edited is not None:
             d["on_text_edited"] = on_text_edited
-        if text_binding is not None:
-            d["text_binding"] = text_binding
         return d
 
-    def create_push_button(self, *,
-                           text: str=None,
-                           name=None,
-                           on_clicked=None):
+    def create_push_button(self, *, text: str=None, name=None, on_clicked=None):
         d = {"type": "push_button"}
         if text is not None:
             d["text"] = text
@@ -196,9 +189,7 @@ class DeclarativeUI:
                          check_state=None,
                          tristate=None,
                          on_checked_changed=None,
-                         on_check_state_changed=None,
-                         checked_binding=None,
-                         check_state_binding=None):
+                         on_check_state_changed=None):
         d = {"type": "check_box"}
         if text is not None:
             d["text"] = text
@@ -214,10 +205,6 @@ class DeclarativeUI:
             d["on_checked_changed"] = on_checked_changed
         if on_check_state_changed is not None:
             d["on_check_state_changed"] = on_check_state_changed
-        if checked_binding is not None:
-            d["checked_binding"] = checked_binding
-        if check_state_binding is not None:
-            d["check_state_binding"] = check_state_binding
         return d
 
     def create_combo_box(self, *,
@@ -557,7 +544,7 @@ def construct(ui, window, d, handler, finishes=None):
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
-            connect_string_value(widget, d, handler, "text", finishes)
+            connect_reference_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])

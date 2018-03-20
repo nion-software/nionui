@@ -13,8 +13,9 @@ _ = gettext.gettext
 # user program below
 
 class Handler:
-    label_item = None
-    click_count = 0
+    def __init__(self):
+        self.label_item = None
+        self.click_count = 0
 
     def button_clicked(self, widget):
         self.click_count += 1
@@ -23,7 +24,9 @@ class Handler:
 
 def main(args, bootstrap_args):
     ui = Declarative.DeclarativeUI()
-    d = ui.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
-    l = ui.create_label(name="label_item", text=_("Not Clicked"))
-    w = ui.create_window(ui.create_column(d, l, spacing=8), title=_("Hello World"), margin=12)
-    return Declarative.run_ui(args, bootstrap_args, w, Handler())
+    button = ui.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
+    label = ui.create_label(name="label_item", text=_("Not Clicked"))
+    column = ui.create_column(button, label, spacing=8)
+    window = ui.create_window(column, title=_("Hello World"), margin=12)
+    handler = Handler()
+    return Declarative.run_ui(args, bootstrap_args, window, handler)

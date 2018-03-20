@@ -1,13 +1,22 @@
 # standard libraries
 import gettext
 import re
+import typing
 
 # local libraries
 from nion.ui import Application
 from nion.ui import Dialog
 from nion.ui import Window
+from nion.ui import UserInterface
 from nion.utils import Binding
 
+
+UIDescription = typing.Dict  # when napolean works: typing.NewType("UIDescription", typing.Dict)
+UIResources = typing.Dict  # when napolean works: typing.NewType("UIResources", typing.Dict)
+UIPoints = int  # when napolean works: typing.NewType("UIPoints", int)
+UILabel = str
+UIIdentifier = str  # typing.NewType("UIIndentifier", str)
+UIWidget = UserInterface.Widget
 
 _ = gettext.gettext
 
@@ -55,49 +64,119 @@ class DeclarativeUI:
     # TODO: commands
     # TODO: standard dialog boxes, open, save, print, confirm
     # TODO: all static text (checkbox 'text') should be bindable
+    # TODO: how to define resources for a sub component?
+    # TODO: windows: fit to content; fixed sizes
+    # TODO: tab label should be bindable
+    # TODO: window and dialog title should be bindable
+    # TODO: placeholder text should be bindable
 
     def __init__(self):
         pass
 
-    def create_column(self, *d_children, spacing=None, margin=None):
+    def create_column(self, *children: UIDescription, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+        """Create a column UI description with children, spacing, and margin.
+
+        Args:
+            children: children to put into the column
+
+        Keyword Args:
+            spacing: spacing between items, in points
+            margin: margin, in points
+
+        Returns:
+            a UI description of the column
+        """
         d = {"type": "column"}
         if spacing is not None:
             d["spacing"] = spacing
         if margin is not None:
             d["margin"] = margin
-        if len(d_children) > 0:
-            children = d.setdefault("children", list())
-            for d_child in d_children:
-                children.append(d_child)
+        if len(children) > 0:
+            d_children = d.setdefault("children", list())
+            for child in children:
+                d_children.append(child)
         return d
 
-    def create_row(self, *d_children, spacing=None, margin=None):
+    def create_row(self, *children: UIDescription, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+        """Create a row UI description with children, spacing, and margin.
+
+        Args:
+            children: children to put into the column
+
+        Keyword Args:
+            spacing: spacing between items, in points
+            margin: margin, in points
+
+        Returns:
+            a UI description of the row
+        """
         d = {"type": "row"}
         if spacing is not None:
             d["spacing"] = spacing
         if margin is not None:
             d["margin"] = margin
-        if len(d_children) > 0:
-            children = d.setdefault("children", list())
-            for d_child in d_children:
-                children.append(d_child)
+        if len(children) > 0:
+            d_children = d.setdefault("children", list())
+            for child in children:
+                d_children.append(child)
         return d
 
-    def create_spacing(self, size):
+    def create_spacing(self, size: UIPoints) -> UIDescription:
+        """Create a spacing UI description for a row or column.
+
+        Keyword Args:
+            size: spacing, in points
+
+        Returns:
+            a UI description of the spacing
+        """
         return {"type": "spacing", "size": size}
 
-    def create_stretch(self):
+    def create_stretch(self) -> UIDescription:
+        """Create a stretch UI description for a row or column.
+
+        Returns:
+            a UI description of the stretch
+        """
         return {"type": "stretch"}
 
-    def create_tab(self, label, content):
+    def create_tab(self, label: UILabel, content: UIDescription) -> UIDescription:
+        """Create a tab UI description with a label and content.
+
+        Args:
+            label: label for the tab
+            content: UI description of the content
+
+        Returns:
+            a UI description of the tab
+        """
         return {"type": "tab", "label": label, "content": content}
 
-    def create_tabs(self, *d_tabs, name=None, current_index=None, on_current_index_changed=None):
+    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: typing.Callable[[UIWidget, int], None]=None) -> UIDescription:
+        """Create a tabs UI description with children, the current index and optional changed event.
+
+        The children must be tabs created by :py:meth:`create_tab`.
+
+        The current_index controls which tab is displayed.
+
+        The on_current_index_changed callback takes ``widget`` and ``current_index`` parameters.
+
+        Args:
+            children: child tabs
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            current_index: current index handler reference (bindable, optional)
+            on_current_index_changed: callback when current index changes (optional)
+
+        Returns:
+            a UI description of the tabs
+        """
         d = {"type": "tabs"}
-        if len(d_tabs) > 0:
-            children = d.setdefault("tabs", list())
-            for d_child in d_tabs:
-                children.append(d_child)
+        if len(tabs) > 0:
+            d_children = d.setdefault("tabs", list())
+            for child in tabs:
+                d_children.append(child)
         if name is not None:
             d["name"] = name
         if current_index is not None:
@@ -106,12 +185,29 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
-    def create_stack(self, *d_children, name=None, current_index=None, on_current_index_changed=None):
+    def create_stack(self, *children: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: typing.Callable[[UIWidget, int], None]=None) -> UIDescription:
+        """Create a stack UI description with children, the current index and optional changed event.
+
+        The current_index controls which child is displayed.
+
+        The on_current_index_changed callback takes ``widget`` and ``current_index`` parameters.
+
+        Args:
+            children: stack items
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            current_index: current index handler reference (bindable, optional)
+            on_current_index_changed: callback when current index changes (optional)
+
+        Returns:
+            a UI description of the stack
+        """
         d = {"type": "stack"}
-        if len(d_children) > 0:
-            children = d.setdefault("children", list())
-            for d_child in d_children:
-                children.append(d_child)
+        if len(children) > 0:
+            d_children = d.setdefault("children", list())
+            for child in children:
+                d_children.append(child)
         if name is not None:
             d["name"] = name
         if current_index is not None:
@@ -120,7 +216,20 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
-    def create_group(self, content, name=None, title=None, margin=None):
+    def create_group(self, content: UIDescription, name: UIIdentifier=None, title: UILabel=None, margin: UIPoints=None) -> UIDescription:
+        """Create a group UI description with content, a name, a title, and a margin.
+
+        Args:
+            content: UI description of the content
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            title: title of the group
+            margin: margin in points
+
+        Returns:
+            UI description of the group
+        """
         d = {"type": "group", "content": content}
         if name is not None:
             d["name"] = name
@@ -130,7 +239,16 @@ class DeclarativeUI:
             d["margin"] = margin
         return d
 
-    def create_label(self, *, text: str=None, name=None):
+    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None) -> UIDescription:
+        """Create a label UI description with text and an optional name.
+
+        Keyword Args:
+            text: text of the label (bindable)
+            name: handler property in which to store widget (optional)
+
+        Returns:
+            UI description of the label
+        """
         d = {"type": "text_label"}
         if text is not None:
             d["text"] = text
@@ -139,16 +257,47 @@ class DeclarativeUI:
         return d
 
     def create_line_edit(self, *,
-                         text: str=None,
-                         name=None,
-                         editable=None,
-                         placeholder_text=None,
-                         clear_button_enabled=None,
-                         on_editing_finished=None,
-                         on_escape_pressed=None,
-                         on_return_pressed=None,
-                         on_key_pressed=None,
-                         on_text_edited=None):
+                         text: UIIdentifier=None,
+                         name: UIIdentifier=None,
+                         editable: bool=None,
+                         placeholder_text: UILabel=None,
+                         clear_button_enabled: bool=None,
+                         on_editing_finished: typing.Callable[[UIWidget, str], None]=None,
+                         on_escape_pressed: typing.Callable[[UIWidget], bool]=None,
+                         on_return_pressed: typing.Callable[[UIWidget], bool]=None,
+                         on_key_pressed: typing.Callable[[UIWidget, typing.Any], bool]=None,
+                         on_text_edited: typing.Callable[[UIWidget, str], None]=None) -> UIDescription:
+        """Create a line edit UI description with text, name, placeholder, options, and events.
+
+        The ``on_editing_finished`` callback is invoked when the user presses return or escape or when they change
+        keyboard focus away from the line edit. The line edit widget and string are passed to the callback.
+
+        The ``on_escape_pressed`` and ``on_return_pressed`` callbacks are invoked when the user presses escape or
+        return. The line edit widget is passed and these methods must return ``True`` if they handle the key or
+        ``False`` otherwise.
+
+        The ``on_key_pressed`` callback is invoked when the user types a key. The line edit widget and a key instance
+        are passed. This method should return ``True`` if the key is handled (it will not go into the line edit field)
+        and return ``False`` if not handled (it will be entered as regular text).
+
+        The ``on_text_edited`` callback is invoked when the user changes the text. The line edit widget and the new text
+        are passed to the callback.
+
+        Keyword Args:
+            text: handler reference to line edit text (bindable, required)
+            name: handler property in which to store widget (optional)
+            editable: whether the line edit text is editable (optional, default True)
+            placeholder_text: text to display when line edit is empty (optional)
+            clear_button_enabled: whether the clear button is enabled (optional, default False)
+            on_editing_finished: callback when editing is finished (return or blur focus)
+            on_escape_pressed: callback when escape is pressed, return true if handled
+            on_return_pressed: callback when return is pressed, return true if handled
+            on_key_pressed: callback when a key is pressed, return true if handled
+            on_text_edited: callback when text is edited
+
+        Returns:
+            UI description of the line edit
+        """
         d = {"type": "line_edit"}
         if text is not None:
             d["text"] = text
@@ -172,7 +321,17 @@ class DeclarativeUI:
             d["on_text_edited"] = on_text_edited
         return d
 
-    def create_push_button(self, *, text: str=None, name=None, on_clicked=None):
+    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: typing.Callable[[UIWidget], None]=None) -> UIDescription:
+        """Create a push button UI description with text, name, an event.
+
+        Keyword Args:
+            text: text of the label (bindable)
+            name: handler property in which to store widget (optional)
+            on_clicked: callback when button clicked
+
+        Returns:
+            UI description of the push button
+        """
         d = {"type": "push_button"}
         if text is not None:
             d["text"] = text
@@ -183,13 +342,31 @@ class DeclarativeUI:
         return d
 
     def create_check_box(self, *,
-                         text: str=None,
-                         name=None,
-                         checked=None,
-                         check_state=None,
-                         tristate=None,
-                         on_checked_changed=None,
-                         on_check_state_changed=None):
+                         text: UILabel=None,
+                         name: UIIdentifier=None,
+                         checked: bool=None,
+                         check_state: str=None,
+                         tristate: bool=None,
+                         on_checked_changed: typing.Callable[[UIWidget, bool], None]=None,
+                         on_check_state_changed: typing.Callable[[UIWidget, str], None]=None) -> UIDescription:
+        """Create a check box UI description with text, name, state information, and events.
+
+        The ``checked`` and ``check_state`` both refer to the check state. Some callers may choose to use the simpler
+        ``checked`` which is a simple boolean. ``check_state`` is a string and must be one of 'checked', 'unchecked', or
+        'partial'. 'partial' is only valid if ``tristate`` is ``True``.
+
+        Keyword Args:
+            text: text of the label (bindable)
+            name: handler property in which to store widget (optional)
+            checked: checked state (bool)
+            check_state: checked state (string: checked, unchecked, or partial)
+            tristate: whether the check box is tristate or not
+            on_checked_changed: callback when checked changes (optional)
+            on_check_state_changed: callback when check state changes (optional)
+
+        Returns:
+            UI description of the check box
+        """
         d = {"type": "check_box"}
         if text is not None:
             d["text"] = text
@@ -208,11 +385,23 @@ class DeclarativeUI:
         return d
 
     def create_combo_box(self, *,
-                         name=None,
-                         items=None,
-                         items_ref=None,
-                         current_index=None,
-                         on_current_index_changed=None):
+                         name: UIIdentifier=None,
+                         items: typing.List[UILabel]=None,
+                         items_ref: UIIdentifier=None,
+                         current_index: UIIdentifier=None,
+                         on_current_index_changed: typing.Callable[[UIWidget, int], None]=None):
+        """Create a combo box UI description with name, items, current index, and events.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            items: list combo box items (strings, optional)
+            items_ref: handler reference of combo box items (bindable, optional)
+            current_index: current index handler reference (bindable, optional)
+            on_current_index_changed: callback when current index changes (optional)
+
+        Returns:
+            UI description of the combo box
+        """
         d = {"type": "combo_box"}
         if name is not None:
             d["name"] = name
@@ -227,10 +416,24 @@ class DeclarativeUI:
         return d
 
     def create_radio_button(self, *,
-                            name=None,
-                            text=None,
-                            value=None,
-                            group_value=None):
+                            name: UIIdentifier=None,
+                            text: UILabel=None,
+                            value: typing.Any=None,
+                            group_value: UIIdentifier=None) -> UIDescription:
+        """Create a radio button UI description with text, name, value, and group value.
+
+        A set of radio buttons should be created such that each has a different ``value`` but shares a common
+        ``group_value``. The type of ``value`` must match the type of ``group_value``.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            text: text of the label (bindable)
+            value: unique value within its group (required)
+            group_value: common value handler reference (bindable, required)
+
+        Returns:
+            UI description of the radio button
+        """
         d = {"type": "radio_button"}
         if name is not None:
             d["name"] = name
@@ -243,15 +446,30 @@ class DeclarativeUI:
         return d
 
     def create_slider(self, *,
-                      name=None,
-                      value=None,
-                      minimum=None,
-                      maximum=None,
-                      on_value_changed=None,
-                      on_slider_pressed=None,
-                      on_slider_released=None,
-                      on_slider_moved=None,
-                      ):
+                      name: UIIdentifier=None,
+                      value: UIIdentifier=None,
+                      minimum: int=None,
+                      maximum: int=None,
+                      on_value_changed: typing.Callable[[UIWidget, int], None]=None,
+                      on_slider_pressed: typing.Callable[[UIWidget], None]=None,
+                      on_slider_released: typing.Callable[[UIWidget], None]=None,
+                      on_slider_moved: typing.Callable[[UIWidget, int], None]=None,
+                      ) -> UIDescription:
+        """Create a slider UI description with name, value, limits, and events.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            value: handler reference to the current value (required, bindable)
+            minimum: minimum value (default 0)
+            maximum: maximum value (default 100)
+            on_value_changed: callback when value changes, any source (optional)
+            on_slider_pressed: callback when slider is pressed (optional)
+            on_slider_released: callback when slider is released (optional)
+            on_slider_moved: callback when slider moves, user initiated only (optional)
+
+        Returns:
+            UI description of the slider
+        """
         d = {"type": "slider"}
         if name is not None:
             d["name"] = name
@@ -272,10 +490,21 @@ class DeclarativeUI:
         return d
 
     def create_progress_bar(self, *,
-                      name=None,
-                      value=None,
-                      minimum=None,
-                      maximum=None):
+                      name: UIIdentifier=None,
+                      value: UIIdentifier=None,
+                      minimum: int=None,
+                      maximum: int=None) -> UIDescription:
+        """Create a progress bar UI description with name, value, and limits.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            value: handler reference to the current value (required, bindable)
+            minimum: minimum value (default 0)
+            maximum: maximum value (default 100)
+
+        Returns:
+            UI description of the progress bar
+        """
         d = {"type": "progress_bar"}
         if name is not None:
             d["name"] = name
@@ -287,7 +516,20 @@ class DeclarativeUI:
             d["maximum"] = maximum
         return d
 
-    def create_modeless_dialog(self, content, *, title: str=None, resources=None, margin=None):
+    def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
+        """Create a modeless dialog UI description with content, title, resources, and margin.
+
+        Args:
+            content: UI description of the content
+
+        Keyword Args:
+            title: title of the window
+            resources: additional resources
+            margin: margin in points
+
+        Returns:
+            a UI description of the dialog
+        """
         d = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
@@ -297,7 +539,20 @@ class DeclarativeUI:
             d["resources"] = resources
         return d
 
-    def create_window(self, content, *, title: str=None, resources=None, margin=None):
+    def create_window(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
+        """Create a window UI description with content, title, resources, and margin.
+
+        Args:
+            content: UI description description of the content
+
+        Keyword Args:
+            title: title of the window
+            resources: additional resources
+            margin: margin in points
+
+        Returns:
+            a UI description of the window
+        """
         d = {"type": "window", "content": content}
         if title is not None:
             d["title"] = title
@@ -392,7 +647,7 @@ def connect_event(widget, source, d, handler, event_str, arg_names):
                 for arg_name, arg in zip(arg_names, args):
                     combined_args[arg_name] = arg
                 combined_args.update(kwargs)
-                event_fn(widget, **combined_args)
+                return event_fn(widget, **combined_args)
             setattr(source, event_str, trampoline)
         else:
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
@@ -684,8 +939,8 @@ def construct(ui, window, d, handler, finishes=None):
                 connect_name(widget, d, handler)
                 # since the handler is custom to the widget, make a way to retrieve it from the widget
                 widget.handler = component_handler
-                if component_handler and hasattr(component_handler, "init_component"):
-                    component_handler.init_component()
+                if component_handler and hasattr(component_handler, "init_handler"):
+                    component_handler.init_handler()
                 # connect events
                 for event in events:
                     # print(f"connecting {event['event']} ({event['parameters']})")

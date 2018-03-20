@@ -1,3 +1,4 @@
+from nion.ui import Declarative
 from nion.utils import Model
 
 
@@ -6,7 +7,7 @@ class Handler:
     stack_index_model = Model.PropertyModel(1)
 
 
-def construct_ui(ui):
+def construct_ui(ui: Declarative.DeclarativeUI) -> Declarative.UIDescription:
 
     stack0 = ui.create_column(ui.create_label(text="111"), ui.create_label(text="ONE"))
     stack1 = ui.create_column(ui.create_label(text="222"), ui.create_label(text="TWO"))

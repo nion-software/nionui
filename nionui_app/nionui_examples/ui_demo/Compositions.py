@@ -24,15 +24,14 @@ class Handler:
 
         class FieldHandler:
 
-            label_widget = None
-            value_widget = None
+            def __init__(self):
+                self.label_widget = None
+                self.value_widget = None
+                self.on_value_changed = None
+                self.label = None
+                self.value = None
 
-            on_value_changed = None
-
-            label = None
-            value = None
-
-            def init_component(self):
+            def init_handler(self):
                 # when this is called, all fields will be populated
                 self.label_widget.text = self.label
                 self.value_widget.text = self.value

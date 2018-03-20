@@ -2,18 +2,17 @@ from nion.utils import Model
 
 class Handler:
 
-    cb1 = None
-    cb2_current_index_model = Model.PropertyModel(1)
+    def __init__(self):
+        self.cb1 = None
+        self.cb2_current_index_model = Model.PropertyModel(1)
+        self.cb2_current_index_model.on_value_changed = self.cb2_current_index_changed
+        self.numbers = ["One", "Two", "Three"]
+        self.numeros = Model.PropertyModel([])
+        self.numeros.value = ["Uno", "Dos", "Tres"]
 
-    numbers = ["One", "Two", "Three"]
-
-    numeros = Model.PropertyModel([])
-
-    def init_component(self):
+    def init_handler(self):
         # this method is called after all fields are populated
         self.cb1.current_index = 2
-        self.cb2_current_index_model.on_value_changed = self.cb2_current_index_changed
-        self.numeros.value = ["Uno", "Dos", "Tres"]
 
     def cb1_current_index_changed(self, widget, current_index):
         print(f"CB1 {current_index}")

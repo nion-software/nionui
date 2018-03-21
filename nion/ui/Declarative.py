@@ -16,6 +16,7 @@ UIResources = typing.Dict  # when napolean works: typing.NewType("UIResources", 
 UIPoints = int  # when napolean works: typing.NewType("UIPoints", int)
 UILabel = str
 UIIdentifier = str  # typing.NewType("UIIndentifier", str)
+UICallableIdentifier = str  # typing.NewType("UICallableIdentifier", str)
 UIWidget = UserInterface.Widget
 UIKey = UserInterface.Key
 
@@ -156,14 +157,15 @@ class DeclarativeUI:
         """
         return {"type": "tab", "label": label, "content": content}
 
-    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: typing.Callable[[UIWidget, int], None]=None) -> UIDescription:
+    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
         """Create a tabs UI description with children, the current index and optional changed event.
 
         The children must be tabs created by :py:meth:`create_tab`.
 
         The current_index controls which tab is displayed.
 
-        The on_current_index_changed callback takes ``widget`` and ``current_index`` parameters.
+        The on_current_index_changed callback reference takes ``widget`` and ``current_index`` parameters. The type
+        signature in the handler should be ``typing.Callable[[UIWidget, int], None]``.
 
         Args:
             children: child tabs
@@ -189,12 +191,13 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
-    def create_stack(self, *children: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: typing.Callable[[UIWidget, int], None]=None) -> UIDescription:
+    def create_stack(self, *children: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
         """Create a stack UI description with children, the current index and optional changed event.
 
         The current_index controls which child is displayed.
 
-        The on_current_index_changed callback takes ``widget`` and ``current_index`` parameters.
+        The on_current_index_changed callback reference takes ``widget`` and ``current_index`` parameters. The type
+        signature in the handler should be ``typing.Callable[[UIWidget, int], None]``.
 
         Args:
             children: stack items
@@ -266,26 +269,29 @@ class DeclarativeUI:
                          editable: bool=None,
                          placeholder_text: UILabel=None,
                          clear_button_enabled: bool=None,
-                         on_editing_finished: typing.Callable[[UIWidget, str], None]=None,
-                         on_escape_pressed: typing.Callable[[UIWidget], bool]=None,
-                         on_return_pressed: typing.Callable[[UIWidget], bool]=None,
-                         on_key_pressed: typing.Callable[[UIWidget, UIKey], bool]=None,
-                         on_text_edited: typing.Callable[[UIWidget, str], None]=None) -> UIDescription:
+                         on_editing_finished: UICallableIdentifier=None,
+                         on_escape_pressed: UICallableIdentifier=None,
+                         on_return_pressed: UICallableIdentifier=None,
+                         on_key_pressed: UICallableIdentifier=None,
+                         on_text_edited: UICallableIdentifier=None) -> UIDescription:
         """Create a line edit UI description with text, name, placeholder, options, and events.
 
         The ``on_editing_finished`` callback is invoked when the user presses return or escape or when they change
-        keyboard focus away from the line edit. The line edit widget and string are passed to the callback.
+        keyboard focus away from the line edit. The line edit widget and string are passed to the callback. The type
+        signature in the handler should be ``typing.Callable[[UIWidget, str], None]``.
 
         The ``on_escape_pressed`` and ``on_return_pressed`` callbacks are invoked when the user presses escape or
         return. The line edit widget is passed and these methods must return ``True`` if they handle the key or
-        ``False`` otherwise.
+        ``False`` otherwise. Their type signatures in the handler should be ``typing.Callable[[UIWidget], bool]``.
 
         The ``on_key_pressed`` callback is invoked when the user types a key. The line edit widget and a key instance
         are passed. This method should return ``True`` if the key is handled (it will not go into the line edit field)
-        and return ``False`` if not handled (it will be entered as regular text).
+        and return ``False`` if not handled (it will be entered as regular text). The type signature in the handler
+        should be ``typing.Callable[[UIWidget, UIKey], bool]``.
 
         The ``on_text_edited`` callback is invoked when the user changes the text. The line edit widget and the new text
-        are passed to the callback.
+        are passed to the callback. The type signature in the handler should be ``typing.Callable[[UIWidget, str],
+        None]``.
 
         Keyword Args:
             text: handler reference to line edit text (bindable, required)
@@ -325,8 +331,11 @@ class DeclarativeUI:
             d["on_text_edited"] = on_text_edited
         return d
 
-    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: typing.Callable[[UIWidget], None]=None) -> UIDescription:
+    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None) -> UIDescription:
         """Create a push button UI description with text, name, an event.
+
+        The ``on_clicked`` callback is invoked when the user clicks the button. The widget is passed to the callback.
+        The type signature in the handler should be ``typing.Callable[[UIWidget], None]``.
 
         Keyword Args:
             text: text of the label (bindable)
@@ -351,13 +360,21 @@ class DeclarativeUI:
                          checked: bool=None,
                          check_state: str=None,
                          tristate: bool=None,
-                         on_checked_changed: typing.Callable[[UIWidget, bool], None]=None,
-                         on_check_state_changed: typing.Callable[[UIWidget, str], None]=None) -> UIDescription:
+                         on_checked_changed: UICallableIdentifier=None,
+                         on_check_state_changed: UICallableIdentifier=None) -> UIDescription:
         """Create a check box UI description with text, name, state information, and events.
 
         The ``checked`` and ``check_state`` both refer to the check state. Some callers may choose to use the simpler
         ``checked`` which is a simple boolean. ``check_state`` is a string and must be one of 'checked', 'unchecked', or
         'partial'. 'partial' is only valid if ``tristate`` is ``True``.
+
+        The ``on_checked_changed`` callback is invoked when the user changes the state of the check box. The widget and
+        the new state of the check box are passed to the callback. The type signature in the handler should be
+        ``typing.Callable[[UIWidget, bool], None]``.
+
+        The ``on_check_state_changed`` callback is invoked when the user changes the state of the check box, but it also
+        includes the 'partial' state if enabled. The widget and the new state of the check box are passed to the
+        callback. The type signature in the handler should be ``typing.Callable[[UIWidget, str], None]``.
 
         Keyword Args:
             text: text of the label (bindable)
@@ -393,8 +410,12 @@ class DeclarativeUI:
                          items: typing.List[UILabel]=None,
                          items_ref: UIIdentifier=None,
                          current_index: UIIdentifier=None,
-                         on_current_index_changed: typing.Callable[[UIWidget, int], None]=None):
+                         on_current_index_changed: UICallableIdentifier=None):
         """Create a combo box UI description with name, items, current index, and events.
+
+        The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the combo box.
+        The widget and the new index of the selected item are passed to the callback. The type signature in the handler
+        should be ``typing.Callable[[UIWidget, int], None]``.
 
         Keyword Args:
             name: handler property in which to store widget (optional)
@@ -454,12 +475,26 @@ class DeclarativeUI:
                       value: UIIdentifier=None,
                       minimum: int=None,
                       maximum: int=None,
-                      on_value_changed: typing.Callable[[UIWidget, int], None]=None,
-                      on_slider_pressed: typing.Callable[[UIWidget], None]=None,
-                      on_slider_released: typing.Callable[[UIWidget], None]=None,
-                      on_slider_moved: typing.Callable[[UIWidget, int], None]=None,
+                      on_value_changed: UICallableIdentifier=None,
+                      on_slider_pressed: UICallableIdentifier=None,
+                      on_slider_released: UICallableIdentifier=None,
+                      on_slider_moved: UICallableIdentifier=None,
                       ) -> UIDescription:
         """Create a slider UI description with name, value, limits, and events.
+
+        The ``on_value_changed`` callback is invoked whenever the slider value changes, including if set
+        programmatically. The widget and the new value are passed to the callback. The type signature in the handler
+        should be ``typing.Callable[[UIWidget, int], None]``.
+
+        The ``on_slider_pressed`` callback is invoked when the user begins dragging the slider. The widget is passed to
+        the callback. The type signature in the handler should be ``typing.Callable[[UIWidget], None]``.
+
+        The ``on_slider_released`` callback is invoked when the user stops dragging the slider. The widget is passed to
+        the callback. The type signature in the handler should be ``typing.Callable[[UIWidget], None]``.
+
+        The ``on_slider_moved`` callback is invoked whenever the slider value changes while the user is dragging. The
+        widget and the new value are passed to the callback. The type signature in the handler should be
+        ``typing.Callable[[UIWidget, int], None]``.
 
         Keyword Args:
             name: handler property in which to store widget (optional)

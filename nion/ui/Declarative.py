@@ -601,8 +601,10 @@ class DeclarativeUI:
             d["resources"] = resources
         return d
 
-    def define_component(self, content, create_handler_method_name, events=None):
-        d = {"type": "component", "content": content, "create_handler_method_name": create_handler_method_name}
+    def define_component(self, content, *, component_id=None, events=None):
+        d = {"type": "component", "content": content}
+        if component_id is not None:
+            d["component_id"] = component_id
         if events is not None:
             d["events"] = events
         return d
@@ -962,10 +964,10 @@ def construct(ui, window, d, handler, finishes=None):
             # it will also have a function to create its handler. finally the component will
             # have a list of events that to be connected.
             content = component.get("content")
-            create_handler_method_name = component.get("create_handler_method_name")
+            component_id = component.get("component_id")
             events = component.get("events", list())
             # create the handler first, but don't initialize it.
-            component_handler = getattr(handler, create_handler_method_name)() if create_handler_method_name and hasattr(handler, create_handler_method_name) else None
+            component_handler = handler.create_handler(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
             if component_handler:
                 # set properties in the component from the properties dict
                 for k, v in d.get("properties", dict()).items():

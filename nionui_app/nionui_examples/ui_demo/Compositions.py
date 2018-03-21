@@ -20,7 +20,7 @@ class Handler:
         self.width_field.handler.value_widget.text = "20"
         self.height_field.handler.value_widget.text = "30"
 
-    def create_field(self):
+    def create_handler(self, component_id: str, **kwargs):
 
         class FieldHandler:
 
@@ -43,7 +43,8 @@ class Handler:
                 if callable(self.on_value_changed):
                     self.on_value_changed(value=text)
 
-        return FieldHandler()
+        if component_id == "field":
+            return FieldHandler()
 
     @property
     def resources(self):
@@ -52,7 +53,7 @@ class Handler:
         field_line_edit = ui.create_line_edit(name="value_widget", on_editing_finished="value_changed")
         field = ui.create_row(field_label, field_line_edit, ui.create_stretch(), spacing=8)
         field_events = [{"event": "on_value_changed", "parameters": ["value"]}]
-        field_component = ui.define_component(content=field, create_handler_method_name="create_field", events=field_events)
+        field_component = ui.define_component(content=field, component_id="field", events=field_events)
         return {"field": field_component}
 
 

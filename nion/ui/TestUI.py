@@ -9,6 +9,7 @@ import numpy
 # local libraries
 from . import CanvasItem
 from . import DrawingContext
+from . import UserInterface
 from nion.utils import Geometry
 
 
@@ -462,11 +463,23 @@ class ListModelController:
         pass
 
 
-class Key:
+class Key(UserInterface.Key):
     def __init__(self, text, key, modifiers):
-        self.text = text
-        self.key = key
-        self.modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+        self.__text = text
+        self.__key = key
+        self.__modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @property
+    def key(self) -> str:
+        return self.__key
+
+    @property
+    def modifiers(self) -> UserInterface.KeyboardModifiers:
+        return self.__modifiers
 
     @property
     def is_delete(self):
@@ -499,6 +512,42 @@ class Key:
     @property
     def is_down_arrow(self):
         return self.key == "down"
+
+    @property
+    def is_delete_to_end_of_line(self):
+        return self.key == "delete_to_end_of_line"
+
+    @property
+    def is_end(self):
+        return self.key == "end"
+
+    @property
+    def is_escape(self):
+        return self.key == "escape"
+
+    @property
+    def is_home(self):
+        return self.key == "home"
+
+    @property
+    def is_insert(self):
+        return self.key == "insert"
+
+    @property
+    def is_move_to_end_of_line(self):
+        return self.key == "end_of_line"
+
+    @property
+    def is_move_to_start_of_line(self):
+        return self.key == "start_of_line"
+
+    @property
+    def is_page_down(self):
+        return self.key == "page_down"
+
+    @property
+    def is_page_up(self):
+        return self.key == "page_up"
 
 
 class MimeData:

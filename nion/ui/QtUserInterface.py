@@ -24,7 +24,7 @@ def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
 
 
-class QtKeyboardModifiers:
+class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     def __init__(self, raw_modifiers):
         self.raw_modifiers = raw_modifiers
 
@@ -94,11 +94,23 @@ class QtKeyboardModifiers:
         return self.raw_modifiers == 0x20000000
 
 
-class QtKey:
+class QtKey(UserInterface.Key):
     def __init__(self, text, key, raw_modifiers):
-        self.text = text
-        self.key = key
-        self.modifiers = QtKeyboardModifiers(raw_modifiers)
+        self.__text = text
+        self.__key = key
+        self.__modifiers = QtKeyboardModifiers(raw_modifiers)
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @property
+    def key(self) -> str:
+        return self.__key
+
+    @property
+    def modifiers(self) -> UserInterface.KeyboardModifiers:
+        return self.__modifiers
 
     @property
     def is_delete(self):

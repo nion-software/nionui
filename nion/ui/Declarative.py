@@ -17,6 +17,7 @@ UIPoints = int  # when napolean works: typing.NewType("UIPoints", int)
 UILabel = str
 UIIdentifier = str  # typing.NewType("UIIndentifier", str)
 UIWidget = UserInterface.Widget
+UIKey = UserInterface.Key
 
 _ = gettext.gettext
 
@@ -54,12 +55,15 @@ class DeclarativeUI:
     # TODO: context menu
     # ----: progress bar
     # TODO: key handler
+    # TODO: key validator
+    # TODO: field validator
     # TODO: canvas
     # TODO: dock panels
     # TODO: windows
     # TODO: thumbnails
     # TODO: display panels
     # TODO: periodic
+    # TODO: focus handler
     # ----: bindings
     # TODO: commands
     # TODO: standard dialog boxes, open, save, print, confirm
@@ -265,7 +269,7 @@ class DeclarativeUI:
                          on_editing_finished: typing.Callable[[UIWidget, str], None]=None,
                          on_escape_pressed: typing.Callable[[UIWidget], bool]=None,
                          on_return_pressed: typing.Callable[[UIWidget], bool]=None,
-                         on_key_pressed: typing.Callable[[UIWidget, typing.Any], bool]=None,
+                         on_key_pressed: typing.Callable[[UIWidget, UIKey], bool]=None,
                          on_text_edited: typing.Callable[[UIWidget, str], None]=None) -> UIDescription:
         """Create a line edit UI description with text, name, placeholder, options, and events.
 

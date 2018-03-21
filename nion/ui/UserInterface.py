@@ -28,6 +28,187 @@ FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent"
 MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
 
 
+class KeyboardModifiers(abc.ABC):
+
+    def __str__(self):
+        return "shift:{} control:{} alt:{} option:{} meta:{}".format(self.shift, self.control, self.alt, self.option, self.meta)
+
+    # shift
+    @property
+    @abc.abstractmethod
+    def shift(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_shift(self) -> bool:
+        ...
+
+    # control (command key on mac)
+    @property
+    @abc.abstractmethod
+    def control(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_control(self) -> bool:
+        ...
+
+    # alt (option key on mac)
+    @property
+    @abc.abstractmethod
+    def alt(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_alt(self) -> bool:
+        ...
+
+    # option (alt key on windows)
+    @property
+    @abc.abstractmethod
+    def option(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_option(self) -> bool:
+        ...
+
+    # meta (control key on mac)
+    @property
+    @abc.abstractmethod
+    def meta(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_meta(self) -> bool:
+        ...
+
+    # control key (all platforms)
+    @property
+    @abc.abstractmethod
+    def native_control(self) -> bool:
+        ...
+
+    # keypad
+    @property
+    @abc.abstractmethod
+    def keypad(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def only_keypad(self) -> bool:
+        ...
+
+
+class Key(abc.ABC):
+
+    @property
+    @abc.abstractmethod
+    def text(self) -> str:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def key(self) -> str:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def modifiers(self) -> KeyboardModifiers:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_delete(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_enter_or_return(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_escape(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_tab(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_insert(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_home(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_end(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_move_to_start_of_line(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_move_to_end_of_line(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_delete_to_end_of_line(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_arrow(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_left_arrow(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_up_arrow(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_right_arrow(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_down_arrow(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_page_up(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def is_page_down(self) -> bool:
+        ...
+
+
 class Widget:
 
     def __init__(self, widget_behavior):
@@ -1118,7 +1299,7 @@ class LineEditWidget(Widget):
 
         self._behavior.on_return_pressed = handle_return_pressed
 
-        def handle_key_pressed(key):
+        def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
@@ -1277,7 +1458,7 @@ class TextEditWidget(Widget):
 
         self._behavior.on_return_pressed = handle_return_pressed
 
-        def handle_key_pressed(key):
+        def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
@@ -1498,14 +1679,14 @@ class CanvasWidget(Widget):
 
         self._behavior.on_size_changed = handle_size_changed
 
-        def handle_key_pressed(key):
+        def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
 
         self._behavior.on_key_pressed = handle_key_pressed
 
-        def handle_key_released(key):
+        def handle_key_released(key: Key) -> bool:
             if callable(self.on_key_released):
                 return self.on_key_released(key)
             return False
@@ -1720,7 +1901,7 @@ class TreeWidget(Widget):
         self.on_item_double_clicked = None
         self.on_item_key_pressed = None
 
-        def handle_key_pressed(indexes, key):
+        def handle_key_pressed(indexes, key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(indexes, key)
             return False
@@ -1739,7 +1920,7 @@ class TreeWidget(Widget):
 
         self._behavior.on_tree_selection_changed = handle_tree_selection_changed
 
-        def handle_tree_item_key_pressed(index, parent_row, parent_id, key):
+        def handle_tree_item_key_pressed(index, parent_row, parent_id, key: Key) -> bool:
             if callable(self.on_item_key_pressed):
                 return self.on_item_key_pressed(index, parent_row, parent_id, key)
             return False

@@ -22,6 +22,7 @@ class Window:
     def __init__(self, ui: UserInterface.UserInterface, app=None, parent_window=None, window_style=None, persistent_id=None):
         self.ui = ui
         self.app = app
+        self.on_close = None
         parent_window = parent_window._document_window if parent_window else None
         self.__document_window = self.ui.create_document_window(parent_window=parent_window)
         if window_style:
@@ -49,6 +50,7 @@ class Window:
         logger.setLevel(old_level)
 
     def close(self):
+        self.on_close = None
         # give cancelled tasks a chance to finish
         self.__event_loop.stop()
         self.__event_loop.run_forever()
@@ -148,6 +150,8 @@ class Window:
     def about_to_close(self, geometry: str, state: str) -> None:
         # subclasses can override this method to save geometry and state
         # subclasses can also cancel closing by not calling super() (or close()).
+        if callable(self.on_close):
+            self.on_close()
         self.close()
 
     def refocus_widget(self, widget):

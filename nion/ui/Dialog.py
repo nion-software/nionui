@@ -88,8 +88,6 @@ class ActionDialog(Window.Window):
             window_style = "tool"
         super().__init__(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
 
-        self.on_close = None
-
         self.title = title
 
         self.content = self.ui.create_column_widget()
@@ -110,13 +108,7 @@ class ActionDialog(Window.Window):
 
     def close(self) -> None:
         self.finish_periodic()  # required to finish periodic operations during tests
-        self.on_close = None
         super().close()
-
-    def about_to_close(self, geometry: str, state: str) -> None:
-        if callable(self.on_close):
-            self.on_close()
-        super().about_to_close(geometry, state)
 
     def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> UserInterface.PushButtonWidget:
         def on_clicked():

@@ -8,6 +8,7 @@ from nion.ui import Application
 from nion.ui import Dialog
 from nion.ui import Window
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.utils import Binding
 
 
@@ -78,13 +79,25 @@ class DeclarativeUI:
     def __init__(self):
         pass
 
-    def create_column(self, *children: UIDescription, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
-        """Create a column UI description with children, spacing, and margin.
+    def create_column(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+        """Create a column UI description with children or dynamic items, spacing, and margin.
+
+        The children can be passed as parameters or constructed from an observable list specified by `items` and
+        `item_component_id`.
+
+        If the children are constructed from an observable list, a component instance will be created for each item
+        in the list. Adding or removing items from the list will dynamically update the children. The associated
+        handler must implement the `resources` property with a value for the key `item_component_id` describing the
+        component UI. It must also implement `create_handler` to create a handler for each component. The
+        `create_handler` call will receive two extra keyword arguments `container` and `item` in additional to the
+        `component_id`.
 
         Args:
             children: children to put into the column
 
         Keyword Args:
+            items: handler observable list property from which to build child components
+            item_component_id: resource identifier of component ui description for child components
             spacing: spacing between items, in points
             margin: margin, in points
 
@@ -92,6 +105,10 @@ class DeclarativeUI:
             a UI description of the column
         """
         d = {"type": "column"}
+        if items:
+            d["items"] = items
+        if item_component_id:
+            d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
         if margin is not None:
@@ -102,13 +119,25 @@ class DeclarativeUI:
                 d_children.append(child)
         return d
 
-    def create_row(self, *children: UIDescription, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
-        """Create a row UI description with children, spacing, and margin.
+    def create_row(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+        """Create a row UI description with children or dynamic items, spacing, and margin.
+
+        The children can be passed as parameters or constructed from an observable list specified by `items` and
+        `item_component_id`.
+
+        If the children are constructed from an observable list, a component instance will be created for each item
+        in the list. Adding or removing items from the list will dynamically update the children. The associated
+        handler must implement the `resources` property with a value for the key `item_component_id` describing the
+        component UI. It must also implement `create_handler` to create a handler for each component. The
+        `create_handler` call will receive two extra keyword arguments `container` and `item` in additional to the
+        `component_id`.
 
         Args:
-            children: children to put into the column
+            children: children to put into the row
 
         Keyword Args:
+            items: handler observable list property from which to build child components
+            item_component_id: resource identifier of component ui description for child components
             spacing: spacing between items, in points
             margin: margin, in points
 
@@ -116,6 +145,10 @@ class DeclarativeUI:
             a UI description of the row
         """
         d = {"type": "row"}
+        if items:
+            d["items"] = items
+        if item_component_id:
+            d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
         if margin is not None:
@@ -650,6 +683,36 @@ def connect_string_value(widget, d, handler, property, finishes):
         setattr(widget, property, v)
 
 
+class Closer:
+    """A helper class to facilitate closing handlers and associated closeable items.
+
+    A closer is attached to each handler and used to close the handler, extra closeable items that the engine may
+    created, and child component handlers.
+    """
+    def __init__(self):
+        self.__handlers = set()
+
+    def push_closeable(self, handler):
+        assert handler not in self.__handlers
+        self.__handlers.add(handler)
+
+    def pop_closeable(self, handler):
+        assert handler in self.__handlers
+        if callable(getattr(handler, "close", None)):
+            handler.close()
+        if hasattr(handler, "_closer"):
+            handler._closer.close()
+        self.__handlers.remove(handler)
+
+    def close(self):
+        for handler in self.__handlers:
+            if callable(getattr(handler, "close", None)):
+                handler.close()
+            if hasattr(handler, "_closer"):
+                handler._closer.close()
+        self.__handlers = None
+
+
 def connect_reference_value(widget, d, handler, property, finishes, binding_name=None):
     """Connects a reference to the property, but also allows binding.
 
@@ -709,8 +772,14 @@ def run_window(app, d, handler):
             handler.resources = resources
         else:
             handler.resources.update(resources)
+        closer = Closer()
         finishes = list()
         window = Window.Window(ui, app=app, persistent_id=persistent_id)
+        window.title = title
+        window.on_close = closer.close
+        # make and attach closer for the handler; put handler into container closer
+        handler._closer = Closer()
+        closer.push_closeable(handler)
         outer_row = ui.create_row_widget()
         outer_column = ui.create_column_widget()
         inner_content = construct(ui, window, content, handler, finishes)
@@ -726,12 +795,8 @@ def run_window(app, d, handler):
         window.show()
         for finish in finishes:
             finish()
-        if handler and hasattr(handler, "init_handler"):
+        if callable(getattr(handler, "init_handler", None)):
             handler.init_handler()
-        def close_handler():
-            if handler and hasattr(handler, "close"):
-                handler.close()
-        window.on_close = close_handler
         return window
 
 
@@ -749,6 +814,57 @@ def construct_margin(ui, content, margin):
     return content
 
 
+def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes):
+    items_parts = items.split('.')
+    container = handler
+    for items_part in items_parts[:-1]:
+        container = getattr(container, items_part.strip())
+    items_key = items_parts[-1]
+
+    def insert_item(index, item):
+        item_widget = None
+        component = handler.resources.get(item_component_id)
+        if component:
+            assert component.get("type") == "component"
+            # the component will have a content portion, which is a widget description. component events are
+            # ignored in this case.
+            content = component.get("content")
+            component_id = component.get("component_id")
+            assert component_id == item_component_id
+            assert callable(getattr(handler, "create_handler", None))
+            # create the handler first, but don't initialize it.
+            component_handler = handler.create_handler(component_id=component_id, item=item, container=container)
+            # make and attach closer for the component handler and link it to the container handler.
+            if component_handler:
+                component_handler._closer = Closer()
+                handler._closer.push_closeable(component_handler)
+            # now construct the widget
+            item_widget = construct(ui, window, content, component_handler, finishes)
+            # since the handler is custom to the widget, make a way to retrieve it from the widget
+            item_widget.handler = component_handler
+            component_handler._event_loop = window.event_loop
+            if callable(getattr(component_handler, "init_handler", None)):
+                component_handler.init_handler()
+        container_widget.insert(item_widget, index)
+        return item_widget
+
+    def row_item_inserted(key, value, before_index):
+        if key == items_key:
+            insert_item(before_index, value)
+
+    def row_item_removed(key, value, before_index):
+         if key == items_key:
+            item_widget = container_widget.children[before_index]
+            handler._closer.pop_closeable(item_widget.handler)
+            container_widget.remove(item_widget)
+
+    for item in getattr(container, items_key):
+        insert_item(len(container_widget.children), item)
+
+    handler._closer.push_closeable(container.item_inserted_event.listen(row_item_inserted))
+    handler._closer.push_closeable(container.item_removed_event.listen(row_item_removed))
+
+
 def construct(ui, window, d, handler, finishes=None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
@@ -763,9 +879,14 @@ def construct(ui, window, d, handler, finishes=None):
             handler.resources = resources
         else:
             handler.resources.update(resources)
+        closer = Closer()
         finishes = list()
         dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
+        dialog.on_close = closer.close
         dialog._create_menus()
+        # make and attach closer for the handler; put handler into container closer
+        handler._closer = Closer()
+        closer.push_closeable(handler)
         outer_row = ui.create_row_widget()
         outer_column = ui.create_column_widget()
         inner_content = construct(ui, window, content, handler, finishes)
@@ -780,18 +901,17 @@ def construct(ui, window, d, handler, finishes=None):
         dialog.content.add(outer_row)
         for finish in finishes:
             finish()
-        if handler and hasattr(handler, "init_handler"):
+        if callable(getattr(handler, "init_handler", None)):
             handler.init_handler()
-        def close_handler():
-            if handler and hasattr(handler, "close"):
-                handler.close()
-        dialog.on_close = close_handler
         return dialog
     elif d_type == "column":
         column_widget = ui.create_column_widget()
         spacing = d.get("spacing")
         margin = d.get("margin")
+        items = d.get("items")
+        item_component_id = d.get("item_component_id")
         children = d.get("children", list())
+        assert not items or not children
         first = True
         for child in children:
             if not first and spacing is not None:
@@ -803,12 +923,17 @@ def construct(ui, window, d, handler, finishes=None):
             else:
                 column_widget.add(construct(ui, window, child, handler, finishes))
             first = False
+        if items and item_component_id:
+            connect_items(ui, window, column_widget, handler, items, item_component_id, finishes)
         return construct_margin(ui, column_widget, margin)
     elif d_type == "row":
         row_widget = ui.create_row_widget()
         spacing = d.get("spacing")
         margin = d.get("margin")
+        items = d.get("items")
+        item_component_id = d.get("item_component_id")
         children = d.get("children", list())
+        assert not items or not children
         first = True
         for child in children:
             if not first and spacing is not None:
@@ -820,6 +945,8 @@ def construct(ui, window, d, handler, finishes=None):
             else:
                 row_widget.add(construct(ui, window, child, handler, finishes))
             first = False
+        if items and item_component_id:
+            connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
         widget = ui.create_label_widget()
@@ -960,34 +1087,57 @@ def construct(ui, window, d, handler, finishes=None):
         component = handler.resources.get(identifier)
         if component:
             assert component.get("type") == "component"
-            # the component will have a content portion, which is just a widget description.
-            # it will also have a function to create its handler. finally the component will
-            # have a list of events that to be connected.
+            # the component will have a content portion, which is a widget description, and a list of events.
             content = component.get("content")
             component_id = component.get("component_id")
             events = component.get("events", list())
             # create the handler first, but don't initialize it.
             component_handler = handler.create_handler(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
             if component_handler:
+                # make and attach closer for the component handler and link it to the container handler.
+                component_handler._closer = Closer()
+                handler._closer.push_closeable(component_handler)
                 # set properties in the component from the properties dict
                 for k, v in d.get("properties", dict()).items():
                     # print(f"setting property {k} to {v}")
                     setattr(component_handler, k, v)
             # now construct the widget
             widget = construct(ui, window, content, component_handler, finishes)
-            if handler:
-                # connect the name to the handler if desired
-                connect_name(widget, d, handler)
-                # since the handler is custom to the widget, make a way to retrieve it from the widget
-                widget.handler = component_handler
-                if component_handler and hasattr(component_handler, "init_handler"):
-                    component_handler.init_handler()
-                # connect events
-                for event in events:
-                    # print(f"connecting {event['event']} ({event['parameters']})")
-                    connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
+            # connect the name to the handler if desired
+            connect_name(widget, d, handler)
+            # since the handler is custom to the widget, make a way to retrieve it from the widget
+            widget.handler = component_handler
+            if callable(getattr(component_handler, "init_handler", None)):
+                component_handler.init_handler()
+            # connect events
+            for event in events:
+                # print(f"connecting {event['event']} ({event['parameters']})")
+                connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
             return widget
     return None
+
+
+class DeclarativeWidget(Widgets.CompositeWidgetBase):
+    """A widget containing a declarative ui handler."""
+
+    def __init__(self, ui, ui_handler):
+        super().__init__(ui.create_stack_widget())
+        self.__closer = Closer()
+        self.__closer.push_closeable(ui_handler)
+        finishes = list()
+        # make and attach closer for the handler; put handler into container closer
+        ui_handler._closer = Closer()
+        widget = construct(ui, None, ui_handler.ui_view, ui_handler, finishes)
+        self.content_widget.add(widget)
+        for finish in finishes:
+            finish()
+        if callable(getattr(ui_handler, "init_handler", None)):
+            ui_handler.init_handler()
+
+    def close(self):
+        self.__closer.close()
+        super().close()
+
 
 def run_ui(args, bootstrap_args, d, handler):
 

@@ -295,7 +295,6 @@ it to a button.
         def button_pushed(self):
             self.enabled_model.value = True
 
-
 Most places where you use a string value or a reference can be replaced with a *binding*.
 
 Converters
@@ -362,7 +361,6 @@ window using ``Declarative.run_ui`` in your ``main`` function.
         handler = object()  # a dummy handler in this example
         return Declarative.run_ui(args, bootstrap_args, window, handler)
 
-
 .. autoclass:: nion.ui.Declarative.DeclarativeUI
     :members: create_window, create_modeless_dialog
 
@@ -373,6 +371,8 @@ discussed below under the widgets section since they can't be used as the top-mo
 
 A row, column, or stack can be used as a base for additional content. Each element contains other elements (referred to
 as *children* in this guide).
+
+.. todo: dynamic children
 
 Rows and columns layout their children horizontally or vertically. The children can optionally be separated by *spacing*
 and the entire row or column can have a *margin* spacing.

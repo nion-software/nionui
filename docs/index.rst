@@ -179,10 +179,13 @@ the declarative UI might look something like this:
     handler = Handler()
     Declarative.run_dialog(layout, handler)
 
-During ``run_dialog``, the declarative UI engine will populate properties of your handler connected to the UI and then
-call the method ``init_handler`` which can be used to initialize any values that require the UI to be in place.
+During ``run_dialog``, the declarative UI engine will populate properties of your handler connected to the UI, inject
+useful objects such as ``_event_loop``, and then call the method ``init_handler`` which can be used to initialize any
+values that require the UI to be in place.
 
 Your handler can do any further initialization of the widgets in ``init_handler``.
+
+.. todo: add section about event handler
 
 Connecting Widgets
 ^^^^^^^^^^^^^^^^^^

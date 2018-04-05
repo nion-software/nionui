@@ -795,6 +795,7 @@ def run_window(app, d, handler):
         window.show()
         for finish in finishes:
             finish()
+        handler._event_loop = window.event_loop
         if callable(getattr(handler, "init_handler", None)):
             handler.init_handler()
         return window
@@ -901,6 +902,7 @@ def construct(ui, window, d, handler, finishes=None):
         dialog.content.add(outer_row)
         for finish in finishes:
             finish()
+        handler._event_loop = window.event_loop
         if callable(getattr(handler, "init_handler", None)):
             handler.init_handler()
         return dialog
@@ -1107,6 +1109,7 @@ def construct(ui, window, d, handler, finishes=None):
             connect_name(widget, d, handler)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
             widget.handler = component_handler
+            component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()
             # connect events
@@ -1120,7 +1123,7 @@ def construct(ui, window, d, handler, finishes=None):
 class DeclarativeWidget(Widgets.CompositeWidgetBase):
     """A widget containing a declarative ui handler."""
 
-    def __init__(self, ui, ui_handler):
+    def __init__(self, ui, event_loop, ui_handler):
         super().__init__(ui.create_stack_widget())
         self.__closer = Closer()
         self.__closer.push_closeable(ui_handler)
@@ -1131,6 +1134,7 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         self.content_widget.add(widget)
         for finish in finishes:
             finish()
+        ui_handler._event_loop = event_loop
         if callable(getattr(ui_handler, "init_handler", None)):
             ui_handler.init_handler()
 

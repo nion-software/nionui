@@ -425,14 +425,14 @@ class BoxWidget(Widget):
             child.periodic()
 
     @property
-    def child_count(self):
+    def child_count(self) -> int:
         return len(self.children)
 
-    def index(self, child):
+    def index(self, child: Widget) -> int:
         assert child in self.children
         return self.children.index(child)
 
-    def insert(self, child, before, fill=False, alignment=None):
+    def insert(self, child, before: typing.Optional[typing.Union[Widget, int]], fill=False, alignment=None):
         if isinstance(before, numbers.Integral):
             index = before
         else:
@@ -449,7 +449,7 @@ class BoxWidget(Widget):
 
     def remove(self, child: typing.Union[Widget, int]) -> None:
         if isinstance(child, numbers.Integral):
-            child = self.children[child]
+            child = self.children[int(child)]
         child._set_root_container(None)
         self.children.remove(child)
         # closing the child should remove it from the layout
@@ -620,12 +620,29 @@ class StackWidget(Widget):
         for child in self.children:
             child.periodic()
 
-    def add(self, child: Widget) -> None:
-        self._behavior.add(child)
-        self.children.append(child)
+    @property
+    def child_count(self) -> int:
+        return len(self.children)
+
+    def index(self, child: Widget) -> int:
+        assert child in self.children
+        return self.children.index(child)
+
+    def insert(self, child: Widget, before: typing.Optional[typing.Union[Widget, int]]) -> None:
+        if isinstance(before, numbers.Integral):
+            index = before
+        else:
+            index = self.index(before) if before is not None else self.child_count
+        self._behavior.insert(child, index)
+        self.children.insert(index, child)
         child._set_root_container(self.root_container)
 
-    def remove(self, child: Widget) -> None:
+    def add(self, child: Widget) -> None:
+        self.insert(child, None)
+
+    def remove(self, child: typing.Union[Widget, int]) -> None:
+        if isinstance(child, numbers.Integral):
+            child = self.children[int(child)]
         self._behavior.remove(child)
         child._set_root_container(None)
         self.children.remove(child)

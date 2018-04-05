@@ -712,6 +712,14 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         super().__init__(proxy, "stack", properties)
         self.__current_index = -1
 
+    def insert(self, child, index):
+        # behavior must handle index of None, meaning insert at end
+        child_widget = extract_widget(child)
+        assert self.widget is not None
+        assert child_widget is not None
+        index = index if index is not None else self.proxy.Widget_widgetCount(self.widget)
+        self.proxy.StackWidget_insertWidget(self.widget, child_widget, index)
+
     def add(self, child: UserInterface.Widget) -> None:
         self.proxy.StackWidget_addWidget(self.widget, extract_widget(child))
 

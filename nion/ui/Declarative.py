@@ -224,8 +224,18 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
-    def create_stack(self, *children: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
-        """Create a stack UI description with children, the current index and optional changed event.
+    def create_stack(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
+        """Create a stack UI description with children or dynamic items, the current index and optional changed event.
+
+        The children can be passed as parameters or constructed from an observable list specified by `items` and
+        `item_component_id`.
+
+        If the children are constructed from an observable list, a component instance will be created for each item
+        in the list. Adding or removing items from the list will dynamically update the children. The associated
+        handler must implement the `resources` property with a value for the key `item_component_id` describing the
+        component UI. It must also implement `create_handler` to create a handler for each component. The
+        `create_handler` call will receive two extra keyword arguments `container` and `item` in additional to the
+        `component_id`.
 
         The current_index controls which child is displayed.
 
@@ -236,6 +246,8 @@ class DeclarativeUI:
             children: stack items
 
         Keyword Args:
+            items: handler observable list property from which to build child components
+            item_component_id: resource identifier of component ui description for child components
             name: handler property in which to store widget (optional)
             current_index: current index handler reference (bindable, optional)
             on_current_index_changed: callback when current index changes (optional)
@@ -248,6 +260,10 @@ class DeclarativeUI:
             d_children = d.setdefault("children", list())
             for child in children:
                 d_children.append(child)
+        if items:
+            d["items"] = items
+        if item_component_id:
+            d["item_component_id"] = item_component_id
         if name is not None:
             d["name"] = name
         if current_index is not None:
@@ -1057,6 +1073,10 @@ def construct(ui, window, d, handler, finishes=None):
         widget = ui.create_stack_widget()
         for child in d.get("children", list()):
             widget.add(construct(ui, window, child, handler, finishes))
+        items = d.get("items")
+        item_component_id = d.get("item_component_id")
+        if items and item_component_id:
+            connect_items(ui, window, widget, handler, items, item_component_id, finishes)
         if handler:
             connect_name(widget, d, handler)
             connect_reference_value(widget, d, handler, "current_index", finishes)

@@ -13,6 +13,7 @@ from . import CheckBoxes
 from . import ComboBoxes
 from . import Compositions
 from . import ComponentLayout
+from . import ComponentStack
 from . import Converters
 from . import Groups
 from . import LineEdits
@@ -61,6 +62,7 @@ def main(args, bootstrap_args):
         (StatusBar, "status_bar", _("Status Bar")),
         (Tabs, "tabs", _("Tabs")),
         (ComponentLayout, "component_layout", _("Component Layout")),
+        (ComponentStack, "component_stack", _("Component Stack")),
         ]
 
     handler = Handler()

@@ -1023,8 +1023,9 @@ def construct(ui, window, d, handler, finishes=None):
         widget = ui.create_combo_box_widget(items=items)
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "current_index", finishes)
+            # note: items_ref connects before current_index so that current_index can be valid
             connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items")
+            connect_reference_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
         return widget
     elif d_type == "radio_button":

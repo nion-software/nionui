@@ -8,13 +8,13 @@ readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "README.m
 
 setuptools.setup(
     name="nionui",
-    version="0.0.1",
+    version="0.3.10",
     author="Nion Software",
     author_email="swift@nion.com",
     description="Nion UI framework.",
     long_description=open(readme_path).read(),
     url="https://github.com/nion-software/nionui",
-    packages=["nion.ui", "nionui_app.none"],
+    packages=["nion.ui", "nion.ui.test", "nionui_app.none", "nionui_app.nionui_examples.hello_world", "nionui_app.nionui_examples.ui_demo"],
     install_requires=['scipy', 'numpy', 'nionutils'],
     license='Apache 2.0',
     classifiers=[

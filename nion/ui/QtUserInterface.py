@@ -2090,6 +2090,9 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_temporary_location(self):
         return self.proxy.Core_getLocation("temporary")
 
+    def get_configuration_location(self):
+        return self.proxy.Core_getLocation("configuration")
+
     def get_persistent_string(self, key, default_value=None):
         key = "/".join([self.persistence_root, key])
         value = self.proxy.Settings_getString(key)

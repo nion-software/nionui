@@ -1151,7 +1151,13 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         finishes = list()
         # make and attach closer for the handler; put handler into container closer
         ui_handler._closer = Closer()
-        widget = construct(ui, None, ui_handler.ui_view, ui_handler, finishes)
+
+        class Window:
+            # dummy Window to supply event loop
+            def __init__(self):
+                self.event_loop = event_loop
+
+        widget = construct(ui, Window(), ui_handler.ui_view, ui_handler, finishes)
         self.content_widget.add(widget)
         for finish in finishes:
             finish()

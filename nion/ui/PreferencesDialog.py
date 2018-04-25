@@ -102,7 +102,7 @@ class PreferencesDialog(Dialog.ActionDialog):
                 content_row_widget = ui.create_row_widget()
                 content_column_widget = ui.create_column_widget()
                 content_column_widget.add_spacing(12)
-                content_column_widget.add(preference_pane_delegate.build(ui))
+                content_column_widget.add(preference_pane_delegate.build(ui, event_loop=self.event_loop))
                 content_column_widget.add_spacing(12)
                 content_column_widget.add_stretch()
                 content_row_widget.add_spacing(12)

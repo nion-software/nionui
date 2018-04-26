@@ -335,6 +335,7 @@ class DeclarativeUI:
                          editable: bool=None,
                          placeholder_text: UILabel=None,
                          clear_button_enabled: bool=None,
+                         width: int=None,
                          on_editing_finished: UICallableIdentifier=None,
                          on_escape_pressed: UICallableIdentifier=None,
                          on_return_pressed: UICallableIdentifier=None,
@@ -365,6 +366,7 @@ class DeclarativeUI:
             editable: whether the line edit text is editable (optional, default True)
             placeholder_text: text to display when line edit is empty (optional)
             clear_button_enabled: whether the clear button is enabled (optional, default False)
+            width: width in points (optional, default None)
             on_editing_finished: callback when editing is finished (return or blur focus)
             on_escape_pressed: callback when escape is pressed, return true if handled
             on_return_pressed: callback when return is pressed, return true if handled
@@ -385,6 +387,8 @@ class DeclarativeUI:
             d["placeholder_text"] = placeholder_text
         if clear_button_enabled is not None:
             d["clear_button_enabled"] = clear_button_enabled
+        if width is not None:
+            d["width"] = width
         if on_editing_finished is not None:
             d["on_editing_finished"] = on_editing_finished
         if on_escape_pressed is not None:
@@ -993,7 +997,11 @@ def construct(ui, window, d, handler, finishes=None):
         editable = d.get("editable", None)
         placeholder_text = d.get("placeholder_text", None)
         clear_button_enabled = d.get("clear_button_enabled", None)
-        widget = ui.create_line_edit_widget()
+        width = d.get("width", None)
+        properties = dict()
+        if width is not None:
+            properties["width"] = int(width)
+        widget = ui.create_line_edit_widget(properties)
         if editable is not None:
             widget.editable = editable
         if placeholder_text is not None:

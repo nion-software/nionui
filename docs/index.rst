@@ -389,8 +389,10 @@ Stacks layout their children on top of one another with only a single child visi
 when presenting optional content where the specific content is controlled by another UI element. Stacks can have a
 *margin* spacing.
 
+Scroll areas layout their content in a scrollable area with scroll bars.
+
 .. autoclass:: nion.ui.Declarative.DeclarativeUI
-    :members: create_column, create_row, create_spacing, create_stretch, create_stack
+    :members: create_column, create_row, create_spacing, create_stretch, create_stack, create_scroll_area
 
 Widgets
 -------

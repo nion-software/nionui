@@ -272,6 +272,23 @@ class DeclarativeUI:
             d["on_current_index_changed"] = on_current_index_changed
         return d
 
+    def create_scroll_area(self, content: UIDescription, name: UIIdentifier=None):
+        """Create a scroll area UI description with content and a name.
+
+        Args:
+            content: UI description of the content
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+
+        Returns:
+            UI description of the scroll area
+        """
+        d = {"type": "scroll_area", "content": content}
+        if name is not None:
+            d["name"] = name
+        return d
+
     def create_group(self, content: UIDescription, name: UIIdentifier=None, title: UILabel=None, margin: UIPoints=None) -> UIDescription:
         """Create a group UI description with content, a name, a title, and a margin.
 
@@ -1082,6 +1099,14 @@ def construct(ui, window, d, handler, finishes=None):
             connect_name(widget, d, handler)
             connect_reference_value(widget, d, handler, "current_index", finishes)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        return widget
+    elif d_type == "scroll_area":
+        widget = ui.create_scroll_area_widget()
+        widget.set_scrollbar_policies("needed", "needed")
+        content = d.get("content")
+        widget.content = construct(ui, window, content, handler, finishes)
+        if handler:
+            connect_name(widget, d, handler)
         return widget
     elif d_type == "group":
         widget = ui.create_group_widget()

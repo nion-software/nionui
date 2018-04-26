@@ -99,15 +99,13 @@ class PreferencesDialog(Dialog.ActionDialog):
             selected_index = 0
             for index, preference_pane_delegate in enumerate(PreferencesManager().preference_pane_delegates):
                 preference_pane_delegates.append(preference_pane_delegate)
-                content_row_widget = ui.create_row_widget()
                 content_column_widget = ui.create_column_widget()
                 content_column_widget.add_spacing(12)
                 content_column_widget.add(preference_pane_delegate.build(ui, event_loop=self.event_loop))
                 content_column_widget.add_spacing(12)
-                content_column_widget.add_stretch()
+                content_row_widget = ui.create_row_widget()
                 content_row_widget.add_spacing(12)
                 content_row_widget.add(content_column_widget)
-                content_row_widget.add_stretch()
                 content_row_widget.add_spacing(12)
                 content_stack.add(content_row_widget)
                 items.append(preference_pane_delegate.label)

@@ -880,6 +880,8 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             item_widget = construct(ui, window, content, component_handler, finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
             item_widget.handler = component_handler
+            for finish in finishes:
+                finish()
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()

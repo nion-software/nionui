@@ -891,6 +891,7 @@ class ComboBoxWidget(Widget):
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
+            self.on_items_changed = None
         self.items = binding.get_target_value()
         self.__items_binding = binding
         def update_items(items):
@@ -1032,6 +1033,7 @@ class RadioButtonWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.__on_group_value_changed = None
         self.group_value = binding.get_target_value()
         self.__binding = binding
         def update_checked(group_value):
@@ -1106,6 +1108,7 @@ class CheckBoxWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_checked_changed = None
         self.checked = binding.get_target_value()
         self.__binding = binding
         def update_checked(checked):
@@ -1121,6 +1124,7 @@ class CheckBoxWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_check_state_changed = None
         self.check_state = binding.get_target_value()
         self.__binding = binding
         def update_check_state(check_state):
@@ -1272,6 +1276,7 @@ class SliderWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_value_changed = None
         self.value = binding.get_target_value()
         self.__binding = binding
         def update_value(value):
@@ -1392,6 +1397,9 @@ class LineEditWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_editing_finished = None
+            self.on_return_pressed = None
+            self.on_escape_pressed = None
         self.text = binding.get_target_value()
         def update_field(text):
             if self._behavior:
@@ -1422,6 +1430,8 @@ class LineEditWidget(Widget):
             self.__binding.close()
             self.__binding = None
         self.on_editing_finished = None
+        self.on_return_pressed = None
+        self.on_escape_pressed = None
 
 
 Selection = collections.namedtuple("Selection", ["start", "end"])
@@ -1582,6 +1592,7 @@ class TextEditWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_text_changed = None
         self.text = binding.get_target_value()
         self.__binding = binding
         def update_text(text):
@@ -1896,6 +1907,7 @@ class ProgressBarWidget(CanvasWidget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+            self.on_value_changed = None
         self.value = binding.get_target_value()
         self.__binding = binding
         def update_value(value):

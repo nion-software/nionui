@@ -26,5 +26,10 @@ setuptools.setup(
     package_data={
         'nion.ui': ['*.html'],
     },
-    test_suite="nion.ui.test"
+    test_suite="nion.ui.test",
+    entry_points={
+        'console_scripts': [
+            'nionui=nion.ui.command:main',
+            ],
+        },
 )

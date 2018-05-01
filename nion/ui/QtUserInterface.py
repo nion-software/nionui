@@ -279,7 +279,7 @@ class QtItemModelController:
 
     def __init__(self, proxy, keys):
         self.proxy = proxy
-        self.py_item_model = self.proxy.ItemModel_create(["index"] + keys)
+        self.py_item_model = self.proxy.ItemModel_create()
         self.proxy.ItemModel_connect(self.py_item_model, self)
         self.__next_id = 0
         self.root = self.create_item()
@@ -1401,8 +1401,10 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.proxy.Widget_setFocusPolicy(self.widget, "wheel_focus" if focusable else "no_focus")
 
     def draw(self, drawing_context):
-        # self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), None)
-        self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
+        if hasattr(self.proxy, "Canvas_draw_binary"):
+            self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
+        else:
+            self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images)
 
     def set_cursor_shape(self, cursor_shape):
         cursor_shape = cursor_shape or "arrow"
@@ -1991,6 +1993,12 @@ class QtUserInterface(UserInterface.UserInterface):
         self.proxy.Application_close()
         self.proxy = None
 
+    def set_application_info(self, application_name: str, organization_name: str, organization_domain: str):
+        self.proxy.Core_setApplicationInfo(application_name, organization_name, organization_domain)
+
+    def run(self, start_fn):
+        self.proxy.run(start_fn)
+
     # data objects
 
     def create_mime_data(self):
@@ -2141,8 +2149,10 @@ class QtUserInterface(UserInterface.UserInterface):
     # misc
 
     def create_rgba_image(self, drawing_context, width, height):
-        # return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
-        return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height))
+        if hasattr(self.proxy, "Canvas_draw_binary"):
+            return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height))
+        else:
+            return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
 
     def get_font_metrics(self, font, text):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))

@@ -1,0 +1,171 @@
+/* ---- Scroll bars Start ---- */
+
+QScrollArea {
+    background-color: transparent;
+}
+
+QScrollBar:vertical {
+border-image: url(:/app/scroll_bg.png) 5px 5px 5px 5px stretch stretch;
+border-width: 0px 0px 0px 0px;
+min-width: 15px;
+max-width: 15px;
+}
+
+QScrollBar::handle:vertical {
+border-image: url(:/app/scroll_gem.png) 5px 5px 5px 5px stretch stretch;
+border-width: 5px 0px 5px 0px;
+margin-top: 4px;
+margin-bottom: 4px;
+min-width: 15px;
+max-width: 15px;
+min-height: 15px; 
+max-height: 15px;
+}
+
+QScrollBar::handle:vertical:hover {
+border-image: url(:/app/scroll_gem_hover.png) 5px 5px 5px 5px stretch stretch;
+border-width: 5px 0px 5px 0px;
+margin-top: 4px;
+margin-bottom: 4px;
+min-width: 15px;
+max-width: 15px;
+min-height: 15px; 
+max-height: 15px;
+}
+
+QScrollBar::add-line:vertical {
+subcontrol-position: bottom;
+subcontrol-origin: margin;
+width: 0px;
+height: 0px;
+}
+
+QScrollBar::sub-line:vertical {
+subcontrol-position: top;
+subcontrol-origin: margin;
+width: 0px;
+height: 0px;
+}
+
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical,
+QScrollBar::up-arrow:vertical, 
+QScrollBar::down-arrow:vertical {
+background: none;
+}
+
+QScrollBar:horizontal {
+border-image: url(:/app/scroll_bg_horizontal.png) 5px 5px 5px 5px stretch stretch;
+border-width: 0px 0px 0px 0px;
+margin-left: 1px;
+min-height: 15px;
+max-height: 15px;
+}
+
+QScrollBar::handle:horizontal {
+border-image: url(:/app/scroll_gem_horizontal.png) 5px 5px 5px 5px stretch stretch;
+border-width: 0px 5px 0px 5px;
+margin-left: 4px;
+margin-right: 4px;
+min-height: 15px;
+max-height: 15px;
+}
+
+QScrollBar::handle:horizontal:hover {
+border-image: url(:/app/scroll_gem_horizontal_hover.png) 5px 5px 5px 5px stretch stretch;
+border-width: 0px 5px 0px 5px;
+margin-left: 4px;
+margin-right: 4px;
+min-height: 15px;
+max-height: 15px;
+}
+
+QScrollBar::add-line:horizontal {
+subcontrol-position: right;
+subcontrol-origin: margin;
+width: 0px;
+height: 0px;
+}
+
+QScrollBar::sub-line:horizontal {
+subcontrol-position: left;
+subcontrol-origin: margin;
+width: 0px;
+height: 0px;
+}
+
+QScrollBar::add-page:horizontal,
+QScrollBar::sub-page:horizontal,
+QScrollBar::up-arrow:horizontal, 
+QScrollBar::down-arrow:horizontal {
+background: none;
+}
+
+/* To style the small corner where the vertical and horizontal scroll bars intersect */
+QAbstractScrollArea::corner {
+    background: transparent;
+}
+
+/* ---- Scroll bars End ---- */
+
+/* ---- Splitter Start ---- */
+
+QSplitter::handle {
+    background-color: '#888';
+}
+
+QSplitter::handle:horizontal {
+    width: 1px;
+}
+
+QSplitter::handle:vertical {
+    height: 1px;
+}
+
+/* ---- Splitter End ---- */
+
+/* ---- Tab View Start ---- */
+
+QTabWidget::pane { /* The tab widget frame */
+    border-top: 1px solid #C2C7CB;
+    border-left: 1px solid #C2C7CB;
+    border-right: 1px solid #C2C7CB;
+    border-bottom: 1px solid #C2C7CB;
+}
+
+QTabWidget::tab-bar {
+    left: 5px; /* move to the right by 5px */
+}
+
+/* Style the tab using the tab sub-control. Note that it reads QTabBar _not_ QTabWidget */
+QTabBar::tab {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 #E1E1E1, stop: 0.4 #DDDDDD, stop: 0.5 #D8D8D8, stop: 1.0 #D3D3D3);
+    border-top: 1px solid #C2C7CB;
+    border-left: 1px solid #C2C7CB;
+    border-right: 1px solid #C2C7CB;
+    border-bottom-color: #C2C7CB; /* same as the pane color */
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    min-width: 8ex;
+    padding-top: 2px;
+    padding-left: 8px;
+    padding-bottom: 4px;
+    padding-right: 8px;
+}
+
+QTabBar::tab:selected, QTabBar::tab:hover {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+    stop: 0 #fafafa, stop: 0.4 #f4f4f4,
+    stop: 0.5 #e7e7e7, stop: 1.0 #fafafa);
+}
+
+QTabBar::tab:selected {
+    border-color: #9B9B9B;
+    border-bottom-color: #C2C7CB; /* same as pane color */
+}
+
+QTabBar::close-button {
+    subcontrol-position: right;
+}
+
+/* ---- Tab View End ---- */

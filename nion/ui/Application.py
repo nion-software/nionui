@@ -32,6 +32,10 @@ class Application:
     def deinitialize(self):
         self.ui.close()
 
+    def run(self):
+        """Alternate start which allows ui to control event loop."""
+        self.ui.run(self)
+
     def start(self):
         """The start method should create a window that will be the focus of the UI."""
         if self.on_start:
@@ -52,6 +56,10 @@ def make_ui(bootstrap_args):
         from nion.ui import QtUserInterface
         proxy = bootstrap_args["proxy"]
         return QtUserInterface.QtUserInterface(proxy)
+    elif "pyqt" in bootstrap_args:
+        from nion.ui import QtUserInterface
+        from nion.ui import PyQtProxy
+        return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())
     elif "server" in bootstrap_args:
         from nion.ui import CanvasUI
         server = bootstrap_args["server"]

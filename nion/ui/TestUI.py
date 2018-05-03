@@ -609,6 +609,8 @@ class UserInterface:
         self.clipboard = MimeData()
     def close(self):
         pass
+    def set_application_info(self, name: str, organization: str, domain: str) -> None:
+        pass
     def create_mime_data(self):
         return MimeData()
     def create_item_model_controller(self, keys):

@@ -78,7 +78,7 @@ class ButtonsWindow(Window.Window):
         icon_button_widget.on_clicked = button_clicked
 
         # and bind the label txt to the 'value' property of the text_model, but attach an integer-to-string converter to it.
-        label_widget.bind_text(Binding.PropertyBinding(text_model, "value", Converter.IntegerToStringConverter(format="You have clicked {:d} times.")))
+        label_widget.bind_text(Binding.PropertyBinding(text_model, "value", converter=Converter.IntegerToStringConverter(format="You have clicked {:d} times.")))
 
 
 def main(args, bootstrap_args):

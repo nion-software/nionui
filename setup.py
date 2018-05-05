@@ -24,7 +24,7 @@ setuptools.setup(
     ],
     include_package_data=True,
     package_data={
-        'nion.ui': ['*.html'],
+        'nion.ui': ['*.html', "resources/*"],
     },
     test_suite="nion.ui.test",
     entry_points={

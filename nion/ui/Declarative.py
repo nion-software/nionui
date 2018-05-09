@@ -548,7 +548,7 @@ class DeclarativeUI:
                       on_value_changed: UICallableIdentifier=None,
                       on_slider_pressed: UICallableIdentifier=None,
                       on_slider_released: UICallableIdentifier=None,
-                      on_slider_moved: UICallableIdentifier=None,
+                      on_slider_moved: UICallableIdentifier=None
                       ) -> UIDescription:
         """Create a slider UI description with name, value, limits, and events.
 

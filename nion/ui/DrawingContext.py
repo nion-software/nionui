@@ -20,8 +20,8 @@ import threading
 import xml.sax.saxutils
 
 # third party libraries
+import imageio
 import numpy
-import scipy.misc
 
 # local libraries
 # None
@@ -317,7 +317,7 @@ class DrawingContext:
             elif command_id == "image":
                 w, h, image, image_id, a, b, c, d = command_args
                 png_file = io.BytesIO()
-                scipy.misc.imsave(png_file, image, "png")
+                imageio.imwrite(png_file, image, "png")
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
@@ -345,7 +345,7 @@ class DrawingContext:
                     get_blue_view(image)[:] = clipped_array
                     get_alpha_view(image)[:] = 255
                 png_file = io.BytesIO()
-                scipy.misc.imsave(png_file, get_rgba_view_from_rgba_data(image), "png")
+                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), "png")
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"

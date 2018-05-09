@@ -1,5 +1,7 @@
 import importlib
 import os
+import pkg_resources
+import subprocess
 import sys
 
 
@@ -66,12 +68,33 @@ def bootstrap_main(args):
 
 
 def main():
+
+    # first attempt to launch using nionui-launcher
+    if pkg_resources.Environment()["nionui-tool"]:
+        if sys.platform == "darwin":
+            app_path = pkg_resources.resource_filename("nion.nionui_tool", "macosx/Nion UI Launcher.app")
+            exe_path = os.path.join(app_path, "Contents", "MacOS", "Nion UI Launcher")
+        elif sys.platform == "linux":
+            app_dir = pkg_resources.resource_filename("nion.nionui_tool", "linux")
+            exe_path = os.path.join(app_dir, "NionUILauncher")
+        elif sys.platform == "win32":
+            app_dir = pkg_resources.resource_filename("nion.nionui_tool", "windows")
+            exe_path = os.path.join(app_dir, "NionUILauncher.exe")
+        else:
+            exe_path = None
+        if exe_path:
+            python_prefix = os.sys.prefix
+            proc = subprocess.Popen([exe_path, python_prefix] + sys.argv[1:], universal_newlines=True)
+            proc.communicate()
+            return
+
+    # next attempt to launch using pyqt
     success = False
     try:
         from PyQt5 import QtCore
         success = True
     except ImportError:
-        print("Please install pyqt using pip or conda or use nionui-exe to launch.")
+        print("Please install pyqt using pip or conda or use nionui-tool to launch.")
 
     if success:
         app, error = bootstrap_main(sys.argv)

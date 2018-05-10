@@ -29,7 +29,7 @@ test:
 
 about:
   home: https://github.com/nion-software/nionui
-  license: Apache Software License
+  license: Apache-2.0
   summary: Nion UI classes.
   description: "A library of useful UI objects."
 

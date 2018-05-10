@@ -11,3 +11,15 @@ install:
 # command to run tests
 script:
   python -m unittest discover -p '*_test.py'
+
+# command to deploy to pypi on tags
+deploy:
+  provider: pypi
+  user: "cmeyer"
+  password:
+    secure: "RMnUUn0bYhVzB2TvNSC5+UPmKu4AhjRtepCBcL7ZtvNEP5S6EUAdS0dR+EyJ0CdMmu6M+zHTH/QVbAL2Y64Xq7QcwmGF9ycoZBAEgZXWLVFwPQH8S3CyM8nFTwJ1R5/33FWmuPP5lcM9BY1K8NNamDHuEH4UMKw9BW+ze64RTAegA3lbgYCnscAmz+H/EFWdyXsDaZDy4MgsmW9dZQZUk0f/NK3tmicOzxeh+H6dp11QS4xa9B67nqOO7UI8sP5i4lewFmnTxBHoUSCixE5Jvmy897uJ55ysqwxRzKMCY/0bRhGjzZ6ih+uSUOImLsiB932T3xJjVpggJ2p4F02+t5MQR6/OKlRtJzP9yz6oJOpL9OVuJIKGGw/3+b0AQQ+/orkN6IL7z81yjMpIUz5WLV1r8tNePTaZvlQy/MMlBcr+8BHim6IoqYjFK+Tz608vuSBHpJHADSewepe7uXY01Z0bBRCdCDWLrk4VzNEgKUsA0YrVJ9NKrfF5gpHNSEKchsr2RGJB0vaLDMlW+GCDB56/WEjzjZ7o9pVp7uukxECDoPBfdaiTJkQ7YNo8z0JYUEPMVoI2hTUeE6g0gRGL6D3UW6SQ/uPA4e0qttL+N7qnmJug9FyQed3JkyoxBz0DdleSxICjLYIIdWzFbhvg7RI3zy0xr5M6oDZyTCYyLGo="
+  on:
+    tags: true
+    branch: master
+    python: '3.6'
+  distributions: "sdist bdist_wheel" # Your distributions here

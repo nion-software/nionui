@@ -1,0 +1,38 @@
+package:
+  name: 'nionui'
+  version: '0.3.10'
+
+source:
+  git_rev: 0.3.10
+  git_url: https://github.com/nion-software/nionui.git
+
+build:
+  noarch: python
+  number: 0
+  script: python -m pip install --no-deps --ignore-installed .
+  include_recipe: False
+
+requirements:
+  host:
+    - python
+    - setuptools
+  run:
+    - python >=3.5
+    - nionutils >=0.3.10
+    - numpy
+    - imageio
+
+test:
+  imports:
+    - nion.ui
+    - nion.ui.test
+
+about:
+  home: https://github.com/nion-software/nionui
+  license: Apache Software License
+  summary: Nion UI classes.
+  description: "A library of useful UI objects."
+
+extra:
+  recipe-maintainers:
+    cmeyer

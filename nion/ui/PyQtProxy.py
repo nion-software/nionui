@@ -19,6 +19,8 @@ lastVisitedDir = str()
 g_timer = None
 g_timer_offset_ns = 0
 
+g_stylesheet = None
+
 
 def GetDirectory(path: str) -> str:
     info = QtCore.QFileInfo(QtCore.QDir.current(), path)
@@ -104,11 +106,19 @@ def GetOpenFileNames(parent: QtWidgets.QWidget, caption: str, dir: str, filter: 
     return []
 
 
+def GetDisplayScaling() -> float:
+    logical_dpi = app.primaryScreen().logicalDotsPerInch()
+    if sys.platform == 'darwin':
+        return logical_dpi / 72
+    else:
+        return logical_dpi / 96
+
+
 def ParseScrollBarPolicy(policy_str: str) -> QtCore.Qt.ScrollBarPolicy:
     policy_str_lower = policy_str.lower()
     if policy_str_lower == "off":
         return QtCore.Qt.ScrollBarAlwaysOff
-    if policy_str_lower == "on":
+    elif policy_str_lower == "on":
         return QtCore.Qt.ScrollBarAlwaysOn
     else:
         return QtCore.Qt.ScrollBarAsNeeded
@@ -217,12 +227,14 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
-            self.object.sizeChanged(event.size().width(), event.size().height())
+            display_scaling = GetDisplayScaling()
+            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
 
     def moveEvent(self, event: QtGui.QMoveEvent) -> None:
         super().moveEvent(event)
         if self.object:
-            self.object.positionChanged(event.pos().x(), event.pos().y())
+            display_scaling = GetDisplayScaling()
+            self.object.positionChanged(int(event.pos().x() / display_scaling), int(event.pos().y() / display_scaling))
 
     def changeEvent(self, event: QtCore.QEvent) -> None:
         super().changeEvent(event)
@@ -250,7 +262,8 @@ class DockWidget(QtWidgets.QDockWidget):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
-            self.object.sizeChanged(event.size().width(), event.size().height())
+            display_scaling = GetDisplayScaling()
+            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -490,9 +503,10 @@ class PyScrollArea(QtWidgets.QScrollArea):
 
     def __notify_viewport_changed(self):
         if self.object:
+            display_scaling = GetDisplayScaling()
             offset = self.widget().mapFrom(self.viewport(), QtCore.QPoint(0, 0))
             viewport_rect = self.viewport().rect().translated(offset.x(), offset.y())
-            self.object.viewportChanged(viewport_rect.left(), viewport_rect.top(), viewport_rect.width(), viewport_rect.height())
+            self.object.viewportChanged(viewport_rect.left() / display_scaling, viewport_rect.top() / display_scaling, viewport_rect.width() / display_scaling, viewport_rect.height() / display_scaling)
 
     def __scroll_bar_changed(self, value: int) -> None:
         self.__notify_viewport_changed()
@@ -510,7 +524,8 @@ class PyScrollArea(QtWidgets.QScrollArea):
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
-            self.object.sizeChanged(event.size().width(), event.size().height())
+            display_scaling = GetDisplayScaling()
+            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
             self.__notify_viewport_changed()
 
 
@@ -536,6 +551,8 @@ class TreeWidget(QtWidgets.QTreeView):
         self.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
         self.setDefaultDropAction(QtCore.Qt.MoveAction)
         self.setDragEnabled(True)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.clicked.connect(self.__clicked)
         self.doubleClicked.connect(self.__double_clicked)
         self.__saved_index = None
@@ -862,7 +879,7 @@ def addArcToPath(path: QtGui.QPainterPath, x: float, y: float, radius: float, st
         path.arcTo(x_start, y_start, width, height, start_angle_degrees, sweep_angle_degrees)
 
 
-def ParseFontString(font_string: str) -> QtGui.QFont:
+def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFont:
     font = QtGui.QFont()
     family_parts = list()
     is_family = False
@@ -883,9 +900,9 @@ def ParseFontString(font_string: str) -> QtGui.QFont:
             elif font_part == "system":
                 font.setStyleHint(QtGui.QFont.System)
             elif font_part.endswith("pt") and int(font_part[:-2]) > 0:
-                font.setPointSizeF(int(font_part[:-2]))
+                font.setPointSizeF(int(font_part[:-2]) * display_scaling)
             elif font_part.endswith("px") and int(font_part[:-2]) > 0:
-                font.setPixelSize(int(font_part[:-2]))
+                font.setPixelSize(int(int(font_part[:-2]) * display_scaling))
             else:
                 is_family = True
         if is_family:
@@ -961,12 +978,14 @@ times_map = dict()
 count_map = dict()
 
 
-def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand], image_cache: typing.Dict[int, PaintImageCacheEntry]) -> None:
+def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand], image_cache: typing.Dict[int, PaintImageCacheEntry], display_scaling: float = 1.0) -> None:
     global timer_map
     global times_map
     global count_map
     global g_timer
     global g_timer_offset_ns
+
+    display_scaling = GetDisplayScaling()
 
     path = QtGui.QPainterPath()
 
@@ -1012,25 +1031,25 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "closePath":
             path.closeSubpath()
         elif cmd == "clip":
-            painter.setClipRect(args[0], args[1], args[2], args[3], QtCore.Qt.IntersectClip)
+            painter.setClipRect(args[0] * display_scaling, args[1] * display_scaling, args[2] * display_scaling, args[3] * display_scaling, QtCore.Qt.IntersectClip)
         elif cmd == "translate":
-            painter.translate(args[0], args[1])
+            painter.translate(args[0] * display_scaling, args[1] * display_scaling)
         elif cmd == "scale":
-            painter.scale(args[0], args[1])
+            painter.scale(args[0] * display_scaling, args[1] * display_scaling)
         elif cmd == "rotate":
             painter.rotate(args[0])
         elif cmd == "moveTo":
-            path.moveTo(args[0], args[1])
+            path.moveTo(args[0] * display_scaling, args[1] * display_scaling)
         elif cmd == "lineTo":
-            path.lineTo(args[0], args[1])
+            path.lineTo(args[0] * display_scaling, args[1] * display_scaling)
         elif cmd == "rect":
-            path.addRect(args[0], args[1], args[2], args[3])
+            path.addRect(args[0] * display_scaling, args[1] * display_scaling, args[2] * display_scaling, args[3] * display_scaling)
         elif cmd == "arc":
             # see http://www.w3.org/TR/2dcontext/#dom-context-2d-arc
             # see https://qt.gitorious.org/qt/qtdeclarative/source/e3eba2902fcf645bf88764f5272e2987e8992cd4:src/quick/items/context2d/qquickcontext2d.cpp#L3801-3815
-            x = args[0]
-            y = args[1]
-            radius = args[2]
+            x = args[0] * display_scaling
+            y = args[1] * display_scaling
+            radius = args[2] * display_scaling
             start_angle_radians = args[3]
             end_angle_radians = args[4]
             clockwise = not args[5]
@@ -1040,9 +1059,9 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             # see https://code.google.com/p/chromium/codesearch#chromium/src/third_party/skia/src/core/SkPath.cpp&sq=package:chromium&type=cs&l=1381&rcl=1424120049
             # see https://bug-23003-attachments.webkit.org/attachment.cgi?id=26267
             p0 = path.currentPosition()
-            p1 = QtCore.QPointF(args[0], args[1])
-            p2 = QtCore.QPointF(args[2], args[3])
-            radius = args[4]
+            p1 = QtCore.QPointF(args[0] * display_scaling, args[1] * display_scaling)
+            p2 = QtCore.QPointF(args[2] * display_scaling, args[3] * display_scaling)
+            radius = args[4] * display_scaling
 
             # Draw only a straight line to p1 if any of the points are equal or the radius is zero
             # or the points are collinear (triangle that the points form has area of zero value).
@@ -1109,9 +1128,9 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
             addArcToPath(path, p.x(), p.y(), radius, sa, ea, anticlockwise)
         elif cmd == "cubicTo":
-            path.cubicTo(args[0], args[1], args[2], args[3], args[4], args[5])
+            path.cubicTo(args[0] * display_scaling, args[1] * display_scaling, args[2] * display_scaling, args[3] * display_scaling, args[4] * display_scaling, args[5] * display_scaling)
         elif cmd == "quadraticTo":
-            path.quadTo(args[0], args[1], args[2], args[3])
+            path.quadTo(args[0] * display_scaling, args[1] * display_scaling, args[2] * display_scaling, args[3] * display_scaling)
         elif cmd == "statistics":
             label = args[0].strip()
 
@@ -1146,7 +1165,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if image_cache and image_id in image_cache:
                 image_cache[image_id].used = True
                 image = image_cache[image_id].image
-                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4], args[5]), QtCore.QSizeF(args[6], args[7])), image)
+                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
             else:
                 image = QtGui.QImage()
 
@@ -1156,7 +1175,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     image = imageFromRGBA(array)
 
                 if not image.isNull():
-                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4], args[5]), QtCore.QSizeF(args[6], args[7])), image)
+                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
                     if image_cache:
                         image_cache[image_id] = PaintImageCacheEntry(image_id, True, image)
         elif cmd == "data":
@@ -1165,7 +1184,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if image_cache and image_id in image_cache:
                 image_cache[image_id].used = True
                 image = image_cache[image_id].image
-                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4], args[5]), QtCore.QSizeF(args[6], args[7])), image)
+                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
             else:
                 image = QtGui.QImage()
 
@@ -1177,16 +1196,16 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     image = imageFromArray(array, args[8], args[9], colormap)
 
                 if not image.isNull():
-                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4], args[5]), QtCore.QSizeF(args[6], args[7])), image)
+                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
                     if image_cache:
                         image_cache[image_id] = PaintImageCacheEntry(image_id, True, image)
         elif cmd == "stroke":
             pen = QtGui.QPen(line_color)
-            pen.setWidthF(line_width)
+            pen.setWidthF(line_width * display_scaling)
             pen.setJoinStyle(line_join)
             pen.setCapStyle(line_cap)
             if line_dash > 0:
-                dashes = [line_dash, line_dash]
+                dashes = [line_dash * display_scaling, line_dash * display_scaling]
                 pen.setDashPattern(dashes)
             painter.strokePath(path, pen)
         elif cmd == "fill":
@@ -1209,7 +1228,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             fill_gradient = args[0]
         elif cmd == "fillText" or cmd == "strokeText":
             text = args[0]
-            text_pos = QtCore.QPointF(args[1], args[2])
+            text_pos = QtCore.QPointF(args[1] * display_scaling, args[2] * display_scaling)
             fm = QtGui.QFontMetrics(text_font)
             text_width = fm.width(text)
             if text_align == 2 or text_align == 5:  # end or right
@@ -1233,12 +1252,12 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 painter.fillPath(path, brush)
             else:
                 pen = QtGui.QPen(line_color)
-                pen.setWidth(line_width)
+                pen.setWidth(line_width * display_scaling)
                 pen.setJoinStyle(line_join)
                 pen.setCapStyle(line_cap)
                 painter.strokePath(path, pen)
         elif cmd == "font":
-            text_font = ParseFontString(args[0])
+            text_font = ParseFontString(args[0], display_scaling)
         elif cmd == "textAlign":
             if args[0] == "start":
                 text_align = 1
@@ -1294,9 +1313,9 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if args[0] == "bevel":
                 line_join = QtCore.Qt.BevelJoin
         elif cmd == "gradient":
-            gradients[args[0]] = QtGui.QLinearGradient(args[3], args[4], args[3] + args[5], args[4] + args[6])
+            gradients[args[0]] = QtGui.QLinearGradient(args[3] * display_scaling, args[4] * display_scaling, args[3] * display_scaling + args[5] * display_scaling, args[4] * display_scaling + args[6] * display_scaling)
         elif cmd == "colorStop":
-            gradients[args[0]].setColorAt(args[1], QtGui.QColor(args[2]))
+            gradients[args[0]].setColorAt(args[1] * display_scaling, QtGui.QColor(args[2]))
         elif cmd == "sleep":
             duration = args[0] * 1000000
             QtCore.QThread.usleep(duration)
@@ -1429,7 +1448,8 @@ class PyCanvas(QtWidgets.QWidget):
             gesture_event = event
             pan_gesture = gesture_event.gesture(QtCore.Qt.PanGesture)
             if pan_gesture is not None:
-                if self.object and self.object.panGesture(pan_gesture.delta().x(), pan_gesture.delta().y()):
+                display_scaling = GetDisplayScaling()
+                if self.object and self.object.panGesture(pan_gesture.delta().x() / display_scaling, pan_gesture.delta().y() / display_scaling):
                     return True
         return super().event(event)
 
@@ -1443,32 +1463,37 @@ class PyCanvas(QtWidgets.QWidget):
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
-            self.object.mousePressed(event.x(), event.y(), event.modifiers())
+            display_scaling = GetDisplayScaling()
+            self.object.mousePressed(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
             self.__last_pos = event.pos()
             self.__pressed = True
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
-            self.object.mouseReleased(event.x(), event.y(), event.modifiers())
+            display_scaling = GetDisplayScaling()
+            self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
             self.__pressed = False
-            if (event.pos() - self.__last_pos).manhattanLength() < 6:
-                self.object.mouseClicked(event.x(), event.y(), event.modifiers())
+            if (event.pos() - self.__last_pos).manhattanLength() < 6 * display_scaling:
+                self.object.mouseClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
-            self.object.mouseDoubleClicked(event.x(), event.y(), event.modifiers())
+            display_scaling = GetDisplayScaling()
+            self.object.mouseDoubleClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object:
+            display_scaling = GetDisplayScaling()
+
             if self.__grab_mouse_count > 0:
                 delta = event.pos() - self.__grab_reference_point
-                self.object.grabbedMousePositionChanged(delta.x(), delta.y(), event.modifiers())
+                self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers())
 
-            self.object.mousePositionChanged(event.x(), event.y(), event.modifiers())
+            self.object.mousePositionChanged(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
 
             # handle case of not getting mouse released event after drag.
             if self.__pressed and (event.buttons() & QtCore.Qt.LeftButton == 0):
-                self.object.mouseReleased(event.x(), event.y(), event.modifiers())
+                self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
                 self.__pressed = False
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
@@ -1476,12 +1501,14 @@ class PyCanvas(QtWidgets.QWidget):
             wheel_event = event
             is_horizontal = wheel_event.angleDelta().x() != 0
             delta = wheel_event.angleDelta() if wheel_event.pixelDelta().isNull() else wheel_event.pixelDelta()
-            self.object.wheelChanged(wheel_event.x(), wheel_event.y(), delta.x(), delta.y(), is_horizontal)
+            display_scaling = GetDisplayScaling()
+            self.object.wheelChanged(wheel_event.x() // display_scaling, wheel_event.y() // display_scaling, delta.x() / display_scaling, delta.y() // display_scaling, is_horizontal)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
-            self.object.sizeChanged(event.size().width(), event.size().height())
+            display_scaling = GetDisplayScaling()
+            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyPress:
@@ -1501,7 +1528,8 @@ class PyCanvas(QtWidgets.QWidget):
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
         if self.object:
-            self.object.contextMenuEvent(event.pos().x(), event.pos().y(), event.globalPos().x(), event.globalPos().y())
+            display_scaling = GetDisplayScaling()
+            self.object.contextMenuEvent(event.pos().x() // display_scaling, event.pos().y() // display_scaling, event.globalPos().x() // display_scaling, event.globalPos().y() // display_scaling)
 
     def grabMouse0(self, gp: QtCore.QPoint) -> None:
         grab_mouse_count = self.__grab_mouse_count
@@ -1556,7 +1584,8 @@ class PyCanvas(QtWidgets.QWidget):
 
     def dragMoveEvent(self, event: QtGui.QDragMoveEvent) -> None:
         if self.object:
-            action = self.object.dragMoveEvent(event.mimeData(), event.pos().x(), event.pos().y())
+            display_scaling = GetDisplayScaling()
+            action = self.object.dragMoveEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
             if action == "copy":
                 event.setDropAction(QtCore.Qt.CopyAction)
                 event.accept()
@@ -1572,7 +1601,8 @@ class PyCanvas(QtWidgets.QWidget):
 
     def dropEvent(self, event: QtGui.QDropEvent) -> None:
         if self.object:
-            action = self.object.dropEvent(event.mimeData(), event.pos().x(), event.pos().y())
+            display_scaling = GetDisplayScaling()
+            action = self.object.dropEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
             if action == "copy":
                 event.setDropAction(QtCore.Qt.CopyAction)
                 event.accept()
@@ -1792,7 +1822,8 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert canvas is not None
-        canvas.grabMouse0(QtCore.QPoint(gx, gy))
+        display_scaling = GetDisplayScaling()
+        canvas.grabMouse0(QtCore.QPoint(gx * display_scaling, gy * display_scaling))
 
     def Canvas_releaseMouse(self, canvas: PyCanvas) -> None:
         global app
@@ -1958,9 +1989,10 @@ class PyQtProxy:
 
     def Core_getFontMetrics(self, font_str: str, text: str) -> typing.Tuple[int, int, int, int, int]:
         text = text if text else str()
-        font = ParseFontString(font_str)
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
         font_metrics = QtGui.QFontMetrics(font)
-        return font_metrics.width(text), font_metrics.height(), font_metrics.ascent(), font_metrics.descent(), font_metrics.leading()
+        return font_metrics.width(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
 
     def Core_getLocation(self, location_id: str) -> str:
         location = QtCore.QStandardPaths.DocumentsLocation
@@ -2177,7 +2209,8 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert document_window is not None
-        document_window.move(QtCore.QPoint(gx, gy))
+        display_scaling = GetDisplayScaling()
+        document_window.move(QtCore.QPoint(gx * display_scaling, gy * display_scaling))
 
     def DocumentWindow_setSize(self, document_window: PyDocumentWindow, width: int, height: int) -> None:
         global app
@@ -2234,9 +2267,10 @@ class PyQtProxy:
         assert drag is not None
         assert thumbnail is not None
         image = imageFromRGBA(thumbnail)
+        display_scaling = GetDisplayScaling()
         assert not image.isNull()
         drag.setPixmap(QtGui.QPixmap.fromImage(image))
-        drag.setHotSpot(QtCore.QPoint(x, y))
+        drag.setHotSpot(QtCore.QPoint(int(x * display_scaling), int(y * display_scaling)))
 
     def DrawingContext_drawCommands(self, drawing_context: PyDrawingContext, commands: list) -> None:
         global app
@@ -2257,7 +2291,7 @@ class PyQtProxy:
         painter = QtGui.QPainter()
         painter.begin(image)
         try:
-            PaintCommands(painter, drawing_commands, image_cache)
+            PaintCommands(painter, drawing_commands, image_cache, 1.0)
         finally:
             painter.end()
         if image.format() != QtGui.QImage.Format_ARGB32_Premultiplied:
@@ -2450,7 +2484,8 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert menu is not None
         if not menu.isEmpty():
-            menu.popup(QtCore.QPoint(gx, gy))
+            display_scaling = GetDisplayScaling()
+            menu.popup(QtCore.QPoint(gx * display_scaling, gy * display_scaling))
 
     def Menu_removeAction(self, menu: PyMenu, action: PyAction) -> None:
         global app
@@ -2492,8 +2527,9 @@ class PyQtProxy:
         if icon is not None:
             image = imageFromRGBA(icon)
             assert not image.isNull()
+            display_scaling = GetDisplayScaling()
             push_button_widget.setIcon(QtGui.QIcon(QtGui.QPixmap.fromImage(image)))
-            push_button_widget.setIconSize(QtCore.QSize(width, height))
+            push_button_widget.setIconSize(QtCore.QSize(width * display_scaling, height * display_scaling))
         else:
             push_button_widget.setIcon(QtGui.QIcon())
 
@@ -2529,8 +2565,9 @@ class PyQtProxy:
         if icon is not None:
             image = imageFromRGBA(icon)
             assert not image.isNull()
+            display_scaling = GetDisplayScaling()
             radio_button.setIcon(QtGui.QIcon(QtGui.QPixmap.fromImage(image)))
-            radio_button.setIconSize(QtCore.QSize(width, height))
+            radio_button.setIconSize(QtCore.QSize(width * display_scaling, height * display_scaling))
         else:
             radio_button.setIcon(QtGui.QIcon())
 
@@ -2637,7 +2674,8 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert splitter is not None
-        splitter.setSizes(sizes)
+        display_scaling = GetDisplayScaling()
+        splitter.setSizes([int(size * display_scaling) for size in sizes])
 
     def StackWidget_addWidget(self, stack_widget: QtWidgets.QStackedWidget, widget: QtWidgets.QWidget) -> int:
         global app
@@ -2856,17 +2894,18 @@ class PyQtProxy:
         if row_count > 0:
             margins = tree_widget.contentsMargins()
             last = tree_widget.visualRect(item_model.index(row_count - 1, 0, QtCore.QModelIndex()))
-            new_size = QtCore.QSize(size.width(), last.bottom() + margins.top() + margins.bottom())
+            new_height = last.bottom() + margins.top() + margins.bottom()
         else:
-            new_size = QtCore.QSize(size.width(), 20)
-        content_view.setMinimumSize(new_size)
-        content_view.setMaximumSize(new_size)
+            new_height = 20
+        new_size = QtCore.QSize(size.width(), new_height)
+        content_view.setMinimumHeight(new_height)
+        content_view.setMinimumHeight(new_height)
         content_view.resize(new_size)
-        scroll_area.setMinimumSize(new_size)
-        scroll_area.setMaximumSize(new_size)
+        scroll_area.setMinimumHeight(new_height)
+        scroll_area.setMinimumHeight(new_height)
         scroll_area.resize(new_size)
-        tree_widget.setMinimumSize(new_size)
-        tree_widget.setMaximumSize(new_size)
+        tree_widget.setMinimumHeight(new_height)
+        tree_widget.setMinimumHeight(new_height)
         tree_widget.resize(new_size)
 
     def TreeWidget_setCurrentRow(self, content_view: QtWidgets.QWidget, index: int, parent_row: int, parent_item_id: int) -> None:
@@ -2930,8 +2969,9 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
+        display_scaling = GetDisplayScaling()
         layout = widget.layout()
-        layout.addSpacing(spacing)
+        layout.addSpacing(spacing * display_scaling)
 
     def Widget_addStretch(self, widget: QtWidgets.QWidget) -> None:
         global app
@@ -2987,7 +3027,8 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
-        return widget.size().width(), widget.size().height()
+        display_scaling = GetDisplayScaling()
+        return int(widget.size().width() / display_scaling), int(widget.size().height() / display_scaling)
 
     def Widget_grabGesture(self, widget: QtWidgets.QWidget, gesture_type: str) -> None:
         global app
@@ -3049,10 +3090,23 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
 
         def apply_stylesheet(widget: QtWidgets.QWidget) -> None:
-            stylesheet_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/stylesheet.qss")
-            with open(stylesheet_path, "r") as f:
-                stylesheet = f.read()
-            widget.setStyleSheet(stylesheet)
+            global g_stylesheet
+            if not g_stylesheet:
+                stylesheet_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/stylesheet.qss")
+                with open(stylesheet_path, "r") as f:
+                    stylesheet = f.read()
+                display_scaling = GetDisplayScaling()
+                while True:
+                    re = QtCore.QRegularExpression("(\\d+)px")
+                    match = re.match(stylesheet)
+                    if match.hasMatch():
+                        new_size = int(int(match.captured(1)) * display_scaling)
+                        stylesheet = stylesheet.replace(match.captured(0), str(new_size) + "QZ")
+                    else:
+                        break
+                stylesheet = stylesheet.replace("QZ", "px")
+                g_stylesheet = stylesheet
+            widget.setStyleSheet(g_stylesheet)
 
         if intrinsic_id == "row":
             row = QtWidgets.QWidget()
@@ -3143,8 +3197,9 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
+        display_scaling = GetDisplayScaling()
         p = widget.mapToGlobal(QtCore.QPoint(x, y))
-        return p.x(), p.y()
+        return int(p.x() / display_scaling), int(p.y() / display_scaling)
 
     def Widget_removeAll(self, widget: QtWidgets.QWidget) -> None:
         global app
@@ -3204,47 +3259,48 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
+        display_scaling = GetDisplayScaling()
         if property == "margin":
-            widget.setContentsMargins(value, value, value, value)
+            widget.setContentsMargins(value * display_scaling, value * display_scaling, value * display_scaling, value * display_scaling)
         elif property == "margin-top":
             margin = widget.contentsMargins()
-            margin.setTop(value)
+            margin.setTop(value * display_scaling)
             widget.setContentsMargins(margin)
         elif property == "margin-left":
             margin = widget.contentsMargins()
-            margin.setLeft(value)
+            margin.setLeft(value * display_scaling)
             widget.setContentsMargins(margin)
         elif property == "margin-bottom":
             margin = widget.contentsMargins()
-            margin.setBottom(value)
+            margin.setBottom(value * display_scaling)
             widget.setContentsMargins(margin)
         elif property == "margin-right":
             margin = widget.contentsMargins()
-            margin.setRight(value)
+            margin.setRight(value * display_scaling)
             widget.setContentsMargins(margin)
         elif property == "min-width":
-            widget.setMinimumWidth(value)
+            widget.setMinimumWidth(value * display_scaling)
             size_policy = widget.sizePolicy()
             size_policy.setHorizontalPolicy(QtWidgets.QSizePolicy.Expanding)
             widget.setSizePolicy(size_policy)
         elif property == "min-height":
-            widget.setMinimumHeight(value)
+            widget.setMinimumHeight(value * display_scaling)
             size_policy = widget.sizePolicy()
             size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
             widget.setSizePolicy(size_policy)
         elif property == "width":
-            widget.setMinimumWidth(value)
-            widget.setMaximumWidth(value)
+            widget.setMinimumWidth(value * display_scaling)
+            widget.setMaximumWidth(value * display_scaling)
         elif property == "height":
-            widget.setMinimumHeight(value)
-            widget.setMaximumHeight(value)
+            widget.setMinimumHeight(value * display_scaling)
+            widget.setMaximumHeight(value * display_scaling)
         elif property == "spacing":
             layout = widget.layout()
             if layout is not None:
-                layout.setSpacing(value)
+                layout.setSpacing(value * display_scaling)
         elif property == "font-size":
             font = widget.font()
-            font.setPointSize(value)
+            font.setPointSize(value * display_scaling)
             widget.setFont(font)
         elif property == "stylesheet":
             widget.setStyleSheet(value)
@@ -3254,8 +3310,9 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
         # force size to adjust
-        widget.setMinimumSize(QtCore.QSize(width, height))  # required within scroll area. ugh.
-        widget.resize(QtCore.QSize(width, height))
+        display_scaling = GetDisplayScaling()
+        widget.setMinimumSize(QtCore.QSize(width * display_scaling, height * display_scaling))  # required within scroll area. ugh.
+        widget.resize(QtCore.QSize(width * display_scaling, height * display_scaling))
 
     def Widget_show(self, widget: QtWidgets.QWidget) -> None:
         global app

@@ -2128,6 +2128,20 @@ class Window:
         raise NotImplemented()
 
     @property
+    def screen_logical_dpi(self) -> float:
+        return self._get_screen_logical_dpi()
+
+    def _get_screen_logical_dpi(self):
+        raise NotImplemented()
+
+    @property
+    def screen_physical_dpi(self) -> float:
+        return self._get_screen_physical_dpi()
+
+    def _get_screen_physical_dpi(self):
+        raise NotImplemented()
+
+    @property
     def display_scaling(self) -> float:
         return self._get_display_scaling()
 

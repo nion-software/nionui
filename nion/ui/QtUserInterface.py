@@ -1818,6 +1818,12 @@ class QtWindow(UserInterface.Window):
         w, h = self.proxy.DocumentWindow_getScreenSize(self.native_document_window)
         return Geometry.IntSize(width=w, height=h)
 
+    def _get_screen_logical_dpi(self):
+        return self.proxy.DocumentWindow_getScreenDPIInfo(self.native_document_window)[0]
+
+    def _get_screen_physical_dpi(self):
+        return self.proxy.DocumentWindow_getScreenDPIInfo(self.native_document_window)[1]
+
     def _get_display_scaling(self):
         return self.proxy.DocumentWindow_getDisplayScaling(self.native_document_window)
 

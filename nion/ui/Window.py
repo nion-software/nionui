@@ -203,6 +203,14 @@ class Window:
         return self.__document_window.screen_size
 
     @property
+    def screen_logical_dpi(self):
+        return self.__document_window.screen_logical_dpi
+
+    @property
+    def screen_physical_dpi(self):
+        return self.__document_window.screen_physical_dpi
+
+    @property
     def display_scaling(self):
         return self.__document_window.display_scaling
 

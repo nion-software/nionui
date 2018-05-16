@@ -1,5 +1,6 @@
 import collections
 import copy
+import logging
 import math
 import numpy
 import os
@@ -1634,6 +1635,25 @@ class PyQtProxy:
     def __init__(self):
         self.__timer = QtCore.QElapsedTimer()
         self.__timer_offset_ns = 0
+
+        # we try to set up std out catching as soon as possible
+        # we call this from HostLib, so we should be able to import
+        # this safely
+        class StdoutCatcher:
+
+            def __init__(self):
+                pass
+
+            def write(self, stuff):
+                out_str = str(stuff) if stuff is not None else str()
+                logging.info(out_str)
+
+            def flush(self):
+                pass
+
+        sys.stdout = StdoutCatcher()
+        sys.stderr = sys.stdout
+
 
     # main event loop
 

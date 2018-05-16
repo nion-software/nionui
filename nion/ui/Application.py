@@ -8,6 +8,26 @@ import logging
 # None
 
 
+class LoggingHandler(logging.StreamHandler):
+
+    def __init__(self):
+        super().__init__()
+        self.__records = list()
+
+    def emit(self, record):
+        super().emit(record)
+        if self.__records is not None:
+            self.__records.append(record)
+
+    def take_records(self):
+        records = self.__records
+        self.__records = None
+        return records
+
+
+logging_handler = LoggingHandler()
+
+
 class Application:
     """A basic application class.
 
@@ -21,7 +41,7 @@ class Application:
         self.ui = ui
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
-        logger.addHandler(logging.StreamHandler())
+        logger.addHandler(logging_handler)
         self.window = None
         self.on_start = on_start
 

@@ -1315,7 +1315,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "gradient":
             gradients[args[0]] = QtGui.QLinearGradient(args[3] * display_scaling, args[4] * display_scaling, args[3] * display_scaling + args[5] * display_scaling, args[4] * display_scaling + args[6] * display_scaling)
         elif cmd == "colorStop":
-            gradients[args[0]].setColorAt(args[1] * display_scaling, QtGui.QColor(args[2]))
+            gradients[args[0]].setColorAt(args[1], QtGui.QColor(args[2]))
         elif cmd == "sleep":
             duration = args[0] * 1000000
             QtCore.QThread.usleep(duration)

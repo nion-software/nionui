@@ -1192,8 +1192,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 # Grab the ndarray
                 array = args[2]
                 if array is not None:
-                    colormap = args[10] if args[10] != 0 else None
-
+                    colormap = args[10]
                     image = imageFromArray(array, args[8], args[9], colormap)
 
                 if not image.isNull():
@@ -2066,7 +2065,7 @@ class PyQtProxy:
     def Core_writeBinaryToImage(self, w: int, h: int, array: numpy.ndarray, filename: str, format: str) -> None:
         image = imageFromRGBA(array)
         assert not image.isNull()
-        writer = QtGui.QImageWriter(filename, format)
+        writer = QtGui.QImageWriter(filename, format.encode('utf-8'))
         if writer.canWrite():
             writer.write(image)
 

@@ -1162,6 +1162,35 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=213, y=0), size=Geometry.IntSize(width=500 - 213, height=480)))
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=500, y=0), size=Geometry.IntSize(width=140, height=480)))
 
+    def test_dragging_splitter_with_three_children_resizes_third_child_after_second(self):
+        # setup canvas
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            splitter = CanvasItem.SplitterCanvasItem()
+            canvas_item1 = TestCanvasItem()
+            canvas_item2 = TestCanvasItem()
+            canvas_item3 = TestCanvasItem()
+            splitter.add_canvas_item(canvas_item1)
+            splitter.add_canvas_item(canvas_item2)
+            splitter.add_canvas_item(canvas_item3)
+            canvas_item.add_canvas_item(splitter)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
+            # check assumptions
+            self.assertAlmostEqual(splitter.splits[0], 213.0 / 640.0)
+            self.assertAlmostEqual(splitter.splits[1], 213.0 / 640.0)
+            self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=213, height=480)))
+            self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=213, y=0), size=Geometry.IntSize(width=213, height=480)))
+            self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
+            # drag splitters
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=220, y=240))
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=426, y=240), Geometry.IntPoint(x=500, y=240))
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
+            self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=220, height=480)))
+            self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=220, y=0), size=Geometry.IntSize(width=500 - 220, height=480)))
+            self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=500, y=0), size=Geometry.IntSize(width=140, height=480)))
+
     def test_dragging_splitter_with_three_children_should_only_resize_the_two_items_involved(self):
         # problem occurred when resizing to minimum; it pulled space from uninvolved item
         # setup canvas

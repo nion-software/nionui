@@ -241,6 +241,12 @@ class Sizing:
             return False
         return True
 
+    def __deepcopy__(self, memo):
+        deepcopy = Sizing()
+        deepcopy.copy_from(self)
+        memo[id(self)] = deepcopy
+        return deepcopy
+
     def copy_from(self, other):
         self.preferred_width = other.preferred_width
         self.preferred_height = other.preferred_height
@@ -2176,37 +2182,41 @@ class SplitterCanvasItem(CanvasItemComposition):
     def mouse_position_changed(self, x, y, modifiers):
         if self.__tracking:
             with self.__lock:
-                sizings = copy.deepcopy(self.__actual_sizings)
+                old_sizings = copy.deepcopy(self.__sizings)
+                temp_sizings = copy.deepcopy(self.__actual_sizings)
             if self.orientation == "horizontal":
                 offset = y - self.__tracking_start_pos.y
-                sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
-                sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
+                temp_sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
+                temp_sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
             else:
                 offset = x - self.__tracking_start_pos.x
-                sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
-                sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
+                temp_sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
+                temp_sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
             # fix the size of all children except for the two in question
-            old_sizings = copy.deepcopy(sizings)
-            for index, sizing in enumerate(sizings):
+            for index, sizing in enumerate(temp_sizings):
                 if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
                     if self.orientation == "horizontal":
-                        sizing.set_fixed_width(sizing.preferred_height)
+                        sizing.set_fixed_height(sizing.preferred_height)
                     else:
                         sizing.set_fixed_width(sizing.preferred_width)
             # update the layout
             with self.__lock:
-                self.__sizings = sizings
+                self.__sizings = temp_sizings
             self.refresh_layout()
             self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
             # restore the freedom of the others
+            new_sizings = list()
+            for index, (old_sizing, temp_sizing) in enumerate(zip(old_sizings, temp_sizings)):
+                sizing = Sizing()
+                sizing.copy_from(old_sizing)
+                if index == self.__tracking_start_index or index == self.__tracking_start_index + 1:
+                    if self.orientation == "horizontal":
+                        sizing.preferred_height = temp_sizing.preferred_height
+                    else:
+                        sizing.preferred_width = temp_sizing.preferred_width
+                new_sizings.append(sizing)
             with self.__lock:
-                sizings = copy.deepcopy(self.__actual_sizings)
-            for index, pair in enumerate(zip(old_sizings, sizings)):
-                old_sizing, sizing = pair
-                if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
-                    sizing.copy_from(old_sizing)
-            with self.__lock:
-                self.__sizings = sizings
+                self.__sizings = new_sizings
             return True
         else:
             control = self.__hit_test(x, y, modifiers)

@@ -2154,6 +2154,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 if abs(y - origin) < 6:
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
+                    self.__tracking_start_adjust = y - origin
                     self.__tracking_start_index = index
                     self.__tracking_start_preferred = sizings[index].preferred_height
                     self.__tracking_start_preferred_next = sizings[index + 1].preferred_height
@@ -2165,6 +2166,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 if abs(x - origin) < 6:
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
+                    self.__tracking_start_adjust = x - origin
                     self.__tracking_start_index = index
                     self.__tracking_start_preferred = sizings[index].preferred_width
                     self.__tracking_start_preferred_next = sizings[index + 1].preferred_width
@@ -2186,10 +2188,28 @@ class SplitterCanvasItem(CanvasItemComposition):
                 temp_sizings = copy.deepcopy(self.__actual_sizings)
             if self.orientation == "horizontal":
                 offset = y - self.__tracking_start_pos.y
+                if not modifiers.shift:
+                    snaps = list()
+                    snaps.append((self.__tracking_start_preferred_next - self.__tracking_start_preferred) // 2)
+                    snaps.append(self.canvas_bounds.height // 3 - self.__tracking_start_pos.y - self.__tracking_start_adjust)
+                    snaps.append(2 * self.canvas_bounds.height // 3 - self.__tracking_start_pos.y - self.__tracking_start_adjust)
+                    for snap in snaps:
+                        if abs(offset - snap) < 12:
+                            offset = snap
+                            break
                 temp_sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
                 temp_sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
             else:
                 offset = x - self.__tracking_start_pos.x
+                if not modifiers.shift:
+                    snaps = list()
+                    snaps.append((self.__tracking_start_preferred_next - self.__tracking_start_preferred) // 2)
+                    snaps.append(self.canvas_bounds.width // 3 - self.__tracking_start_pos.x - self.__tracking_start_adjust)
+                    snaps.append(2 * self.canvas_bounds.width // 3 - self.__tracking_start_pos.x - self.__tracking_start_adjust)
+                    for snap in snaps:
+                        if abs(offset - snap) < 12:
+                            offset = snap
+                            break
                 temp_sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
                 temp_sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
             # fix the size of all children except for the two in question

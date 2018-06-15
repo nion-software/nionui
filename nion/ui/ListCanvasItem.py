@@ -109,12 +109,11 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                         if rect.intersects_rect(visible_rect):
                             is_selected = self.__selection.contains(index)
                             if is_selected:
-                                drawing_context.save()
-                                drawing_context.begin_path()
-                                drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
-                                drawing_context.fill()
-                                drawing_context.restore()
+                                with drawing_context.saver():
+                                    drawing_context.begin_path()
+                                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                    drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
+                                    drawing_context.fill()
                             self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
 
     def _repaint(self, drawing_context):

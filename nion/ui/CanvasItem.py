@@ -2114,8 +2114,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
         origins, _ = self.__calculate_layout(self.canvas_size, sizings)
-        drawing_context.save()
-        try:
+        with drawing_context.saver():
             drawing_context.begin_path()
             for origin in origins[1:]:  # don't paint the '0' origin
                 if self.orientation == "horizontal":
@@ -2127,8 +2126,6 @@ class SplitterCanvasItem(CanvasItemComposition):
             drawing_context.line_width = 0.5
             drawing_context.stroke_style = "#666"
             drawing_context.stroke()
-        finally:
-            drawing_context.restore()
 
     def __hit_test(self, x, y, modifiers):
         with self.__lock:
@@ -2859,12 +2856,11 @@ class BackgroundCanvasItem(AbstractCanvasItem):
         # canvas size
         canvas_width = self.canvas_size[1]
         canvas_height = self.canvas_size[0]
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, canvas_width, canvas_height)
-        drawing_context.fill_style = self.background_color
-        drawing_context.fill()
-        drawing_context.restore()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_width, canvas_height)
+            drawing_context.fill_style = self.background_color
+            drawing_context.fill()
 
 
 class CellCanvasItem(AbstractCanvasItem):
@@ -3670,37 +3666,35 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
         canvas_size = self.canvas_size
         canvas_bounds_center = self.canvas_bounds.center
 
-        drawing_context.save()
-        drawing_context.begin_path()
-        drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-        drawing_context.close_path()
-        drawing_context.stroke_style = "#CCC"
-        drawing_context.fill_style = "#CCC"
-        drawing_context.fill()
-        drawing_context.stroke()
-
-        if canvas_size.width * self.progress >= 1:
+        with drawing_context.saver():
             drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_size.width * self.progress, canvas_size.height)
+            drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
             drawing_context.close_path()
-            drawing_context.stroke_style = "#6AB"
-            drawing_context.fill_style = "#6AB"
+            drawing_context.stroke_style = "#CCC"
+            drawing_context.fill_style = "#CCC"
             drawing_context.fill()
             drawing_context.stroke()
 
-        if canvas_size.height >= 16 and canvas_size.width * self.progress >= 50: # TODO: use font metrics to find length of text
-            progress_text = str(round(self.progress * 100)) + "%"
-            drawing_context.begin_path()
-            drawing_context.font = "12px sans-serif"
-            drawing_context.text_align = 'center'
-            drawing_context.text_baseline = 'middle'
-            drawing_context.fill_style = "#fff"
-            drawing_context.line_width = 2
-            drawing_context.fill_text(progress_text, (canvas_size.width - 6) * self.progress - 19, canvas_bounds_center.y + 1)
-            drawing_context.fill()
-            drawing_context.close_path()
+            if canvas_size.width * self.progress >= 1:
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_size.width * self.progress, canvas_size.height)
+                drawing_context.close_path()
+                drawing_context.stroke_style = "#6AB"
+                drawing_context.fill_style = "#6AB"
+                drawing_context.fill()
+                drawing_context.stroke()
 
-        drawing_context.restore()
+            if canvas_size.height >= 16 and canvas_size.width * self.progress >= 50: # TODO: use font metrics to find length of text
+                progress_text = str(round(self.progress * 100)) + "%"
+                drawing_context.begin_path()
+                drawing_context.font = "12px sans-serif"
+                drawing_context.text_align = 'center'
+                drawing_context.text_baseline = 'middle'
+                drawing_context.fill_style = "#fff"
+                drawing_context.line_width = 2
+                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * self.progress - 19, canvas_bounds_center.y + 1)
+                drawing_context.fill()
+                drawing_context.close_path()
 
         super()._repaint(drawing_context)
 

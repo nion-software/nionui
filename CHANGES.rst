@@ -1,18 +1,20 @@
 Changelog (nionui)
-====================
+==================
 
-UNRELEASED
-----------
+0.3.14 (2018-06-18)
+-------------------
+
+- Fix issue with splitters. Also add snapping to 1/3, 1/2, and 2/3 points.
 
 - Fix bugs with PyQt backend (color maps, export image).
 
-0.13.13 (2018-05-18)
---------------------
+0.3.13 (2018-05-18)
+-------------------
 
 - Fix bugs with PyQt backend (gradients).
 
-0.13.12 (2018-05-15)
---------------------
+0.3.12 (2018-05-15)
+-------------------
 
 - DPI aware drawing code.
 

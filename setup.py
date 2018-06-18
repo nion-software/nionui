@@ -8,7 +8,7 @@ readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "README.m
 
 setuptools.setup(
     name="nionui",
-    version="0.3.13",
+    version="0.3.14",
     author="Nion Software",
     author_email="swift@nion.com",
     description="Nion UI framework.",

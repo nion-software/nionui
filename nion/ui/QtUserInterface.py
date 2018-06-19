@@ -815,9 +815,16 @@ class QtComboBoxWidgetBehavior(QtWidgetBehavior):
         self.proxy.ComboBox_setCurrentText(self.widget, notnone(value))
 
     def set_item_strings(self, item_strings):
-        self.proxy.ComboBox_removeAllItems(self.widget)
-        for item_string in item_strings:
-            self.proxy.ComboBox_addItem(self.widget, item_string)
+        # note: do not send on_current_text_changed during this method
+        # this problem occurred in camera panel during binning init
+        on_current_text_changed = self.on_current_text_changed
+        try:
+            self.on_current_text_changed = None
+            self.proxy.ComboBox_removeAllItems(self.widget)
+            for item_string in item_strings:
+                self.proxy.ComboBox_addItem(self.widget, item_string)
+        finally:
+            self.on_current_text_changed = on_current_text_changed
 
     # this message comes from Qt implementation
     def currentTextChanged(self, text):

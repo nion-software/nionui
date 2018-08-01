@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.17 (UNRELEASED)
 -------------------
 
+- Add ability to specify width on declarative label, push button, combo box.
+
 - Fix problem comparing keyboard modifiers in pyqt.
 
 - Add text button widget.

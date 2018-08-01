@@ -312,12 +312,13 @@ class DeclarativeUI:
             d["margin"] = margin
         return d
 
-    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None) -> UIDescription:
+    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, min_width: int=None) -> UIDescription:
         """Create a label UI description with text and an optional name.
 
         Keyword Args:
             text: text of the label (bindable)
             name: handler property in which to store widget (optional)
+            width: width in points (optional, default None)
 
         Returns:
             UI description of the label
@@ -327,6 +328,10 @@ class DeclarativeUI:
             d["text"] = text
         if name is not None:
             d["name"] = name
+        if width is not None:
+            d["width"] = width
+        if min_width is not None:
+            d["min-width"] = min_width
         return d
 
     def create_line_edit(self, *,
@@ -401,7 +406,7 @@ class DeclarativeUI:
             d["on_text_edited"] = on_text_edited
         return d
 
-    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None) -> UIDescription:
+    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, on_clicked: UICallableIdentifier=None) -> UIDescription:
         """Create a push button UI description with text, name, an event.
 
         The ``on_clicked`` callback is invoked when the user clicks the button. The widget is passed to the callback.
@@ -410,6 +415,7 @@ class DeclarativeUI:
         Keyword Args:
             text: text of the label (bindable)
             name: handler property in which to store widget (optional)
+            width: width in points (optional, default None)
             on_clicked: callback when button clicked
 
         Returns:
@@ -420,6 +426,8 @@ class DeclarativeUI:
             d["text"] = text
         if name is not None:
             d["name"] = name
+        if width is not None:
+            d["width"] = width
         if on_clicked is not None:
             d["on_clicked"] = on_clicked
         return d
@@ -479,6 +487,7 @@ class DeclarativeUI:
                          name: UIIdentifier=None,
                          items: typing.List[UILabel]=None,
                          items_ref: UIIdentifier=None,
+                         width: int=None,
                          current_index: UIIdentifier=None,
                          on_current_index_changed: UICallableIdentifier=None):
         """Create a combo box UI description with name, items, current index, and events.
@@ -504,6 +513,8 @@ class DeclarativeUI:
             d["items"] = items
         if items_ref is not None:
             d["items_ref"] = items_ref
+        if width is not None:
+            d["width"] = width
         if current_index is not None:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
@@ -990,7 +1001,14 @@ def construct(ui, window, d, handler, finishes=None):
             connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
-        widget = ui.create_label_widget()
+        width = d.get("width", None)
+        min_width = d.get("min-width", None)
+        properties = dict()
+        if width is not None:
+            properties["width"] = int(width)
+        if min_width is not None:
+            properties["min-width"] = int(min_width)
+        widget = ui.create_label_widget(properties)
         if handler:
             connect_string_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
@@ -1021,7 +1039,11 @@ def construct(ui, window, d, handler, finishes=None):
         return widget
     elif d_type == "push_button":
         text = d.get("text", None)
-        widget = ui.create_push_button_widget(text)
+        width = d.get("width", None)
+        properties = dict()
+        if width is not None:
+            properties["width"] = int(width)
+        widget = ui.create_push_button_widget(text, properties)
         if handler:
             connect_name(widget, d, handler)
             connect_event(widget, widget, d, handler, "on_clicked", [])
@@ -1047,7 +1069,11 @@ def construct(ui, window, d, handler, finishes=None):
         return widget
     elif d_type == "combo_box":
         items = d.get("items", None)
-        widget = ui.create_combo_box_widget(items=items)
+        width = d.get("width", None)
+        properties = dict()
+        if width is not None:
+            properties["width"] = int(width)
+        widget = ui.create_combo_box_widget(items=items, properties=properties)
         if handler:
             connect_name(widget, d, handler)
             # note: items_ref connects before current_index so that current_index can be valid

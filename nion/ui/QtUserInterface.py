@@ -19,6 +19,7 @@ import weakref
 from nion.ui import UserInterface
 from nion.utils import Geometry
 
+from PyQt5 import QtGui, QtCore
 
 def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
@@ -34,47 +35,47 @@ class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     # shift
     @property
     def shift(self):
-        return (self.raw_modifiers & 0x02000000) == 0x02000000
+        return (int(self.raw_modifiers) & 0x02000000) == 0x02000000
 
     @property
     def only_shift(self):
-        return self.raw_modifiers == 0x02000000
+        return int(self.raw_modifiers) == 0x02000000
 
     # control (command key on mac)
     @property
     def control(self):
-        return (self.raw_modifiers & 0x04000000) == 0x04000000
+        return (int(self.raw_modifiers) & 0x04000000) == 0x04000000
 
     @property
     def only_control(self):
-        return self.raw_modifiers == 0x04000000
+        return int(self.raw_modifiers) == 0x04000000
 
     # alt (option key on mac)
     @property
     def alt(self):
-        return (self.raw_modifiers & 0x08000000) == 0x08000000
+        return (int(self.raw_modifiers) & 0x08000000) == 0x08000000
 
     @property
     def only_alt(self):
-        return self.raw_modifiers == 0x08000000
+        return int(self.raw_modifiers) == 0x08000000
 
     # option (alt key on windows)
     @property
     def option(self):
-        return (self.raw_modifiers & 0x08000000) == 0x08000000
+        return (int(self.raw_modifiers) & 0x08000000) == 0x08000000
 
     @property
     def only_option(self):
-        return self.raw_modifiers == 0x08000000
+        return int(self.raw_modifiers) == 0x08000000
 
     # meta (control key on mac)
     @property
     def meta(self):
-        return (self.raw_modifiers & 0x10000000) == 0x10000000
+        return (int(self.raw_modifiers) & 0x10000000) == 0x10000000
 
     @property
     def only_meta(self):
-        return self.raw_modifiers == 0x10000000
+        return int(self.raw_modifiers) == 0x10000000
 
     # control key (all platforms)
     @property
@@ -87,11 +88,11 @@ class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     # keypad
     @property
     def keypad(self):
-        return (self.raw_modifiers & 0x20000000) == 0x20000000
+        return (int(self.raw_modifiers) & 0x20000000) == 0x20000000
 
     @property
     def only_keypad(self):
-        return self.raw_modifiers == 0x20000000
+        return int(self.raw_modifiers) == 0x20000000
 
 
 class QtKey(UserInterface.Key):

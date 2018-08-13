@@ -26,7 +26,7 @@ def notnone(s: typing.Any) -> str:
 
 class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     def __init__(self, raw_modifiers):
-        self.raw_modifiers = raw_modifiers
+        self.raw_modifiers = int(raw_modifiers)  # convert from internal Qt type to int (pyqt)
 
     def __str__(self):
         return "shift:{} control:{} alt:{} option:{} meta:{}".format(self.shift, self.control, self.alt, self.option, self.meta)

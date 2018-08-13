@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.17 (UNRELEASED)
 -------------------
 
+- Fix problem comparing keyboard modifiers in pyqt.
+
 - Add text button widget.
 
 - Fix text color in SVG.

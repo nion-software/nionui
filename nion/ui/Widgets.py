@@ -142,7 +142,6 @@ class SectionWidget(CompositeWidgetBase):
         section_content_column = ui.create_column_widget()
         section_content_column.add_spacing(4)
         section_content_column.add(section)
-        section_content_column.add_stretch()
         section_content_row.add_spacing(20)
         section_content_row.add(section_content_column)
         section_widget.add(section_content_row)

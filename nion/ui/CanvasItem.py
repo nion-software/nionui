@@ -3088,6 +3088,10 @@ class BitmapCell:
             self.update_event.fire()
 
     @property
+    def data(self):
+        return self.__data
+
+    @property
     def rgba_bitmap_data(self):
         return self.__rgba_bitmap_data
 
@@ -3191,6 +3195,10 @@ class BitmapCanvasItem(CellCanvasItem):
 
     def set_data(self, data, display_limits, color_map_data, trigger_update=True):
         self.cell.set_data(data, display_limits, color_map_data, trigger_update)
+
+    @property
+    def data(self):
+        return self.cell.data
 
     @property
     def rgba_bitmap_data(self):

@@ -375,6 +375,8 @@ class DrawingContext:
                     font_str += " font-size='{0}{1}'".format(font_size, font_unit)
                 if font_family:
                     font_str += " font-family='{0}'".format(font_family)
+                if fill_style:
+                    font_str += " fill='{0}'".format(fill_style)
                 svg_format_str = "<text x='{0}' y='{1}' text-anchor='{3}' alignment-baseline='{4}'{5}{6}>{2}</text>"
                 svg += svg_format_str.format(x, y, xml.sax.saxutils.escape(text), text_anchor, text_baseline, font_str,
                                              transform_str)

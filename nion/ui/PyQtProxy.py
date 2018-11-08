@@ -1218,7 +1218,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             pos1 = re1.indexIn(color_arg)
             pos2 = re2.indexIn(color_arg)
             if pos1 > -1:
-                fill_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), float(re1.cap(4)) * 255)
+                fill_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), int(float(re1.cap(4)) * 255))
             elif pos2 > -1:
                 fill_color = QtGui.QColor(int(re2.cap(1)), int(re2.cap(2)), int(re2.cap(3)))
             else:
@@ -1289,7 +1289,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             pos1 = re1.indexIn(color_arg)
             pos2 = re2.indexIn(color_arg)
             if pos1 > -1:
-                line_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), float(re1.cap(4)) * 255)
+                line_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), int(float(re1.cap(4)) * 255))
             elif pos2 > -1:
                 line_color = QtGui.QColor(int(re2.cap(1)), int(re2.cap(2)), int(re2.cap(3)))
             else:

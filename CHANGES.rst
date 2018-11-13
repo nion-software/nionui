@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.17 (UNRELEASED)
 -------------------
 
+- Add text button widget.
+
 - Fix text color in SVG.
 
 0.3.16 (2018-07-23)

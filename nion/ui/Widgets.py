@@ -15,6 +15,8 @@ from typing import AbstractSet
 from nion.ui import CanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
+from nion.utils import Event
+from nion.utils import Geometry
 from nion.utils import Selection
 
 
@@ -355,3 +357,97 @@ class TableWidget(CompositeWidgetBase):
         for index, item in enumerate(binding.items):
             self.insert_item(item, index)
         self.__sync_header()
+
+
+class TextButtonCell:
+
+    def __init__(self, text: str):
+        super().__init__()
+        self.update_event = Event.Event()
+        self.__text = text
+
+    def paint_cell(self, drawing_context, rect, style):
+
+        # disabled (default is enabled)
+        # checked, partial (default is unchecked)
+        # hover, active (default is none)
+
+        drawing_context.text_baseline = "middle"
+        drawing_context.text_align = "center"
+        drawing_context.fill_style = "#000"
+        drawing_context.fill_text(self.__text, rect.center.x, rect.center.y)
+
+        overlay_color = None
+        if "disabled" in style:
+            overlay_color = "rgba(255, 255, 255, 0.5)"
+        else:
+            if "active" in style:
+                overlay_color = "rgba(128, 128, 128, 0.5)"
+            elif "hover" in style:
+                overlay_color = "rgba(128, 128, 128, 0.1)"
+
+        drawing_context.fill_style = "#444"
+        drawing_context.fill()
+        drawing_context.stroke_style = "#444"
+        drawing_context.stroke()
+
+        if overlay_color:
+            rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
+            drawing_context.begin_path()
+            drawing_context.rect(*rect_args)
+            drawing_context.fill_style = overlay_color
+            drawing_context.fill()
+
+
+class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, text: str):
+        super().__init__()
+        self.cell = TextButtonCell(text)
+        self.wants_mouse_events = True
+        self.on_button_clicked = None
+
+    def close(self):
+        self.on_button_clicked = None
+        super().close()
+
+    def mouse_entered(self):
+        self._mouse_inside = True
+
+    def mouse_exited(self):
+        self._mouse_inside = False
+
+    def mouse_pressed(self, x, y, modifiers):
+        self._mouse_pressed = True
+
+    def mouse_released(self, x, y, modifiers):
+        self._mouse_pressed = False
+
+    def mouse_clicked(self, x, y, modifiers):
+        if self.enabled:
+            if self.on_button_clicked:
+                self.on_button_clicked()
+        return True
+
+
+class TextPushButtonWidget(CompositeWidgetBase):
+    def __init__(self, ui, text: str):
+        super().__init__(ui.create_column_widget())
+        self.on_button_clicked = None
+        font = "normal 11px serif"
+        font_metrics = ui.get_font_metrics(font, text)
+        text_button_canvas_item = TextButtonCanvasItem(text)
+        text_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6))
+
+        def button_clicked():
+            if callable(self.on_button_clicked):
+                self.on_button_clicked()
+
+        text_button_canvas_item.on_button_clicked = button_clicked
+
+        text_button_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
+        text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
+        # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
+        text_button_canvas_widget.on_mouse_exited = text_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+
+        self.content_widget.add(text_button_canvas_widget)

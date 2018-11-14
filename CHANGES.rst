@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.17 (UNRELEASED)
+0.3.17 (2018-11-13)
 -------------------
 
 - Add ability to specify width on declarative label, push button, combo box.

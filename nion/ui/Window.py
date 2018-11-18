@@ -36,6 +36,8 @@ class Window:
         self.__document_window.on_about_to_show = self.about_to_show
         self.__document_window.on_about_to_close = self.about_to_close
         self.__document_window.on_activation_changed = self.activation_changed
+        self.__document_window.on_key_pressed = self.key_pressed
+        self.__document_window.on_key_released = self.key_released
         self.__document_window.on_size_changed = self.size_changed
         self.__document_window.on_position_changed = self.position_changed
         self.__document_window.on_refocus_widget = self.refocus_widget
@@ -172,6 +174,12 @@ class Window:
     def position_changed(self, x: int, y: int) -> None:
         self.__save_bounds()
 
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        return False
+
+    def key_released(self, key: UserInterface.Key) -> bool:
+        return False
+
     def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y):
         self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
@@ -302,7 +310,7 @@ class Window:
                 return menu_item_state
         return self._get_menu_item_state(command_id)
 
-    # standarad menu items
+    # standard menu items
 
     def _file_menu_about_to_show(self):
         self._close_action.enabled = True

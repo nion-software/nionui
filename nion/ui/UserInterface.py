@@ -2021,6 +2021,8 @@ class Window:
         self.on_clear_task = None
         self.on_about_to_show = None
         self.on_about_to_close = None
+        self.on_key_pressed = None
+        self.on_key_released = None
         self.on_activation_changed = None
         self.on_size_changed = None
         self.on_position_changed = None
@@ -2045,6 +2047,8 @@ class Window:
         self.on_clear_task = None
         self.on_about_to_show = None
         self.on_about_to_close = None
+        self.on_key_pressed = None
+        self.on_key_released = None
         self.on_activation_changed = None
         self.on_size_changed = None
         self.on_position_changed = None
@@ -2184,6 +2188,16 @@ class Window:
     def _handle_about_to_close(self, geometry, state):
         if self.on_about_to_close:
             self.on_about_to_close(geometry, state)
+
+    def _handle_key_pressed(self, key) -> bool:
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(key)
+        return False
+
+    def _handle_key_released(self, key) -> bool:
+        if callable(self.on_key_released):
+            return self.on_key_released(key)
+        return False
 
     def add_menu(self, title):
         raise NotImplemented()

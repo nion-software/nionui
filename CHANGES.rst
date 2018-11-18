@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.18 (UNRELEASED)
+-------------------
+
+- Add support for window level key handling.
+
 0.3.17 (2018-11-13)
 -------------------
 

@@ -253,6 +253,22 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
         close_event.accept()
         # window will be automatically hidden, according to Qt documentation
 
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.type() == QtCore.QEvent.KeyPress:
+            if self.object:
+                if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
+                    event.accept()
+                    return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.type() == QtCore.QEvent.KeyRelease:
+            if self.object:
+                if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
+                    event.accept()
+                    return
+        super().keyReleaseEvent(event)
+
 
 class DockWidget(QtWidgets.QDockWidget):
 

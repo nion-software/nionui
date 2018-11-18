@@ -1864,6 +1864,14 @@ class QtWindow(UserInterface.Window):
         self._register_ui_activity()
         self._handle_about_to_close(geometry, state)
 
+    def keyPressed(self, text, key, raw_modifiers):
+        self._register_ui_activity()
+        return self._handle_key_pressed(QtKey(text, key, raw_modifiers))
+
+    def keyReleased(self, text, key, raw_modifiers):
+        self._register_ui_activity()
+        return self._handle_key_released(QtKey(text, key, raw_modifiers))
+
     def add_menu(self, title):
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
         menu = QtMenu(self.proxy, self, native_menu)

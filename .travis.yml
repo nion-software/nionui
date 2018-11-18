@@ -19,6 +19,10 @@ matrix:
     - python: nightly
     - python: pypy3
 
+branches:
+  only:
+    - master
+
 # command to install dependencies
 install:
   - pip install -r test-requirements.txt

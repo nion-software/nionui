@@ -109,6 +109,12 @@ class Window:
         self._edit_menu.on_about_to_show = self._edit_menu_about_to_show
         self._window_menu.on_about_to_show = self._window_menu_about_to_show
 
+    def _adjust_menus(self) -> None:
+        # called when key may be shortcut
+        self._file_menu_about_to_show()
+        self._edit_menu_about_to_show()
+        self._window_menu_about_to_show()
+
     def _request_exit(self) -> None:
         if self.app:
             self.app.exit()
@@ -178,6 +184,8 @@ class Window:
         return False
 
     def key_released(self, key: UserInterface.Key) -> bool:
+        if key.modifiers.control and key.key:
+            self._adjust_menus()
         return False
 
     def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y):

@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.18 (2018-11-28)
+0.3.19 (2018-11-28)
 -------------------
 
 - Fix issues with line edits: returns, escapes, and editing finished events.

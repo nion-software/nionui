@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.18 (UNRELEASED)
 -------------------
 
+- Fix issues with line edits: returns, escapes, and editing finished events.
+
 - Add support for window level key handling.
 
 0.3.17 (2018-11-13)

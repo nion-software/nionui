@@ -1412,17 +1412,20 @@ class LineEditWidget(Widget):
         def update_text(text):
             self.add_task("update_text", lambda: update_field(text))
         self.__binding.target_setter = update_text
-        self.on_editing_finished = lambda text: self.__binding.update_source(text)
+        def editing_finished(text):
+            if text != self.__last_text:
+                self.__binding.update_source(text)
+        self.on_editing_finished = editing_finished
         def return_pressed():
             text = self.text
             self.__binding.update_source(text)
             self.request_refocus()
-            return False
+            return True
         def escape_pressed():
             text = self.__last_text
             self.__binding.update_source(text)
             self.request_refocus()
-            return False
+            return True
         self.on_return_pressed = return_pressed
         self.on_escape_pressed = escape_pressed
 

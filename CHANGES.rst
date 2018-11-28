@@ -1,10 +1,12 @@
 Changelog (nionui)
 ==================
 
-0.3.18 (UNRELEASED)
+0.3.18 (2018-11-28)
 -------------------
 
 - Fix issues with line edits: returns, escapes, and editing finished events.
+
+- Fix issue with menu items being enabled for key shortcuts.
 
 - Add support for window level key handling.
 

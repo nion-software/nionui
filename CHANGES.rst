@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.20 (UNRELEASED)
 -------------------
 
+- Load resources using pkgutil to be more compatible with embedding.
+
 - Add bitmap loader based on imageio.
 
 - Improve exception handling in pyqt callbacks to avoid crashes.

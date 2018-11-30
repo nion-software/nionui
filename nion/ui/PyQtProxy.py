@@ -3,7 +3,7 @@ import copy
 import logging
 import math
 import numpy
-import os
+import pkgutil
 import sys
 import typing
 
@@ -3464,9 +3464,7 @@ class PyQtProxy:
         def apply_stylesheet(widget: QtWidgets.QWidget) -> None:
             global g_stylesheet
             if not g_stylesheet:
-                stylesheet_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources/stylesheet.qss")
-                with open(stylesheet_path, "r") as f:
-                    stylesheet = f.read()
+                stylesheet = pkgutil.get_data(__name__, "resources/stylesheet.qss").decode('UTF-8', 'ignore')
                 display_scaling = GetDisplayScaling()
                 while True:
                     re = QtCore.QRegularExpression("(\\d+)px")

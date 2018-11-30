@@ -157,7 +157,11 @@ class PyAction(QtWidgets.QAction):
 
     def __triggered(self) -> None:
         if self.object:
-            self.object.triggered()
+            try:
+                self.object.triggered()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyDrag(QtGui.QDrag):
@@ -175,7 +179,11 @@ class PyDrag(QtGui.QDrag):
                 QtCore.Qt.LinkAction: "link",
                 QtCore.Qt.IgnoreAction: "ignore",
             }
-            self.object.dragFinished(mapping[action])
+            try:
+                self.object.dragFinished(mapping[action])
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 class PyMenu(QtWidgets.QMenu):
 
@@ -187,11 +195,19 @@ class PyMenu(QtWidgets.QMenu):
 
     def __about_to_show(self):
         if self.object:
-            self.object.aboutToShow()
+            try:
+                self.object.aboutToShow()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __about_to_hide(self):
         if self.object:
-            self.object.aboutToHide()
+            try:
+                self.object.aboutToHide()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyDocumentWindow(QtWidgets.QMainWindow):
@@ -218,29 +234,49 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
 
     def __periodic(self):
         if self.isVisible():
-            self.object.periodic()
+            try:
+                self.object.periodic()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def showEvent(self, show_event: QtGui.QShowEvent) -> None:
         super().showEvent(show_event)
-        self.object.aboutToShow()
+        try:
+            self.object.aboutToShow()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
         self.setFocus()
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            try:
+                self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def moveEvent(self, event: QtGui.QMoveEvent) -> None:
         super().moveEvent(event)
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.positionChanged(int(event.pos().x() / display_scaling), int(event.pos().y() / display_scaling))
+            try:
+                self.object.positionChanged(int(event.pos().x() / display_scaling), int(event.pos().y() / display_scaling))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def changeEvent(self, event: QtCore.QEvent) -> None:
         super().changeEvent(event)
         if event.type() == QtCore.QEvent.ActivationChange:
-            self.object.activationChanged(self.isActiveWindow())
+            try:
+                self.object.activationChanged(self.isActiveWindow())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def closeEvent(self, close_event: QtGui.QCloseEvent) -> None:
         # see closing issue when closing from dock widget on OS X:
@@ -248,7 +284,11 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
         if not self.__closed:
             geometry = bytearray(self.saveGeometry().toHex()).decode("utf8")
             state = bytearray(self.saveState().toHex()).decode("utf8")
-            self.object.aboutToClose(geometry, state)
+            try:
+                self.object.aboutToClose(geometry, state)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
             self.__closed = True
         close_event.accept()
         # window will be automatically hidden, according to Qt documentation
@@ -256,17 +296,25 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyPress:
             if self.object:
-                if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
-                    event.accept()
-                    return
+                try:
+                    if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
+                        event.accept()
+                        return
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyRelease:
             if self.object:
-                if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
-                    event.accept()
-                    return
+                try:
+                    if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
+                        event.accept()
+                        return
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
         super().keyReleaseEvent(event)
 
 
@@ -280,16 +328,28 @@ class DockWidget(QtWidgets.QDockWidget):
         super().resizeEvent(event)
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            try:
+                self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def focusInEvent(self, event) -> None:
         if self.object:
-            self.object.focusIn()
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusInEvent(event)
 
     def focusOutEvent(self, event) -> None:
         if self.object:
-            self.object.focusOut()
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusOutEvent(event)
 
 
@@ -302,7 +362,11 @@ class PyPushButton(QtWidgets.QPushButton):
 
     def __clicked(self):
         if self.object:
-            self.object.clicked()
+            try:
+                self.object.clicked()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyRadioButton(QtWidgets.QRadioButton):
@@ -314,7 +378,11 @@ class PyRadioButton(QtWidgets.QRadioButton):
 
     def __clicked(self):
         if self.object:
-            self.object.clicked()
+            try:
+                self.object.clicked()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyButtonGroup(QtWidgets.QButtonGroup):
@@ -326,7 +394,11 @@ class PyButtonGroup(QtWidgets.QButtonGroup):
 
     def __button_clicked(self, button_id: int) -> None:
         if self.object:
-            self.object.clicked(button_id)
+            try:
+                self.object.clicked(button_id)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyCheckBox(QtWidgets.QCheckBox):
@@ -338,7 +410,11 @@ class PyCheckBox(QtWidgets.QCheckBox):
 
     def __state_changed(self, state: int) -> None:
         if self.object:
-            self.object.stateChanged(["unchecked", "partial", "checked"][state])
+            try:
+                self.object.stateChanged(["unchecked", "partial", "checked"][state])
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyComboBox(QtWidgets.QComboBox):
@@ -350,7 +426,11 @@ class PyComboBox(QtWidgets.QComboBox):
 
     def __current_text_changed(self, current_text: str) -> None:
         if self.object:
-            self.object.currentTextChanged(current_text)
+            try:
+                self.object.currentTextChanged(current_text)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PySlider(QtWidgets.QSlider):
@@ -367,19 +447,35 @@ class PySlider(QtWidgets.QSlider):
 
     def __value_changed(self, value: int) -> None:
         if self.object:
-            self.object.valueChanged(value)
+            try:
+                self.object.valueChanged(value)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __slider_pressed(self) -> None:
         if self.object:
-            self.object.sliderPressed()
+            try:
+                self.object.sliderPressed()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __slider_released(self) -> None:
         if self.object:
-            self.object.sliderReleased()
+            try:
+                self.object.sliderReleased()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __slider_moved(self, value: int) -> None:
         if self.object:
-            self.object.sliderMoved(value)
+            try:
+                self.object.sliderMoved(value)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyLineEdit(QtWidgets.QLineEdit):
@@ -392,29 +488,49 @@ class PyLineEdit(QtWidgets.QLineEdit):
 
     def __editing_finished(self) -> None:
         if self.object:
-            self.object.editingFinished(self.text())
+            try:
+                self.object.editingFinished(self.text())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __text_edited(self, text: str) -> None:
         if self.object:
-            self.object.textEdited(text)
+            try:
+                self.object.textEdited(text)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def keyPressEvent(self, key_event):
         if key_event.type() == QtCore.QEvent.KeyPress:
             if key_event.key() == QtCore.Qt.Key_Escape:
                 if self.object:
-                    if self.object.escapePressed():
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.escapePressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
             elif key_event.key() == QtCore.Qt.Key_Return or key_event.key() == QtCore.Qt.Key_Enter:
                 if self.object:
-                    if self.object.returnPressed():
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.returnPressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
             else:
                 if self.object:
-                    if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
         super().keyPressEvent(key_event)
 
 
@@ -431,48 +547,84 @@ class PyTextEdit(QtWidgets.QTextEdit):
 
     def __cursor_position_changed(self) -> None:
         if self.object:
-            self.object.cursorPositionChanged()
+            try:
+                self.object.cursorPositionChanged()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __selection_changed(self) -> None:
         if self.object:
-            self.object.selectionChanged()
+            try:
+                self.object.selectionChanged()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __text_changed(self) -> None:
         if self.object:
-            self.object.textChanged()
+            try:
+                self.object.textChanged()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def keyPressEvent(self, key_event):
         if key_event.type() == QtCore.QEvent.KeyPress:
             if key_event.key() == QtCore.Qt.Key_Escape:
                 if self.object:
-                    if self.object.escapePressed():
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.escapePressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
             elif key_event.key() == QtCore.Qt.Key_Return or key_event.key() == QtCore.Qt.Key_Enter:
                 if self.object:
-                    if self.object.returnPressed():
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.returnPressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
             else:
                 if self.object:
-                    if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
-                        key_event.accept()
-                        return
+                    try:
+                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
         super().keyPressEvent(key_event)
 
     def focusInEvent(self, event) -> None:
         if self.object:
-            self.object.focusIn()
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusInEvent(event)
 
     def focusOutEvent(self, event) -> None:
         if self.object:
-            self.object.focusOut()
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusOutEvent(event)
 
     def insertFromMimeData(self, mime_data):
         if self.object:
-            self.object.insertFromMimeData(mime_data)
+            try:
+                self.object.insertFromMimeData(mime_data)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class Overlay(QtWidgets.QWidget):
@@ -523,26 +675,42 @@ class PyScrollArea(QtWidgets.QScrollArea):
             display_scaling = GetDisplayScaling()
             offset = self.widget().mapFrom(self.viewport(), QtCore.QPoint(0, 0))
             viewport_rect = self.viewport().rect().translated(offset.x(), offset.y())
-            self.object.viewportChanged(viewport_rect.left() / display_scaling, viewport_rect.top() / display_scaling, viewport_rect.width() / display_scaling, viewport_rect.height() / display_scaling)
+            try:
+                self.object.viewportChanged(viewport_rect.left() / display_scaling, viewport_rect.top() / display_scaling, viewport_rect.width() / display_scaling, viewport_rect.height() / display_scaling)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __scroll_bar_changed(self, value: int) -> None:
         self.__notify_viewport_changed()
 
     def focusInEvent(self, event) -> None:
         if self.object:
-            self.object.focusIn()
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusInEvent(event)
 
     def focusOutEvent(self, event) -> None:
         if self.object:
-            self.object.focusOut()
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusOutEvent(event)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            try:
+                self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
             self.__notify_viewport_changed()
 
 
@@ -555,7 +723,11 @@ class PyTabWidget(QtWidgets.QTabWidget):
 
     def __current_changed(self, index: int) -> None:
         if self.object:
-            self.object.currentTabChanged(index)
+            try:
+                self.object.currentTabChanged(index)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class TreeWidget(QtWidgets.QTreeView):
@@ -576,12 +748,20 @@ class TreeWidget(QtWidgets.QTreeView):
 
     def focusInEvent(self, event) -> None:
         if self.object:
-            self.object.focusIn()
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusInEvent(event)
 
     def focusOutEvent(self, event) -> None:
         if self.object:
-            self.object.focusOut()
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusOutEvent(event)
 
     def setModelAndConnect(self, item_model: "ItemModel") -> None:
@@ -609,7 +789,11 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_row = current.parent().row()
             parent_id = int(current.parent().internalId())
         if self.object:
-            self.object.treeItemChanged(row, parent_row, parent_id)
+            try:
+                self.object.treeItemChanged(row, parent_row, parent_id)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def selectionChanged(self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection) -> None:
         # note the parameters passed represent the CHANGES not the new and old selection
@@ -625,7 +809,11 @@ class TreeWidget(QtWidgets.QTreeView):
             selected_index = row, parent_row, parent_id
             selected_indexes.append(selected_index)
         if self.object:
-            self.object.treeSelectionChanged(selected_indexes)
+            try:
+                self.object.treeSelectionChanged(selected_indexes)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def __model_about_to_be_reset(self):
         global app
@@ -653,9 +841,18 @@ class TreeWidget(QtWidgets.QTreeView):
             row = selected_index[0]
             parent_row = selected_index[1]
             parent_id = selected_index[2]
-            if self.object.treeItemKeyPressed(row, parent_row, parent_id, text, key, modifiers):
-                return True
-        return self.object.keyPressed(selected_indexes, text, key, modifiers)
+            try:
+                if self.object.treeItemKeyPressed(row, parent_row, parent_id, text, key, modifiers):
+                    return True
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        try:
+            return self.object.keyPressed(selected_indexes, text, key, modifiers)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return False
 
     def __clicked(self, index: QtCore.QModelIndex) -> None:
         row = index.row()
@@ -665,7 +862,11 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_row = index.parent().row()
             parent_id = int(index.parent().internalId())
 
-        self.object.treeItemClicked(row, parent_row, parent_id)
+        try:
+            self.object.treeItemClicked(row, parent_row, parent_id)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def __double_clicked(self, index: QtCore.QModelIndex) -> None:
         row = index.row()
@@ -675,7 +876,11 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_row = index.parent().row()
             parent_id = int(index.parent().internalId())
 
-        self.object.treeItemDoubleClicked(row, parent_row, parent_id)
+        try:
+            self.object.treeItemDoubleClicked(row, parent_row, parent_id)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
 
 class ItemModel(QtCore.QAbstractItemModel):
@@ -686,7 +891,12 @@ class ItemModel(QtCore.QAbstractItemModel):
         self.__last_drop_action = QtCore.Qt.IgnoreAction
 
     def supportedDropActions(self) -> QtCore.Qt.DropActions:
-        return self.object.supportedDropActions()
+        try:
+            return self.object.supportedDropActions()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return QtCore.Qt.IgnoreAction
 
     def columnCount(self, parent: QtCore.QModelIndex) -> int:
         return 1
@@ -694,7 +904,12 @@ class ItemModel(QtCore.QAbstractItemModel):
     def rowCount(self, parent: QtCore.QModelIndex) -> int:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
-        return self.object.itemCount(parent.internalId())
+        try:
+            return self.object.itemCount(parent.internalId())
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return 0
 
     # All (id=1, parent=0, row=0)
     #   Checker (id=11, parent=1, row=0)
@@ -709,13 +924,23 @@ class ItemModel(QtCore.QAbstractItemModel):
         assert app.thread() == QtCore.QThread.currentThread()
         if parent.isValid() and parent.column() != 0:
             return QtCore.QModelIndex()
-        item_id = self.object.itemId(row, parent.internalId())
+        try:
+            item_id = self.object.itemId(row, parent.internalId())
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
         if row >= 0:
             return self.createIndex(row, 0, item_id)
         return QtCore.QModelIndex()
 
     def parent(self, index: QtCore.QModelIndex) -> QtCore.QModelIndex:
-        result = self.object.itemParent(index.row(), index.internalId())
+        try:
+            result = self.object.itemParent(index.row(), index.internalId())
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
         row = result[0]
         item_id = result[1]
         if row >= 0:
@@ -742,7 +967,11 @@ class ItemModel(QtCore.QAbstractItemModel):
 
         if role_name in ["display", "edit"]:
             if index.column() == 0:
-                return self.object.itemValue(role_name, index.row(), index.internalId())
+                try:
+                    return self.object.itemValue(role_name, index.row(), index.internalId())
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
 
         return None
 
@@ -755,13 +984,23 @@ class ItemModel(QtCore.QAbstractItemModel):
         if index.parent().isValid():
             parent_row = index.parent().row()
             parent_id = int(index.parent().internalId())
-        result = self.object.itemSetData(row, parent_row, parent_id, value)
+        try:
+            result = self.object.itemSetData(row, parent_row, parent_id, value)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
         if result:
             self.dataChanged.emit(index, index)
         return result
 
     def mimeTypes(self) -> typing.List[str]:
-        return self.object.mimeTypesForDrop()
+        try:
+            return self.object.mimeTypesForDrop()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return list()
 
     def mimeData(self, indexes: typing.List[QtCore.QModelIndex]) -> typing.Optional[QtCore.QMimeData]:
         # simplifying assumption for now
@@ -774,7 +1013,12 @@ class ItemModel(QtCore.QAbstractItemModel):
         if index.parent().isValid():
             parent_row = index.parent().row()
             parent_id = int(index.parent().internalId())
-        return self.object.itemMimeData(row, parent_row, parent_id)
+        try:
+            return self.object.itemMimeData(row, parent_row, parent_id)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return None
 
     def canDropMimeData(self, mime_data: QtCore.QMimeData, action: QtCore.Qt.DropAction, row: int, column: int, parent: QtCore.QModelIndex) -> bool:
         if column > 0:
@@ -825,7 +1069,12 @@ class ItemModel(QtCore.QAbstractItemModel):
     def removeRows(self, row: int, count: int, parent: QtCore.QModelIndex) -> bool:
         parent_row = parent.row()
         parent_id = int(parent.internalId())
-        return self.object.removeRows(row, count, parent_row, parent_id)
+        try:
+            return self.object.removeRows(row, count, parent_row, parent_id)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+        return False
 
     def dataChangedInParent(self, row: int, parent_row: int, parent_item_id: int) -> None:
         global app
@@ -1419,12 +1668,20 @@ class PyCanvas(QtWidgets.QWidget):
 
     def focusInEvent(self, event) -> None:
         if self.object:
-            self.object.focusIn()
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusInEvent(event)
 
     def focusOutEvent(self, event) -> None:
         if self.object:
-            self.object.focusOut()
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         super().focusOutEvent(event)
 
     def render(self) -> None:
@@ -1465,37 +1722,65 @@ class PyCanvas(QtWidgets.QWidget):
             pan_gesture = gesture_event.gesture(QtCore.Qt.PanGesture)
             if pan_gesture is not None:
                 display_scaling = GetDisplayScaling()
-                if self.object and self.object.panGesture(pan_gesture.delta().x() / display_scaling, pan_gesture.delta().y() / display_scaling):
-                    return True
+                try:
+                    if self.object and self.object.panGesture(pan_gesture.delta().x() / display_scaling, pan_gesture.delta().y() / display_scaling):
+                        return True
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
         return super().event(event)
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
         if self.object:
-            self.object.mouseEntered()
+            try:
+                self.object.mouseEntered()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def leaveEvent(self, event: QtCore.QEvent) -> None:
         if self.object:
-            self.object.mouseExited()
+            try:
+                self.object.mouseExited()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
-            self.object.mousePressed(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            try:
+                self.object.mousePressed(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
             self.__last_pos = event.pos()
             self.__pressed = True
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
-            self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            try:
+                self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
             self.__pressed = False
             if (event.pos() - self.__last_pos).manhattanLength() < 6 * display_scaling:
-                self.object.mouseClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                try:
+                    self.object.mouseClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
-            self.object.mouseDoubleClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            try:
+                self.object.mouseDoubleClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.object:
@@ -1503,13 +1788,25 @@ class PyCanvas(QtWidgets.QWidget):
 
             if self.__grab_mouse_count > 0:
                 delta = event.pos() - self.__grab_reference_point
-                self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers())
+                try:
+                    self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers())
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
 
-            self.object.mousePositionChanged(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            try:
+                self.object.mousePositionChanged(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
             # handle case of not getting mouse released event after drag.
             if self.__pressed and (event.buttons() & QtCore.Qt.LeftButton == 0):
-                self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                try:
+                    self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                 self.__pressed = False
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
@@ -1518,34 +1815,54 @@ class PyCanvas(QtWidgets.QWidget):
             is_horizontal = wheel_event.angleDelta().x() != 0
             delta = wheel_event.angleDelta() if wheel_event.pixelDelta().isNull() else wheel_event.pixelDelta()
             display_scaling = GetDisplayScaling()
-            self.object.wheelChanged(wheel_event.x() // display_scaling, wheel_event.y() // display_scaling, delta.x() / display_scaling, delta.y() // display_scaling, is_horizontal)
+            try:
+                self.object.wheelChanged(wheel_event.x() // display_scaling, wheel_event.y() // display_scaling, delta.x() / display_scaling, delta.y() // display_scaling, is_horizontal)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            try:
+                self.object.sizeChanged(int(event.size().width() / display_scaling), int(event.size().height() / display_scaling))
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyPress:
             if self.object:
-                if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
-                    event.accept()
-                    return
+                try:
+                    if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
+                        event.accept()
+                        return
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyRelease:
             if self.object:
-                if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
-                    event.accept()
-                    return
+                try:
+                    if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
+                        event.accept()
+                        return
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
         super().keyReleaseEvent(event)
 
     def contextMenuEvent(self, event: QtGui.QContextMenuEvent) -> None:
         if self.object:
             display_scaling = GetDisplayScaling()
-            self.object.contextMenuEvent(event.pos().x() // display_scaling, event.pos().y() // display_scaling, event.globalPos().x() // display_scaling, event.globalPos().y() // display_scaling)
+            try:
+                self.object.contextMenuEvent(event.pos().x() // display_scaling, event.pos().y() // display_scaling, event.globalPos().x() // display_scaling, event.globalPos().y() // display_scaling)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def grabMouse0(self, gp: QtCore.QPoint) -> None:
         grab_mouse_count = self.__grab_mouse_count
@@ -1574,7 +1891,12 @@ class PyCanvas(QtWidgets.QWidget):
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         if self.object:
-            action = self.object.dragEnterEvent(event.mimeData())
+            try:
+                action = self.object.dragEnterEvent(event.mimeData())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                action = "ignore"
             if action == "copy":
                 event.setDropAction(QtCore.Qt.CopyAction)
                 event.accept()
@@ -1590,7 +1912,12 @@ class PyCanvas(QtWidgets.QWidget):
 
     def dragLeaveEvent(self, event: QtGui.QDragLeaveEvent) -> None:
         if self.object:
-            action = self.object.dragLeaveEvent()
+            try:
+                action = self.object.dragLeaveEvent()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                action = "ignore"
             if action == "accept":
                 event.accept()
             else:
@@ -1601,7 +1928,12 @@ class PyCanvas(QtWidgets.QWidget):
     def dragMoveEvent(self, event: QtGui.QDragMoveEvent) -> None:
         if self.object:
             display_scaling = GetDisplayScaling()
-            action = self.object.dragMoveEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
+            try:
+                action = self.object.dragMoveEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                action = "ignore"
             if action == "copy":
                 event.setDropAction(QtCore.Qt.CopyAction)
                 event.accept()
@@ -1618,7 +1950,12 @@ class PyCanvas(QtWidgets.QWidget):
     def dropEvent(self, event: QtGui.QDropEvent) -> None:
         if self.object:
             display_scaling = GetDisplayScaling()
-            action = self.object.dropEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
+            try:
+                action = self.object.dropEvent(event.mimeData(), event.pos().x() // display_scaling, event.pos().y() // display_scaling)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                action = "ignore"
             if action == "copy":
                 event.setDropAction(QtCore.Qt.CopyAction)
                 event.accept()

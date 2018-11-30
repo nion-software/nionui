@@ -8,23 +8,23 @@ import contextlib
 import copy
 import enum
 import functools
+import imageio
 import logging
 import operator
 import sys
 import threading
-import time
 import typing
 import warnings
 import weakref
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
-from nion.utils import ThreadPool
+
 
 DEFAULT_MAX_FRAME_RATE = 25
 
@@ -3725,3 +3725,21 @@ class TimestampCanvasItem(AbstractCanvasItem):
         if self.__timestamp:
             drawing_context.timestamp(self.__timestamp.isoformat())
         super()._repaint(drawing_context)
+
+
+def load_rgba_data_from_bytes(b: typing.ByteString, format: str = None) -> numpy.ndarray:
+    old_level = logging.getLogger().level
+    try:
+        logging.getLogger().setLevel(logging.WARNING)
+        image_rgba = None
+        image_argb = imageio.imread(b, format)
+        if image_argb is not None:
+            image_rgba = numpy.zeros_like(image_argb)
+            image_rgba[:, :, 0] = image_argb[:, :, 2]
+            image_rgba[:, :, 1] = image_argb[:, :, 1]
+            image_rgba[:, :, 2] = image_argb[:, :, 0]
+            image_rgba[:, :, 3] = image_argb[:, :, 3]
+            image_rgba = image_rgba.view(numpy.uint32).reshape(image_rgba.shape[:-1])
+    finally:
+        logging.getLogger().setLevel(old_level)
+    return image_rgba

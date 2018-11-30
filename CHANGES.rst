@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.20 (UNRELEASED)
 -------------------
 
+- Add bitmap loader based on imageio.
+
 - Improve exception handling in pyqt callbacks to avoid crashes.
 
 0.3.19 (2018-11-28)

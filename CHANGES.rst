@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.20 (UNRELEASED)
 -------------------
 
+- Fix issue with drawing context when writing RGB data to SVG.
+
 - Load resources using pkgutil to be more compatible with embedding.
 
 - Add bitmap loader based on imageio.

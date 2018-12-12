@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.20 (UNRELEASED)
+0.3.20 (2018-12-11)
 -------------------
 
 - Fix issue with drawing context when writing RGB data to SVG.

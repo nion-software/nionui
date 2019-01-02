@@ -33,7 +33,7 @@ class DeclarativeUI:
     # ----: stack
     # ----: tab
     # ----: label
-    # TODO: text edit
+    # ----: text edit
     # ----: line edit
     # TODO: scroll area
     # ----: group box
@@ -402,6 +402,65 @@ class DeclarativeUI:
             d["on_return_pressed"] = on_return_pressed
         if on_key_pressed is not None:
             d["on_key_pressed"] = on_key_pressed
+        if on_text_edited is not None:
+            d["on_text_edited"] = on_text_edited
+        return d
+
+    def create_text_edit(self, *,
+                         text: UIIdentifier=None,
+                         name: UIIdentifier=None,
+                         editable: bool=None,
+                         placeholder_text: UILabel=None,
+                         clear_button_enabled: bool=None,
+                         width: int=None,
+                         height: int=None,
+                         on_escape_pressed: UICallableIdentifier=None,
+                         on_return_pressed: UICallableIdentifier=None,
+                         on_text_edited: UICallableIdentifier=None) -> UIDescription:
+        """Create a multi-line text edit UI description with text, name, placeholder, options, and events.
+
+        The ``on_escape_pressed`` and ``on_return_pressed`` callbacks are invoked when the user presses escape or
+        return. The text edit widget is passed and these methods must return ``True`` if they handle the key or
+        ``False`` otherwise. Their type signatures in the handler should be ``typing.Callable[[UIWidget], bool]``.
+
+        The ``on_text_edited`` callback is invoked when the user changes the text. The text edit widget and the new text
+        are passed to the callback. The type signature in the handler should be ``typing.Callable[[UIWidget, str],
+        None]``.
+
+        Keyword Args:
+            text: handler reference to line edit text (bindable, required)
+            name: handler property in which to store widget (optional)
+            editable: whether the line edit text is editable (optional, default True)
+            placeholder_text: text to display when line edit is empty (optional)
+            clear_button_enabled: whether the clear button is enabled (optional, default False)
+            width: width in points (optional, default None)
+            height: width in points (optional, default None)
+            on_escape_pressed: callback when escape is pressed, return true if handled
+            on_return_pressed: callback when return is pressed, return true if handled
+            on_text_edited: callback when text is edited
+
+        Returns:
+            UI description of the text edit
+        """
+        d = {"type": "text_edit"}
+        if text is not None:
+            d["text"] = text
+        if name is not None:
+            d["name"] = name
+        if editable is not None:
+            d["editable"] = editable
+        if placeholder_text is not None:
+            d["placeholder_text"] = placeholder_text
+        if clear_button_enabled is not None:
+            d["clear_button_enabled"] = clear_button_enabled
+        if width is not None:
+            d["width"] = width
+        if height is not None:
+            d["height"] = height
+        if on_escape_pressed is not None:
+            d["on_escape_pressed"] = on_escape_pressed
+        if on_return_pressed is not None:
+            d["on_return_pressed"] = on_return_pressed
         if on_text_edited is not None:
             d["on_text_edited"] = on_text_edited
         return d
@@ -1035,6 +1094,31 @@ def construct(ui, window, d, handler, finishes=None):
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
+            connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+        return widget
+    elif d_type == "text_edit":
+        editable = d.get("editable", None)
+        placeholder_text = d.get("placeholder_text", None)
+        clear_button_enabled = d.get("clear_button_enabled", None)
+        width = d.get("width", None)
+        height = d.get("height", None)
+        properties = dict()
+        if width is not None:
+            properties["width"] = int(width)
+        if height is not None:
+            properties["height"] = int(height)
+        widget = ui.create_text_edit_widget(properties)
+        if editable is not None:
+            widget.editable = editable
+        if placeholder_text is not None:
+            widget.placeholder_text = placeholder_text
+        if clear_button_enabled is not None:
+            widget.clear_button_enabled = clear_button_enabled
+        if handler:
+            connect_name(widget, d, handler)
+            connect_reference_value(widget, d, handler, "text", finishes)
+            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+            connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
         return widget
     elif d_type == "push_button":

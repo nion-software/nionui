@@ -1449,7 +1449,8 @@ class TextEditWidget(Widget):
         super().__init__(widget_behavior)
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
-        self.on_text_changed = None
+        self.on_text_changed = None  # backwards compatibility
+        self.on_text_edited = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_key_pressed = None
@@ -1472,6 +1473,8 @@ class TextEditWidget(Widget):
         def handle_text_changed(text):
             if callable(self.on_text_changed):
                 self.on_text_changed(text)
+            if callable(self.on_text_edited):
+                self.on_text_edited(text)
 
         self._behavior.on_text_changed = handle_text_changed
 
@@ -1513,6 +1516,7 @@ class TextEditWidget(Widget):
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
+        self.on_text_edited = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_key_pressed = None
@@ -1597,6 +1601,7 @@ class TextEditWidget(Widget):
             self.__binding.close()
             self.__binding = None
             self.on_text_changed = None
+            self.on_text_edited = None
         self.text = binding.get_target_value()
         self.__binding = binding
         def update_text(text):
@@ -1606,17 +1611,18 @@ class TextEditWidget(Widget):
             if not self.__in_update:
                 self.add_task("update_text", update_text_)
         self.__binding.target_setter = update_text
-        def on_text_changed(text):
+        def on_text_edited(text):
             self.__in_update = True
             self.__binding.update_source(text)
             self.__in_update = False
-        self.on_text_changed = on_text_changed
+        self.on_text_edited = on_text_edited
 
     def unbind_text(self):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
         self.on_text_changed = None
+        self.on_text_edited = None
 
 
 class CanvasWidget(Widget):

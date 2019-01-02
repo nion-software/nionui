@@ -10,6 +10,7 @@ import logging
 import typing
 
 # local libraries
+from nion.utils import Geometry
 from nion.utils import Process
 from nion.ui import UserInterface
 
@@ -248,8 +249,8 @@ class Window:
     def dock_widgets(self):
         return self.__document_window.dock_widgets
 
-    def show(self) -> None:
-        self.__document_window.show()
+    def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
+        self.__document_window.show(size=size, position=position)
 
     def add_menu(self, title: str):
         return self.__document_window.add_menu(title)

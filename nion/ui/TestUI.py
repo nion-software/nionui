@@ -360,7 +360,7 @@ class DocumentWindow:
         menu = Menu()
         self.__menus.append(menu)
         return menu
-    def show(self):
+    def show(self, size, position):
         pass
     def restore(self, geometry, state):
         pass

@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.21 (UNRELEASED)
+-------------------
+
+- Allow window show method to specify position and size.
+
 0.3.20 (2018-12-11)
 -------------------
 

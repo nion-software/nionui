@@ -2048,6 +2048,10 @@ class Window:
         # call request_close instead.
         self.parent_window = None
         if self.root_widget:
+            # care must be taken here that this method isn't somehow called while handling
+            # the click in a widget. closing the root widget will destroy the widget hierarchy
+            # which will potentially crash if the widget in the hierarchy triggered this call
+            # directly. using request_close from a separate window will mitigate this.
             self.root_widget.close()
             self.root_widget = None
         self.on_periodic = None

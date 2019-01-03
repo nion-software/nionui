@@ -69,7 +69,7 @@ class Window:
             self.__event_loop._default_executor.shutdown()
         self.__event_loop.close()
         self.__event_loop = None
-        self.ui.destroy_document_window(self.__document_window)
+        self.ui.destroy_document_window(self.__document_window)  # close the ui window
         self.__document_window = None
         self.__periodic_queue = None
         self.__periodic_set = None
@@ -157,10 +157,13 @@ class Window:
         self.__shown = True
 
     def about_to_close(self, geometry: str, state: str) -> None:
-        # subclasses can override this method to save geometry and state
-        # subclasses can also cancel closing by not calling super() (or close()).
+        # this method is invoked when the low level window is about to close.
+        # subclasses can override this method to save geometry and state.
         if callable(self.on_close):
             self.on_close()
+        # this call will close this object and subsequently the ui window, but not the low level window itself.
+        # it will, however, delete the widget hierarchy as a consequence of closing the ui window.
+        # so care must be taken to not close windows in cases where the widget triggering the close is still in use.
         self.close()
 
     def refocus_widget(self, widget):

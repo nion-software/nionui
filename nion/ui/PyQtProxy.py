@@ -3266,7 +3266,7 @@ class PyQtProxy:
         if row_count > 0:
             margins = tree_widget.contentsMargins()
             last = tree_widget.visualRect(item_model.index(row_count - 1, 0, QtCore.QModelIndex()))
-            new_height = last.bottom() + margins.top() + margins.bottom()
+            new_height = last.bottom() + margins.top() + margins.bottom() + 2
         else:
             new_height = 20
         new_size = QtCore.QSize(size.width(), new_height)

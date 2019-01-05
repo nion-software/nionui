@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.21 (UNRELEASED)
 -------------------
 
+- Add 2 pixel margin to tree widget to avoid undesired scrolling behavior.
+
 - Add text edit widget to declarative.
 
 - Allow window show method to specify position and size.

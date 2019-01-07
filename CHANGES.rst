@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.21 (UNRELEASED)
+0.3.21 (2019-01-07)
 -------------------
 
 - Add 2 pixel margin to tree widget to avoid undesired scrolling behavior.

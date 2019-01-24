@@ -806,6 +806,7 @@ class ComboBoxWidget(Widget):
 
     def __init__(self, widget_behavior, items, item_getter):
         super().__init__(widget_behavior)
+        self.__items = None
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
@@ -852,7 +853,7 @@ class ComboBoxWidget(Widget):
     @property
     def current_item(self):
         current_text = self.current_text
-        for item in self.items:
+        for item in self.items or list():
             if current_text == notnone(self.item_getter(item) if self.item_getter else item):
                 return item
         return None
@@ -869,14 +870,15 @@ class ComboBoxWidget(Widget):
 
     @current_index.setter
     def current_index(self, value: int) -> None:
-        self.current_item = self.items[value] if value is not None else None
+        self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
 
     @property
     def items(self):
-        return self.__items
+        return self.__items if self.__items is not None else list()
 
     @items.setter
     def items(self, items):
+        current_index = self.current_index
         item_strings = list()
         self.__items = list()
         for item in items:
@@ -886,6 +888,8 @@ class ComboBoxWidget(Widget):
         self._behavior.set_item_strings(item_strings)
         if callable(self.on_items_changed):
             self.on_items_changed(self.__items)
+        if current_index != self.current_index:
+            self.current_index = current_index
 
     def bind_items(self, binding):
         if self.__items_binding:

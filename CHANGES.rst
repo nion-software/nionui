@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.22 (UNRELEASED)
+-------------------
+
+- Keep selection (by index) on combo box, if possible, when replacing items.
+
 0.3.21 (2019-01-07)
 -------------------
 

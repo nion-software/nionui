@@ -923,6 +923,7 @@ def construct_margin(ui, content, margin):
 
 
 def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes):
+    assert window is not None
     items_parts = items.split('.')
     container = handler
     for items_part in items_parts[:-1]:
@@ -946,11 +947,12 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             if component_handler:
                 component_handler._closer = Closer()
                 handler._closer.push_closeable(component_handler)
+            item_finishes = list()
             # now construct the widget
-            item_widget = construct(ui, window, content, component_handler, finishes)
+            item_widget = construct(ui, window, content, component_handler, item_finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
             item_widget.handler = component_handler
-            for finish in finishes:
+            for finish in item_finishes:
                 finish()
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
@@ -1291,17 +1293,19 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
 
     def __init__(self, ui, event_loop, ui_handler):
         super().__init__(ui.create_stack_widget())
-        self.__closer = Closer()
-        self.__closer.push_closeable(ui_handler)
-        finishes = list()
+
         # make and attach closer for the handler; put handler into container closer
-        ui_handler._closer = Closer()
+        self.__closer = Closer()
+        if ui_handler and hasattr(ui_handler, "close"):
+            ui_handler._closer = Closer()
+            self.__closer.push_closeable(ui_handler)
 
         class Window:
             # dummy Window to supply event loop
             def __init__(self):
                 self.event_loop = event_loop
 
+        finishes = list()
         widget = construct(ui, Window(), ui_handler.ui_view, ui_handler, finishes)
         self.content_widget.add(widget)
         for finish in finishes:

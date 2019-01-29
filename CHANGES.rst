@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.22 (UNRELEASED)
 -------------------
 
+- Fix issues with dynamic declarative components.
+
 - Keep selection (by index) on combo box, if possible, when replacing items.
 
 0.3.21 (2019-01-07)

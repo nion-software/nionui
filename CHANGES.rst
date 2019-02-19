@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.22 (UNRELEASED)
 -------------------
 
+- Fix skewing issue drawing raster images with odd widths in pyqt UI.
+
 - Fix issues with dynamic declarative components.
 
 - Keep selection (by index) on combo box, if possible, when replacing items.

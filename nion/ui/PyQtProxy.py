@@ -1221,7 +1221,9 @@ def imageFromArray(array: numpy.ndarray, display_limit_low: float, display_limit
         width = array.shape[1]
         height = array.shape[0]
         m = 255.0 / (display_limit_high - display_limit_low) if display_limit_high != display_limit_low else 1
-        data = (numpy.minimum(numpy.maximum(array, display_limit_low), display_limit_high) - display_limit_low) * m
+        row_bytes = int(math.floor((width + 3) / 4) * 4)
+        data = numpy.empty((height, row_bytes), dtype=numpy.float32)
+        data[0:height, 0:width] = (numpy.minimum(numpy.maximum(array, display_limit_low), display_limit_high) - display_limit_low) * m
         image = QtGui.QImage(data.astype(numpy.uint8), width, height, QtGui.QImage.Format_Indexed8)
         color_table = list()
         if lookup_table is not None:

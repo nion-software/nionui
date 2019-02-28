@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.22 (UNRELEASED)
+0.3.22 (2019-02-27)
 -------------------
 
 - Fix skewing issue drawing raster images with odd widths in pyqt UI.

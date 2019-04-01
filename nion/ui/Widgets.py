@@ -154,10 +154,22 @@ class SectionWidget(CompositeWidgetBase):
             section_content_column.visible = twist_down_canvas_item.checked
             if section_id:
                 ui.set_persistent_string(section_id, "true" if twist_down_canvas_item.checked else "false")
+
         section_open = ui.get_persistent_string(section_id, "true") == "true" if section_id else True
         twist_down_canvas_item.checked = section_open
         section_content_column.visible = section_open
         twist_down_canvas_item.on_button_clicked = toggle
+
+        self.__twist_down_canvas_item = twist_down_canvas_item
+
+    @property
+    def expanded(self) -> bool:
+        return self.__twist_down_canvas_item.checked
+
+    @expanded.setter
+    def expanded(self, value: bool) -> None:
+        if value != self.expanded:
+            self.__twist_down_canvas_item.on_button_clicked()
 
 
 class StringListWidget(CompositeWidgetBase):

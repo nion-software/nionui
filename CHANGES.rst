@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.23 (UNRELEASED)
 -------------------
 
+- Add 'expanded' property to SectionWidget for programmatic control.
+
 - Fix issue to avoid combo box having dangling update after close.
 
 - Fix another issue with closing dynamic components.

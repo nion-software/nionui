@@ -930,6 +930,10 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
         container = getattr(container, items_part.strip())
     items_key = items_parts[-1]
 
+    # the _closer should have been set on the handler, even if no close method is present. insert_item makes this
+    # assumption so that sub-components have a path by which to get closed.
+    assert handler._closer
+
     def insert_item(index, item):
         item_widget = None
         component = handler.resources.get(item_component_id)
@@ -1294,9 +1298,12 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui, event_loop, ui_handler):
         super().__init__(ui.create_stack_widget())
 
-        # make and attach closer for the handler; put handler into container closer
+        # create a top level closer. for each object added to a closer, the closer will
+        # call close (if it exists) and then close the object's _closer (if it exists).
         self.__closer = Closer()
-        if ui_handler and hasattr(ui_handler, "close"):
+        if ui_handler:
+            # create a _closer and attach it to the ui_handler. this may be used for sub-components.
+            # then add the ui_handler to itself to be closed by the top level closer.
             ui_handler._closer = Closer()
             self.__closer.push_closeable(ui_handler)
 

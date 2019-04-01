@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.23 (UNRELEASED)
+-------------------
+
+- Fix another issue with closing dynamic components.
+
 0.3.22 (2019-02-27)
 -------------------
 

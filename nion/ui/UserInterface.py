@@ -833,6 +833,7 @@ class ComboBoxWidget(Widget):
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
+        self.clear_task("update_items")
         self.clear_task("update_current_index")
         self.item_getter = None
         self.__items = None

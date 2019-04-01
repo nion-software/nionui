@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.23 (UNRELEASED)
 -------------------
 
+- Do not automatically using expanding layout when setting min-width or min-height on widget.
+
 - Add 'expanded' property to SectionWidget for programmatic control.
 
 - Fix issue to avoid combo box having dangling update after close.

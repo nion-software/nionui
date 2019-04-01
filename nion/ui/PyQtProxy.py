@@ -3652,14 +3652,18 @@ class PyQtProxy:
             widget.setContentsMargins(margin)
         elif property == "min-width":
             widget.setMinimumWidth(value * display_scaling)
-            size_policy = widget.sizePolicy()
-            size_policy.setHorizontalPolicy(QtWidgets.QSizePolicy.Expanding)
-            widget.setSizePolicy(size_policy)
         elif property == "min-height":
             widget.setMinimumHeight(value * display_scaling)
-            size_policy = widget.sizePolicy()
-            size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
-            widget.setSizePolicy(size_policy)
+        elif property == "size-policy-horizontal":
+            if value == "expanding":
+                size_policy = widget.sizePolicy()
+                size_policy.setHorizontalPolicy(QtWidgets.QSizePolicy.Expanding)
+                widget.setSizePolicy(size_policy)
+        elif property == "size-policy-vertical":
+            if value == "expanding":
+                size_policy = widget.sizePolicy()
+                size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
+                widget.setSizePolicy(size_policy)
         elif property == "width":
             widget.setMinimumWidth(value * display_scaling)
             widget.setMaximumWidth(value * display_scaling)

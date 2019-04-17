@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.23 (UNRELEASED)
 -------------------
 
+- Fix byte ordering bug when exporting RGB data to SVG (includes complex data displays).
+
 - Do not automatically using expanding layout when setting min-width or min-height on widget.
 
 - Add 'expanded' property to SectionWidget for programmatic control.

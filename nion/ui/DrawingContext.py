@@ -317,7 +317,8 @@ class DrawingContext:
             elif command_id == "image":
                 w, h, image, image_id, a, b, c, d = command_args
                 png_file = io.BytesIO()
-                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), "png")
+                rgba_data = get_rgba_view_from_rgba_data(image)
+                imageio.imwrite(png_file, rgba_data[..., (2,1,0,3)], "png")
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"

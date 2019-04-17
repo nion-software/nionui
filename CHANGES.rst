@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.23 (UNRELEASED)
+0.3.23 (2019-04-17)
 -------------------
 
 - Fix byte ordering bug when exporting RGB data to SVG (includes complex data displays).

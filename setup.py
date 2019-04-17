@@ -8,7 +8,7 @@ readme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "README.m
 
 setuptools.setup(
     name="nionui",
-    version="0.3.22",
+    version="0.3.23",
     author="Nion Software",
     author_email="swift@nion.com",
     description="Nion UI framework.",
@@ -20,7 +20,7 @@ setuptools.setup(
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
     ],
     include_package_data=True,
     package_data={

@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.24 (UNRELEASED)
+-------------------
+
+- Implement high quality image rendering.
+
 0.3.23 (2019-04-17)
 -------------------
 

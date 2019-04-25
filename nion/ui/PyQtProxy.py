@@ -1274,6 +1274,9 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     text_baseline = 4  # alphabetic
     text_align = 1  # start
 
+    context_scaling_x = 1.0
+    context_scaling_y = 1.0
+
     gradients = dict()
 
     painter.fillRect(painter.viewport(), QtGui.QBrush(fill_color))
@@ -1289,10 +1292,10 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         # print(f"{cmd}: {args}")
 
         if cmd == "save":
-            stack.append((fill_color, fill_gradient, line_color, line_width, line_dash, line_cap, line_join, text_font, text_baseline, text_align))
+            stack.append((fill_color, fill_gradient, line_color, line_width, line_dash, line_cap, line_join, text_font, text_baseline, text_align, context_scaling_x, context_scaling_y))
             painter.save()
         elif cmd == "restore":
-            fill_color, fill_gradient, line_color, line_width, line_dash, line_cap, line_join, text_font, text_baseline, text_align = stack.pop()
+            fill_color, fill_gradient, line_color, line_width, line_dash, line_cap, line_join, text_font, text_baseline, text_align, context_scaling_x, context_scaling_y = stack.pop()
             painter.restore()
         elif cmd == "beginPath":
             path = QtGui.QPainterPath()
@@ -1304,6 +1307,8 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             painter.translate(args[0] * display_scaling, args[1] * display_scaling)
         elif cmd == "scale":
             painter.scale(args[0] * display_scaling, args[1] * display_scaling)
+            context_scaling_x *= args[0]
+            context_scaling_y *= args[1]
         elif cmd == "rotate":
             painter.rotate(args[0])
         elif cmd == "moveTo":
@@ -1433,7 +1438,8 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if image_cache and image_id in image_cache:
                 image_cache[image_id].used = True
                 image = image_cache[image_id].image
-                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
+                destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
+                painter.drawImage(destination_rect, image)
             else:
                 image = QtGui.QImage()
 
@@ -1443,7 +1449,12 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     image = imageFromRGBA(array)
 
                 if not image.isNull():
-                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
+                    destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
+                    context_scaling = min(context_scaling_x, context_scaling_y)
+                    scaling = max(destination_rect.height() / image.height(), destination_rect.width() / image.width()) * context_scaling
+                    if scaling < 0.5:
+                        image = image.scaled((destination_rect.size() * context_scaling).toSize(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    painter.drawImage(destination_rect, image)
                     if image_cache:
                         image_cache[image_id] = PaintImageCacheEntry(image_id, True, image)
         elif cmd == "data":
@@ -1452,7 +1463,8 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if image_cache and image_id in image_cache:
                 image_cache[image_id].used = True
                 image = image_cache[image_id].image
-                painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
+                destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
+                painter.drawImage(destination_rect, image)
             else:
                 image = QtGui.QImage()
 
@@ -1463,7 +1475,12 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     image = imageFromArray(array, args[8], args[9], colormap)
 
                 if not image.isNull():
-                    painter.drawImage(QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling)), image)
+                    destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
+                    context_scaling = min(context_scaling_x, context_scaling_y)
+                    scaling = max(destination_rect.height() / image.height(), destination_rect.width() / image.width()) * context_scaling
+                    if scaling < 0.5:
+                        image = image.scaled((destination_rect.size() * context_scaling).toSize(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    painter.drawImage(destination_rect, image)
                     if image_cache:
                         image_cache[image_id] = PaintImageCacheEntry(image_id, True, image)
         elif cmd == "stroke":

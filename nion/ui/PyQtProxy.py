@@ -1216,25 +1216,43 @@ def imageFromRGBA(array: numpy.ndarray) -> QtGui.QImage:
         return QtGui.QImage()
 
 
-def imageFromArray(array: numpy.ndarray, display_limit_low: float, display_limit_high: float, lookup_table: numpy.ndarray) -> QtGui.QImage:
-    if array is not None:
-        width = array.shape[1]
-        height = array.shape[0]
-        m = 255.0 / (display_limit_high - display_limit_low) if display_limit_high != display_limit_low else 1
-        row_bytes = int(math.floor((width + 3) / 4) * 4)
-        data = numpy.empty((height, row_bytes), dtype=numpy.float32)
-        data[0:height, 0:width] = (numpy.minimum(numpy.maximum(array, display_limit_low), display_limit_high) - display_limit_low) * m
-        image = QtGui.QImage(data.astype(numpy.uint8), width, height, QtGui.QImage.Format_Indexed8)
-        color_table = list()
-        if lookup_table is not None:
-            for i in range(lookup_table.shape[0]):
-                color_table.append(lookup_table[i])
-        else:
-            for i in range(256):
-                color_table.append((0xFF << 24) + (i << 16) + (i << 8) + i)
-        image.setColorTable(color_table)
-        return image
-    return QtGui.QImage()
+def image_from_uint8_data(data: numpy.ndarray, data_shape, lookup_table: numpy.ndarray) -> QtGui.QImage:
+    image = QtGui.QImage(data, data_shape[1], data_shape[0], QtGui.QImage.Format_Indexed8)
+    color_table = list()
+    if lookup_table is not None:
+        for i in range(lookup_table.shape[0]):
+            color_table.append(lookup_table[i])
+    else:
+        for i in range(256):
+            color_table.append((0xFF << 24) + (i << 16) + (i << 8) + i)
+    image.setColorTable(color_table)
+    return image
+
+
+def normalize_data(array: numpy.ndarray, display_limit_low: float, display_limit_high: float) -> numpy.ndarray:
+    width = array.shape[1]
+    height = array.shape[0]
+    m = 255.0 / (display_limit_high - display_limit_low) if display_limit_high != display_limit_low else 1
+    row_bytes = int(math.floor((width + 3) / 4) * 4)
+    data = numpy.empty((height, row_bytes), dtype=numpy.float32)
+    data[0:height, 0:width] = (numpy.minimum(numpy.maximum(array, display_limit_low), display_limit_high) - display_limit_low) * m
+    data[0:height, width:row_bytes] = 0
+    return data
+
+
+def rescale(data: numpy.ndarray, rect, context_scaling) -> numpy.ndarray:
+    scaling = 1.0
+    height_ratio = (rect.height() / data.shape[0]) if data is not None and data.shape[0] > 0 else 1
+    width_ratio = (rect.width() / data.shape[1]) if data is not None and data.shape[1] > 0 else 1
+    if height_ratio < 1 or width_ratio < 1:
+        scaling = 1 / min(width_ratio, height_ratio)
+    scaling /= context_scaling
+    if scaling > 1.5:
+        new_shape = (int(data.shape[0] / int(scaling + 0.05)), int(data.shape[1] / int(scaling + 0.05)))
+        expanded_shape = (new_shape[0], data.shape[0] // new_shape[0], new_shape[1], data.shape[1] // new_shape[1])
+        slices = (slice(0, expanded_shape[1] * new_shape[0]), slice(0, expanded_shape[3] * new_shape[1]))
+        data = data[slices].reshape(expanded_shape).mean(-1).mean(1)
+    return data
 
 
 CanvasDrawingCommand = collections.namedtuple("CanvasDrawingCommand", ["command", "args"])
@@ -1452,7 +1470,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
                     context_scaling = min(context_scaling_x, context_scaling_y)
                     scaling = max(destination_rect.height() / image.height(), destination_rect.width() / image.width()) * context_scaling
-                    if scaling < 0.5:
+                    if scaling < 0.75:
                         image = image.scaled((destination_rect.size() * context_scaling).toSize(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
                     painter.drawImage(destination_rect, image)
                     if image_cache:
@@ -1467,19 +1485,23 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 painter.drawImage(destination_rect, image)
             else:
                 image = QtGui.QImage()
+                destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
+                context_scaling = min(context_scaling_x, context_scaling_y)
 
                 # Grab the ndarray
                 array = args[2]
                 if array is not None:
+                    display_limit_low = args[8]
+                    display_limit_high = args[9]
                     colormap = args[10]
-                    image = imageFromArray(array, args[8], args[9], colormap)
+
+                    # order here is: rescale, normalize, make image
+                    data = rescale(array, destination_rect, context_scaling)
+                    data_shape = data.shape
+                    data = normalize_data(data, display_limit_low, display_limit_high).astype(numpy.uint8)
+                    image = image_from_uint8_data(data, data_shape, colormap)
 
                 if not image.isNull():
-                    destination_rect = QtCore.QRectF(QtCore.QPointF(args[4] * display_scaling, args[5] * display_scaling), QtCore.QSizeF(args[6] * display_scaling, args[7] * display_scaling))
-                    context_scaling = min(context_scaling_x, context_scaling_y)
-                    scaling = max(destination_rect.height() / image.height(), destination_rect.width() / image.width()) * context_scaling
-                    if scaling < 0.5:
-                        image = image.scaled((destination_rect.size() * context_scaling).toSize(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
                     painter.drawImage(destination_rect, image)
                     if image_cache:
                         image_cache[image_id] = PaintImageCacheEntry(image_id, True, image)

@@ -4,7 +4,9 @@ Changelog (nionui)
 0.3.24 (UNRELEASED)
 -------------------
 
-- Implement high quality image rendering.
+- Expand capabilities of StringListWidget. Stricter keyword arguments too.
+
+- Implement high quality image rendering in PyQt backend.
 
 0.3.23 (2019-04-17)
 -------------------

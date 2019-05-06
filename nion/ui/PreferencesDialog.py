@@ -71,7 +71,7 @@ class PreferencesDialog(Dialog.ActionDialog):
             content_stack.current_index = index
             preference_pane_delegate_id_ref[0] = preference_pane_delegates[index].identifier
 
-        selector_list_widget = Widgets.StringListWidget(ui, [], Selection.Style.single_or_none)
+        selector_list_widget = Widgets.StringListWidget(ui, selection_style=Selection.Style.single_or_none)
         selector_list_widget.on_selection_changed = change_selection
 
         row = self.ui.create_row_widget(properties={"min-width": 640, "min-height": 320})

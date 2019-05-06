@@ -23,7 +23,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_add_item_to_string_list_widget_causes_container_to_relayout(self):
         from nion.ui import Widgets
         ui = TestUI.UserInterface()
-        widget = Widgets.StringListWidget(ui, [])
+        widget = Widgets.StringListWidget(ui)
         with contextlib.closing(widget):
             canvas_item = widget.content_widget.children[0].canvas_item
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=300, height=200), immediate=True)

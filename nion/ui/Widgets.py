@@ -3,10 +3,8 @@ A library of custom widgets.
 """
 
 # standard libraries
-# None
-
-# types
-from typing import AbstractSet
+import copy
+import typing
 
 # third party libraries
 # None
@@ -172,91 +170,105 @@ class SectionWidget(CompositeWidgetBase):
             self.__twist_down_canvas_item.on_button_clicked()
 
 
-class StringListWidget(CompositeWidgetBase):
+class ListCanvasItemDelegate:
+
+    def __init__(self):
+        self.__items = list()
+        self.on_item_selected = None
+        self.on_cancel = None
+
+    @property
+    def items(self):
+        return self.__items
+
+    @items.setter
+    def items(self, value):
+        self.__items = value
+
+    @property
+    def item_count(self):
+        return len(self.__items)
+
+    def key_pressed(self, key):
+        if key.is_escape:
+            if callable(self.on_cancel):
+                self.on_cancel()
+                return True
+        return False
+
+    def item_selected(self, index):
+        if callable(self.on_item_selected):
+            return self.on_item_selected(index)
+        return False
+
+    def paint_item(self, drawing_context, display_item, rect, is_selected):
+        raise NotImplementedError()
+
+
+class ListWidget(CompositeWidgetBase):
     """A widget with a list in a scroll bar."""
 
-    def __init__(self, ui, items, selection_style=None, stringify_item=None, properties=None):
+    def __init__(self, ui, list_item_delegate, *, items=None, selection_style=None, properties=None, selection=None, border_color=None, v_scroll_enabled: bool=True, v_auto_resize: bool=False):
         super().__init__(ui.create_column_widget())
-        self.__items = items
-        content_widget = self.content_widget
+        items = items or list()
+        self.__items = list()
         self.on_selection_changed = None
         self.on_item_selected = None
         self.on_cancel = None
-        stringify_item = str if stringify_item is None else stringify_item
+        self.__items_binding = None
+        self.__v_auto_resize = v_auto_resize
 
-        class ListCanvasItemDelegate:
-            def __init__(self, string_list_widget, items, selection):
-                self.__string_list_widget = string_list_widget
-                self.__items = items
-                self.__selection = selection
-
-            @property
-            def items(self):
-                return self.__items
-
-            @items.setter
-            def items(self, value):
-                self.__items = value
-
-            @property
-            def item_count(self):
-                return len(self.__items)
-
-            def on_context_menu_event(self, index, x, y, gx, gy):
-                return False
-
-            def on_delete_pressed(self):
-                pass
-
-            def on_key_pressed(self, key):
-                if key.is_escape:
-                    if callable(self.__string_list_widget.on_cancel):
-                        self.__string_list_widget.on_cancel()
-                        return True
-                return False
-
-            def on_drag_started(self, index, x, y, modifiers):
-                pass
-
-            def on_item_selected(self, index):
-                if callable(self.__string_list_widget.on_item_selected):
-                    return self.__string_list_widget.on_item_selected(index)
-                return False
-
-            def paint_item(self, drawing_context, display_item, rect, is_selected):
-                item = stringify_item(display_item)
-                with drawing_context.saver():
-                    drawing_context.fill_style = "#000"
-                    drawing_context.font = "12px"
-                    drawing_context.text_align = 'left'
-                    drawing_context.text_baseline = 'bottom'
-                    drawing_context.fill_text(item, rect[0][1] + 4, rect[0][0] + 20 - 4)
-
-        self.__selection = Selection.IndexedSelection(selection_style)
+        self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
 
         def selection_changed():
             on_selection_changed = self.on_selection_changed
             if callable(on_selection_changed):
                 on_selection_changed(self.__selection.indexes)
 
+        def handle_delegate_cancel():
+            if callable(self.on_cancel):
+                self.on_cancel()
+
+        def handle_delegate_item_selected(index):
+            if callable(self.on_item_selected):
+                self.on_item_selected(index)
+
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
-        self.__list_canvas_item_delegate = ListCanvasItemDelegate(self, items, self.__selection)
+        self.__list_canvas_item_delegate = list_item_delegate
+        self.__list_canvas_item_delegate.on_cancel = handle_delegate_cancel
+        self.__list_canvas_item_delegate.on_item_selected = handle_delegate_item_selected
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem(self.__list_canvas_item_delegate, self.__selection, 20)
+
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         scroll_area_canvas_item.auto_resize_contents = True
-        scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
-        scroll_group_canvas_item.border_color = "#888"
+        if border_color is not None:
+            scroll_group_canvas_item.border_color = border_color
         scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
-        scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
+        if v_scroll_enabled:
+            scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
+            scroll_group_canvas_item.add_canvas_item(scroll_bar_canvas_item)
 
         canvas_widget = ui.create_canvas_widget(properties=properties)
         canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
 
-        content_widget.add(canvas_widget)
+        self.content_widget.add(canvas_widget)
 
         self.__canvas_widget = canvas_widget
+
+        self.items = items
+
+    def close(self) -> None:
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = None
+        self.on_selection_changed = None
+        if self.__items_binding:
+            self.__items_binding.close()
+            self.__items_binding = None
+        self.clear_task("update_items")
+        self.__items = None
+        super().close()
 
     @property
     def focused(self) -> bool:
@@ -267,29 +279,89 @@ class StringListWidget(CompositeWidgetBase):
         self.__list_canvas_item.request_focus()
 
     @property
-    def items(self):
-        return self.__items
+    def items(self) -> typing.List:
+        return self.__items if self.__items is not None else list()
 
     @items.setter
-    def items(self, value):
-        self.__items = value
-        self.__list_canvas_item_delegate.items = value
-        self.__list_canvas_item.refresh_layout()
+    def items(self, items: typing.List) -> None:
+        self.__items = copy.copy(items)
+
+        self.__list_canvas_item_delegate.items = self.__items
+        self.__list_canvas_item.size_to_content()  # this will only configure the sizing, not actual size (until next layout)
         self.__list_canvas_item.update()
 
+        if self.__v_auto_resize:
+            # if v_auto_resize is True, ensure the canvas item resizes vertically to its content and the canvas widget
+            # resizes vertically to the height of the canvas item content.
+
+            new_sizing = self.__canvas_widget.canvas_item.copy_sizing()
+            content_height = self.__list_canvas_item.sizing.maximum_height
+            new_sizing.minimum_height = content_height
+            new_sizing.preferred_height = content_height
+            new_sizing.maximum_height = content_height
+            self.__canvas_widget.canvas_item.update_sizing(new_sizing)
+
+            self.__canvas_widget.set_property("min-height", content_height)
+            self.__canvas_widget.set_property("max-height", content_height)
+            self.__canvas_widget.set_property("size-policy-vertical", "fixed")
+
+        # setting items on the widget will not update items on the bound items since the list widget is merely a view
+
+    def bind_items(self, binding) -> None:
+        if self.__items_binding:
+            self.__items_binding.close()
+            self.__items_binding = None
+        self.items = binding.get_target_value()
+        self.__items_binding = binding
+
+        def update_items(items):
+            def update_items_():
+                if self._behavior:
+                    self.items = items
+
+            self.add_task("update_items", update_items_)
+
+        self.__items_binding.target_setter = update_items
+
     @property
-    def selected_items(self) -> AbstractSet[int]:
+    def selected_items(self) -> typing.AbstractSet[int]:
         return self.__selection.indexes
 
     def set_selected_index(self, index: int) -> None:
         self.__selection.set(index)
         self.__list_canvas_item.make_selection_visible()
 
-    def close(self) -> None:
-        self.__selection_changed_event_listener.close()
-        self.__selection_changed_event_listener = None
-        self.on_selection_changed = None
-        super().close()
+
+class StringListCanvasItemDelegate(ListCanvasItemDelegate):
+
+    def __init__(self, item_getter):
+        super().__init__()
+        self.__item_getter = item_getter
+
+    def close(self):
+        self.__item_getter = None
+
+    def paint_item(self, drawing_context, display_item, rect, is_selected):
+
+        def notnone(s) -> str:
+            return str(s) if s is not None else str()
+
+        item_string = notnone(self.__item_getter(display_item) if self.__item_getter else display_item)
+
+        with drawing_context.saver():
+            drawing_context.fill_style = "#000"
+            drawing_context.font = "12px"
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'bottom'
+            drawing_context.fill_text(item_string, rect[0][1] + 4, rect[0][0] + 20 - 4)
+
+
+class StringListWidget(ListWidget):
+    """A widget with a list in a scroll bar."""
+
+    # TODO: arguments after ui should be keyword required. current arguments are for backwards compatibility.
+    def __init__(self, ui, items=None, selection_style=None, item_getter=None, *, properties=None, selection=None, border_color=None, v_scroll_enabled: bool=True, v_auto_resize: bool=False):
+        super().__init__(ui, StringListCanvasItemDelegate(item_getter), items=items, selection_style=selection_style, properties=properties, selection=selection, border_color=border_color, v_scroll_enabled=v_scroll_enabled, v_auto_resize=v_auto_resize)
 
 
 class TableWidget(CompositeWidgetBase):

@@ -17,7 +17,7 @@ class ListCanvasItemDelegate:
     def item_count(self):
         return 4
 
-    def on_drag_started(self, mouse_index, x, y, modifiers):
+    def drag_started(self, mouse_index, x, y, modifiers):
         pass
 
 

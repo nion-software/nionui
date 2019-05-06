@@ -1041,6 +1041,7 @@ def construct(ui, window, d, handler, finishes=None):
                 column_widget.add(construct(ui, window, child, handler, finishes))
             first = False
         if items and item_component_id:
+            # TODO: spacing does not work on rows/columns
             connect_items(ui, window, column_widget, handler, items, item_component_id, finishes)
         return construct_margin(ui, column_widget, margin)
     elif d_type == "row":
@@ -1063,6 +1064,7 @@ def construct(ui, window, d, handler, finishes=None):
                 row_widget.add(construct(ui, window, child, handler, finishes))
             first = False
         if items and item_component_id:
+            # TODO: spacing does not work on rows/columns
             connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
@@ -1139,6 +1141,7 @@ def construct(ui, window, d, handler, finishes=None):
             connect_event(widget, widget, d, handler, "on_clicked", [])
         return widget
     elif d_type == "check_box":
+        # TODO: 'checked' and 'check_state' are bindings, not values
         text = d.get("text", None)
         checked = d.get("checked", None)
         check_state = d.get("check_state", None)

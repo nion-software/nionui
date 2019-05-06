@@ -374,6 +374,9 @@ class Widget:
     def tool_tip(self, tool_tip: str) -> None:
         self._behavior.tool_tip = tool_tip
 
+    def set_property(self, key, value):
+        self._behavior.set_property(key, value)
+
     def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 

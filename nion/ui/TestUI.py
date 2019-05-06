@@ -272,6 +272,8 @@ class Widget:
         pass
     def set_sizes(self, sizes):
         pass
+    def set_property(self, k, v):
+        pass
 
 
 class MenuItem:

@@ -484,6 +484,9 @@ class QtWidgetBehavior:
         for key in self.properties.keys():
             self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(self.properties[key]))
 
+    def set_property(self, key, value):
+        self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(value))
+
     def _set_root_container(self, root_container):
         pass
 

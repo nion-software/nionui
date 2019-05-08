@@ -125,6 +125,26 @@ def ParseScrollBarPolicy(policy_str: str) -> QtCore.Qt.ScrollBarPolicy:
         return QtCore.Qt.ScrollBarAsNeeded
 
 
+def ParseSizePolicy(policy_str: str, policy: QtWidgets.QSizePolicy.Policy) -> QtWidgets.QSizePolicy.Policy:
+    policy_str_lower = policy_str.lower()
+    if policy_str_lower == "fixed":
+        return QtWidgets.QSizePolicy.Fixed
+    elif policy_str_lower == "maximum":
+        return QtWidgets.QSizePolicy.Maximum
+    elif policy_str_lower == "minimum":
+        return QtWidgets.QSizePolicy.Minimum
+    elif policy_str_lower == "preferred":
+        return QtWidgets.QSizePolicy.Preferred
+    elif policy_str_lower == "expanding":
+        return QtWidgets.QSizePolicy.Expanding
+    elif policy_str_lower == "min-expanding":
+        return QtWidgets.QSizePolicy.MinimumExpanding
+    elif policy_str_lower == "ignored":
+        return QtWidgets.QSizePolicy.Ignored
+    else:
+        return policy
+
+
 class PyApplication(QtWidgets.QApplication):
 
     def __init__(self, application, args):
@@ -3691,18 +3711,20 @@ class PyQtProxy:
             widget.setContentsMargins(margin)
         elif property == "min-width":
             widget.setMinimumWidth(value * display_scaling)
+        elif property == "max-width":
+            widget.setMaximumWidth(value * display_scaling)
         elif property == "min-height":
             widget.setMinimumHeight(value * display_scaling)
+        elif property == "max-height":
+            widget.setMaximumHeight(value * display_scaling)
         elif property == "size-policy-horizontal":
-            if value == "expanding":
-                size_policy = widget.sizePolicy()
-                size_policy.setHorizontalPolicy(QtWidgets.QSizePolicy.Expanding)
-                widget.setSizePolicy(size_policy)
+            size_policy = widget.sizePolicy()
+            size_policy.setHorizontalPolicy(ParseSizePolicy(value, size_policy.horizontalPolicy()))
+            widget.setSizePolicy(size_policy)
         elif property == "size-policy-vertical":
-            if value == "expanding":
-                size_policy = widget.sizePolicy()
-                size_policy.setVerticalPolicy(QtWidgets.QSizePolicy.Expanding)
-                widget.setSizePolicy(size_policy)
+            size_policy = widget.sizePolicy()
+            size_policy.setVerticalPolicy(ParseSizePolicy(value, size_policy.verticalPolicy()))
+            widget.setSizePolicy(size_policy)
         elif property == "width":
             widget.setMinimumWidth(value * display_scaling)
             widget.setMaximumWidth(value * display_scaling)

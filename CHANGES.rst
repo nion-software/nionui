@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.24 (UNRELEASED)
 -------------------
 
+- Extend sizing policy support.
+
 - Expand capabilities of StringListWidget. Stricter keyword arguments too.
 
 - Implement high quality image rendering in PyQt backend.

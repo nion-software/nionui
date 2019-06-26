@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.24 (UNRELEASED)
 -------------------
 
+- Fix problem leaking threads in PyCanvas in PyQt backend.
+
 - Extend sizing policy support.
 
 - Expand capabilities of StringListWidget. Stricter keyword arguments too.

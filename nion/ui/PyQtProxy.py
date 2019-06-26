@@ -1713,19 +1713,29 @@ class PyCanvas(QtWidgets.QWidget):
         self.__last_pos = QtCore.QPoint()
         self.__image_cache = dict()
         self.__grab_reference_point = QtCore.QPoint()
-        self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
-        self.__thread.renderingReady.connect(self.repaint)
-        self.__thread.start()
-
-    def __del__(self):
-        self.__thread.cancel()
-        self.__render_request_mutex.lock()
-        self.__render_request_mutex.wakeAll()
-        self.__render_request_mutex.unlock()
-        self.__thread.wait()
         self.__thread = None
+
+    def hideEvent(self, event: QtGui.QHideEvent) -> None:
+        # the __del__ method is not a reliable way to override the QWidget destructor.
+        # instead, use the hideEvent, which is the best alternative at the moment.
+        if self.__thread:
+            self.__thread.cancel()
+            self.__render_request_mutex.lock()
+            self.__render_request.wakeAll()
+            self.__render_request_mutex.unlock()
+            self.__thread.wait()
+            self.__thread = None
+        super().hideEvent(event)
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        # since hideEvent is being used to shut down the thread, use showEvent to create the thread.
+        if not self.__thread:
+            self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
+            self.__thread.renderingReady.connect(self.repaint)
+            self.__thread.start()
+        super().showEvent(event)
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -1946,9 +1956,12 @@ class PyCanvas(QtWidgets.QWidget):
         with QtCore.QMutexLocker(self.__commands_mutex):
             self.__commands = commands
         self.__render_request_mutex.lock()
-        self.__thread.needsRender()
-        self.__render_request.wakeAll()
-        self.__render_request_mutex.unlock()
+        try:
+            if self.__thread:
+                self.__thread.needsRender()
+                self.__render_request.wakeAll()
+        finally:
+            self.__render_request_mutex.unlock()
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         if self.object:

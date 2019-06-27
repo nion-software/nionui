@@ -391,6 +391,7 @@ class TableWidget(CompositeWidgetBase):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+        self.clear_queued_tasks()
         self.content_section = None
         self.header_widget = None
         self.header_for_empty_list_widget = None

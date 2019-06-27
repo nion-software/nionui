@@ -328,6 +328,7 @@ class DocumentWindow:
         self.__dock_widgets = None
         self.on_periodic = None
         self.on_queue_task = None
+        self.on_clear_queued_tasks = None
         self.on_add_task = None
         self.on_clear_task = None
         self.on_about_to_show = None

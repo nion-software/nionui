@@ -9,7 +9,9 @@ import unittest
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import TestUI
+from nion.utils import Binding
 from nion.utils import Geometry
+from nion.utils import ListModel
 
 
 class TestCanvasItemClass(unittest.TestCase):
@@ -40,6 +42,21 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item.layout_immediate(Geometry.IntSize(width=300, height=200), force=False)
             self.assertEqual(scroll_area_canvas_item.canvas_rect.height, 200)
             self.assertEqual(scroll_area_canvas_item.content.canvas_rect.height, 20)
+
+    def test_table_widget_handles_pending_updates_in_close(self):
+        from nion.ui import Widgets
+        ui = TestUI.UserInterface()
+        def create_item(item): return ui.create_label_widget(item)
+        widget = Widgets.TableWidget(ui, create_item)
+        list_model = ListModel.ListModel()
+        widget.bind_items(Binding.ListBinding(list_model, "items"))
+        with contextlib.closing(widget):
+            list_model.insert_item(0, "abc")
+            list_model.insert_item(1, "abc")
+            list_model.remove_item(0)
+            self.assertEqual(3, len(widget.pending_queued_tasks))
+        self.assertEqual(0, len(widget.pending_queued_tasks))
+        widget.run_pending_keyed_tasks()
 
 
 if __name__ == '__main__':

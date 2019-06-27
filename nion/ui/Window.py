@@ -32,6 +32,7 @@ class Window:
         self.__shown = False
         self.__document_window.on_periodic = self.periodic
         self.__document_window.on_queue_task = self.queue_task
+        self.__document_window.on_clear_queued_tasks = self.clear_queued_tasks
         self.__document_window.on_add_task = self.add_task
         self.__document_window.on_clear_task = self.clear_task
         self.__document_window.on_about_to_show = self.about_to_show
@@ -288,6 +289,9 @@ class Window:
     def queue_task(self, task):
         assert task
         self.__periodic_queue.put(task)
+
+    def clear_queued_tasks(self):
+        self.__periodic_queue.clear_tasks()
 
     def handle_quit(self):
         self.app.exit()

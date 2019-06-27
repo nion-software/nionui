@@ -1965,6 +1965,9 @@ class QtDockWidget:
     def queue_task(self, task):
         self.document_window.queue_task(task)
 
+    def clear_queued_tasks(self):
+        self.document_window.clear_queued_tasks()
+
     def add_task(self, key, task):
         self.document_window.add_task(key + str(id(self)), task)
 

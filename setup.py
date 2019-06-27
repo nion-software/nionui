@@ -15,7 +15,7 @@ setuptools.setup(
     long_description=open(readme_path).read(),
     url="https://github.com/nion-software/nionui",
     packages=["nion.ui", "nion.ui.test", "nionui_app.none", "nionui_app.nionui_examples.hello_world", "nionui_app.nionui_examples.ui_demo"],
-    install_requires=['numpy', 'nionutils', 'imageio'],
+    install_requires=['numpy', 'nionutils>=0.3.19', 'imageio'],
     license='Apache 2.0',
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",

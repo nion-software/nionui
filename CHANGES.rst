@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.24 (UNRELEASED)
 -------------------
 
+- Fix problem clearing tasks. Add ability to clear queued tasks too.
+
 - Fix problem leaking threads in PyCanvas in PyQt backend.
 
 - Extend sizing policy support.

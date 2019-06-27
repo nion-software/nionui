@@ -282,6 +282,24 @@ class Widget:
     def periodic(self):
         pass
 
+    def run_pending_keyed_tasks(self):
+        # used for testing
+        pending_keyed_tasks = copy.copy(self.__pending_keyed_tasks)
+        self.__pending_keyed_tasks.clear()
+        for key, task in pending_keyed_tasks:
+            if callable(task):
+                task()
+
+    @property
+    def pending_keyed_tasks(self):
+        # used for testing
+        return copy.copy(self.__pending_keyed_tasks)
+
+    @property
+    def pending_queued_tasks(self):
+        # used for testing
+        return copy.copy(self.__pending_queued_tasks)
+
     # thread safe
     # tasks are run periodically. if another task causes a widget to close,
     # the outstanding task may try to use a closed widget. any methods called
@@ -302,11 +320,11 @@ class Widget:
         if root_container:
             root_container.clear_task(key + str(id(self)))
         else:
-            pending_keyed_tasks = self.__pending_keyed_tasks
+            pending_keyed_tasks = copy.copy(self.__pending_keyed_tasks)
             self.__pending_keyed_tasks = list()
             for pending_key, task in pending_keyed_tasks:
                 if key != pending_key:
-                    self.__pending_keyed_tasks.append((key, task))
+                    self.__pending_keyed_tasks.append((pending_key, task))
 
     # thread safe
     def queue_task(self, task):
@@ -315,6 +333,13 @@ class Widget:
             root_container.queue_task(task)
         else:
             self.__pending_queued_tasks.append(task)
+
+    def clear_queued_tasks(self) -> None:
+        root_container = self.root_container
+        if root_container:
+            root_container.clear_queued_tasks()
+        else:
+            self.__pending_queued_tasks.clear()
 
     @property
     def focused(self) -> bool:
@@ -2034,6 +2059,7 @@ class Window:
         self.__dock_widget_weak_refs = list()
         self.on_periodic = None
         self.on_queue_task = None
+        self.on_clear_queued_tasks = None
         self.on_add_task = None
         self.on_clear_task = None
         self.on_about_to_show = None
@@ -2064,6 +2090,7 @@ class Window:
             self.root_widget = None
         self.on_periodic = None
         self.on_queue_task = None
+        self.on_clear_queued_tasks = None
         self.on_add_task = None
         self.on_clear_task = None
         self.on_about_to_show = None
@@ -2110,6 +2137,10 @@ class Window:
     def queue_task(self, task):
         if self.on_queue_task:
             self.on_queue_task(task)
+
+    def clear_queued_tasks(self):
+        if self.on_clear_queued_tasks:
+            self.on_clear_queued_tasks()
 
     def add_task(self, key, task):
         if self.on_add_task:

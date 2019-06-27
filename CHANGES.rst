@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.24 (UNRELEASED)
+0.3.24 (2019-06-27)
 -------------------
 
 - Fix problem clearing tasks. Add ability to clear queued tasks too.

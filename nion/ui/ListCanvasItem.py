@@ -160,6 +160,8 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 handled = False
                 if self.__delegate and hasattr(self.__delegate, "mouse_pressed_in_item") and self.__delegate.mouse_pressed_in_item:
                     handled = self.__delegate.mouse_pressed_in_item(mouse_index, Geometry.IntPoint(y=y - mouse_index * self.__item_height, x=x), modifiers)
+                    if handled:
+                        self.__mouse_index = None  # prevent selection handling
                 if not handled and not modifiers.shift and not modifiers.control:
                     self.__mouse_pressed_for_dragging = True
                     self.__mouse_position = Geometry.IntPoint(y=y, x=x)

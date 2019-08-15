@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.25 (UNRELEASED)
+-------------------
+
+- Do not select list item if click handled in delegate mouse_pressed_in_item method.
+
 0.3.24 (2019-06-27)
 -------------------
 

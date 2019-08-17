@@ -331,6 +331,9 @@ class ListWidget(CompositeWidgetBase):
         self.__selection.set(index)
         self.__list_canvas_item.make_selection_visible()
 
+    def update(self) -> None:
+        self.__list_canvas_item.update()
+
 
 class StringListCanvasItemDelegate(ListCanvasItemDelegate):
 

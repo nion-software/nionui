@@ -412,12 +412,14 @@ class TableWidget(CompositeWidgetBase):
     def insert_item(self, item, before_index):
         if self.create_list_item_widget:  # item may be closed while this call is pending on main thread.
             item_row = self.create_list_item_widget(item)
-            self.content_section.insert(item_row, before_index)
-            self.__sync_header()
+            if self.content_section:
+                self.content_section.insert(item_row, before_index)
+                self.__sync_header()
 
     def remove_item(self, index):
-        self.content_section.remove(index)
-        self.__sync_header()
+        if self.content_section:
+            self.content_section.remove(index)
+            self.__sync_header()
 
     def remove_all_items(self):
         self.content_section.remove_all()

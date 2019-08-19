@@ -13,10 +13,12 @@ import copy
 import io
 import logging
 import math
+import re
 import struct
 import sys
 import time
 import threading
+import typing
 import xml.sax.saxutils
 
 # third party libraries
@@ -216,7 +218,9 @@ class DrawingContext:
         transform = list()
         closers = list()
         fill_style = None
+        fill_opacity = 1.0
         stroke_style = None
+        stroke_opacity = 1.0
         line_cap = "square"
         line_join = "bevel"
         line_width = 1.0
@@ -231,6 +235,15 @@ class DrawingContext:
         contexts = collections.deque()
         gradient_start = None
         gradient_stops = list()
+
+        # make a SVG 1.1 compatible color, opacity tuple
+        def parse_color(color_str: str) -> typing.Tuple[str, float]:
+            color_str = ''.join(color_str.split())
+            if color_str.startswith("rgba"):
+                c = re.split("rgba\((\d+),(\d+),(\d+),([\d.]+)\)", color_str)
+                return f"rgb({c[1]}, {c[2]}, {c[3]})", float(c[4])
+            return color_str, 1.0
+
         for command in self.commands:
             command_id = command[0]
             #logging.debug(command_id)
@@ -240,7 +253,9 @@ class DrawingContext:
                 context["path"] = path
                 context["transform"] = copy.deepcopy(transform)
                 context["fill_style"] = fill_style
+                context["fill_opacity"] = fill_opacity
                 context["stroke_style"] = stroke_style
+                context["stroke_opacity"] = stroke_opacity
                 context["line_cap"] = line_cap
                 context["line_join"] = line_join
                 context["line_width"] = line_width
@@ -261,6 +276,7 @@ class DrawingContext:
                 path = context["path"]
                 transform = context["transform"]
                 fill_style = context["fill_style"]
+                fill_opacity = context["fill_opacity"]
                 font_style = context["font_style"]
                 font_weight = context["font_weight"]
                 font_size = context["font_size"]
@@ -269,6 +285,7 @@ class DrawingContext:
                 text_anchor = context["text_anchor"]
                 text_baseline = context["text_baseline"]
                 stroke_style = context["stroke_style"]
+                stroke_opacity = context["stroke_opacity"]
                 line_cap = context["line_cap"]
                 line_join = context["line_join"]
                 line_width = context["line_width"]
@@ -355,15 +372,13 @@ class DrawingContext:
                 if stroke_style is not None:
                     transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                     dash_str = " stroke-dasharray='{0}, {1}'".format(line_dash, line_dash) if line_dash else ""
-                    svg_format_str = "<path d='{0}' fill='none' stroke='{1}' stroke-width='{2}' stroke-linejoin='{3}' stroke-linecap='{4}'{5}{6} />"
-                    svg += svg_format_str.format(path, stroke_style, line_width, line_join, line_cap, dash_str,
-                                                 transform_str)
+                    svg += f"<path d='{path}' fill='none' stroke='{stroke_style}' stroke-opacity='{stroke_opacity}' stroke-width='{line_width}' stroke-linejoin='{line_join}' stroke-linecap='{line_cap}'{dash_str}{transform_str} />"
             elif command_id == "sleep":
                 pass  # used for performance testing
             elif command_id == "fill":
                 if fill_style is not None:
                     transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
-                    svg += "<path d='{0}' fill='{1}' stroke='none'{2} />".format(path, fill_style, transform_str)
+                    svg += f"<path d='{path}' fill='{fill_style}' fill-opacity='{fill_opacity}' stroke='none'{transform_str} />"
             elif command_id == "fillText":
                 text, x, y, max_width = command_args
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
@@ -378,6 +393,8 @@ class DrawingContext:
                     font_str += " font-family='{0}'".format(font_family)
                 if fill_style:
                     font_str += " fill='{0}'".format(fill_style)
+                if fill_opacity < 1.0:
+                    font_str += " fill-opacity='{0}'".format(fill_opacity)
                 svg_format_str = "<text x='{0}' y='{1}' text-anchor='{3}' alignment-baseline='{4}'{5}{6}>{2}</text>"
                 svg += svg_format_str.format(x, y, xml.sax.saxutils.escape(text), text_anchor, text_baseline, font_str,
                                              transform_str)
@@ -386,7 +403,7 @@ class DrawingContext:
                 defs += gradient_start + "".join(gradient_stops) + "</linearGradient>"
                 fill_style = "url(#{0})".format("grad" + str(command_var))
             elif command_id == "fillStyle":
-                fill_style = command_args[0]
+                fill_style, fill_opacity = parse_color(command_args[0])
             elif command_id == "font":
                 font_style = None
                 font_weight = None
@@ -414,7 +431,7 @@ class DrawingContext:
                                   "alphabetic": "alphabetic", "ideaographic": "ideaographic", "bottom": "bottom"}
                 text_baseline = text_baselines.get(command_args[0], "alphabetic")
             elif command_id == "strokeStyle":
-                stroke_style = command_args[0]
+                stroke_style, stroke_opacity = parse_color(command_args[0])
             elif command_id == "lineWidth":
                 line_width = command_args[0]
             elif command_id == "lineDash":

@@ -355,7 +355,7 @@ class DrawingContext:
                 if stroke_style is not None:
                     transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                     dash_str = " stroke-dasharray='{0}, {1}'".format(line_dash, line_dash) if line_dash else ""
-                    svg_format_str = "<path d='{0}' fill='transparent' stroke='{1}' stroke-width='{2}' stroke-linejoin='{3}' stroke-linecap='{4}'{5}{6} />"
+                    svg_format_str = "<path d='{0}' fill='none' stroke='{1}' stroke-width='{2}' stroke-linejoin='{3}' stroke-linecap='{4}'{5}{6} />"
                     svg += svg_format_str.format(path, stroke_style, line_width, line_join, line_cap, dash_str,
                                                  transform_str)
             elif command_id == "sleep":
@@ -363,7 +363,7 @@ class DrawingContext:
             elif command_id == "fill":
                 if fill_style is not None:
                     transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
-                    svg += "<path d='{0}' fill='{1}' stroke='transparent'{2} />".format(path, fill_style, transform_str)
+                    svg += "<path d='{0}' fill='{1}' stroke='none'{2} />".format(path, fill_style, transform_str)
             elif command_id == "fillText":
                 text, x, y, max_width = command_args
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""

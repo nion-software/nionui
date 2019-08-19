@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.25 (UNRELEASED)
 -------------------
 
+- Fix minor issue with SVG 1.1 compatibility (use 'none' in place of 'transparent').
+
 - Do not select list item if click handled in delegate mouse_pressed_in_item method.
 
 0.3.24 (2019-06-27)

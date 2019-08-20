@@ -279,6 +279,14 @@ class ListWidget(CompositeWidgetBase):
         self.__list_canvas_item.request_focus()
 
     @property
+    def wants_drag_events(self) -> bool:
+        return self.__list_canvas_item.wants_drag_events
+
+    @wants_drag_events.setter
+    def wants_drag_events(self, value: bool) -> None:
+        self.__list_canvas_item.wants_drag_events = value
+
+    @property
     def items(self) -> typing.List:
         return self.__items if self.__items is not None else list()
 

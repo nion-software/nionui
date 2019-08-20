@@ -54,6 +54,9 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
+        self.__dropping = True
+        self.__drop_before_index = None
+        self.__drop_index = None
         self.__item_height = item_height
 
     def close(self):
@@ -116,6 +119,15 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                                     drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
                                     drawing_context.fill()
                             self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
+                            if index == self.__drop_index:
+                                with drawing_context.saver():
+                                    drop_border_width = 2.5
+                                    rect_in = rect.inset(drop_border_width / 2, drop_border_width / 2)
+                                    drawing_context.begin_path()
+                                    drawing_context.rect(rect_in.left, rect_in.top, rect_in.width, rect_in.height)
+                                    drawing_context.line_width = drop_border_width
+                                    drawing_context.stroke_style = "rgba(56, 117, 214, 0.8)"
+                                    drawing_context.stroke()
 
     def _repaint(self, drawing_context):
         self._repaint_visible(drawing_context, self.canvas_bounds)
@@ -282,6 +294,42 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__make_selection_visible(top=False)
                 return True
         return super().key_pressed(key)
+
+    def drag_enter(self, mime_data):
+        self.__dropping = True
+        self.update()
+        return "ignore"
+
+    def drag_move(self, mime_data, x, y):
+        mouse_index = y // self.__item_height
+        max_index = self.__delegate.item_count
+        drop_index = None
+        if mouse_index >= 0 and mouse_index < max_index:
+            drop_index = mouse_index
+            if self.__delegate and hasattr(self.__delegate, "item_can_drop_mime_data") and callable(self.__delegate.item_can_drop_mime_data):
+                if not self.__delegate.item_can_drop_mime_data(mime_data, "move", drop_index):
+                    drop_index = None
+            else:
+                drop_index = None
+        if drop_index != self.__drop_index:
+            self.__drop_index = drop_index
+            self.update()
+
+    def drag_leave(self):
+        self.__dropping = False
+        self.__drop_index = None
+        self.update()
+        return False
+
+    def drop(self, mime_data, x, y):
+        drop_index = self.__drop_index
+        self.__dropping = False
+        self.__drop_index = None
+        self.update()
+        if drop_index is not None:
+            if self.__delegate and hasattr(self.__delegate, "item_drop_mime_data") and callable(self.__delegate.item_drop_mime_data):
+                return self.__delegate.item_drop_mime_data(mime_data, "move", drop_index)
+        return "ignore"
 
     def handle_select_all(self):
         if self.__delegate:

@@ -4,7 +4,9 @@ Changelog (nionui)
 0.3.25 (UNRELEASED)
 -------------------
 
-- Fix minor issue with SVG 1.1 compatibility (use 'none' in place of 'transparent').
+- Extend list canvas item to support drag and drop on items.
+
+- Fix issues with SVG 1.1 compatibility (use 'none' in place of 'transparent', opacity).
 
 - Do not select list item if click handled in delegate mouse_pressed_in_item method.
 

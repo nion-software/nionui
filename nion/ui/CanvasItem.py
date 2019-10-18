@@ -949,7 +949,7 @@ class AbstractCanvasItem:
 
     def wants_drag_event(self, mime_data, x, y) -> bool:
         """ Determines if the item should handle certain mime_data at a certain point. Return True if handled."""
-        return False
+        return self.wants_drag_events
 
     def drag_enter(self, mime_data):
         """ Handle a drag event entering this canvas item. Return action if handled. """

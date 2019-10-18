@@ -751,6 +751,9 @@ class TestCanvasItemClass(unittest.TestCase):
             self.mouse_inside = False
             self.mouse_pos = None
 
+        def wants_drag_event(self, mime_data, x, y) -> bool:
+            return self.wants_drag_events
+
         def mouse_position_changed(self, x, y, modifiers):
             self.mouse_pos = Geometry.IntPoint(y=y, x=x)
 

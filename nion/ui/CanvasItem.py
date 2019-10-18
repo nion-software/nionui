@@ -947,6 +947,10 @@ class AbstractCanvasItem:
         """ Handle a key released while this canvas item has focus. Return True if handled. """
         return False
 
+    def wants_drag_event(self, mime_data, x, y) -> bool:
+        """ Determines if the item should handle certain mime_data at a certain point. Return True if handled."""
+        return False
+
     def drag_enter(self, mime_data):
         """ Handle a drag event entering this canvas item. Return action if handled. """
         return "ignore"
@@ -2790,20 +2794,20 @@ class RootCanvasItem(LayerCanvasItem):
         self.__drag_tracking_canvas_item = None
         return "accept"
 
-    def __drag_canvas_item_at_point(self, x, y):
+    def __drag_canvas_item_at_point(self, x, y, mime_data):
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in canvas_items:
-            if canvas_item.wants_drag_events:
+            if canvas_item.wants_drag_events and canvas_item.wants_drag_event(mime_data, x, y):
                 return canvas_item
         return None
 
     def __drag_move(self, mime_data, x, y):
         response = "ignore"
         if self.__drag_tracking and not self.__drag_tracking_canvas_item:
-            self.__drag_tracking_canvas_item = self.__drag_canvas_item_at_point(x, y)
+            self.__drag_tracking_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
             if self.__drag_tracking_canvas_item:
                 self.__drag_tracking_canvas_item.drag_enter(mime_data)
-        new_drag_canvas_item = self.__drag_canvas_item_at_point(x, y)
+        new_drag_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
         if self.__drag_tracking_canvas_item != new_drag_canvas_item:
             if self.__drag_tracking_canvas_item:
                 self.__drag_tracking_canvas_item.drag_leave()

@@ -2797,7 +2797,7 @@ class RootCanvasItem(LayerCanvasItem):
     def __drag_canvas_item_at_point(self, x, y, mime_data):
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in canvas_items:
-            if canvas_item.wants_drag_events and canvas_item.wants_drag_event(mime_data, x, y):
+            if canvas_item.wants_drag_event(mime_data, x, y):
                 return canvas_item
         return None
 

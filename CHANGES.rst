@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.25 (UNRELEASED)
 -------------------
 
+- Improve ability to handle stacked canvas items during drag and drop.
+
 - Extend list canvas item to support drag and drop on items.
 
 - Fix issues with SVG 1.1 compatibility (use 'none' in place of 'transparent', opacity).

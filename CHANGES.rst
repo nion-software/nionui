@@ -4,6 +4,8 @@ Changelog (nionui)
 0.3.25 (UNRELEASED)
 -------------------
 
+- Add icon to push button. Add binding to both push button text and icon.
+
 - Add binding to enabled/visible/tool_tip and size properties for all declarative elements.
 
 - Fix minor checkbox issue in PyQt.

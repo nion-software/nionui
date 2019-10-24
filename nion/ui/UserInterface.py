@@ -1035,7 +1035,18 @@ class PushButtonWidget(Widget):
 
         self._behavior.on_clicked = handle_clicked
 
+        self.__text_binding = None
+        self.__icon_binding = None
+
     def close(self):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.clear_task("update_text")
+        self.clear_task("update_icon")
         self.on_clicked = None
         super().close()
 
@@ -1054,6 +1065,38 @@ class PushButtonWidget(Widget):
     @icon.setter
     def icon(self, rgba_image) -> None:
         self._behavior.icon = rgba_image
+
+    def bind_text(self, binding):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+        self.text = binding.get_target_value()
+        self.__text_binding = binding
+
+        def update_text(text):
+            def update_text_():
+                if self._behavior:
+                    self.text = text
+
+            self.add_task("update_text", update_text_)
+
+        self.__text_binding.target_setter = update_text
+
+    def bind_icon(self, binding):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.icon = binding.get_target_value()
+        self.__icon_binding = binding
+
+        def update_icon(icon):
+            def update_icon_():
+                if self._behavior:
+                    self.icon = icon
+
+            self.add_task("update_icon", update_icon_)
+
+        self.__icon_binding.target_setter = update_icon
 
 
 class RadioButtonWidget(Widget):

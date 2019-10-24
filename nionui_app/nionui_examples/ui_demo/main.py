@@ -9,6 +9,7 @@ from nion.ui import Declarative
 
 # ui imports
 from . import Bindings
+from . import Buttons
 from . import CheckBoxes
 from . import ComboBoxes
 from . import Compositions
@@ -48,6 +49,7 @@ def main(args, bootstrap_args):
     ui = Declarative.DeclarativeUI()
 
     page_list = [
+        (Buttons, "buttons", _("Buttons")),
         (CheckBoxes, "check_boxes", _("Check Boxes")),
         (ComboBoxes, "combo_boxes", _("Combo Boxes")),
         (Bindings, "bindings", _("Bindings")),

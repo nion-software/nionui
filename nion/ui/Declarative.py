@@ -479,7 +479,7 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
+    def create_push_button(self, *, text: UILabel=None, icon: UIIdentifier=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
         """Create a push button UI description with text, name, an event.
 
         The ``on_clicked`` callback is invoked when the user clicks the button. The widget is passed to the callback.
@@ -487,6 +487,7 @@ class DeclarativeUI:
 
         Keyword Args:
             text: text of the label (bindable)
+            icon: icon, bindable to numpy uint32 bgra array
             name: handler property in which to store widget (optional)
             width: width in points (optional, default None)
             on_clicked: callback when button clicked
@@ -497,6 +498,8 @@ class DeclarativeUI:
         d = {"type": "push_button"}
         if text is not None:
             d["text"] = text
+        if icon is not None:
+            d["icon"] = icon
         if name is not None:
             d["name"] = name
         if on_clicked is not None:
@@ -1169,9 +1172,12 @@ def construct(ui, window, d, handler, finishes=None):
         return widget
     elif d_type == "push_button":
         text = d.get("text", None)
+        icon_identifier = d.get("icon", None)
         properties = construct_sizing_properties(d)
         widget = ui.create_push_button_widget(text, properties)
         if handler:
+            if icon_identifier:
+                connect_reference_value(widget, d, handler, "icon", finishes)
             connect_name(widget, d, handler)
             connect_event(widget, widget, d, handler, "on_clicked", [])
             connect_attributes(widget, d, handler, finishes)

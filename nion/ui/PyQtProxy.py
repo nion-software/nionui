@@ -2355,7 +2355,7 @@ class PyQtProxy:
         assert check_box is not None
         if check_state == "checked":
             check_box.setCheckState(QtCore.Qt.Checked)
-        elif check_state == "checked":
+        elif check_state == "partial":
             check_box.setCheckState(QtCore.Qt.PartiallyChecked)
         else:
             check_box.setCheckState(QtCore.Qt.Unchecked)

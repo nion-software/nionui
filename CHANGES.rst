@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.25 (UNRELEASED)
+0.3.25 (2019-10-24)
 -------------------
 
 - Add icon to push button. Add binding to both push button text and icon.

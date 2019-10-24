@@ -231,9 +231,26 @@ class Widget:
 
         self._behavior.on_context_menu_event = handle_context_menu_event
         self._behavior.on_focus_changed = handle_focus_changed
+
+        self.__enabled_binding = None
+        self.__visible_binding = None
+        self.__tool_tip_binding = None
+
         self.widget_id = None
 
     def close(self):
+        if self.__enabled_binding:
+            self.__enabled_binding.close()
+            self.__enabled_binding = None
+        if self.__visible_binding:
+            self.__visible_binding.close()
+            self.__visible_binding = None
+        if self.__tool_tip_binding:
+            self.__tool_tip_binding.close()
+            self.__tool_tip_binding = None
+        self.clear_task("update_enabled")
+        self.clear_task("update_visible")
+        self.clear_task("update_tool_tip")
         self.__behavior.close()
         self.__behavior = None
         self.on_context_menu_event = None
@@ -373,7 +390,10 @@ class Widget:
 
     @visible.setter
     def visible(self, visible: bool) -> None:
-        self._behavior.visible = visible
+        if self._behavior.visible != visible:
+            self._behavior.visible = visible
+            if self.__visible_binding:
+                self.__visible_binding.update_source(visible)
 
     @property
     def enabled(self) -> bool:
@@ -381,7 +401,10 @@ class Widget:
 
     @enabled.setter
     def enabled(self, enabled: bool) -> None:
-        self._behavior.enabled = enabled
+        if self._behavior.enabled != enabled:
+            self._behavior.enabled = enabled
+            if self.__enabled_binding:
+                self.__enabled_binding.update_source(enabled)
 
     @property
     def size(self) -> Geometry.IntSize:
@@ -397,7 +420,10 @@ class Widget:
 
     @tool_tip.setter
     def tool_tip(self, tool_tip: str) -> None:
-        self._behavior.tool_tip = tool_tip
+        if self._behavior.tool_tip != tool_tip:
+            self._behavior.tool_tip = tool_tip
+            if self.__tool_tip_binding:
+                self.__tool_tip_binding.update_source(tool_tip)
 
     def set_property(self, key, value):
         self._behavior.set_property(key, value)
@@ -423,6 +449,45 @@ class Widget:
         if hasattr(self, handle_method):
             return MenuItemState(title=None, enabled=True, checked=False)
         return None
+
+    def bind_enabled(self, binding):
+        if self.__enabled_binding:
+            self.__enabled_binding.close()
+            self.__enabled_binding = None
+        self.enabled = binding.get_target_value()
+        self.__enabled_binding = binding
+        def update_enabled(enabled):
+            def update_enabled_():
+                if self._behavior:
+                    self.enabled = enabled
+            self.add_task("update_enabled", update_enabled_)
+        self.__enabled_binding.target_setter = update_enabled
+
+    def bind_visible(self, binding):
+        if self.__visible_binding:
+            self.__visible_binding.close()
+            self.__visible_binding = None
+        self.visible = binding.get_target_value()
+        self.__visible_binding = binding
+        def update_visible(visible):
+            def update_visible_():
+                if self._behavior:
+                    self.visible = visible
+            self.add_task("update_visible", update_visible_)
+        self.__visible_binding.target_setter = update_visible
+
+    def bind_tool_tip(self, binding):
+        if self.__tool_tip_binding:
+            self._tool_tipd_binding.close()
+            self.__tool_tip_binding = None
+        self.tool_tip = binding.get_target_value()
+        self.__tool_tip_binding = binding
+        def update_tool_tip(tool_tip):
+            def update_tool_tip_():
+                if self._behavior:
+                    self.tool_tip = tool_tip
+            self.add_task("update_tool_tip", update_tool_tip_)
+        self.__tool_tip_binding.target_setter = update_tool_tip
 
 
 class BoxWidget(Widget):

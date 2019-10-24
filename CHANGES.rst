@@ -4,6 +4,10 @@ Changelog (nionui)
 0.3.25 (UNRELEASED)
 -------------------
 
+- Add binding to enabled/visible/tool_tip and size properties for all declarative elements.
+
+- Fix minor checkbox issue in PyQt.
+
 - Improve ability to handle stacked canvas items during drag and drop.
 
 - Extend list canvas item to support drag and drop on items.

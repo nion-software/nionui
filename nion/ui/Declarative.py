@@ -79,7 +79,23 @@ class DeclarativeUI:
     def __init__(self):
         pass
 
-    def create_column(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+    def __process_common_properties(self, d: typing.MutableMapping, **kwargs) -> None:
+        common_properties = (
+            "enabled",
+            "visible",
+            "width",
+            "min_width",
+            "max_width",
+            "height",
+            "min_height",
+            "max_height",
+            "tool_tip"
+        )
+        for k in common_properties:
+            if k in kwargs and kwargs[k] is not None:
+                d[k] = kwargs[k]
+
+    def create_column(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
         """Create a column UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -117,9 +133,10 @@ class DeclarativeUI:
             d_children = d.setdefault("children", list())
             for child in children:
                 d_children.append(child)
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_row(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None) -> UIDescription:
+    def create_row(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
         """Create a row UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -157,6 +174,7 @@ class DeclarativeUI:
             d_children = d.setdefault("children", list())
             for child in children:
                 d_children.append(child)
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_spacing(self, size: UIPoints) -> UIDescription:
@@ -190,7 +208,7 @@ class DeclarativeUI:
         """
         return {"type": "tab", "label": label, "content": content}
 
-    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
+    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None, **kwargs) -> UIDescription:
         """Create a tabs UI description with children, the current index and optional changed event.
 
         The children must be tabs created by :py:meth:`create_tab`.
@@ -222,9 +240,10 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_stack(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None) -> UIDescription:
+    def create_stack(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None, **kwargs) -> UIDescription:
         """Create a stack UI description with children or dynamic items, the current index and optional changed event.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -270,9 +289,10 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_scroll_area(self, content: UIDescription, name: UIIdentifier=None):
+    def create_scroll_area(self, content: UIDescription, name: UIIdentifier=None, **kwargs) -> UIDescription:
         """Create a scroll area UI description with content and a name.
 
         Args:
@@ -287,9 +307,10 @@ class DeclarativeUI:
         d = {"type": "scroll_area", "content": content}
         if name is not None:
             d["name"] = name
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_group(self, content: UIDescription, name: UIIdentifier=None, title: UILabel=None, margin: UIPoints=None) -> UIDescription:
+    def create_group(self, content: UIDescription, name: UIIdentifier=None, title: UILabel=None, margin: UIPoints=None, **kwargs) -> UIDescription:
         """Create a group UI description with content, a name, a title, and a margin.
 
         Args:
@@ -310,9 +331,10 @@ class DeclarativeUI:
             d["title"] = title
         if margin is not None:
             d["margin"] = margin
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, min_width: int=None) -> UIDescription:
+    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, min_width: int=None, **kwargs) -> UIDescription:
         """Create a label UI description with text and an optional name.
 
         Keyword Args:
@@ -328,10 +350,7 @@ class DeclarativeUI:
             d["text"] = text
         if name is not None:
             d["name"] = name
-        if width is not None:
-            d["width"] = width
-        if min_width is not None:
-            d["min-width"] = min_width
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_line_edit(self, *,
@@ -340,12 +359,12 @@ class DeclarativeUI:
                          editable: bool=None,
                          placeholder_text: UILabel=None,
                          clear_button_enabled: bool=None,
-                         width: int=None,
                          on_editing_finished: UICallableIdentifier=None,
                          on_escape_pressed: UICallableIdentifier=None,
                          on_return_pressed: UICallableIdentifier=None,
                          on_key_pressed: UICallableIdentifier=None,
-                         on_text_edited: UICallableIdentifier=None) -> UIDescription:
+                         on_text_edited: UICallableIdentifier=None,
+                         **kwargs) -> UIDescription:
         """Create a line edit UI description with text, name, placeholder, options, and events.
 
         The ``on_editing_finished`` callback is invoked when the user presses return or escape or when they change
@@ -392,8 +411,6 @@ class DeclarativeUI:
             d["placeholder_text"] = placeholder_text
         if clear_button_enabled is not None:
             d["clear_button_enabled"] = clear_button_enabled
-        if width is not None:
-            d["width"] = width
         if on_editing_finished is not None:
             d["on_editing_finished"] = on_editing_finished
         if on_escape_pressed is not None:
@@ -404,6 +421,7 @@ class DeclarativeUI:
             d["on_key_pressed"] = on_key_pressed
         if on_text_edited is not None:
             d["on_text_edited"] = on_text_edited
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_text_edit(self, *,
@@ -412,11 +430,10 @@ class DeclarativeUI:
                          editable: bool=None,
                          placeholder_text: UILabel=None,
                          clear_button_enabled: bool=None,
-                         width: int=None,
-                         height: int=None,
                          on_escape_pressed: UICallableIdentifier=None,
                          on_return_pressed: UICallableIdentifier=None,
-                         on_text_edited: UICallableIdentifier=None) -> UIDescription:
+                         on_text_edited: UICallableIdentifier=None,
+                         **kwargs) -> UIDescription:
         """Create a multi-line text edit UI description with text, name, placeholder, options, and events.
 
         The ``on_escape_pressed`` and ``on_return_pressed`` callbacks are invoked when the user presses escape or
@@ -453,19 +470,16 @@ class DeclarativeUI:
             d["placeholder_text"] = placeholder_text
         if clear_button_enabled is not None:
             d["clear_button_enabled"] = clear_button_enabled
-        if width is not None:
-            d["width"] = width
-        if height is not None:
-            d["height"] = height
         if on_escape_pressed is not None:
             d["on_escape_pressed"] = on_escape_pressed
         if on_return_pressed is not None:
             d["on_return_pressed"] = on_return_pressed
         if on_text_edited is not None:
             d["on_text_edited"] = on_text_edited
+        self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, on_clicked: UICallableIdentifier=None) -> UIDescription:
+    def create_push_button(self, *, text: UILabel=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
         """Create a push button UI description with text, name, an event.
 
         The ``on_clicked`` callback is invoked when the user clicks the button. The widget is passed to the callback.
@@ -485,10 +499,9 @@ class DeclarativeUI:
             d["text"] = text
         if name is not None:
             d["name"] = name
-        if width is not None:
-            d["width"] = width
         if on_clicked is not None:
             d["on_clicked"] = on_clicked
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_check_box(self, *,
@@ -498,7 +511,8 @@ class DeclarativeUI:
                          check_state: str=None,
                          tristate: bool=None,
                          on_checked_changed: UICallableIdentifier=None,
-                         on_check_state_changed: UICallableIdentifier=None) -> UIDescription:
+                         on_check_state_changed: UICallableIdentifier=None,
+                         **kwargs) -> UIDescription:
         """Create a check box UI description with text, name, state information, and events.
 
         The ``checked`` and ``check_state`` both refer to the check state. Some callers may choose to use the simpler
@@ -540,15 +554,16 @@ class DeclarativeUI:
             d["on_checked_changed"] = on_checked_changed
         if on_check_state_changed is not None:
             d["on_check_state_changed"] = on_check_state_changed
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_combo_box(self, *,
                          name: UIIdentifier=None,
                          items: typing.List[UILabel]=None,
                          items_ref: UIIdentifier=None,
-                         width: int=None,
                          current_index: UIIdentifier=None,
-                         on_current_index_changed: UICallableIdentifier=None):
+                         on_current_index_changed: UICallableIdentifier=None,
+                         **kwargs):
         """Create a combo box UI description with name, items, current index, and events.
 
         The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the combo box.
@@ -572,19 +587,19 @@ class DeclarativeUI:
             d["items"] = items
         if items_ref is not None:
             d["items_ref"] = items_ref
-        if width is not None:
-            d["width"] = width
         if current_index is not None:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_radio_button(self, *,
                             name: UIIdentifier=None,
                             text: UILabel=None,
                             value: typing.Any=None,
-                            group_value: UIIdentifier=None) -> UIDescription:
+                            group_value: UIIdentifier=None,
+                            **kwargs) -> UIDescription:
         """Create a radio button UI description with text, name, value, and group value.
 
         A set of radio buttons should be created such that each has a different ``value`` but shares a common
@@ -608,6 +623,7 @@ class DeclarativeUI:
             d["value"] = value
         if group_value is not None:
             d["group_value"] = group_value
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_slider(self, *,
@@ -618,8 +634,8 @@ class DeclarativeUI:
                       on_value_changed: UICallableIdentifier=None,
                       on_slider_pressed: UICallableIdentifier=None,
                       on_slider_released: UICallableIdentifier=None,
-                      on_slider_moved: UICallableIdentifier=None
-                      ) -> UIDescription:
+                      on_slider_moved: UICallableIdentifier=None,
+                      **kwargs) -> UIDescription:
         """Create a slider UI description with name, value, limits, and events.
 
         The ``on_value_changed`` callback is invoked whenever the slider value changes, including if set
@@ -666,13 +682,15 @@ class DeclarativeUI:
             d["on_slider_released"] = on_slider_released
         if on_slider_moved is not None:
             d["on_slider_moved"] = on_slider_moved
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_progress_bar(self, *,
-                      name: UIIdentifier=None,
-                      value: UIIdentifier=None,
-                      minimum: int=None,
-                      maximum: int=None) -> UIDescription:
+                            name: UIIdentifier = None,
+                            value: UIIdentifier = None,
+                            minimum: int = None,
+                            maximum: int = None,
+                            **kwargs) -> UIDescription:
         """Create a progress bar UI description with name, value, and limits.
 
         Keyword Args:
@@ -693,6 +711,7 @@ class DeclarativeUI:
             d["minimum"] = minimum
         if maximum is not None:
             d["maximum"] = maximum
+        self.__process_common_properties(d, **kwargs)
         return d
 
     def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
@@ -783,8 +802,11 @@ def connect_string_value(widget, d, handler, property, finishes):
             for part in parts:
                 if part.startswith("converter="):
                     converter = getattr(handler, part[len("converter="):])
-            binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
-            getattr(widget, "bind_" + property)(binding)
+            if hasattr(source, "property_changed_event"):
+                binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                getattr(widget, "bind_" + property)(binding)
+            else:
+                setattr(widget, property, getattr(source, handler_property_path[-1].strip()))
         finishes.append(finish_binding)
     else:
         setattr(widget, property, v)
@@ -820,7 +842,7 @@ class Closer:
         self.__handlers = None
 
 
-def connect_reference_value(widget, d, handler, property, finishes, binding_name=None):
+def connect_reference_value(widget, d, handler, property, finishes, binding_name=None, value_type=None):
     """Connects a reference to the property, but also allows binding.
 
     A reference means the property specifies a property in the handler.
@@ -832,6 +854,7 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
     if m:
         b = m.group(1)
         parts = [p.strip() for p in b.split(',')]
+
         def finish_binding():
             handler_property_path = parts[0].split('.')
             source = handler
@@ -841,11 +864,21 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
             for part in parts:
                 if part.startswith("converter="):
                     converter = getattr(handler, part[len("converter="):])
-            binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
-            getattr(widget, "bind_" + binding_name)(binding)
+            if hasattr(source, "property_changed_event"):
+                binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                getattr(widget, "bind_" + binding_name)(binding)
+            else:
+                setattr(widget, binding_name, getattr(source, handler_property_path[-1].strip()))
+
         finishes.append(finish_binding)
     elif v is not None:
-        setattr(widget, binding_name, getattr(handler, v))
+        if value_type == str and hasattr(handler, v):
+            # backwards compatible binding
+            setattr(widget, binding_name, getattr(handler, v))
+        elif value_type and isinstance(v, value_type):
+            setattr(widget, binding_name, v)
+        else:
+            setattr(widget, binding_name, getattr(handler, v))
 
 
 def connect_event(widget, source, d, handler, event_str, arg_names):
@@ -862,6 +895,12 @@ def connect_event(widget, source, d, handler, event_str, arg_names):
             setattr(source, event_str, trampoline)
         else:
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
+
+
+def connect_attributes(widget, d, handler, finishes):
+    connect_reference_value(widget, d, handler, "enabled", finishes, value_type=bool)
+    connect_reference_value(widget, d, handler, "visible", finishes, value_type=bool)
+    connect_string_value(widget, d, handler, "tool_tip", finishes)
 
 
 def run_window(app, d, handler):
@@ -981,6 +1020,15 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
     handler._closer.push_closeable(container.item_removed_event.listen(row_item_removed))
 
 
+def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
+    properties = dict()
+    for k in ("min_width", "max_width", "height", "min_height", "max_height"):
+        v = d.get(k, None)
+        if v is not None:
+            properties[k] = int(v)
+    return properties
+
+
 def construct(ui, window, d, handler, finishes=None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
@@ -1022,7 +1070,8 @@ def construct(ui, window, d, handler, finishes=None):
             handler.init_handler()
         return dialog
     elif d_type == "column":
-        column_widget = ui.create_column_widget()
+        properties = construct_sizing_properties(d)
+        column_widget = ui.create_column_widget(properties=properties)
         spacing = d.get("spacing")
         margin = d.get("margin")
         items = d.get("items")
@@ -1043,9 +1092,12 @@ def construct(ui, window, d, handler, finishes=None):
         if items and item_component_id:
             # TODO: spacing does not work on rows/columns
             connect_items(ui, window, column_widget, handler, items, item_component_id, finishes)
+        if handler:
+            connect_attributes(column_widget, d, handler, finishes)
         return construct_margin(ui, column_widget, margin)
     elif d_type == "row":
-        row_widget = ui.create_row_widget()
+        properties = construct_sizing_properties(d)
+        row_widget = ui.create_row_widget(properties=properties)
         spacing = d.get("spacing")
         margin = d.get("margin")
         items = d.get("items")
@@ -1066,158 +1118,147 @@ def construct(ui, window, d, handler, finishes=None):
         if items and item_component_id:
             # TODO: spacing does not work on rows/columns
             connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
+        if handler:
+            connect_attributes(row_widget, d, handler, finishes)
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
-        width = d.get("width", None)
-        min_width = d.get("min-width", None)
-        properties = dict()
-        if width is not None:
-            properties["width"] = int(width)
-        if min_width is not None:
-            properties["min-width"] = int(min_width)
+        properties = construct_sizing_properties(d)
         widget = ui.create_label_widget(properties)
         if handler:
             connect_string_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "line_edit":
         editable = d.get("editable", None)
-        placeholder_text = d.get("placeholder_text", None)
         clear_button_enabled = d.get("clear_button_enabled", None)
-        width = d.get("width", None)
-        properties = dict()
-        if width is not None:
-            properties["width"] = int(width)
+        properties = construct_sizing_properties(d)
         widget = ui.create_line_edit_widget(properties)
         if editable is not None:
             widget.editable = editable
-        if placeholder_text is not None:
-            widget.placeholder_text = placeholder_text
         if clear_button_enabled is not None:
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
+            connect_string_value(widget, d, handler, "placeholder_text", finishes)
             connect_reference_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
             connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "text_edit":
         editable = d.get("editable", None)
-        placeholder_text = d.get("placeholder_text", None)
         clear_button_enabled = d.get("clear_button_enabled", None)
-        width = d.get("width", None)
-        height = d.get("height", None)
-        properties = dict()
-        if width is not None:
-            properties["width"] = int(width)
-        if height is not None:
-            properties["height"] = int(height)
+        properties = construct_sizing_properties(d)
         widget = ui.create_text_edit_widget(properties)
         if editable is not None:
             widget.editable = editable
-        if placeholder_text is not None:
-            widget.placeholder_text = placeholder_text
         if clear_button_enabled is not None:
             widget.clear_button_enabled = clear_button_enabled
         if handler:
             connect_name(widget, d, handler)
+            connect_string_value(widget, d, handler, "placeholder_text", finishes)
             connect_reference_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "push_button":
         text = d.get("text", None)
-        width = d.get("width", None)
-        properties = dict()
-        if width is not None:
-            properties["width"] = int(width)
+        properties = construct_sizing_properties(d)
         widget = ui.create_push_button_widget(text, properties)
         if handler:
             connect_name(widget, d, handler)
             connect_event(widget, widget, d, handler, "on_clicked", [])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "check_box":
         # TODO: 'checked' and 'check_state' are bindings, not values
         text = d.get("text", None)
-        checked = d.get("checked", None)
-        check_state = d.get("check_state", None)
         tristate = d.get("tristate", None)
-        widget = ui.create_check_box_widget(text)
+        properties = construct_sizing_properties(d)
+        widget = ui.create_check_box_widget(text, properties=properties)
         if tristate is not None:
             widget.tristate = tristate
-        if check_state is not None:
-            widget.check_state = check_state
-        if checked is not None:
-            widget.checked = checked
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "checked", finishes)
-            connect_reference_value(widget, d, handler, "check_state", finishes)
+            connect_reference_value(widget, d, handler, "checked", finishes, value_type=bool)
+            connect_reference_value(widget, d, handler, "check_state", finishes, value_type=str)
             connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
             connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "combo_box":
         items = d.get("items", None)
-        width = d.get("width", None)
-        properties = dict()
-        if width is not None:
-            properties["width"] = int(width)
+        properties = construct_sizing_properties(d)
         widget = ui.create_combo_box_widget(items=items, properties=properties)
         if handler:
             connect_name(widget, d, handler)
             # note: items_ref connects before current_index so that current_index can be valid
-            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items")
-            connect_reference_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
+            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "radio_button":
         text = d.get("text", None)
         value = d.get("value", None)
-        widget = ui.create_radio_button_widget(text)
+        properties = construct_sizing_properties(d)
+        widget = ui.create_radio_button_widget(text, properties)
         widget.value = value
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "group_value", finishes)
+            connect_reference_value(widget, d, handler, "group_value", finishes, value_type=int)
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "slider":
         minimum = d.get("minimum", 0)
         maximum = d.get("maximum", 100)
-        widget = ui.create_slider_widget()
+        properties = construct_sizing_properties(d)
+        widget = ui.create_slider_widget(properties)
         widget.minimum = minimum
         widget.maximum = maximum
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "value", finishes)
+            connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
             connect_event(widget, widget, d, handler, "on_value_changed", ["value"])
             connect_event(widget, widget, d, handler, "on_slider_pressed", [])
             connect_event(widget, widget, d, handler, "on_slider_released", [])
             connect_event(widget, widget, d, handler, "on_slider_moved", ["value"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "progress_bar":
         minimum = d.get("minimum", 0)
         maximum = d.get("maximum", 100)
-        widget = ui.create_progress_bar_widget(properties={"height": 18, "min-width": 64})
+        properties = construct_sizing_properties(d)
+        properties.setdefault("height", 18)
+        properties.setdefault("width", 64)
+        widget = ui.create_progress_bar_widget(properties=properties)
         widget.minimum = minimum
         widget.maximum = maximum
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "value", finishes)
+            connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "tabs":
-        widget = ui.create_tab_widget()
+        properties = construct_sizing_properties(d)
+        widget = ui.create_tab_widget(properties)
         for tab in d.get("tabs", list()):
             widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "stack":
-        widget = ui.create_stack_widget()
+        properties = construct_sizing_properties(d)
+        widget = ui.create_stack_widget(properties)
         for child in d.get("children", list()):
             widget.add(construct(ui, window, child, handler, finishes))
         items = d.get("items")
@@ -1226,19 +1267,23 @@ def construct(ui, window, d, handler, finishes=None):
             connect_items(ui, window, widget, handler, items, item_component_id, finishes)
         if handler:
             connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "current_index", finishes)
+            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
             connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "scroll_area":
-        widget = ui.create_scroll_area_widget()
+        properties = construct_sizing_properties(d)
+        widget = ui.create_scroll_area_widget(properties)
         widget.set_scrollbar_policies("needed", "needed")
         content = d.get("content")
         widget.content = construct(ui, window, content, handler, finishes)
         if handler:
             connect_name(widget, d, handler)
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "group":
-        widget = ui.create_group_widget()
+        properties = construct_sizing_properties(d)
+        widget = ui.create_group_widget(properties)
         margin = d.get("margin")
         content = d.get("content")
         outer_row = ui.create_row_widget()
@@ -1256,6 +1301,7 @@ def construct(ui, window, d, handler, finishes=None):
         if handler:
             connect_name(widget, d, handler)
             connect_string_value(widget, d, handler, "title", finishes)
+            connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.
@@ -1291,6 +1337,8 @@ def construct(ui, window, d, handler, finishes=None):
             for event in events:
                 # print(f"connecting {event['event']} ({event['parameters']})")
                 connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
+            if handler:
+                connect_attributes(widget, d, handler, finishes)
             return widget
     return None
 

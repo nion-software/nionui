@@ -6,7 +6,6 @@ class Handler:
     gain_cb = None
     dark_cb = None
 
-    all_check_state = "partial"
     gain_enabled = True
 
     extra_model = Model.PropertyModel(True)
@@ -43,11 +42,13 @@ class Handler:
 
 
 def construct_ui(ui):
-    all_cb = ui.create_check_box(text="Enable All", name="all_cb", tristate=True, check_state="all_check_state", on_check_state_changed="check_state_changed")
+    all_cb = ui.create_check_box(text="Enable All", name="all_cb", tristate=True, check_state="partial", on_check_state_changed="check_state_changed")
     gain_cb = ui.create_check_box(text="Gain Normalize", name="gain_cb", checked="gain_enabled", on_checked_changed="checked")
     dark_cb = ui.create_check_box(text="Dark Subtract", name="dark_cb", on_checked_changed="checked")
     extra_cb = ui.create_check_box(text="Extra", checked="@binding(extra_model.value)")
-    cb_group = ui.create_column(gain_cb, dark_cb, spacing=8)
+    extra_extra_cb = ui.create_check_box(text="Extra2", enabled=False)
+    label = ui.create_label(text="Label", visible="@binding(extra_model.value)", tool_tip="A tool tip.")
+    cb_group = ui.create_column(gain_cb, dark_cb, spacing=8, enabled="@binding(extra_model.value)")
     cb_row = ui.create_row(ui.create_spacing(12), cb_group)
-    all_group = ui.create_column(all_cb, cb_row, extra_cb, spacing=8)
+    all_group = ui.create_column(all_cb, cb_row, extra_cb, extra_extra_cb, label, spacing=8)
     return all_group

@@ -4,20 +4,24 @@ from nion.utils import Model
 
 class Handler:
 
-    # method 1: explicitly handle events
+    def __init__(self):
+        # method 1: explicitly handle events
+        self.hello1_label = None
 
-    hello1_label = None
+        # method 2: dialog handler becomes a model, explicit handling of hello2_text model property
+        self.property_changed_event = Event.Event()
+        self.__hello2_text = "Hello World Two"
+
+        # method 3: use a property model
+        self.hello3_model = Model.PropertyModel("Hello World Three")
+
+        # method 4: use a handler property directly, no update mechanism
+        self.hello4_text = "Hello World Four"
 
     def hello1_updated(self, widget, text):
         self.hello1_label.text = text
         if widget.focused:
             widget.select_all()
-
-    # method 2: dialog handler becomes a model, explicit handling of hello2_text model property
-
-    property_changed_event = Event.Event()
-
-    __hello2_text = "Hello World Two"
 
     @property
     def hello2_text(self):
@@ -27,10 +31,6 @@ class Handler:
     def hello2_text(self, value):
         self.__hello2_text = value
         self.property_changed_event.fire("hello2_text")
-
-    # method 3: use a property model
-
-    hello3_model = Model.PropertyModel("Hello World Three")
 
 
 def construct_ui(ui):
@@ -46,6 +46,10 @@ def construct_ui(ui):
     hello3_label = ui.create_label(text="@binding(hello3_model.value)")
     hello3 = ui.create_column(hello3_label, hello3_line_edit)
 
-    hellos = ui.create_column(hello1, hello2, hello3, spacing=12)
+    hello4_line_edit = ui.create_line_edit(placeholder_text="Enter Text", text="@binding(hello3_model.value)")
+    hello4_label = ui.create_label(text="@binding(hello4_text)")
+    hello4 = ui.create_column(hello4_label, hello4_line_edit)
+
+    hellos = ui.create_column(hello1, hello2, hello3, hello4, spacing=12)
 
     return hellos

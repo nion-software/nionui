@@ -1025,7 +1025,7 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
 
 def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
     properties = dict()
-    for k in ("min_width", "max_width", "height", "min_height", "max_height"):
+    for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
         v = d.get(k, None)
         if v is not None:
             properties[k] = int(v)

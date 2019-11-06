@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.3.26 (UNRELEASED)
+-------------------
+
+- Add unbind methods to complement all bind methods.
+
 0.3.25 (2019-10-24)
 -------------------
 

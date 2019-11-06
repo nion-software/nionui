@@ -208,13 +208,25 @@ class Widget:
         self.__text = self.__text_binding.get_target_value()
         self.__text_binding.target_setter = lambda t: setattr(self, "text", t)
         self.on_editing_finished = lambda text: self.__text_binding.update_source(text)
+    def unbind_text(self):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
     def bind_checked(self, binding):
         self.__binding = binding
         self.checked = self.__binding.get_target_value()
         self.on_checked_changed = lambda value: self.__binding.update_source(value)
+    def unbind_checked(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
     def bind_check_state(self, binding):
         self.__binding = binding
         self.check_state = self.__binding.get_target_value()
+    def unbind_check_state(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
     def editing_finished(self, text):
         if self.on_editing_finished:
             self.on_editing_finished(text)
@@ -222,10 +234,19 @@ class Widget:
         self.__binding = binding
         self.value = self.__binding.get_target_value()
         self.on_value_changed = lambda value: self.__binding.update_source(value)
+    def unbind_value(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.on_value_changed = None
     def bind_current_index(self, binding):
         self.__binding = binding
         self.value = self.__binding.get_target_value()
         self.current_item = self.items[self.value]
+    def unbind_current_index(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
     @property
     def focused(self):
         return self.__focused

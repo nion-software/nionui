@@ -463,6 +463,11 @@ class Widget:
             self.add_task("update_enabled", update_enabled_)
         self.__enabled_binding.target_setter = update_enabled
 
+    def unbind_enabled(self):
+        if self.__enabled_binding:
+            self.__enabled_binding.close()
+            self.__enabled_binding = None
+
     def bind_visible(self, binding):
         if self.__visible_binding:
             self.__visible_binding.close()
@@ -476,6 +481,11 @@ class Widget:
             self.add_task("update_visible", update_visible_)
         self.__visible_binding.target_setter = update_visible
 
+    def unbind_visible(self):
+        if self.__visible_binding:
+            self.__visible_binding.close()
+            self.__visible_binding = None
+
     def bind_tool_tip(self, binding):
         if self.__tool_tip_binding:
             self._tool_tipd_binding.close()
@@ -488,6 +498,11 @@ class Widget:
                     self.tool_tip = tool_tip
             self.add_task("update_tool_tip", update_tool_tip_)
         self.__tool_tip_binding.target_setter = update_tool_tip
+
+    def unbind_tool_tip(self):
+        if self.__tool_tip_binding:
+            self.__tool_tip_binding.close()
+            self.__tool_tip_binding = None
 
 
 class BoxWidget(Widget):
@@ -685,6 +700,12 @@ class TabWidget(Widget):
         self.__current_index_binding.target_setter = update_current_index
         self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
 
+    def unbind_current_index(self):
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        self.on_current_index_changed = None
+
 
 class StackWidget(Widget):
 
@@ -769,6 +790,12 @@ class StackWidget(Widget):
                 self.add_task("update_current_index", update_current_index_)
         self.__current_index_binding.target_setter = update_current_index
         self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
+
+    def unbind_current_index(self):
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        self.on_current_index_changed = None
 
 
 class GroupWidget(Widget):
@@ -1000,6 +1027,12 @@ class ComboBoxWidget(Widget):
         self.__items_binding.target_setter = update_items
         self.on_items_changed = lambda items: self.__items_binding.update_source(items)
 
+    def unbind_items(self):
+        if self.__items_binding:
+            self.__items_binding.close()
+            self.__items_binding = None
+        self.on_items_changed = None
+
     def bind_current_index(self, binding):
         if self.__current_item_binding:
             self.__current_item_binding.close()
@@ -1019,6 +1052,12 @@ class ComboBoxWidget(Widget):
                 self.request_refocus()
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_index_changed = lambda index: self.__current_item_binding.update_source(index)
+
+    def unbind_current_index(self):
+        if self.__current_item_binding:
+            self.__current_item_binding.close()
+            self.__current_item_binding = None
+        self.on_current_index_changed = None
 
 
 class PushButtonWidget(Widget):
@@ -1082,6 +1121,11 @@ class PushButtonWidget(Widget):
 
         self.__text_binding.target_setter = update_text
 
+    def unbind_text(self):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
     def bind_icon(self, binding):
         if self.__icon_binding:
             self.__icon_binding.close()
@@ -1097,6 +1141,11 @@ class PushButtonWidget(Widget):
             self.add_task("update_icon", update_icon_)
 
         self.__icon_binding.target_setter = update_icon
+
+    def unbind_icon(self):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
 
 
 class RadioButtonWidget(Widget):
@@ -1186,6 +1235,12 @@ class RadioButtonWidget(Widget):
         self.__binding.target_setter = update_checked
         self.__on_group_value_changed = lambda group_value: self.__binding.update_source(group_value)
 
+    def unbind_group_value(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.__on_group_value_changed = None
+
 
 class CheckBoxWidget(Widget):
 
@@ -1261,6 +1316,12 @@ class CheckBoxWidget(Widget):
         self.__binding.target_setter = update_checked
         self.on_checked_changed = lambda checked: self.__binding.update_source(checked)
 
+    def unbind_checked(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.on_checked_changed = None
+
     # bind to state. takes ownership of binding.
     def bind_check_state(self, binding):
         if self.__binding:
@@ -1276,6 +1337,12 @@ class CheckBoxWidget(Widget):
             self.add_task("update_check_state", update_check_state_)
         self.__binding.target_setter = update_check_state
         self.on_check_state_changed = lambda check_state: self.__binding.update_source(check_state)
+
+    def unbind_check_state(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.on_check_state_changed = None
 
 
 class LabelWidget(Widget):
@@ -1428,6 +1495,12 @@ class SliderWidget(Widget):
             self.add_task("update_value", update_value_)
         self.__binding.target_setter = update_value
         self.on_value_changed = lambda value: self.__binding.update_source(value)
+
+    def unbind_value(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.on_value_changed = None
 
 
 class LineEditWidget(Widget):
@@ -2068,6 +2141,12 @@ class ProgressBarWidget(CanvasWidget):
             self.add_task("update_value", update_value_)
         self.__binding.target_setter = update_value
         self.on_value_changed = lambda value: self.__binding.update_source(value)
+
+    def unbind_value(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+        self.on_value_changed = None
 
 
 class TreeWidget(Widget):

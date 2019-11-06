@@ -456,6 +456,11 @@ class TableWidget(CompositeWidgetBase):
             self.insert_item(item, index)
         self.__sync_header()
 
+    def unbind_items(self):
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+
 
 class TextButtonCell:
 

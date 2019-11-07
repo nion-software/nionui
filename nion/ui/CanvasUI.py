@@ -89,7 +89,7 @@ class WidgetBehavior:
         if tool_tip != self.__tool_tip:
             self.__tool_tip = tool_tip
 
-    def handle_drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+    def handle_drag(self, mime_data: UserInterface.MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
         raise NotImplementedError()
 
     def handle_context_menu_event(self, x, y, gx, gy):
@@ -382,7 +382,7 @@ class CanvasWidgetBehavior(WidgetBehavior):
             return self.on_key_released(key)
         return False
 
-    def handle_drag_enter_event(self, mime_data):
+    def handle_drag_enter_event(self, mime_data: UserInterface.MimeData) -> str:
         if callable(self.on_drag_enter):
             return self.on_drag_enter(mime_data)
         return "ignore"
@@ -392,12 +392,12 @@ class CanvasWidgetBehavior(WidgetBehavior):
             return self.on_drag_leave()
         return "ignore"
 
-    def handle_drag_move_event(self, mime_data, x, y):
+    def handle_drag_move_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if callable(self.on_drag_move):
             return self.on_drag_move(mime_data, x, y)
         return "ignore"
 
-    def handle_drop_event(self, mime_data, x, y):
+    def handle_drop_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         if callable(self.on_drop):
             return self.on_drop(mime_data, x, y)
         return "ignore"
@@ -538,7 +538,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
 
     # data objects
 
-    def create_mime_data(self):
+    def create_mime_data(self) -> UserInterface.MimeData:
         raise NotImplementedError()
 
     def create_item_model_controller(self, keys):
@@ -658,10 +658,10 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def clipboard_clear(self):
         raise NotImplementedError()
 
-    def clipboard_mime_data(self):
+    def clipboard_mime_data(self) -> UserInterface.MimeData:
         raise NotImplementedError()
 
-    def clipboard_set_mime_data(self, mime_data):
+    def clipboard_set_mime_data(self, mime_data: UserInterface.MimeData) -> None:
         raise NotImplementedError()
 
     def clipboard_set_text(self, text):

@@ -209,6 +209,43 @@ class Key(abc.ABC):
         ...
 
 
+class MimeData(abc.ABC):
+
+    @property
+    @abc.abstractmethod
+    def formats(self) -> typing.Sequence[str]:
+        ...
+
+    def has_format(self, format: str) -> bool:
+        return format in self.formats
+
+    @property
+    def has_urls(self) -> bool:
+        return "text/uri-list" in self.formats
+
+    @property
+    def has_file_paths(self):
+        return "text/uri-list" in self.formats
+
+    @property
+    def urls(self) -> typing.Sequence[str]:
+        raw_urls = self.data_as_string("text/uri-list")
+        return raw_urls.splitlines() if raw_urls and len(raw_urls) > 0 else []
+
+    @property
+    @abc.abstractmethod
+    def file_paths(self) -> typing.Sequence[str]:
+        ...
+
+    @abc.abstractmethod
+    def data_as_string(self, format: str) -> str:
+        ...
+
+    @abc.abstractmethod
+    def set_data_as_string(self, format: str, text: str) -> None:
+        ...
+
+
 class Widget:
 
     def __init__(self, widget_behavior):
@@ -428,7 +465,7 @@ class Widget:
     def set_property(self, key, value):
         self._behavior.set_property(key, value)
 
-    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+    def drag(self, mime_data: MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p) -> Geometry.IntPoint:
@@ -1713,7 +1750,7 @@ class TextEditWidget(Widget):
 
         self._behavior.on_key_pressed = handle_key_pressed
 
-        def handle_insert_mime_data(mime_data):
+        def handle_insert_mime_data(mime_data: MimeData) -> None:
             if callable(self.on_insert_mime_data):
                 self.on_insert_mime_data(mime_data)
             else:
@@ -1945,7 +1982,7 @@ class CanvasWidget(Widget):
 
         self._behavior.on_key_released = handle_key_released
 
-        def handle_drag_enter(mime_data):
+        def handle_drag_enter(mime_data: MimeData) -> str:
             if callable(self.on_drag_enter):
                 return self.on_drag_enter(mime_data)
             return "ignore"
@@ -1959,14 +1996,14 @@ class CanvasWidget(Widget):
 
         self._behavior.on_drag_leave = handle_drag_leave
 
-        def handle_drag_move(mime_data, x, y):
+        def handle_drag_move(mime_data: MimeData, x: int, y: int) -> str:
             if callable(self.on_drag_move):
                 return self.on_drag_move(mime_data, x, y)
             return "ignore"
 
         self._behavior.on_drag_move = handle_drag_move
 
-        def handle_drop(mime_data, x, y):
+        def handle_drop(mime_data: MimeData, x: int, y: int) -> str:
             if callable(self.on_drop):
                 return self.on_drop(mime_data, x, y)
             return "ignore"
@@ -2469,7 +2506,7 @@ class UserInterface(abc.ABC):
     # data objects
 
     @abc.abstractmethod
-    def create_mime_data(self):
+    def create_mime_data(self) -> MimeData:
         ...
 
     @abc.abstractmethod
@@ -2619,11 +2656,11 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def clipboard_mime_data(self):
+    def clipboard_mime_data(self) -> MimeData:
         ...
 
     @abc.abstractmethod
-    def clipboard_set_mime_data(self, mime_data):
+    def clipboard_set_mime_data(self, mime_data: MimeData) -> None:
         ...
 
     @abc.abstractmethod

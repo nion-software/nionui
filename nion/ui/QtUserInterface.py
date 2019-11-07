@@ -181,7 +181,7 @@ class QtKey(UserInterface.Key):
         return self.key == 0x1000017
 
 
-class QtMimeData:
+class QtMimeData(UserInterface.MimeData):
     def __init__(self, proxy, mime_data=None):
         self.proxy = proxy
         self.raw_mime_data = mime_data if mime_data else self.proxy.MimeData_create()
@@ -189,22 +189,6 @@ class QtMimeData:
     @property
     def formats(self):
         return self.proxy.MimeData_formats(self.raw_mime_data)
-
-    def has_format(self, format):
-        return format in self.formats
-
-    @property
-    def has_urls(self):
-        return "text/uri-list" in self.formats
-
-    @property
-    def has_file_paths(self):
-        return "text/uri-list" in self.formats
-
-    @property
-    def urls(self):
-        raw_urls = self.data_as_string("text/uri-list")
-        return raw_urls.splitlines() if raw_urls and len(raw_urls) > 0 else []
 
     @property
     def file_paths(self):
@@ -555,7 +539,7 @@ class QtWidgetBehavior:
             self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
-    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
+    def drag(self, mime_data: QtMimeData, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn) -> None:
         self._register_ui_activity()
         def drag_finished(action):
             self._register_ui_activity()
@@ -2028,7 +2012,7 @@ class QtUserInterface(UserInterface.UserInterface):
 
     # data objects
 
-    def create_mime_data(self):
+    def create_mime_data(self) -> QtMimeData:
         return QtMimeData(self.proxy)
 
     def create_item_model_controller(self, keys):
@@ -2161,10 +2145,10 @@ class QtUserInterface(UserInterface.UserInterface):
     def clipboard_clear(self):
         self.proxy.Clipboard_clear()
 
-    def clipboard_mime_data(self):
+    def clipboard_mime_data(self) -> QtMimeData:
         return QtMimeData(self.proxy, self.proxy.Clipboard_mimeData())
 
-    def clipboard_set_mime_data(self, mime_data):
+    def clipboard_set_mime_data(self, mime_data: QtMimeData) -> None:
         self.proxy.Clipboard_setMimeData(mime_data.raw_mime_data)
 
     def clipboard_set_text(self, text):

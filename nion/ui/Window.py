@@ -193,7 +193,7 @@ class Window:
             self._adjust_menus()
         return False
 
-    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y):
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail, hot_spot_x, hot_spot_y) -> None:
         self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     @property

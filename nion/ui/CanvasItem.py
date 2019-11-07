@@ -25,6 +25,9 @@ from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
 
+if typing.TYPE_CHECKING:
+    from nion.ui import UserInterface
+
 
 DEFAULT_MAX_FRAME_RATE = 25
 
@@ -616,7 +619,7 @@ class AbstractCanvasItem:
             if root_container:
                 root_container.focused_item = None
 
-    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+    def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         root_container = self.root_container
         if root_container:
             self.root_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
@@ -947,11 +950,11 @@ class AbstractCanvasItem:
         """ Handle a key released while this canvas item has focus. Return True if handled. """
         return False
 
-    def wants_drag_event(self, mime_data, x, y) -> bool:
+    def wants_drag_event(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> bool:
         """ Determines if the item should handle certain mime_data at a certain point. Return True if handled."""
         return self.wants_drag_events
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: "UserInterface.MimeData") -> str:
         """ Handle a drag event entering this canvas item. Return action if handled. """
         return "ignore"
 
@@ -959,11 +962,11 @@ class AbstractCanvasItem:
         """ Handle a drag event leaving this canvas item. Return action if handled. """
         return "ignore"
 
-    def drag_move(self, mime_data, x, y):
+    def drag_move(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
         """ Handle a drag event moving within this canvas item. Return action if handled. """
         return "ignore"
 
-    def drop(self, mime_data, x, y):
+    def drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
         """ Handle a drop event in this canvas item. Return action if handled. """
         return "ignore"
 
@@ -2783,7 +2786,7 @@ class RootCanvasItem(LayerCanvasItem):
             return self.focused_item.key_released(key)
         return False
 
-    def __drag_enter(self, mime_data):
+    def __drag_enter(self, mime_data: "UserInterface.MimeData") -> str:
         self.__drag_tracking = True
         return "accept"
 
@@ -2794,14 +2797,14 @@ class RootCanvasItem(LayerCanvasItem):
         self.__drag_tracking_canvas_item = None
         return "accept"
 
-    def __drag_canvas_item_at_point(self, x, y, mime_data):
+    def __drag_canvas_item_at_point(self, x: int, y: int, mime_data: "UserInterface.MimeData") -> typing.Optional["CanvasItem"]:
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in canvas_items:
             if canvas_item.wants_drag_event(mime_data, x, y):
                 return canvas_item
         return None
 
-    def __drag_move(self, mime_data, x, y):
+    def __drag_move(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
         response = "ignore"
         if self.__drag_tracking and not self.__drag_tracking_canvas_item:
             self.__drag_tracking_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
@@ -2819,7 +2822,7 @@ class RootCanvasItem(LayerCanvasItem):
             response = self.__drag_tracking_canvas_item.drag_move(mime_data, canvas_item_point.x, canvas_item_point.y)
         return response
 
-    def __drop(self, mime_data, x, y):
+    def __drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
         response = "ignore"
         if self.__drag_tracking_canvas_item:
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
@@ -2827,7 +2830,7 @@ class RootCanvasItem(LayerCanvasItem):
         self.__drag_leave()
         return response
 
-    def drag(self, mime_data, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None):
+    def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self.__canvas_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def grab_gesture(self, gesture_type):

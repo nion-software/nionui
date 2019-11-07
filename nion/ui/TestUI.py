@@ -16,6 +16,29 @@ from nion.utils import Geometry
 focused_widget = None  # simulate focus handling at the widget level
 
 
+class MimeData(UserInterface.MimeData):
+    def __init__(self, mime_data=None):
+        self.mime_data = dict() if mime_data is None else mime_data
+
+    @property
+    def formats(self):
+        return list(self.mime_data.keys())
+
+    @property
+    def file_paths(self):
+        urls = self.urls
+        file_paths = []
+        for url in urls:
+            file_paths.append(url)
+        return file_paths
+
+    def data_as_string(self, format):
+        return str(self.mime_data.get(format))
+
+    def set_data_as_string(self, format, text):
+        self.mime_data[format] = text
+
+
 class Widget:
     def __init__(self):
         self.widget_id = None
@@ -261,7 +284,7 @@ class Widget:
             self.__focused = focused
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
-    def drag(self, mime_data, thumbnail_data, drag_finished_fn):
+    def drag(self, mime_data: MimeData, thumbnail_data, drag_finished_fn) -> None:
         drag_finished_fn("none")
     def set_cursor_shape(self, cursor_shape):
         self.cursor_shape = cursor_shape
@@ -574,37 +597,6 @@ class Key(UserInterface.Key):
         return self.key == "page_up"
 
 
-class MimeData:
-    def __init__(self, mime_data=None):
-        self.mime_data = dict() if mime_data is None else mime_data
-    @property
-    def formats(self):
-        return list(self.mime_data.keys())
-    def has_format(self, format):
-        return format in self.formats
-    @property
-    def has_urls(self):
-        return "text/uri-list" in self.formats
-    @property
-    def has_file_paths(self):
-        return self.has_urls
-    @property
-    def urls(self):
-        raw_urls = self.data_as_string("text/uri-list")
-        return raw_urls.splitlines() if raw_urls and len(raw_urls) > 0 else []
-    @property
-    def file_paths(self):
-        urls = self.urls
-        file_paths = []
-        for url in urls:
-            file_paths.append(url)
-        return file_paths
-    def data_as_string(self, format):
-        return str(self.mime_data.get(format))
-    def set_data_as_string(self, format, text):
-        self.mime_data[format] = text
-
-
 class ButtonGroup:
 
     def __init__(self):
@@ -635,7 +627,7 @@ class UserInterface:
         pass
     def set_application_info(self, name: str, organization: str, domain: str) -> None:
         pass
-    def create_mime_data(self):
+    def create_mime_data(self) -> MimeData:
         return MimeData()
     def create_item_model_controller(self, keys):
         return ItemModelController()
@@ -741,10 +733,10 @@ class UserInterface:
     def clipboard_clear(self):
         self.clipboard = MimeData()
 
-    def clipboard_mime_data(self):
+    def clipboard_mime_data(self) -> MimeData:
         return self.clipboard
 
-    def clipboard_set_mime_data(self, mime_data):
+    def clipboard_set_mime_data(self, mime_data: MimeData) -> None:
         self.clipboard = mime_data
 
     def clipboard_set_text(self, text):

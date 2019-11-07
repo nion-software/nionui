@@ -82,7 +82,7 @@ class CompositeWidgetBehavior:
     def tool_tip(self, tool_tip):
         self.content_widget.tool_tip = tool_tip
 
-    def drag(self, mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn):
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn) -> None:
         self.content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p):

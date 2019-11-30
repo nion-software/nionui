@@ -8,9 +8,16 @@ import sys
 import typing
 
 # third party libraries
-from PyQt5 import QtCore
-from PyQt5 import QtGui
-from PyQt5 import QtWidgets
+if 'PyQt5' in sys.modules:
+    from PyQt5 import QtCore
+    from PyQt5 import QtGui
+    from PyQt5 import QtWidgets
+    from PyQt5.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
+else:
+    from PySide2 import QtCore
+    from PySide2 import QtGui
+    from PySide2 import QtWidgets
+    from PySide2.QtCore import Signal, Slot
 
 
 app = None
@@ -61,7 +68,7 @@ def GetSaveFileName(parent: QtWidgets.QWidget, caption: str, dir: str, filter: s
     dialog.setAcceptMode(QtWidgets.QFileDialog.AcceptSave)
     if selected_filter_ref[0]:
         dialog.selectNameFilter(selected_filter_ref[0])
-    if dialog.exec() == QtWidgets.QDialog.Accepted:
+    if dialog.exec_() == QtWidgets.QDialog.Accepted:
         selected_filter_ref[0] = dialog.selectedNameFilter()
         selected_directory_ref[0] = dialog.directory()
         return dialog.selectedFiles()[0]
@@ -75,7 +82,7 @@ def GetOpenFileName(parent: QtWidgets.QWidget, caption: str, dir: str, filter: s
     dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
     if selected_filter_ref[0]:
         dialog.selectNameFilter(selected_filter_ref[0])
-    if dialog.exec() == QtWidgets.QDialog.Accepted:
+    if dialog.exec_() == QtWidgets.QDialog.Accepted:
         selected_filter_ref[0] = dialog.selectedNameFilter()
         selected_directory_ref[0] = dialog.directory()
         return dialog.selectedFiles()[0]
@@ -87,7 +94,7 @@ def GetExistingDirectory(parent: QtWidgets.QWidget, caption: str, dir: str, sele
     dialog = QtWidgets.QFileDialog(parent, caption, WorkingDirectory(dir))
     dialog.selectFile(InitialSelection(dir))
     dialog.setFileMode(QtWidgets.QFileDialog.DirectoryOnly)  # also QtWidgets.QFileDialog.Directory
-    if dialog.exec() == QtWidgets.QDialog.Accepted:
+    if dialog.exec_() == QtWidgets.QDialog.Accepted:
         selected_directory_ref[0] = dialog.directory()
         return dialog.selectedFiles()[0]
     return str()
@@ -100,7 +107,7 @@ def GetOpenFileNames(parent: QtWidgets.QWidget, caption: str, dir: str, filter: 
     dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
     if selected_filter_ref[0]:
         dialog.selectNameFilter(selected_filter_ref[0])
-    if dialog.exec() == QtWidgets.QDialog.Accepted:
+    if dialog.exec_() == QtWidgets.QDialog.Accepted:
         selected_filter_ref[0] = dialog.selectedNameFilter()
         selected_directory_ref[0] = dialog.directory()
         return dialog.selectedFiles()
@@ -192,7 +199,7 @@ class PyDrag(QtGui.QDrag):
 
     def execute(self):
         if self.object:
-            action = self.exec(QtCore.Qt.CopyAction | QtCore.Qt.MoveAction)
+            action = self.exec_(QtCore.Qt.CopyAction | QtCore.Qt.MoveAction)
             mapping = {
                 QtCore.Qt.CopyAction: "copy",
                 QtCore.Qt.MoveAction: "move",
@@ -246,7 +253,7 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
     def initialize(self):
         self.__periodic_timer = QtCore.QTimer(self)
         self.__periodic_timer.timeout.connect(self.__periodic)
-        self.__periodic_timer.start(1000.0 / 50.0)  # 20ms, 50fps
+        self.__periodic_timer.start(1000 // 50)  # 20ms, 50fps
         self.__cleanDocument()
 
     def __cleanDocument(self):
@@ -791,7 +798,7 @@ class TreeWidget(QtWidgets.QTreeView):
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyPress:
-            if self.__handle_key(event.text(), event.key(), event.modifiers()):
+            if self.__handle_key(event.text(), event.key(), int(event.modifiers())):
                 return
         super().keyPressEvent(event)
 
@@ -916,7 +923,7 @@ class ItemModel(QtCore.QAbstractItemModel):
         except Exception as e:
             import traceback
             traceback.print_exc()
-        return QtCore.Qt.IgnoreAction
+        return QtCore.Qt.DropActions(QtCore.Qt.IgnoreAction)
 
     def columnCount(self, parent: QtCore.QModelIndex) -> int:
         return 1
@@ -1045,10 +1052,10 @@ class ItemModel(QtCore.QAbstractItemModel):
             return False
         parent_row = -1
         parent_id = 0
-        if parent().isValid():
-            parent_row = parent().row()
-            parent_id = int(parent().internalId())
-        return self.canDropMimeData(mime_data, action, row, parent_row, parent_id)
+        if parent.isValid():
+            parent_row = parent.row()
+            parent_id = int(parent.internalId())
+        return self.canDropMimeData(mime_data, action, row, parent_row, QtCore.QModelIndex(parent_id))
 
     def dropMimeData(self, mime_data: QtCore.QMimeData, action: QtCore.Qt.DropAction, row: int, column: int, parent: QtCore.QModelIndex) -> bool:
         if action == QtCore.Qt.IgnoreAction:
@@ -1057,9 +1064,9 @@ class ItemModel(QtCore.QAbstractItemModel):
             return False
         parent_row = -1
         parent_id = 0
-        if parent().isValid():
-            parent_row = parent().row()
-            parent_id = int(parent().internalId())
+        if parent.isValid():
+            parent_row = parent.row()
+            parent_id = int(parent.internalId())
         drop_action = self.itemDropMimeData(mime_data, action, row, parent_row, parent_id)
         self.__last_drop_action = drop_action
         return drop_action != QtCore.Qt.IgnoreAction
@@ -1381,8 +1388,8 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 path.lineTo(p1.x(), p1.y())
                 return
 
-            p1p0 = p0 - p1
-            p1p2 = p2 - p1
+            p1p0 = QtCore.QPointF(p0.x() - p1.x(), p0.y() - p1.y())
+            p1p2 = QtCore.QPointF(p2.x() - p1.x(), p2.y() - p1.y())
             p1p0_length = math.sqrt(p1p0.x() * p1p0.x() + p1p0.y() * p1p0.y())
             p1p2_length = math.sqrt(p1p2.x() * p1p2.x() + p1p2.y() * p1p2.y())
 
@@ -1401,7 +1408,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
             tangent = radius / math.tan(math.acos(cos_phi) / 2)
             factor_p1p0 = tangent / p1p0_length
-            t_p1p0 = p1 + factor_p1p0 * p1p0
+            t_p1p0 = QtCore.QPointF(p1.x() + factor_p1p0 * p1p0.x(), p1.y() + factor_p1p0 * p1p0.y())
 
             orth_p1p0 = QtCore.QPointF(p1p0.y(), -p1p0.x())
             orth_p1p0_length = math.sqrt(orth_p1p0.x() * orth_p1p0.x() + orth_p1p0.y() * orth_p1p0.y())
@@ -1412,7 +1419,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if cos_alpha < 0:
                 orth_p1p0 = QtCore.QPointF(-orth_p1p0.x(), -orth_p1p0.y())
 
-            p = t_p1p0 + factor_ra * orth_p1p0
+            p = QtCore.QPointF(t_p1p0.x() + factor_ra * orth_p1p0.x(), t_p1p0.y() + factor_ra * orth_p1p0.y())
 
             # calculate angles for addArc
             orth_p1p0 = QtCore.QPointF(-orth_p1p0.x(), -orth_p1p0.y())
@@ -1424,8 +1431,8 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             anticlockwise = False
 
             factor_p1p2 = tangent / p1p2_length
-            t_p1p2 = p1 + factor_p1p2 * p1p2
-            orth_p1p2 = t_p1p2 - p
+            t_p1p2 = QtCore.QPointF(p1.x() + factor_p1p2 * p1p2.x(), p1.y() + factor_p1p2 * p1p2.y())
+            orth_p1p2 = QtCore.QPointF(t_p1p2.x() - p.x(), t_p1p2.y() - p.y())
             orth_p1p2_length = math.sqrt(orth_p1p2.x() * orth_p1p2.x() + orth_p1p2.y() * orth_p1p2.y())
             ea = math.acos(orth_p1p2.x() / orth_p1p2_length)
             if orth_p1p2.y() < 0:
@@ -1668,7 +1675,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
 class PyCanvasRenderThread(QtCore.QThread):
 
-    renderingReady = QtCore.pyqtSignal()
+    renderingReady = Signal()
 
     def __init__(self, canvas: "PyCanvas", render_request: QtCore.QWaitCondition, render_request_mutex: QtCore.QMutex):
         super().__init__()
@@ -2088,7 +2095,7 @@ class PyQtProxy:
         app = PyApplication(application, [])
 
         if application.start():
-            return app.exec()
+            return app.exec_()
 
         return None
 
@@ -2744,7 +2751,8 @@ class PyQtProxy:
             image = image.convertToFormat(QtGui.QImage.Format_ARGB32_Premultiplied)
             b = image.bits()
             # sip.voidptr must know size to support python buffer interface
-            b.setsize(image.size().width() * image.size().height() * 4)
+            if hasattr(b, "setsize"):
+                b.setsize(image.size().width() * image.size().height() * 4)
             return numpy.copy(numpy.frombuffer(b, numpy.uint32).reshape((image.size().height(), image.size().width())))
         return None
 
@@ -3650,7 +3658,7 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
         while widget.layout().count() > 0:
-            widget.layout().takeAt(0).setParent(None)
+            widget.layout().removeItem(widget.layout().takeAt(0))
 
     def Widget_removeWidget(self, widget: QtWidgets.QWidget) -> None:
         global app
@@ -3673,7 +3681,7 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
-        widget.setFocus(reason)
+        widget.setFocus(QtCore.Qt.FocusReason(reason))
 
     def Widget_setFocusPolicy(self, widget: QtWidgets.QWidget, policy: str) -> None:
         global app

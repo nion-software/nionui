@@ -4,7 +4,6 @@ A basic class to serve as the document controller of a typical one window applic
 
 # standard libraries
 import asyncio
-import concurrent.futures
 import gettext
 import logging
 import typing
@@ -55,20 +54,7 @@ class Window:
 
     def close(self):
         self.on_close = None
-        # give cancelled tasks a chance to finish
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
-        try:
-            # this assumes that all outstanding tasks finish in a reasonable time (i.e. no infinite loops).
-            self.__event_loop.run_until_complete(asyncio.gather(*asyncio.Task.all_tasks(loop=self.__event_loop), loop=self.__event_loop))
-        except concurrent.futures.CancelledError:
-            pass
-        # now close
-        # due to a bug in Python libraries, the default executor needs to be shutdown explicitly before the event loop
-        # see http://bugs.python.org/issue28464
-        if self.__event_loop._default_executor:
-            self.__event_loop._default_executor.shutdown()
-        self.__event_loop.close()
+        Process.close_event_loop(self.__event_loop)
         self.__event_loop = None
         self.ui.destroy_document_window(self.__document_window)  # close the ui window
         self.__document_window = None

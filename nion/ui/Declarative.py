@@ -10,6 +10,7 @@ from nion.ui import Window
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
+from nion.utils import Registry
 
 
 UIDescription = typing.Dict  # when napolean works: typing.NewType("UIDescription", typing.Dict)
@@ -858,18 +859,26 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
         b = m.group(1)
         parts = [p.strip() for p in b.split(',')]
 
+        # finish binding is called after the window has been constructed using the 'finishes' list.
         def finish_binding():
             handler_property_path = parts[0].split('.')
             source = handler
             for p in handler_property_path[:-1]:
                 source = getattr(source, p.strip())
             converter = None
+            # check if any of the parts has a converter.
             for part in parts:
                 if part.startswith("converter="):
                     converter = getattr(handler, part[len("converter="):])
-            if hasattr(source, "property_changed_event"):
+            # give the handler a chance to make object conversions. this is useful if the objects
+            # in the handler are stored in a proxy format or something similar.
+            if getattr(handler, "get_object_converter", None):
+                converter = handler.get_object_converter(converter)
+            # configure the binding if the source and widget meet the criteria.
+            if hasattr(source, "property_changed_event") and hasattr(widget, "bind_" + binding_name):
                 binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
                 getattr(widget, "bind_" + binding_name)(binding)
+            # otherwise just set the value.
             else:
                 setattr(widget, binding_name, getattr(source, handler_property_path[-1].strip()))
 
@@ -1032,7 +1041,11 @@ def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
     return properties
 
 
-def construct(ui, window, d, handler, finishes=None):
+class DeclarativeConstructor:
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None): ...
+
+
+def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None):
     d_type = d.get("type")
     if d_type == "modeless_dialog":
         title = d.get("title", _("Untitled"))
@@ -1126,7 +1139,7 @@ def construct(ui, window, d, handler, finishes=None):
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":
         properties = construct_sizing_properties(d)
-        widget = ui.create_label_widget(properties)
+        widget = ui.create_label_widget(None, properties)
         if handler:
             connect_string_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
@@ -1346,6 +1359,13 @@ def construct(ui, window, d, handler, finishes=None):
             if handler:
                 connect_attributes(widget, d, handler, finishes)
             return widget
+    else:
+        # if the component is not handled yet, check with registered component handlers.
+        constructors = typing.cast(typing.List[DeclarativeConstructor], Registry.get_components_by_type("declarative_constructor"))
+        for constructor in constructors:
+            widget = constructor.construct(d_type, ui, window, d, handler, finishes)
+            if widget:
+                return widget
     return None
 
 

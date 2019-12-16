@@ -1700,7 +1700,10 @@ class QtMenu:
         self.on_about_to_hide = None
 
     def destroy(self):
-        self.proxy.Menu_destroy(self.native_menu)
+        # what looks like a bug in Qt 5.13 - aboutToHide is called twice. watch for that here.
+        # seen in PySide2 and Qt native. reproduce by right clicking context menu and not choosing anything.
+        if self.native_menu:
+            self.proxy.Menu_destroy(self.native_menu)
         self.native_menu = None
         self.on_about_to_show = None
         self.on_about_to_hide = None

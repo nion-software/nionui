@@ -614,6 +614,7 @@ class DrawingContext:
 
     @fill_style.setter
     def fill_style(self, a):
+        a = a or "rgba(0, 0, 0, 0.0)"
         if isinstance(a, DrawingContext.LinearGradient):
             self.commands.extend(a.commands)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
@@ -677,6 +678,7 @@ class DrawingContext:
         raise NotImplementedError()
 
     def __set_stroke_style(self, a):
+        a = a or "rgba(0, 0, 0, 0.0)"
         self.commands.append(("strokeStyle", str(a)))
         a_encoded = a.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"stst", len(a_encoded), a_encoded))

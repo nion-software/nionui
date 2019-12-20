@@ -40,7 +40,7 @@ class Application:
     def __init__(self, ui, *, on_start=None):
         self.ui = ui
         logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
         logger.addHandler(logging_handler)
         self.window = None
         self.on_start = on_start

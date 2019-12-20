@@ -3736,17 +3736,13 @@ class TimestampCanvasItem(AbstractCanvasItem):
 
 def load_rgba_data_from_bytes(b: typing.ByteString, format: str = None) -> numpy.ndarray:
     old_level = logging.getLogger().level
-    try:
-        logging.getLogger().setLevel(logging.WARNING)
-        image_rgba = None
-        image_argb = imageio.imread(b, format)
-        if image_argb is not None:
-            image_rgba = numpy.zeros_like(image_argb)
-            image_rgba[:, :, 0] = image_argb[:, :, 2]
-            image_rgba[:, :, 1] = image_argb[:, :, 1]
-            image_rgba[:, :, 2] = image_argb[:, :, 0]
-            image_rgba[:, :, 3] = image_argb[:, :, 3]
-            image_rgba = image_rgba.view(numpy.uint32).reshape(image_rgba.shape[:-1])
-    finally:
-        logging.getLogger().setLevel(old_level)
+    image_rgba = None
+    image_argb = imageio.imread(b, format)
+    if image_argb is not None:
+        image_rgba = numpy.zeros_like(image_argb)
+        image_rgba[:, :, 0] = image_argb[:, :, 2]
+        image_rgba[:, :, 1] = image_argb[:, :, 1]
+        image_rgba[:, :, 2] = image_argb[:, :, 0]
+        image_rgba[:, :, 3] = image_argb[:, :, 3]
+        image_rgba = image_rgba.view(numpy.uint32).reshape(image_rgba.shape[:-1])
     return image_rgba

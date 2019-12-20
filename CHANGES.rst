@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.3.26 (UNRELEASED)
 -------------------
+- Change default logging level to INFO (was DEBUG).
 - Add ability to register declarative components.
 - Add preliminary support for PySide2 (similar to PyQt).
 - Add unbind methods to complement all bind methods.

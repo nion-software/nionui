@@ -121,3 +121,4 @@ class PreferencesDialog(Dialog.ActionDialog):
     def close(self):
         self.__preference_pane_delegates_changed_listener.close()
         self.__preference_pane_delegates_changed_listener = None
+        super().close()

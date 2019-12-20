@@ -423,6 +423,8 @@ class TableWidget(CompositeWidgetBase):
             if self.content_section:
                 self.content_section.insert(item_row, before_index)
                 self.__sync_header()
+            else:
+                item_row.close()
 
     def remove_item(self, index):
         if self.content_section:

@@ -264,6 +264,7 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_tool_tip = None
         self.on_pan_gesture = None
         self.width = properties.get("width", 0) if properties else 0
         self.height = properties.get("height", 0) if properties else 0
@@ -294,6 +295,7 @@ class CanvasWidgetBehavior(WidgetBehavior):
             self.on_drag_leave = None
             self.on_drag_move = None
             self.on_drop = None
+            self.on_tool_tip = None
             self.on_pan_gesture = None
             super().close()
 
@@ -402,15 +404,21 @@ class CanvasWidgetBehavior(WidgetBehavior):
             return self.on_drop(mime_data, x, y)
         return "ignore"
 
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        if callable(self.on_tool_tip):
+            return self.on_tool_tip(x, y, gx, gy)
+        return False
+
     def grab_gesture(self, gesture_type):
         self._root_container.grab_geture(self, gesture_type)
 
     def release_gesture(self, gesture_type):
         self._root_container.release_gesture(self, gesture_type)
 
-    def handle_pan_gesture(self, delta_x, delta_y):
+    def handle_pan_gesture(self, delta_x, delta_y) -> bool:
         if callable(self.on_pan_gesture):
-            self.on_pan_gesture(delta_x, delta_y)
+            return self.on_pan_gesture(delta_x, delta_y)
+        return False
 
 
 class Window(UserInterface.Window):

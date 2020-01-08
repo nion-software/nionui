@@ -1899,6 +1899,7 @@ class CanvasWidget(Widget):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_tool_tip = None
         self.on_pan_gesture = None
         self.width = 0
         self.height = 0
@@ -2010,9 +2011,17 @@ class CanvasWidget(Widget):
 
         self._behavior.on_drop = handle_drop
 
-        def handle_pan_gesture(delta_x, delta_y):
+        def handle_tool_tip(x: int, y: int, gx: int, gy: int) -> bool:
+            if callable(self.on_tool_tip):
+                return self.on_tool_tip(x, y, gx, gy)
+            return False
+
+        self._behavior.on_tool_tip = handle_tool_tip
+
+        def handle_pan_gesture(delta_x, delta_y) -> bool:
             if callable(self.on_pan_gesture):
-                self.on_pan_gesture(delta_x, delta_y)
+                return self.on_pan_gesture(delta_x, delta_y)
+            return False
 
         self._behavior.on_pan_gesture = handle_pan_gesture
 
@@ -2044,6 +2053,7 @@ class CanvasWidget(Widget):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_tool_tip = None
         self.on_pan_gesture = None
         super().close()
 
@@ -2098,6 +2108,9 @@ class CanvasWidget(Widget):
 
     def release_mouse(self):
         self._behavior.release_mouse()
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        self._behavior.show_tool_tip_text(text, gx, gy)
 
     def _dispatch_any(self, method: str, *args, **kwargs):
         if callable(self.on_dispatch_any):

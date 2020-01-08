@@ -83,6 +83,17 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.update()
         return True
 
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        max_index = self.__delegate.item_count
+        mouse_index = y // self.__item_height
+        if mouse_index >= 0 and mouse_index < max_index:
+            if self.__delegate and hasattr(self.__delegate, "item_tool_tip"):
+                text = self.__delegate.item_tool_tip(mouse_index)
+                if text:
+                    self.show_tool_tip_text(text, gx, gy)
+                    return True
+        return super().handle_tool_tip(x, y, gx, gy)
+
     def __calculate_layout_height(self):
         item_count = self.__delegate.item_count if self.__delegate else 0
         return item_count * self.__item_height

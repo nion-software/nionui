@@ -624,6 +624,11 @@ class AbstractCanvasItem:
         if root_container:
             self.root_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        root_container = self.root_container
+        if root_container:
+            root_container.show_tool_tip_text(text, gx, gy)
+
     @property
     def tool_tip(self):
         return self.__tool_tip
@@ -969,6 +974,9 @@ class AbstractCanvasItem:
     def drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
         """ Handle a drop event in this canvas item. Return action if handled. """
         return "ignore"
+
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        return False
 
     def pan_gesture(self, dx, dy):
         """ Handle a pan gesture in this canvas item. Return action if handled. """
@@ -1682,12 +1690,23 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Returns list of canvas items under x, y, ordered from back to front."""
         return self._canvas_items_at_point(self.visible_canvas_items, x, y)
 
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in reversed(canvas_items):
+            if canvas_item != self:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.handle_tool_tip(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                    return True
+        return False
+
     def wheel_changed(self, x, y, dx, dy, is_horizontal):
         # always give the mouse canvas item priority (for tracking outside bounds)
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in reversed(canvas_items):
-            if canvas_item != self and canvas_item.wheel_changed(x - self.canvas_origin.x, y - self.canvas_origin.y, dx, dy, is_horizontal):
-                return True
+            if canvas_item != self:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.wheel_changed(canvas_item_point.x, canvas_item_point.y, dx, dy, is_horizontal):
+                    return True
         return False
 
     def pan_gesture(self, dx, dy):
@@ -2499,6 +2518,7 @@ class RootCanvasItem(LayerCanvasItem):
         self.__canvas_widget.on_drag_leave = self.__drag_leave
         self.__canvas_widget.on_drag_move = self.__drag_move
         self.__canvas_widget.on_drop = self.__drop
+        self.__canvas_widget.on_tool_tip = self.handle_tool_tip
         self.__canvas_widget.on_pan_gesture = self.pan_gesture
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
         self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
@@ -2541,6 +2561,7 @@ class RootCanvasItem(LayerCanvasItem):
         self.__canvas_widget.on_drag_leave = None
         self.__canvas_widget.on_drag_move = None
         self.__canvas_widget.on_drop = None
+        self.__canvas_widget.on_tool_tip = None
         self.__canvas_widget.on_pan_gesture = None
         self.__canvas_widget = None
         super().close()
@@ -2554,10 +2575,6 @@ class RootCanvasItem(LayerCanvasItem):
     @property
     def root_container(self):
         return self
-
-    @property
-    def canvas_widget(self):
-        return self.__canvas_widget
 
     @property
     def canvas_widget(self):
@@ -2849,6 +2866,9 @@ class RootCanvasItem(LayerCanvasItem):
         self.__canvas_widget.release_mouse()
         self._restore_cursor_shape()
         self.__grab_canvas_item = None
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        self.__canvas_widget.show_tool_tip_text(text, gx, gy)
 
 
 class BackgroundCanvasItem(AbstractCanvasItem):

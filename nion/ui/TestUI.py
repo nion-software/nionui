@@ -131,6 +131,7 @@ class Widget:
         self.on_slider_released = None
         self.on_text_changed = None
         self.on_text_edited = None
+        self.on_tool_tip = None
         self.on_value_changed = None
         self.on_viewport_changed = None
         self.on_wheel_changed = None

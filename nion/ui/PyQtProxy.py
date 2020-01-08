@@ -1806,6 +1806,14 @@ class PyCanvas(QtWidgets.QWidget):
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
+        if event.type() == QtCore.QEvent.ToolTip:
+            display_scaling = GetDisplayScaling()
+            try:
+                if self.object and self.object.helpEvent(event.pos().x() // display_scaling, event.pos().y() // display_scaling, event.globalPos().x() // display_scaling, event.globalPos().y() // display_scaling):
+                    return True
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
         return super().event(event)
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
@@ -3322,6 +3330,17 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert text_edit is not None
         text_edit.setWordWrapMode(QtGui.QTextOption.WrapMode(["none", "word", "manual", "anywhere", "optional"].index(wrap_mode)))
+
+    def ToolTip_hide(self) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        QtWidgets.QToolTip.hideText()
+
+    def ToolTip_show(self, widget: QtWidgets.QWidget, gx: int, gy: int, text: str, t: int, l: int, b: int, r: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert widget is not None
+        QtWidgets.QToolTip.showText(QtCore.QPoint(gx, gy), text, widget, QtCore.QRect(QtCore.QPoint(l, t), QtCore.QSize(r - l, b - t)))
 
     def TreeWidget_connect(self, content_view: QtWidgets.QWidget, object) -> None:
         global app

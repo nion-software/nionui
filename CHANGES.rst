@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.3.26 (UNRELEASED)
 -------------------
+- Add support for dynamic tool tips in canvas items and list items.
 - Change default logging level to INFO (was DEBUG).
 - Add ability to register declarative components.
 - Add preliminary support for PySide2 (similar to PyQt).

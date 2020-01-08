@@ -1356,6 +1356,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_tool_tip = None
         self.on_pan_gesture = None
         self.__focusable = False
 
@@ -1376,6 +1377,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_drag_leave = None
         self.on_drag_move = None
         self.on_drop = None
+        self.on_tool_tip = None
         self.on_pan_gesture = None
         super().close()
 
@@ -1415,6 +1417,9 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
 
     def release_mouse(self):
         self.proxy.Canvas_releaseMouse(self.widget)
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        self.proxy.ToolTip_show(self.widget, gx, gy, text, 0, 0, 0, 0)
 
     def mouseEntered(self):
         if callable(self.on_mouse_entered):
@@ -1499,10 +1504,17 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             return self.on_drop(QtMimeData(self.proxy, raw_mime_data), x, y)
         return "ignore"
 
-    def panGesture(self, delta_x, delta_y):
+    def helpEvent(self, x: int, y: int, gx: int, gy: int) -> bool:
+        self._register_ui_activity()
+        if callable(self.on_tool_tip):
+            return self.on_tool_tip(x, y, gx, gy)
+        return False
+
+    def panGesture(self, delta_x, delta_y) -> bool:
         self._register_ui_activity()
         if callable(self.on_pan_gesture):
-            self.on_pan_gesture(delta_x, delta_y)
+            return self.on_pan_gesture(delta_x, delta_y)
+        return False
 
 
 class QtTreeWidgetBehavior(QtWidgetBehavior):

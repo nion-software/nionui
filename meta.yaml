@@ -1,9 +1,9 @@
 package:
   name: 'nionui'
-  version: '0.3.25'
+  version: '0.3.26'
 
 source:
-  git_rev: 0.3.25
+  git_rev: 0.3.26
   git_url: https://github.com/nion-software/nionui.git
 
 build:

@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.3.26 (UNRELEASED)
+0.3.26 (2020-01-08)
 -------------------
 - Add support for dynamic tool tips in canvas items and list items.
 - Change default logging level to INFO (was DEBUG).

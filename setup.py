@@ -22,9 +22,8 @@ setuptools.setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python :: 3.6",
     ],
-    include_package_data=True,
     package_data={
-        'nion.ui': ['*.html', "resources/*"],
+        'nion.ui': ["resources/*"],
     },
     test_suite="nion.ui.test",
     entry_points={

@@ -1717,6 +1717,7 @@ class CanvasItemComposition(AbstractCanvasItem):
 
 
 _threaded_rendering_enabled = True
+_layer_id = 0
 
 
 class LayerCanvasItem(CanvasItemComposition):
@@ -1724,7 +1725,12 @@ class LayerCanvasItem(CanvasItemComposition):
 
     def __init__(self):
         super().__init__()
+        global _layer_id
+        _layer_id += 1
+        self.__layer_id = _layer_id
+        self.__layer_lock = threading.RLock()
         self.__layer_drawing_context = None
+        self.__layer_seed = 0
         self.__cancel = False
         self.__needs_layout = False
         self.__needs_repaint = False
@@ -1790,9 +1796,15 @@ class LayerCanvasItem(CanvasItemComposition):
         if immediate:
             self.repaint_immediate(drawing_context, self.canvas_size)
         else:
-            layer_drawing_context = self.__layer_drawing_context
+            with self.__layer_lock:
+                layer_drawing_context = self.__layer_drawing_context
+                layer_seed = self.__layer_seed
+            canvas_rect = self.canvas_rect
+            canvas_rect = canvas_rect or (0, 0, 0, 0)
+            drawing_context.begin_layer(self.__layer_id, layer_seed, *tuple(canvas_rect.origin), *tuple(canvas_rect.size))
             if layer_drawing_context:
                 drawing_context.add(layer_drawing_context)
+            drawing_context.end_layer(self.__layer_id, layer_seed, *tuple(canvas_rect.origin), *tuple(canvas_rect.size))
 
     def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
         # If the render behavior is a layer, it will have its own cached drawing context. Use it.
@@ -1857,7 +1869,9 @@ class LayerCanvasItem(CanvasItemComposition):
                             drawing_context = DrawingContext.DrawingContext()
                             self._repaint_children(drawing_context)
                             self._repaint(drawing_context)
-                            self.__layer_drawing_context = drawing_context
+                            with self.__layer_lock:
+                                self.__layer_seed += 1
+                                self.__layer_drawing_context = drawing_context
                             self._repaint_finished(self.__layer_drawing_context)
                         except Exception as e:
                             import traceback

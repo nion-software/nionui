@@ -1571,8 +1571,6 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             fill_gradient = args[0]
         elif cmd == "fillText" or cmd == "strokeText":
             text = args[0]
-            if text == "flope" or text == "Flope":
-                print(text)
             text_pos = QtCore.QPointF(args[1] * display_scaling, args[2] * display_scaling)
             fm = QtGui.QFontMetrics(text_font)
             text_width = fm.width(text)
@@ -1695,13 +1693,11 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 layer_skip = False
                 layer_image = layer_cache[layer_id].layer_image
                 layer_rect = layer_cache[layer_id].layer_rect
-                # print(f"LAYER HIT {layer_id} {layer_seed}")
                 rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
                 painter.drawImage(rect, layer_image)
             else:
                 painter.end()
                 layer_cache[layer_id] = LayerCacheEntry(layer_seed, layer_image, layer_rect)
-                print(f"LAYER MISS {layer_id} {layer_seed} {layer_rect}")
                 rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
                 painter = painter_stack.pop()
                 painter.drawImage(rect, layer_image)
@@ -1715,7 +1711,6 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     if layer_cache is not None:
         for layer_id in copy.copy(list(layer_cache.keys())):
             if not layer_id in layers_used:
-                print(f"LAYER GC {layer_id}")
                 del layer_cache[layer_id]
 
 

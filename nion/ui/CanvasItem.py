@@ -480,8 +480,6 @@ class AbstractCanvasItem:
         self.__visible = True
         self._has_layout = False
         self.__thread = threading.current_thread()
-        self.__update_level_lock = threading.RLock()
-        self.__update_level = 0
         self.__pending_update = True
         self.__repaint_drawing_context = None
         # stats for testing
@@ -769,56 +767,31 @@ class AbstractCanvasItem:
             self.sizing.copy_from(new_sizing)
             self.refresh_layout()
 
-    def update(self):
+    def update(self) -> None:
+        """Mark canvas item as needing a display update.
+
+        The canvas item will be repainted by the root canvas item.
         """
-            Mark this canvas item as needing a display update.
+        self._update_count += 1
+        self._updated()
 
-            The canvas item will be repainted by the root canvas item.
-        """
-        self._begin_update()
-        self._end_update()
+    def _updated(self) -> None:
+        # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
+        self.__pending_update = True
+        self._update_container()
 
-    def _begin_update(self):
-        with self.__update_level_lock:
-            self.__update_level += 1
-
-    def _end_update(self):
-        with self.__update_level_lock:
-            self.__update_level -= 1
-            update_level = self.__update_level
-        if update_level == 0:
-            self._update_count += 1
-            self._updated()
-            self._handle_end_update()
-
-    def _handle_end_update(self):
+    def _update_container(self) -> None:
+        # if not in the middle of a nested update, and if this canvas item has
+        # a layout, update the container.
         container = self.__container
         if container and self._has_layout:
             container.update()
 
-    def _update_container(self):
-        with self.__update_level_lock:
-            update_level = self.__update_level
-        if update_level == 0:
-            container = self.__container
-            if container and self._has_layout:
-                container.update()
-
-    def _updated(self):
-        """
-            Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
-
-            Default implementation calls child_updated on the container, if not None.
-
-            Subclasses can override to handle specially.
-        """
-        self.__pending_update = True
-
     @contextlib.contextmanager
     def update_context(self):
-        self._begin_update()
+        # deprecated 2020-02.
         yield
-        self._end_update()
+        self.update()
 
     def _repaint(self, drawing_context):
         """Repaint the canvas item to the drawing context.
@@ -840,19 +813,11 @@ class AbstractCanvasItem:
         """
         self._repaint(drawing_context)
 
-    @property
-    def _pending_update(self):
-        return self.__pending_update
-
     def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
-        """Repaint if no cached version of the last paint is available.
-
-        If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
-
-        The cached drawing context is typically cleared during the update method.
-
-        Subclasses will typically not need to override this method, except in special cases.
-        """
+        # Repaint if no cached version of the last paint is available.
+        # If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
+        # The cached drawing context is typically cleared during the update method.
+        # Subclasses will typically not need to override this method, except in special cases.
         pending_update, self.__pending_update = self.__pending_update, False
         if pending_update:
             repaint_drawing_context = DrawingContext.DrawingContext()
@@ -1761,17 +1726,17 @@ class LayerCanvasItem(CanvasItemComposition):
     def _needs_layout(self, canvas_item):
         self.__trigger_layout()
 
-    def _updated(self):
+    def _updated(self) -> None:
         with self.__layer_thread_condition:
             self.__needs_repaint = True
             if not self._layer_thread_suppress:
                 self.__layer_thread_condition.notify()
-        super()._updated()
-
-    def _handle_end_update(self):
+        # normally, this method would mark a pending update and forward the update to the container;
+        # however with the layer, since drawing occurs on a thread, this must occur after the thread
+        # is finished. if the thread is suppressed (typically during testing), use the regular flow.
         if self._layer_thread_suppress:
             # pass through updates in the thread is suppressed, so that updates actually occur.
-            super()._handle_end_update()
+            super()._updated()
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         if immediate:
@@ -1869,6 +1834,9 @@ class LayerCanvasItem(CanvasItemComposition):
                 self.__layer_thread_condition.notify()
 
     def _repaint_finished(self, drawing_context):
+        # when the thread finishes the repaint, this method gets called. the normal container update
+        # has not been called yet since the repaint wasn't finished until now. this method performs
+        # the container update.
         self._update_container()
 
 

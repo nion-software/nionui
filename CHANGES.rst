@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.3.28 (UNRELEASED)
+-------------------
+- Add support for "name" keyword for declarative row and column widgets.
+
 0.3.27 (2020-02-27)
 -------------------
 - Fix tool tip handling (incorrect recursive implementation caused UI hangs).

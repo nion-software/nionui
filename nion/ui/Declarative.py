@@ -96,7 +96,7 @@ class DeclarativeUI:
             if k in kwargs and kwargs[k] is not None:
                 d[k] = kwargs[k]
 
-    def create_column(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
+    def create_column(self, *children: UIDescription, name: UIIdentifier=None, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
         """Create a column UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -122,6 +122,8 @@ class DeclarativeUI:
             a UI description of the column
         """
         d = {"type": "column"}
+        if name is not None:
+            d["name"] = name
         if items:
             d["items"] = items
         if item_component_id:
@@ -137,7 +139,7 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_row(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
+    def create_row(self, *children: UIDescription, name: UIIdentifier=None, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
         """Create a row UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -163,6 +165,8 @@ class DeclarativeUI:
             a UI description of the row
         """
         d = {"type": "row"}
+        if name is not None:
+            d["name"] = name
         if items:
             d["items"] = items
         if item_component_id:
@@ -1109,6 +1113,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             # TODO: spacing does not work on rows/columns
             connect_items(ui, window, column_widget, handler, items, item_component_id, finishes)
         if handler:
+            connect_name(column_widget, d, handler)
             connect_attributes(column_widget, d, handler, finishes)
         return construct_margin(ui, column_widget, margin)
     elif d_type == "row":
@@ -1135,6 +1140,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             # TODO: spacing does not work on rows/columns
             connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
         if handler:
+            connect_name(row_widget, d, handler)
             connect_attributes(row_widget, d, handler, finishes)
         return construct_margin(ui, row_widget, margin)
     elif d_type == "text_label":

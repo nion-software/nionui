@@ -25,6 +25,9 @@ setuptools.setup(
     package_data={
         'nion.ui': ["resources/*"],
     },
+    data_files=[
+        ('', ["LICENSE.txt"]),
+    ],
     test_suite="nion.ui.test",
     entry_points={
         'console_scripts': [

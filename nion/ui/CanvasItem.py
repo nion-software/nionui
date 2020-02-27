@@ -1690,25 +1690,6 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Returns list of canvas items under x, y, ordered from back to front."""
         return self._canvas_items_at_point(self.visible_canvas_items, x, y)
 
-    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
-        canvas_items = self.canvas_items_at_point(x, y)
-        for canvas_item in reversed(canvas_items):
-            if canvas_item != self:
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-                if canvas_item.handle_tool_tip(canvas_item_point.x, canvas_item_point.y, gx, gy):
-                    return True
-        return False
-
-    def wheel_changed(self, x, y, dx, dy, is_horizontal):
-        # always give the mouse canvas item priority (for tracking outside bounds)
-        canvas_items = self.canvas_items_at_point(x, y)
-        for canvas_item in reversed(canvas_items):
-            if canvas_item != self:
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-                if canvas_item.wheel_changed(canvas_item_point.x, canvas_item_point.y, dx, dy, is_horizontal):
-                    return True
-        return False
-
     def pan_gesture(self, dx, dy):
         for canvas_item in reversed(self.visible_canvas_items):
             if canvas_item.pan_gesture(dx, dy):
@@ -2664,6 +2645,25 @@ class RootCanvasItem(LayerCanvasItem):
             self.focused_item = None
             self.__last_focused_item = focused_item
             self.__canvas_widget.focused = True  # this will trigger focus changed to set the focus
+
+    def wheel_changed(self, x, y, dx, dy, is_horizontal):
+        # always give the mouse canvas item priority (for tracking outside bounds)
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in reversed(canvas_items):
+            if canvas_item != self:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.wheel_changed(canvas_item_point.x, canvas_item_point.y, dx, dy, is_horizontal):
+                    return True
+        return False
+
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in reversed(canvas_items):
+            if canvas_item != self:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.handle_tool_tip(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                    return True
+        return False
 
     def __dispatch_any(self, method: str, *args, **kwargs) -> bool:
         focused_item = self.focused_item

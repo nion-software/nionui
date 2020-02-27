@@ -1,8 +1,9 @@
 Changelog (nionui)
 ==================
 
-0.4.0 (UNRELEASED)
-------------------
+0.3.27 (UNRELEASED)
+-------------------
+- Fix tool tip handling (incorrect recursive implementation caused UI hangs).
 - Add support for layer caching (optimized drawing, part 1).
 
 0.3.26 (2020-01-08)

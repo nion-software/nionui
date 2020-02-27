@@ -1,8 +1,9 @@
 Changelog (nionui)
 ==================
 
-0.3.27 (unreleased)
--------------------
+0.4.0 (UNRELEASED)
+------------------
+- Add support for layer caching (optimized drawing, part 1).
 - Add support for "name" keyword for declarative row and column widgets.
 
 0.3.26 (2020-01-08)

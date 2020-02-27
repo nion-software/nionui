@@ -1284,14 +1284,14 @@ def rescale(data: numpy.ndarray, rect, context_scaling) -> numpy.ndarray:
 
 CanvasDrawingCommand = collections.namedtuple("CanvasDrawingCommand", ["command", "args"])
 PaintImageCacheEntry = collections.namedtuple("PaintImageCacheEntry", ["image_id", "used", "image"])
-
+LayerCacheEntry = collections.namedtuple("LayerCacheEntry", ["layer_seed", "layer_image", "layer_rect"])
 
 timer_map = dict()
 times_map = dict()
 count_map = dict()
 
 
-def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand], image_cache: typing.Dict[int, PaintImageCacheEntry], display_scaling: float = 1.0) -> None:
+def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand], image_cache: typing.MutableMapping[int, PaintImageCacheEntry], display_scaling: float = 1.0, *, layer_cache: typing.MutableMapping[int, LayerCacheEntry] = None) -> None:
     global timer_map
     global times_map
     global count_map
@@ -1326,15 +1326,25 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
     painter.fillRect(painter.viewport(), QtGui.QBrush(fill_color))
 
+    layers_used = set()
+
     # print("BEGIN")
 
     stack = list()
+
+    layer_skip = False
+    layer_image = None
+    painter_stack = list()
+    layer_image_stack = list()
 
     for command in commands:
         args = command.args
         cmd = command.command
 
         # print(f"{cmd}: {args}")
+
+        if layer_skip and cmd != "end_layer":
+            continue
 
         if cmd == "save":
             stack.append((fill_color, fill_gradient, line_color, line_width, line_dash, line_cap, line_join, text_font, text_baseline, text_align, context_scaling_x, context_scaling_y))
@@ -1661,16 +1671,47 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "timestamp":
             pass
         elif cmd == "begin_layer":
-            pass
+            layer_id = int(args[0])
+            layer_seed = int(args[1])
+            layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])
+            if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
+                layer_skip = True
+            else:
+                painter_stack.append(painter)
+                layer_image_stack.append(layer_image)
+                layer_image = QtGui.QImage(QtCore.QSize(layer_rect[3], layer_rect[2]), QtGui.QImage.Format_ARGB32)
+                layer_image.fill(QtGui.QColor(0,0,0,0))
+                painter = QtGui.QPainter(layer_image)
+                painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                painter.translate(layer_rect[1], layer_rect[0])
+            layers_used.add(layer_id)
         elif cmd == "end_layer":
-            pass
-        elif cmd == "draw_layer":
-            pass
+            layer_id = int(args[0])
+            layer_seed = int(args[1])
+            layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])  # t,l,h,w
+            if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
+                layer_skip = False
+                layer_image = layer_cache[layer_id].layer_image
+                layer_rect = layer_cache[layer_id].layer_rect
+                rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
+                painter.drawImage(rect, layer_image)
+            else:
+                painter.end()
+                layer_cache[layer_id] = LayerCacheEntry(layer_seed, layer_image, layer_rect)
+                rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
+                painter = painter_stack.pop()
+                painter.drawImage(rect, layer_image)
+                layer_image = layer_image_stack.pop()
 
     if image_cache is not None:
         for image_id, entry in copy.copy(image_cache).items():
             if not entry.used:
                 del image_cache[image_id]
+
+    if layer_cache is not None:
+        for layer_id in copy.copy(list(layer_cache.keys())):
+            if not layer_id in layers_used:
+                del layer_cache[layer_id]
 
 
 class PyCanvasRenderThread(QtCore.QThread):
@@ -1719,6 +1760,7 @@ class PyCanvas(QtWidgets.QWidget):
         self.__commands = list()
         self.__last_pos = QtCore.QPoint()
         self.__image_cache = dict()
+        self.__layer_cache = dict()
         self.__grab_reference_point = QtCore.QPoint()
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
@@ -1777,7 +1819,7 @@ class PyCanvas(QtWidgets.QWidget):
         painter.begin(image)
         try:
             painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-            PaintCommands(painter, commands, self.__image_cache)
+            PaintCommands(painter, commands, self.__image_cache, layer_cache=self.__layer_cache)
         finally:
             painter.end()
 

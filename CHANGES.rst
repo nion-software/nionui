@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.3.27 (unreleased)
+-------------------
+- Add support for "name" keyword for declarative row and column widgets.
+
 0.3.26 (2020-01-08)
 -------------------
 - Add support for dynamic tool tips in canvas items and list items.

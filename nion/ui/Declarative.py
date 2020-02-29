@@ -954,6 +954,7 @@ def run_window(app, d, handler):
             outer_row.add_spacing(margin)
             outer_column.add_spacing(margin)
         window.attach_widget(outer_row)
+        window._create_menus()
         window.show()
         for finish in finishes:
             finish()

@@ -2,6 +2,7 @@
 A basic class to serve as the basis of a typical one window application.
 """
 # standard libraries
+import copy
 import logging
 
 # local libraries
@@ -44,6 +45,8 @@ class Application:
         logger.addHandler(logging_handler)
         self.window = None
         self.on_start = on_start
+        self.__windows = list()
+        self.__window_close_event_listeners = dict()
 
     def initialize(self):
         """Initialize. Separate from __init__ so that overridden methods can be called."""
@@ -62,9 +65,23 @@ class Application:
             return self.on_start()
         raise NotImplemented()
 
+    def _window_created(self, window):
+        self.__window_close_event_listeners[window] = window._window_close_event.listen(self.__window_did_close)
+        assert window not in self.__windows
+        self.__windows.append(window)
+
+    def __window_did_close(self, window):
+        self.__window_close_event_listeners[window].close()
+        del self.__window_close_event_listeners[window]
+        self.__windows.remove(window)
+
     def exit(self):
         """The exit method should request to close or close the window."""
-        raise NotImplemented()
+        for window in copy.copy(self.__windows):
+            # closing the window will trigger the about_to_close event to be called which
+            # will then call window close which will fire its did_close_event which will
+            # remove the window from the list of window.
+            window.request_close()
 
     def periodic(self):
         """The periodic method can be overridden to implement periodic behavior."""

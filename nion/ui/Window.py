@@ -4,17 +4,65 @@ A basic class to serve as the document controller of a typical one window applic
 
 # standard libraries
 import asyncio
+import collections
+import functools
 import gettext
 import logging
 import typing
 
 # local libraries
+from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Process
 from nion.ui import UserInterface
 
 
 _ = gettext.gettext
+
+
+ActionContext = collections.namedtuple("ActionContext", ["application", "window", "focus_widget"])
+
+
+class Action:
+    action_id = None
+    action_name = None
+    action_summary = None
+    action_description = None
+
+    def invoke(self, context: ActionContext) -> None: ...
+
+    def is_checked(self, context: ActionContext) -> bool:
+        return False
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return True
+
+    def get_action_name(self, context: ActionContext) -> str:
+        return self.action_name
+
+actions = dict()
+
+def register_action(action: Action) -> None:
+    assert not action.action_id in actions
+    actions[action.action_id] = action
+
+
+action_shortcuts = dict()
+
+def add_action_shortcut(action_id: str, action_context: str, key_sequence: str) -> None:
+    action_shortcuts.setdefault(action_id, dict())[action_context] = key_sequence
+
+def register_action_shortcuts(action_shortcuts: typing.Mapping) -> None:
+    for action_id, action_shortcut_d in action_shortcuts.items():
+        for action_context, key_sequence in action_shortcut_d.items():
+            add_action_shortcut(action_id, action_context, key_sequence)
+
+def get_action_id_for_key(context: str, key) -> typing.Optional[str]:
+    for action_id, action_shortcut_d in action_shortcuts.items():
+        for action_context, key_sequence in action_shortcut_d.items():
+            if action_context == context and key.text == key_sequence:  # TODO: match the actual key sequence
+                return action_id
+    return None
 
 
 class Window:
@@ -29,6 +77,10 @@ class Window:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id
         self.__shown = False
+        self.__menu_actions = dict()
+
+        self._window_close_event = Event.Event()
+
         self.__document_window.on_periodic = self.periodic
         self.__document_window.on_queue_task = self.queue_task
         self.__document_window.on_clear_queued_tasks = self.clear_queued_tasks
@@ -45,6 +97,23 @@ class Window:
         self.__document_window.on_ui_activity = self._register_ui_activity
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
+
+        # define old-style menu actions for backwards compatibility
+        self._close_action = None
+        self._page_setup_action = None
+        self._print_action = None
+        self._quit_action = None
+        self._undo_action = None
+        self._redo_action = None
+        self._cut_action = None
+        self._copy_action = None
+        self._paste_action = None
+        self._delete_action = None
+        self._select_all_action = None
+        self._minimize_action = None
+        self._zoom_action = None
+        self._bring_to_front_action = None
+
         # configure the event loop object
         logger = logging.getLogger()
         old_level = logger.level
@@ -52,7 +121,12 @@ class Window:
         self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
         logger.setLevel(old_level)
 
+        if app: app._window_created(self)
+
     def close(self):
+        self._window_close_event.fire(self)
+        self._window_close_event = None
+        self.__menu_actions = None
         self.on_close = None
         Process.close_event_loop(self.__event_loop)
         self.__event_loop = None
@@ -72,26 +146,38 @@ class Window:
         self._window_menu = self.add_menu(_("Window"))
         self._help_menu = self.add_menu(_("Help"))
 
-        self._close_action = self._file_menu.add_menu_item(_("Close Window"), self.request_close, key_sequence="close")
-        self._file_menu.add_separator()
-        self._page_setup_action = self._file_menu.add_menu_item(_("Page Setup"), self._page_setup)
-        self._print_action = self._file_menu.add_menu_item(_("Print"), self._print, key_sequence="Ctrl+P")
-        self._file_menu.add_separator()
-        self._quit_action = self._file_menu.add_menu_item(_("Exit"), self._request_exit, key_sequence="quit", role="quit")
+        menu_descriptions = [
+            "window.close",
+            "-",
+            "window.page_setup",
+            "window.print",
+            "-",
+            "application.exit",
+        ]
 
-        self._undo_action = self._edit_menu.add_menu_item(_("Undo"), self._undo, key_sequence="undo")
-        self._redo_action = self._edit_menu.add_menu_item(_("Redo"), self._redo, key_sequence="redo")
-        self._edit_menu.add_separator()
-        self._cut_action = self._edit_menu.add_menu_item(_("Cut"), self._cut, key_sequence="cut")
-        self._copy_action = self._edit_menu.add_menu_item(_("Copy"), self._copy, key_sequence="copy")
-        self._paste_action = self._edit_menu.add_menu_item(_("Paste"), self._paste, key_sequence="paste")
-        self._delete_action = self._edit_menu.add_menu_item(_("Delete"), self._delete, key_sequence="delete")
-        self._select_all_action = self._edit_menu.add_menu_item(_("Select All"), self._select_all, key_sequence="select-all")
-        self._edit_menu.add_separator()
+        self._build_menu(self._file_menu, menu_descriptions)
 
-        self._minimize_action = self._window_menu.add_menu_item(_("Minimize"), self._minimize)
-        self._zoom_action = self._window_menu.add_menu_item(_("Zoom"), self._zoom)
-        self._bring_to_front_action = self._window_menu.add_menu_item(_("Bring to Front"), self._bring_to_front)
+        menu_descriptions = [
+            "window.undo",
+            "window.redo",
+            "-",
+            "window.cut",
+            "window.copy",
+            "window.paste",
+            "window.delete",
+            "window.select_all",
+        ]
+
+        self._build_menu(self._edit_menu, menu_descriptions)
+
+        menu_descriptions = [
+            "window.minimize",
+            "-",
+            "window.zoom",
+            "window.bring_to_front",
+        ]
+
+        self._build_menu(self._window_menu, menu_descriptions)
 
         self._file_menu.on_about_to_show = self._file_menu_about_to_show
         self._edit_menu.on_about_to_show = self._edit_menu_about_to_show
@@ -285,10 +371,43 @@ class Window:
     def _dispatch_any_to_focus_widget(self, method: str, *args, **kwargs) -> bool:
         focus_widget = self.focus_widget
         if focus_widget and focus_widget._dispatch_any(method, *args, **kwargs):
-                return True
+            return True
         if hasattr(self, method) and getattr(self, method)(*args, **kwargs):
-                return True
+            return True
         return False
+
+    def _build_menu(self, menu, menu_descriptions: typing.Sequence[str]) -> None:
+        for action_id in menu_descriptions:
+            if action_id == "-":
+                menu.add_separator()
+            else:
+                action = actions.get(action_id)
+                if action:
+                    key_sequence = action_shortcuts.get(action_id, dict()).get("window")
+                    role = getattr(action, "role", None)
+                    self.__menu_actions[action_id] = menu.add_menu_item(action.action_name,
+                                                                        functools.partial(self.perform_action, action_id),
+                                                                        key_sequence=key_sequence, role=role)
+                else:
+                    logging.debug("Unregistered action {action_id}")
+
+    def _get_action_context(self) -> typing.NamedTuple:
+        focus_widget = self.focus_widget
+        return ActionContext(self.app, self, focus_widget)
+
+    def _apply_menu_state(self, action_id: str, action_context: typing.NamedTuple) -> None:
+        menu_action = self.__menu_actions.get(action_id)
+        action = actions.get(action_id)
+        if menu_action and action:
+            title = action.get_action_name(action_context)
+            enabled = action and action.is_enabled(action_context)
+            checked = action and action.is_checked(action_context)
+            menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+
+    def perform_action(self, action_id: str) -> None:
+        action = actions.get(action_id)
+        if action:
+            action.invoke(self._get_action_context())
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
         # if there is a specific menu item state for the command_id, use it
@@ -315,30 +434,64 @@ class Window:
     # standard menu items
 
     def _file_menu_about_to_show(self):
-        self._close_action.enabled = True
-        self._page_setup_action.apply_state(self._get_focus_widget_menu_item_state("page_setup"))
-        self._print_action.apply_state(self._get_focus_widget_menu_item_state("print"))
-        self._quit_action.enabled = True
+        action_context = self._get_action_context()
+        self._apply_menu_state("window.close", action_context)
+        self._apply_menu_state("window.page_setup", action_context)
+        self._apply_menu_state("window.print", action_context)
+        self._apply_menu_state("application.exit", action_context)
+        # handle old style for backwards compatibility
+        if self._close_action:
+            self._close_action.enabled = True
+        if self._page_setup_action:
+            self._page_setup_action.apply_state(self._get_focus_widget_menu_item_state("page_setup"))
+        if self._print_action:
+            self._print_action.apply_state(self._get_focus_widget_menu_item_state("print"))
+        if self._quit_action:
+            self._quit_action.enabled = True
 
     def _edit_menu_about_to_show(self):
-        self._undo_action.apply_state(self._get_focus_widget_menu_item_state("undo"))
-        self._redo_action.apply_state(self._get_focus_widget_menu_item_state("redo"))
-        self._cut_action.apply_state(self._get_focus_widget_menu_item_state("cut"))
-        self._copy_action.apply_state(self._get_focus_widget_menu_item_state("copy"))
-        self._paste_action.apply_state(self._get_focus_widget_menu_item_state("paste"))
-        self._delete_action.apply_state(self._get_focus_widget_menu_item_state("delete"))
-        self._select_all_action.apply_state(self._get_focus_widget_menu_item_state("select_all"))
+        action_context = self._get_action_context()
+        self._apply_menu_state("window.undo", action_context)
+        self._apply_menu_state("window.redo", action_context)
+        self._apply_menu_state("window.cut", action_context)
+        self._apply_menu_state("window.copy", action_context)
+        self._apply_menu_state("window.paste", action_context)
+        self._apply_menu_state("window.delete", action_context)
+        self._apply_menu_state("window.select_all", action_context)
+        # handle old style for backwards compatibility
+        if self._undo_action:
+            self._undo_action.apply_state(self._get_focus_widget_menu_item_state("undo"))
+        if self._redo_action:
+            self._redo_action.apply_state(self._get_focus_widget_menu_item_state("redo"))
+        if self._cut_action:
+            self._cut_action.apply_state(self._get_focus_widget_menu_item_state("cut"))
+        if self._copy_action:
+            self._copy_action.apply_state(self._get_focus_widget_menu_item_state("copy"))
+        if self._paste_action:
+            self._paste_action.apply_state(self._get_focus_widget_menu_item_state("paste"))
+        if self._delete_action:
+            self._delete_action.apply_state(self._get_focus_widget_menu_item_state("delete"))
+        if self._select_all_action:
+            self._select_all_action.apply_state(self._get_focus_widget_menu_item_state("select_all"))
 
     def _window_menu_about_to_show(self):
-        self._minimize_action.apply_state(self._get_focus_widget_menu_item_state("minimize"))
-        self._zoom_action.apply_state(self._get_focus_widget_menu_item_state("zoom"))
-        self._bring_to_front_action.apply_state(self._get_focus_widget_menu_item_state("bring_to_front"))
+        action_context = self._get_action_context()
+        self._apply_menu_state("window.minimize", action_context)
+        self._apply_menu_state("window.zoom", action_context)
+        self._apply_menu_state("window.bring_to_front", action_context)
+        # handle old style for backwards compatibility
+        if self._minimize_action:
+            self._minimize_action.apply_state(self._get_focus_widget_menu_item_state("minimize"))
+        if self._zoom_action:
+            self._zoom_action.apply_state(self._get_focus_widget_menu_item_state("zoom"))
+        if self._bring_to_front_action:
+            self._bring_to_front_action.apply_state(self._get_focus_widget_menu_item_state("bring_to_front"))
 
     def _page_setup(self):
-        self._dispatch_any_to_focus_widget("handle_page_setup")
+        self.perform_action("window.page_setup")
 
     def _print(self):
-        self._dispatch_any_to_focus_widget("handle_print")
+        self.perform_action("window.print")
 
     def _cut(self):
         self._dispatch_any_to_focus_widget("handle_cut")
@@ -369,3 +522,209 @@ class Window:
 
     def _bring_to_front(self):
         self._dispatch_any_to_focus_widget("bring_to_front")
+
+
+class AboutBoxAction(Action):
+    action_id = "application.about"
+    action_name = _("About...")
+    action_role = "about"
+
+    def invoke(self, context: ActionContext) -> None:
+        if hasattr(context.window, "open_preferences"):
+            context.window.show_about_box()
+        elif hasattr(context.application, "open_preferences"):
+            context.application.show_about_box()
+
+
+class BringToFrontAction(Action):
+    action_id = "window.bring_to_front"
+    action_name = _("Bring to Front")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("bring_to_front")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "bring_to_front")
+
+
+class CloseWindowAction(Action):
+    action_id = "window.close"
+    action_name = _("Close Window")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window.request_close()
+
+
+class CopyAction(Action):
+    action_id = "window.copy"
+    action_name = _("Copy")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_copy")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_copy")
+
+
+class CutAction(Action):
+    action_id = "window.cut"
+    action_name = _("Cut")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_cut")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_cut")
+
+
+class DeleteAction(Action):
+    action_id = "window.delete"
+    action_name = _("Delete")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_delete")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_delete")
+
+
+class ExitAction(Action):
+    action_id = "application.exit"
+    action_name = _("Exit")
+    action_role = "quit"
+
+    def invoke(self, context: ActionContext) -> None:
+        context.application.exit()
+
+
+class MinimizeAction(Action):
+    action_id = "window.minimize"
+    action_name = _("Minimize")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_minimize")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_minimize")
+
+
+class PageSetupAction(Action):
+    action_id = "window.page_setup"
+    action_name = _("Page Setup")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_page_setup")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_page_setup")
+
+
+class PasteAction(Action):
+    action_id = "window.paste"
+    action_name = _("Paste")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_paste")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_paste")
+
+
+class PreferencesAction(Action):
+    action_id = "application.preferences"
+    action_name = _("Preferences...")
+    action_role = "preferences"
+
+    def invoke(self, context: ActionContext) -> None:
+        if hasattr(context.window, "open_preferences"):
+            context.window.open_preferences()
+        elif hasattr(context.application, "open_preferences"):
+            context.application.open_preferences()
+
+
+class PrintAction(Action):
+    action_id = "window.print"
+    action_name = _("Print...")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_print")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_print")
+
+
+class RedoAction(Action):
+    action_id = "window.redo"
+    action_name = _("Redo")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_redo")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_redo")
+
+
+class SelectAllAction(Action):
+    action_id = "window.select_all"
+    action_name = _("Select All")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_select_all")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_select_all")
+
+
+class UndoAction(Action):
+    action_id = "window.undo"
+    action_name = _("Undo")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_undo")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_undo")
+
+
+class ZoomAction(Action):
+    action_id = "window.zoom"
+    action_name = _("Zoom")
+
+    def invoke(self, context: ActionContext) -> None:
+        context.window._dispatch_any_to_focus_widget("handle_zoom")
+
+    def is_enabled(self, context: ActionContext) -> bool:
+        return hasattr(context.window, "handle_zoom")
+
+
+register_action(AboutBoxAction())
+register_action(BringToFrontAction())
+register_action(CloseWindowAction())
+register_action(CopyAction())
+register_action(CutAction())
+register_action(DeleteAction())
+register_action(ExitAction())
+register_action(MinimizeAction())
+register_action(PageSetupAction())
+register_action(PasteAction())
+register_action(PreferencesAction())
+register_action(PrintAction())
+register_action(SelectAllAction())
+register_action(UndoAction())
+register_action(RedoAction())
+register_action(ZoomAction())
+
+action_shortcuts_dict = {
+    "application.exit": {"window": "quit"},
+    "window.close": {"window": "close"},
+    "window.print": {"window": "Ctrl+P"},
+    "window.undo": {"window": "undo"},
+    "window.redo": {"window": "redo"},
+    "window.cut": {"window": "cut"},
+    "window.copy": {"window": "copy"},
+    "window.paste": {"window": "paste"},
+    "window.delete": {"window": "delete"},
+    "window.select_all": {"window": "select-all"},
+}
+
+register_action_shortcuts(action_shortcuts_dict)

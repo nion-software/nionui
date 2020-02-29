@@ -364,6 +364,7 @@ class DocumentWindow:
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
         self.__dock_widgets = list()
         self.display_scaling = 1.0
+        self.dock_widgets = list()
     def close(self):
         if self.root_widget:
             self.root_widget.close()
@@ -412,6 +413,10 @@ class DocumentWindow:
         pass
     def restore(self, geometry, state):
         pass
+    @property
+    def focus_widget(self):
+        global focused_widget
+        return focused_widget
 
 
 class ItemModelController:

@@ -309,8 +309,8 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
         # see closing issue when closing from dock widget on OS X:
         # https://bugreports.qt.io/browse/QTBUG-43344
         if not self.__closed:
-            geometry = bytearray(self.saveGeometry().toHex()).decode("utf8")
-            state = bytearray(self.saveState().toHex()).decode("utf8")
+            geometry = self.saveGeometry().toHex().data().decode("utf8")
+            state = self.saveState().toHex().data().decode("utf8")
             try:
                 self.object.aboutToClose(geometry, state)
             except Exception as e:
@@ -2698,8 +2698,8 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert document_window is not None
         # state, then geometry, otherwise the size isn't handled right. ugh.
-        geometry = bytearray(document_window.saveGeometry().toHex()).decode("utf8")
-        state = bytearray(document_window.saveState().toHex()).decode("utf8")
+        geometry = self.saveGeometry().toHex().data().decode("utf8")
+        state = self.saveState().toHex().data().decode("utf8")
         return geometry, state
 
     def DocumentWindow_setCentralWidget(self, document_window: PyDocumentWindow, widget: QtWidgets.QWidget) -> None:

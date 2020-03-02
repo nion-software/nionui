@@ -77,7 +77,6 @@ class Window:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id
         self.__shown = False
-        self.__menu_actions = dict()
 
         self._window_close_event = Event.Event()
 
@@ -126,7 +125,6 @@ class Window:
     def close(self):
         self._window_close_event.fire(self)
         self._window_close_event = None
-        self.__menu_actions = None
         self.on_close = None
         Process.close_event_loop(self.__event_loop)
         self.__event_loop = None
@@ -134,6 +132,21 @@ class Window:
         self.__document_window = None
         self.__periodic_queue = None
         self.__periodic_set = None
+        self._close_action = None
+        self._page_setup_action = None
+        self._print_action = None
+        self._quit_action = None
+        self._undo_action = None
+        self._redo_action = None
+        self._cut_action = None
+        self._copy_action = None
+        self._paste_action = None
+        self._delete_action = None
+        self._select_all_action = None
+        self._minimize_action = None
+        self._zoom_action = None
+        self._bring_to_front_action = None
+        self.app = None
 
     @property
     def _document_window(self):
@@ -141,53 +154,49 @@ class Window:
         return self.__document_window
 
     def _create_menus(self):
-        self._file_menu = self.add_menu(_("File"))
-        self._edit_menu = self.add_menu(_("Edit"))
-        self._window_menu = self.add_menu(_("Window"))
-        self._help_menu = self.add_menu(_("Help"))
-
         menu_descriptions = [
-            "window.close",
-            "-",
-            "window.page_setup",
-            "window.print",
-            "-",
-            "application.exit",
+            {"type": "menu", "menu_id": "file", "title": _("File"), "items":
+                [
+                    {"type": "item", "action_id": "window.close"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.page_setup"},
+                    {"type": "item", "action_id": "window.print"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "application.exit"},
+                ]
+             },
+            {"type": "menu", "menu_id": "edit", "title": _("Edit"), "items":
+                [
+                    {"type": "item", "action_id": "window.undo"},
+                    {"type": "item", "action_id": "window.redo"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.cut"},
+                    {"type": "item", "action_id": "window.copy"},
+                    {"type": "item", "action_id": "window.paste"},
+                    {"type": "item", "action_id": "window.delete"},
+                    {"type": "item", "action_id": "window.select_all"},
+                ]
+             },
+            {"type": "menu", "menu_id": "window", "title": _("Window"), "items":
+                [
+                    {"type": "item", "action_id": "window.minimize"},
+                    {"type": "separator"},
+                    {"type": "item", "action_id": "window.zoom"},
+                    {"type": "item", "action_id": "window.bring_to_front"},
+                ]
+             },
+            {"type": "menu", "menu_id": "help", "title": _("Help"), "items":
+                [
+                ]
+             },
         ]
 
-        self._build_menu(self._file_menu, menu_descriptions)
-
-        menu_descriptions = [
-            "window.undo",
-            "window.redo",
-            "-",
-            "window.cut",
-            "window.copy",
-            "window.paste",
-            "window.delete",
-            "window.select_all",
-        ]
-
-        self._build_menu(self._edit_menu, menu_descriptions)
-
-        menu_descriptions = [
-            "window.minimize",
-            "-",
-            "window.zoom",
-            "window.bring_to_front",
-        ]
-
-        self._build_menu(self._window_menu, menu_descriptions)
-
-        self._file_menu.on_about_to_show = self._file_menu_about_to_show
-        self._edit_menu.on_about_to_show = self._edit_menu_about_to_show
-        self._window_menu.on_about_to_show = self._window_menu_about_to_show
+        self.build_menu(None, menu_descriptions)
 
     def _adjust_menus(self) -> None:
-        # called when key may be shortcut
-        self._file_menu_about_to_show()
-        self._edit_menu_about_to_show()
-        self._window_menu_about_to_show()
+        # called when key may be shortcut. does not work for sub-menus.
+        for menu in self.__document_window.menus:
+            self._menu_about_to_show(menu)
 
     def _request_exit(self) -> None:
         if self.app:
@@ -328,14 +337,14 @@ class Window:
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
         self.__document_window.show(size=size, position=position)
 
-    def add_menu(self, title: str):
-        return self.__document_window.add_menu(title)
+    def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
+        return self.__document_window.add_menu(title, menu_id)
 
-    def insert_menu(self, title: str, before_menu):
-        return self.__document_window.insert_menu(title, before_menu)
+    def insert_menu(self, title: str, before_menu, menu_id: str = None) -> UserInterface.Menu:
+        return self.__document_window.insert_menu(title, before_menu, menu_id)
 
-    def create_sub_menu(self, title: str = None) -> UserInterface.Menu:
-        return self.ui.create_sub_menu(self.__document_window, title)
+    def create_sub_menu(self, title: str = None, menu_id: str = None) -> UserInterface.Menu:
+        return self.ui.create_sub_menu(self.__document_window, title, menu_id)
 
     def create_context_menu(self):
         return self.ui.create_context_menu(self.__document_window)
@@ -376,33 +385,55 @@ class Window:
             return True
         return False
 
-    def _build_menu(self, menu, menu_descriptions: typing.Sequence[str]) -> None:
-        for action_id in menu_descriptions:
-            if action_id == "-":
-                menu.add_separator()
-            else:
+    def build_menu(self, menu: typing.Optional[UserInterface.Menu], menu_descriptions: typing.Sequence[typing.Mapping]) -> None:
+        for item_d in menu_descriptions:
+            item_type = item_d["type"]
+            if item_type == "menu":
+                assert menu is None
+                menu_id = item_d["menu_id"]
+                menu_title = item_d["title"]
+                menu_items = item_d["items"]
+                new_menu = self.__document_window.get_menu(menu_id)
+                if not new_menu:
+                    new_menu = self.add_menu(menu_title, menu_id)
+                    new_menu.on_about_to_show = functools.partial(self._menu_about_to_show, new_menu)
+                setattr(self, "_" + menu_id + "_menu", new_menu)
+                self.build_menu(new_menu, menu_items)
+            elif item_type == "item":
+                action_id = item_d["action_id"]
                 action = actions.get(action_id)
                 if action:
                     key_sequence = action_shortcuts.get(action_id, dict()).get("window")
                     role = getattr(action, "role", None)
-                    self.__menu_actions[action_id] = menu.add_menu_item(action.action_name,
-                                                                        functools.partial(self.perform_action, action_id),
-                                                                        key_sequence=key_sequence, role=role)
+                    menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),
+                                       key_sequence=key_sequence, role=role, action_id=action_id)
                 else:
                     logging.debug("Unregistered action {action_id}")
+            elif item_type == "separator":
+                menu.add_separator()
+            elif item_type == "sub_menu":
+                menu_id = item_d["menu_id"]
+                menu_title = item_d["title"]
+                menu_items = item_d["items"]
+                new_menu = self.create_sub_menu(menu_title, menu_id)
+                menu.add_sub_menu(menu_title, new_menu)
+                new_menu.on_about_to_show = functools.partial(self._menu_about_to_show, new_menu)
+                # setattr(self, "_" + menu_id + "_menu", new_menu)
+                self.build_menu(new_menu, menu_items)
 
     def _get_action_context(self) -> typing.NamedTuple:
         focus_widget = self.focus_widget
         return ActionContext(self.app, self, focus_widget)
 
     def _apply_menu_state(self, action_id: str, action_context: typing.NamedTuple) -> None:
-        menu_action = self.__menu_actions.get(action_id)
-        action = actions.get(action_id)
-        if menu_action and action:
-            title = action.get_action_name(action_context)
-            enabled = action and action.is_enabled(action_context)
-            checked = action and action.is_checked(action_context)
-            menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+        menu_action = self.__document_window.get_menu_action(action_id)
+        if menu_action:
+            action = actions.get(menu_action.action_id)
+            if action:
+                title = action.get_action_name(action_context)
+                enabled = action and action.is_enabled(action_context)
+                checked = action and action.is_checked(action_context)
+                menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
     def perform_action(self, action_id: str) -> None:
         action = actions.get(action_id)
@@ -432,6 +463,23 @@ class Window:
         return self._get_menu_item_state(command_id)
 
     # standard menu items
+
+    def _menu_about_to_show(self, menu: UserInterface.Menu) -> None:
+        if menu.menu_id == "file":
+            self._file_menu_about_to_show()
+        elif menu.menu_id == "edit":
+            self._edit_menu_about_to_show()
+        elif menu.menu_id == "window":
+            self._window_menu_about_to_show()
+        else:
+            action_context = self._get_action_context()
+            for menu_action in menu.get_menu_actions():
+                action = actions.get(menu_action.action_id)
+                if action:
+                    title = action.get_action_name(action_context)
+                    enabled = action and action.is_enabled(action_context)
+                    checked = action and action.is_checked(action_context)
+                    menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
     def _file_menu_about_to_show(self):
         action_context = self._get_action_context()

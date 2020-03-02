@@ -689,5 +689,5 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def create_context_menu(self, document_window):
         raise NotImplementedError()
 
-    def create_sub_menu(self, document_window):
+    def create_sub_menu(self, document_window, menu_id=None):
         raise NotImplementedError()

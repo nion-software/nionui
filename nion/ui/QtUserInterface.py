@@ -1628,7 +1628,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
             self.on_focus_changed(False)
 
 
-class QtAction(UserInterface.Action):
+class QtAction(UserInterface.MenuAction):
 
     def __init__(self, proxy, native_action=None):
         super().__init__()
@@ -1679,8 +1679,8 @@ class QtAction(UserInterface.Action):
 
 class QtMenu(UserInterface.Menu):
 
-    def __init__(self, document_window, title, proxy, native_menu):
-        super().__init__(document_window, title)
+    def __init__(self, document_window, title, menu_id, proxy, native_menu):
+        super().__init__(document_window, title, menu_id)
         self.proxy = proxy
         self.native_menu = native_menu
         self.proxy.Menu_connect(self.native_menu, self)
@@ -1699,9 +1699,9 @@ class QtMenu(UserInterface.Menu):
     def aboutToHide(self):
         self.about_to_hide()
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None):
         action = QtAction(self.proxy)
-        self.prepare_action(action, title, callback, key_sequence, role)
+        self._prepare_action(action, title, action_id, callback, key_sequence, role)
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
         self._item_added(action=action)
         return action
@@ -1718,9 +1718,9 @@ class QtMenu(UserInterface.Menu):
         self.proxy.Menu_addSeparator(self.native_menu)
         self._item_added(is_separator=True)
 
-    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
+    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None, action_id: str = None):
         action = QtAction(self.proxy)
-        self.prepare_action(action, title, callback, key_sequence, role)
+        self._prepare_action(action, title, action_id, callback, key_sequence, role)
         self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
         self._item_inserted(before_action, action=action)
         return action
@@ -1843,16 +1843,16 @@ class QtWindow(UserInterface.Window):
         self._register_ui_activity()
         return self._handle_key_released(QtKey(text, key, raw_modifiers))
 
-    def add_menu(self, title) -> UserInterface.Menu:
+    def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
-        menu = QtMenu(self, title, self.proxy, native_menu)
+        menu = QtMenu(self, title, menu_id, self.proxy, native_menu)
         self._menu_added(menu)
         return menu
 
-    def insert_menu(self, title, before_menu) -> UserInterface.Menu:
+    def insert_menu(self, title, before_menu, menu_id: str = None) -> UserInterface.Menu:
         before_menu = typing.cast(QtMenu, before_menu)
         native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, notnone(title), before_menu.native_menu)
-        menu = QtMenu(self, title, self.proxy, native_menu)
+        menu = QtMenu(self, title, menu_id, self.proxy, native_menu)
         self._menu_inserted(menu, before_menu)
         return menu
 
@@ -2156,7 +2156,7 @@ class QtUserInterface(UserInterface.UserInterface):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))
 
     def create_context_menu(self, document_window) -> UserInterface.Menu:
-        context_menu = QtMenu(document_window, None, self.proxy, self.proxy.Menu_create())
+        context_menu = QtMenu(document_window, None, None, self.proxy, self.proxy.Menu_create())
         # the original code would destroy the menu when it was being hidden.
         # this caused crashes (right-click, Export...). the menu seems to be
         # still in use at the time it is hidden on Windows. so, delay its
@@ -2164,6 +2164,6 @@ class QtUserInterface(UserInterface.UserInterface):
         context_menu.on_about_to_hide = lambda: document_window.queue_task(context_menu.destroy)
         return context_menu
 
-    def create_sub_menu(self, document_window, title: str = None) -> UserInterface.Menu:
-        sub_menu = QtMenu(document_window, title, self.proxy, self.proxy.Menu_create())
+    def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterface.Menu:
+        sub_menu = QtMenu(document_window, title, menu_id, self.proxy, self.proxy.Menu_create())
         return sub_menu

@@ -135,6 +135,8 @@ class Widget:
         self.on_value_changed = None
         self.on_viewport_changed = None
         self.on_wheel_changed = None
+    def _set_root_container(self, root_container):
+        pass
     def periodic(self):
         for child in self.children:
             child.periodic()
@@ -321,9 +323,9 @@ class Widget:
         pass
 
 
-class MenuItem(UserInterface.Action):
-    def __init__(self, title, callback, key_sequence, role, menu, is_separator, checked):
-        super().__init__()
+class MenuItem(UserInterface.MenuAction):
+    def __init__(self, title, action_id, callback, key_sequence, role, menu, is_separator, checked):
+        super().__init__(action_id)
         self.__title = title
         self.callback = callback
         self.key_sequence = key_sequence,
@@ -354,19 +356,17 @@ class MenuItem(UserInterface.Action):
     def enabled(self, value):
         self.__enabled = value
 
+
 class Menu(UserInterface.Menu):
-    def __init__(self, document_window, title=None):
-        super().__init__(document_window, title)
+    def __init__(self, document_window, title=None, menu_id=None):
+        super().__init__(document_window, title, menu_id)
         self.on_popup = None
-    def close(self):
-        for item in self.items:
-            item.close()
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
-        menu_item = MenuItem(title, callback, key_sequence, role, None, False, False)
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None):
+        menu_item = MenuItem(title, action_id, callback, key_sequence, role, None, False, False)
         self._item_added(action=menu_item)
         return menu_item
-    def add_sub_menu(self, title, menu):
-        menu_item = MenuItem(title, None, None, None, menu, False, False)
+    def add_sub_menu(self, title, menu, menu_id = None):
+        menu_item = MenuItem(title, menu_id, None, None, None, menu, False, False)
         self._item_added(sub_menu=menu_item.menu)
         return menu_item
     def add_separator(self):
@@ -376,65 +376,38 @@ class Menu(UserInterface.Menu):
             self.on_popup(self, gx, gy)
 
 
-class DocumentWindow:
+class DocumentWindow(UserInterface.Window):
     def __init__(self, size=None):
-        self.has_event_loop = False
-        self.root_widget = None
-        self.__menus = list()
+        super().__init__(None, "title")
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
-        self.__dock_widgets = list()
-        self.display_scaling = 1.0
-        self.dock_widgets = list()
-    def close(self):
-        if self.root_widget:
-            self.root_widget.close()
-            self.root_widget = None
-        for dock_widget in self.__dock_widgets:
-            dock_widget.close()
-        self.__dock_widgets = None
-        self.on_periodic = None
-        self.on_queue_task = None
-        self.on_clear_queued_tasks = None
-        self.on_add_task = None
-        self.on_clear_task = None
-        self.on_about_to_show = None
-        self.on_about_to_close = None
-        self.on_activation_changed = None
-        for menu in self.__menus:
-            menu.close()
-        self.__menus = None
+        self.__title = None
     def request_close(self):
         if self.on_about_to_close:
             self.on_about_to_close(str(), str())
-    def attach(self, root_widget):
-        self.root_widget = root_widget
+    def _attach_root_widget(self, root_widget):
         self.root_widget.size_changed(self.__size)
-    def detach(self):
-        assert self.root_widget is not None
-        self.root_widget.close()
-        self.root_widget = None
+    def _set_title(self, value):
+        self.__title = value
     def create_dock_widget(self, widget, panel_id, title, positions, position):
         dock_widget = Widget()
         dock_widget.add(widget)
         dock_widget.size_changed(Geometry.IntSize(height=320, width=480))
-        self.__dock_widgets.append(dock_widget)
         return dock_widget
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
     def insert_menu(self, title, before_menu):
         menu = Menu(self)
-        self.__menus.append(menu)
+        self._menu_inserted(menu, before_menu)
         return menu
-    def add_menu(self, title):
-        menu = Menu(self)
-        self.__menus.append(menu)
+    def add_menu(self, title, menu_id):
+        menu = Menu(self, menu_id)
+        self._menu_added(menu)
         return menu
     def show(self, size, position):
         pass
     def restore(self, geometry, state):
         pass
-    @property
-    def focus_widget(self):
+    def _get_focus_widget(self):
         global focused_widget
         return focused_widget
 
@@ -751,7 +724,7 @@ class UserInterface:
             self.popup_pos = gx, gy
         menu.on_popup = handle_popup
         return menu
-    def create_sub_menu(self, document_window, title):
+    def create_sub_menu(self, document_window, title, menu_id=None):
         return Menu(document_window, title)
 
     # clipboard

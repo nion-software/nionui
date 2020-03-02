@@ -2286,14 +2286,16 @@ class TreeWidget(Widget):
         self._behavior.size_to_content()
 
 
-class Action:
+class MenuAction:
 
-    def __init__(self):
+    def __init__(self, action_id: str = None):
+        self.action_id = action_id
         self.on_triggered = None
         self.on_ui_activity = None
 
     def close(self) -> None:
         self.on_triggered = None
+        self.on_ui_activity = None
 
     def _register_ui_activity(self):
         if callable(self.on_ui_activity):
@@ -2344,7 +2346,7 @@ class Action:
 
 class MenuItem:
 
-    def __init__(self, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None):
+    def __init__(self, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None):
         self.action = action
         self.is_separator = is_separator
         self.sub_menu = sub_menu
@@ -2387,9 +2389,10 @@ class MenuItem:
 
 class Menu:
 
-    def __init__(self, document_window, title):
+    def __init__(self, document_window, title, menu_id):
         self.document_window = document_window
         self.title = title
+        self.menu_id = menu_id
         self.on_about_to_show = None
         self.on_about_to_hide = None
         self.__items = list()
@@ -2398,6 +2401,7 @@ class Menu:
         for item in self.__items:
             item.close()
         self.__items = None
+        self.document_window = None
         self.on_about_to_show = None
         self.on_about_to_hide = None
 
@@ -2408,6 +2412,9 @@ class Menu:
     @property
     def items(self) -> typing.Sequence[MenuItem]:
         return self.__items
+
+    def get_menu_actions(self) -> typing.Sequence[MenuAction]:
+        return [item.action for item in self.__items if item.action]
 
     def _register_ui_activity(self):
         self.document_window._register_ui_activity()
@@ -2422,51 +2429,57 @@ class Menu:
         if self.on_about_to_hide:
             self.on_about_to_hide()
 
-    def prepare_action(self, action, title, callback, key_sequence=None, role=None):
+    def _prepare_action(self, action, title, action_id, callback, key_sequence=None, role=None):
+        # subclasses should call this to prepare a newly created action
         action.create(self.document_window, title, key_sequence, role)
+        action.action_id = action_id
         action.on_triggered = callback
         action.on_ui_activity = self._register_ui_activity
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
         raise NotImplemented()
 
-    def add_action(self, action):
+    def add_action(self, action) -> None:
         raise NotImplemented()
 
-    def add_sub_menu(self, title, menu):
+    def add_sub_menu(self, title, menu) -> None:
         raise NotImplemented()
 
-    def add_separator(self):
+    def add_separator(self) -> None:
         raise NotImplemented()
 
-    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
+    def insert_menu_item(self, title, before_action: MenuAction, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
         raise NotImplemented()
 
-    def insert_separator(self, before_action):
+    def insert_separator(self, before_action: MenuAction) -> None:
         raise NotImplemented()
 
-    def remove_action(self, action):
+    def remove_action(self, action: MenuAction) -> None:
         raise NotImplemented()
 
-    def _item_added(self, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+    def _item_added(self, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
         # subclasses should call this when adding a menu item
-        self.__items.append(MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu))
+        item = MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu)
+        self.__items.append(item)
+        self.document_window._menu_item_added(item)
 
-    def _item_inserted(self, before_action: Action, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+    def _item_inserted(self, before_action: MenuAction, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
         # subclasses should call this when adding a menu item
         index = 0
         for index, item in enumerate(self.__items):
             if before_action == item.action:
                 break
-        self.__items.insert(index, MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu))
+        item = MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu)
+        self.__items.insert(index, item)
+        self.document_window._menu_item_added(item)
 
-    def _item_removed(self, action: Action) -> None:
+    def _item_removed(self, action: MenuAction) -> None:
         # subclasses should call this when inserting a menu.
         index = 0
         for index, item in enumerate(self.__items):
             if action == item.action:
+                self.document_window._menu_item_removed(self.__items.pop(index))
                 break
-        self.__items.pop(index)
 
     def popup(self, gx, gy):
         raise NotImplemented()
@@ -2500,6 +2513,8 @@ class Window:
         self.height = None
         self.__title = title if title is not None else str()
         self.__menus = list()
+        self.__menu_map = dict()
+        self.__menu_actions = dict()
 
     def close(self):
         # this is a callback and should not be invoked directly from Python;
@@ -2515,6 +2530,8 @@ class Window:
         for menu in reversed(self.__menus):
             menu.close()
         self.__menus = None
+        self.__menu_map = None
+        self.__menu_actions = None
         self.on_periodic = None
         self.on_queue_task = None
         self.on_clear_queued_tasks = None
@@ -2528,6 +2545,7 @@ class Window:
         self.on_size_changed = None
         self.on_position_changed = None
         self.on_refocus_widget = None
+        self.on_ui_activity = None
 
     def request_close(self):
         raise NotImplemented()
@@ -2678,23 +2696,44 @@ class Window:
             return self.on_key_released(key)
         return False
 
-    def add_menu(self, title: str) -> Menu:
+    def add_menu(self, title: str, menu_id: str = None) -> Menu:
         raise NotImplemented()
 
-    def insert_menu(self, title: str, before_menu: Menu) -> Menu:
+    def insert_menu(self, title: str, before_menu: Menu, menu_id: str = None) -> Menu:
         raise NotImplemented()
 
     def _menu_added(self, menu: Menu) -> None:
         # subclasses should call this when adding a menu
         self.__menus.append(menu)
+        if menu.menu_id:
+            self.__menu_map[menu.menu_id] = menu
 
     def _menu_inserted(self, menu: Menu, before_menu: Menu) -> None:
         # subclasses should call this when inserting a menu.
         self.__menus.insert(self.__menus.index(before_menu), menu)
+        if menu.menu_id:
+            self.__menu_map[menu.menu_id] = menu
+
+    def _menu_item_added(self, item: MenuItem) -> None:
+        if item.action and item.action.action_id:
+            self.__menu_actions[item.action.action_id] = item.action
+
+    def _menu_item_removed(self, item: MenuItem) -> None:
+        if item.action and item.action.action_id:
+            self.__menu_actions.pop(item.action.action_id)
+
+    def get_menu_action(self, action_id: str) -> MenuAction:
+        return self.__menu_actions.get(action_id)
+
+    def get_menu_actions(self) -> typing.Sequence[MenuAction]:
+        return self.__menu_actions.values()
 
     @property
     def menus(self) -> typing.List[Menu]:
         return self.__menus
+
+    def get_menu(self, menu_id: str) -> typing.Optional[Menu]:
+        return self.__menu_map.get(menu_id)
 
     def restore(self, geometry, state):
         raise NotImplemented()
@@ -2901,5 +2940,5 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_sub_menu(self, document_window: Window, title: str = None) -> Menu:
+    def create_sub_menu(self, document_window: Window, title: str = None, menu_id: str = None) -> Menu:
         ...

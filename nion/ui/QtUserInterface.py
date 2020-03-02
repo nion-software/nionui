@@ -1628,38 +1628,23 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
             self.on_focus_changed(False)
 
 
-class QtAction:
+class QtAction(UserInterface.Action):
 
     def __init__(self, proxy, native_action=None):
+        super().__init__()
         self.proxy = proxy
         self.native_action = native_action  # action is not connected since native_action will not by PyAction
-        self.on_triggered = None
-        self.on_ui_activity = None
         self.__title = None
 
     def close(self):
         self.proxy = None
         self.native_action = None
-        self.on_triggered = None
+        super().close()
 
     def create(self, document_window, title, key_sequence, role):
         self.native_action = self.proxy.Action_create(document_window.native_document_window, title, key_sequence, role)
         self.proxy.Action_connect(self.native_action, self)
         self.__title = title
-
-    def _register_ui_activity(self):
-        if callable(self.on_ui_activity):
-            self.on_ui_activity()
-
-    # public method to trigger button
-    def trigger(self):
-        if self.on_triggered:
-            self.on_triggered()
-
-    # comes from the Qt code
-    def triggered(self):
-        self._register_ui_activity()
-        self.trigger()
 
     @property
     def title(self):
@@ -1686,83 +1671,67 @@ class QtAction:
     def enabled(self, enabled):
         self.proxy.Action_setEnabled(self.native_action, enabled)
 
-    def apply_state(self, menu_item_state: UserInterface.MenuItemState) -> None:
-        if menu_item_state and menu_item_state.title is not None:
-            self.title = menu_item_state.title
-        else:
-            self.title = self.__title
-        if menu_item_state and menu_item_state.checked is not None:
-            self.checked = menu_item_state.checked
-        else:
-            self.checked = False
-        if menu_item_state and menu_item_state.enabled is not None:
-            self.enabled = menu_item_state.enabled
-        else:
-            self.enabled = False
+    # comes from the Qt code
+    def triggered(self) -> None:
+        self._register_ui_activity()
+        self.trigger()
 
 
-class QtMenu:
+class QtMenu(UserInterface.Menu):
 
-    def __init__(self, proxy, document_window, native_menu):
+    def __init__(self, document_window, title, proxy, native_menu):
+        super().__init__(document_window, title)
         self.proxy = proxy
-        self.document_window = document_window
         self.native_menu = native_menu
         self.proxy.Menu_connect(self.native_menu, self)
-        self.on_about_to_show = None
-        self.on_about_to_hide = None
 
-    def destroy(self):
+    def close(self):
         # what looks like a bug in Qt 5.13 - aboutToHide is called twice. watch for that here.
         # seen in PySide2 and Qt native. reproduce by right clicking context menu and not choosing anything.
         if self.native_menu:
             self.proxy.Menu_destroy(self.native_menu)
         self.native_menu = None
-        self.on_about_to_show = None
-        self.on_about_to_hide = None
-
-    def _register_ui_activity(self):
-        self.document_window._register_ui_activity()
+        super().close()
 
     def aboutToShow(self):
-        self._register_ui_activity()
-        if self.on_about_to_show:
-            self.on_about_to_show()
+        self.about_to_show()
 
     def aboutToHide(self):
-        self._register_ui_activity()
-        if self.on_about_to_hide:
-            self.on_about_to_hide()
+        self.about_to_hide()
 
-    def add_menu_item(self, title, callback, key_sequence=None, role=None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
         action = QtAction(self.proxy)
-        action.create(self.document_window, title, key_sequence, role)
-        action.on_triggered = callback
-        action.on_ui_activity = self._register_ui_activity
+        self.prepare_action(action, title, callback, key_sequence, role)
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
+        self._item_added(action=action)
         return action
 
     def add_action(self, action):
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
+        self._item_added(action=action)
 
     def add_sub_menu(self, title, menu):
         self.proxy.Menu_addMenu(self.native_menu, notnone(title), menu.native_menu)
+        self._item_added(sub_menu=menu)
 
     def add_separator(self):
         self.proxy.Menu_addSeparator(self.native_menu)
+        self._item_added(is_separator=True)
 
     def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
         action = QtAction(self.proxy)
-        action.create(self.document_window, title, key_sequence, role)
-        action.on_triggered = callback
-        action.on_ui_activity = self._register_ui_activity
+        self.prepare_action(action, title, callback, key_sequence, role)
         self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
+        self._item_inserted(before_action, action=action)
         return action
 
     def insert_separator(self, before_action):
         self.proxy.Menu_insertSeparator(self.native_menu, before_action.native_action)
+        self._item_inserted(before_action, is_separator=True)
 
     def remove_action(self, action):
         self.proxy.Menu_removeAction(self.native_menu, action.native_action)
+        self._item_removed(action=action)
 
     def popup(self, gx, gy):
         self.proxy.Menu_popup(self.native_menu, gx, gy)
@@ -1874,14 +1843,17 @@ class QtWindow(UserInterface.Window):
         self._register_ui_activity()
         return self._handle_key_released(QtKey(text, key, raw_modifiers))
 
-    def add_menu(self, title):
+    def add_menu(self, title) -> UserInterface.Menu:
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
-        menu = QtMenu(self.proxy, self, native_menu)
+        menu = QtMenu(self, title, self.proxy, native_menu)
+        self._menu_added(menu)
         return menu
 
-    def insert_menu(self, title, before_menu):
+    def insert_menu(self, title, before_menu) -> UserInterface.Menu:
+        before_menu = typing.cast(QtMenu, before_menu)
         native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, notnone(title), before_menu.native_menu)
-        menu = QtMenu(self.proxy, self, native_menu)
+        menu = QtMenu(self, title, self.proxy, native_menu)
+        self._menu_inserted(menu, before_menu)
         return menu
 
     def restore(self, geometry, state):
@@ -2183,8 +2155,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font, text):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))
 
-    def create_context_menu(self, document_window):
-        context_menu = QtMenu(self.proxy, document_window, self.proxy.Menu_create())
+    def create_context_menu(self, document_window) -> UserInterface.Menu:
+        context_menu = QtMenu(document_window, None, self.proxy, self.proxy.Menu_create())
         # the original code would destroy the menu when it was being hidden.
         # this caused crashes (right-click, Export...). the menu seems to be
         # still in use at the time it is hidden on Windows. so, delay its
@@ -2192,6 +2164,6 @@ class QtUserInterface(UserInterface.UserInterface):
         context_menu.on_about_to_hide = lambda: document_window.queue_task(context_menu.destroy)
         return context_menu
 
-    def create_sub_menu(self, document_window):
-        sub_menu = QtMenu(self.proxy, document_window, self.proxy.Menu_create())
+    def create_sub_menu(self, document_window, title: str = None) -> UserInterface.Menu:
+        sub_menu = QtMenu(document_window, title, self.proxy, self.proxy.Menu_create())
         return sub_menu

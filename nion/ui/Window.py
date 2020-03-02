@@ -334,8 +334,8 @@ class Window:
     def insert_menu(self, title: str, before_menu):
         return self.__document_window.insert_menu(title, before_menu)
 
-    def create_sub_menu(self):
-        return self.ui.create_sub_menu(self.__document_window)
+    def create_sub_menu(self, title: str = None) -> UserInterface.Menu:
+        return self.ui.create_sub_menu(self.__document_window, title)
 
     def create_context_menu(self):
         return self.ui.create_context_menu(self.__document_window)

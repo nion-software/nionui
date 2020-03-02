@@ -2286,6 +2286,192 @@ class TreeWidget(Widget):
         self._behavior.size_to_content()
 
 
+class Action:
+
+    def __init__(self):
+        self.on_triggered = None
+        self.on_ui_activity = None
+
+    def close(self) -> None:
+        self.on_triggered = None
+
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
+
+    @property
+    def title(self) -> str:
+        raise NotImplementedError()
+
+    @title.setter
+    def title(self, value: str) -> None:
+        raise NotImplementedError()
+
+    @property
+    def checked(self) -> bool:
+        raise NotImplementedError()
+
+    @checked.setter
+    def checked(self, checked: bool) -> None:
+        raise NotImplementedError()
+
+    @property
+    def enabled(self) -> bool:
+        raise NotImplementedError()
+
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        raise NotImplementedError()
+
+    def trigger(self) -> None:
+        if self.on_triggered:
+            self.on_triggered()
+
+    def apply_state(self, menu_item_state: MenuItemState) -> None:
+        if menu_item_state and menu_item_state.title is not None:
+            self.title = menu_item_state.title
+        else:
+            self.title = self.title
+        if menu_item_state and menu_item_state.checked is not None:
+            self.checked = menu_item_state.checked
+        else:
+            self.checked = False
+        if menu_item_state and menu_item_state.enabled is not None:
+            self.enabled = menu_item_state.enabled
+        else:
+            self.enabled = False
+
+
+class MenuItem:
+
+    def __init__(self, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None):
+        self.action = action
+        self.is_separator = is_separator
+        self.sub_menu = sub_menu
+
+    def close(self) -> None:
+        if self.action:
+            self.action.close()
+        if self.sub_menu:
+            self.sub_menu.close()
+        self.action = None
+        self.sub_menu = None
+
+    @property
+    def title(self):
+        # NOTE: for backwards compatibility only (tests 0.14)
+        if self.action:
+            return self.action.title
+        elif self.is_separator:
+            return "separator"
+        elif self.sub_menu:
+            return self.sub_menu.title if self.sub_menu.title else "sub_menu"
+        else:
+            return "item"
+
+    @property
+    def callback(self):
+        # NOTE: for backwards compatibility only (tests 0.14)
+        return getattr(self.action, "callback", None)
+
+    def __str__(self):
+        if self.action:
+            return f"action {self.action.title}"
+        elif self.is_separator:
+            return "separator"
+        elif self.sub_menu:
+            return self.sub_menu.title if self.sub_menu.title else "sub_menu"
+        else:
+            return "?item"
+
+
+class Menu:
+
+    def __init__(self, document_window, title):
+        self.document_window = document_window
+        self.title = title
+        self.on_about_to_show = None
+        self.on_about_to_hide = None
+        self.__items = list()
+
+    def close(self):
+        for item in self.__items:
+            item.close()
+        self.__items = None
+        self.on_about_to_show = None
+        self.on_about_to_hide = None
+
+    def destroy(self):
+        # for backwards compatibility
+        self.close()
+
+    @property
+    def items(self) -> typing.Sequence[MenuItem]:
+        return self.__items
+
+    def _register_ui_activity(self):
+        self.document_window._register_ui_activity()
+
+    def about_to_show(self):
+        self._register_ui_activity()
+        if self.on_about_to_show:
+            self.on_about_to_show()
+
+    def about_to_hide(self):
+        self._register_ui_activity()
+        if self.on_about_to_hide:
+            self.on_about_to_hide()
+
+    def prepare_action(self, action, title, callback, key_sequence=None, role=None):
+        action.create(self.document_window, title, key_sequence, role)
+        action.on_triggered = callback
+        action.on_ui_activity = self._register_ui_activity
+
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
+        raise NotImplemented()
+
+    def add_action(self, action):
+        raise NotImplemented()
+
+    def add_sub_menu(self, title, menu):
+        raise NotImplemented()
+
+    def add_separator(self):
+        raise NotImplemented()
+
+    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None):
+        raise NotImplemented()
+
+    def insert_separator(self, before_action):
+        raise NotImplemented()
+
+    def remove_action(self, action):
+        raise NotImplemented()
+
+    def _item_added(self, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+        # subclasses should call this when adding a menu item
+        self.__items.append(MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu))
+
+    def _item_inserted(self, before_action: Action, *, action: Action = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+        # subclasses should call this when adding a menu item
+        index = 0
+        for index, item in enumerate(self.__items):
+            if before_action == item.action:
+                break
+        self.__items.insert(index, MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu))
+
+    def _item_removed(self, action: Action) -> None:
+        # subclasses should call this when inserting a menu.
+        index = 0
+        for index, item in enumerate(self.__items):
+            if action == item.action:
+                break
+        self.__items.pop(index)
+
+    def popup(self, gx, gy):
+        raise NotImplemented()
+
+
 class Window:
 
     def __init__(self, parent_window, title):
@@ -2313,6 +2499,7 @@ class Window:
         self.width = None
         self.height = None
         self.__title = title if title is not None else str()
+        self.__menus = list()
 
     def close(self):
         # this is a callback and should not be invoked directly from Python;
@@ -2325,6 +2512,9 @@ class Window:
             # directly. using request_close from a separate window will mitigate this.
             self.root_widget.close()
             self.root_widget = None
+        for menu in reversed(self.__menus):
+            menu.close()
+        self.__menus = None
         self.on_periodic = None
         self.on_queue_task = None
         self.on_clear_queued_tasks = None
@@ -2488,11 +2678,23 @@ class Window:
             return self.on_key_released(key)
         return False
 
-    def add_menu(self, title):
+    def add_menu(self, title: str) -> Menu:
         raise NotImplemented()
 
-    def insert_menu(self, title, before_menu):
+    def insert_menu(self, title: str, before_menu: Menu) -> Menu:
         raise NotImplemented()
+
+    def _menu_added(self, menu: Menu) -> None:
+        # subclasses should call this when adding a menu
+        self.__menus.append(menu)
+
+    def _menu_inserted(self, menu: Menu, before_menu: Menu) -> None:
+        # subclasses should call this when inserting a menu.
+        self.__menus.insert(self.__menus.index(before_menu), menu)
+
+    @property
+    def menus(self) -> typing.List[Menu]:
+        return self.__menus
 
     def restore(self, geometry, state):
         raise NotImplemented()
@@ -2695,9 +2897,9 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_context_menu(self, document_window):
+    def create_context_menu(self, document_window: Window) -> Menu:
         ...
 
     @abc.abstractmethod
-    def create_sub_menu(self, document_window):
+    def create_sub_menu(self, document_window: Window, title: str = None) -> Menu:
         ...

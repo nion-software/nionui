@@ -1,7 +1,7 @@
 # standard libraries
 import collections
 import numbers
-import logging
+import typing
 
 # third party libraries
 import numpy
@@ -321,36 +321,56 @@ class Widget:
         pass
 
 
-class MenuItem:
+class MenuItem(UserInterface.Action):
     def __init__(self, title, callback, key_sequence, role, menu, is_separator, checked):
-        self.title = title
+        super().__init__()
+        self.__title = title
         self.callback = callback
         self.key_sequence = key_sequence,
         self.role = role
         self.menu = menu
         self.is_separator = is_separator
-        self.checked = checked
+        self.__checked = checked
+        self.__enabled = True
     def close(self):
         self.callback = None
+        super().close()
+    @property
+    def title(self):
+        return self.__title
+    @title.setter
+    def title(self, value):
+        self.__title = value
+    @property
+    def checked(self):
+        return self.__checked
+    @checked.setter
+    def checked(self, value):
+        self.__checked = value
+    @property
+    def enabled(self):
+        return self.__enabled
+    @enabled.setter
+    def enabled(self, value):
+        self.__enabled = value
 
-class Menu:
-    def __init__(self):
+class Menu(UserInterface.Menu):
+    def __init__(self, document_window, title=None):
+        super().__init__(document_window, title)
         self.on_popup = None
-        self.items = list()
     def close(self):
         for item in self.items:
             item.close()
-        self.items = None
-    def add_menu_item(self, title, callback, key_sequence=None, role=None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None):
         menu_item = MenuItem(title, callback, key_sequence, role, None, False, False)
-        self.items.append(menu_item)
+        self._item_added(action=menu_item)
         return menu_item
     def add_sub_menu(self, title, menu):
         menu_item = MenuItem(title, None, None, None, menu, False, False)
-        self.items.append(menu_item)
+        self._item_added(sub_menu=menu_item.menu)
         return menu_item
     def add_separator(self):
-        self.items.append(MenuItem(None, None, None, None, None, True, False))
+        self._item_added(is_separator=True)
     def popup(self, gx, gy):
         if self.on_popup:
             self.on_popup(self, gx, gy)
@@ -402,11 +422,11 @@ class DocumentWindow:
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
     def insert_menu(self, title, before_menu):
-        menu = Menu()
+        menu = Menu(self)
         self.__menus.append(menu)
         return menu
     def add_menu(self, title):
-        menu = Menu()
+        menu = Menu(self)
         self.__menus.append(menu)
         return menu
     def show(self, size, position):
@@ -725,14 +745,14 @@ class UserInterface:
     def create_rgba_image(self, drawing_context, width, height):
         return numpy.zeros((height, width), dtype=numpy.uint32)
     def create_context_menu(self, document_window):
-        menu = Menu()
+        menu = Menu(document_window)
         def handle_popup(menu, gx, gy):
             self.popup = menu
             self.popup_pos = gx, gy
         menu.on_popup = handle_popup
         return menu
-    def create_sub_menu(self, document_window):
-        return Menu()
+    def create_sub_menu(self, document_window, title):
+        return Menu(document_window, title)
 
     # clipboard
 

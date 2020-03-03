@@ -668,7 +668,7 @@ class UserInterface:
         return Widget()
     def create_text_edit_widget(self, properties=None):
         return Widget()
-    def create_canvas_widget(self, properties=None):
+    def create_canvas_widget(self, properties=None, *, use_layer=True):
         widget = Widget()
         widget.canvas_item = CanvasItem.RootCanvasItem(widget)
         return widget

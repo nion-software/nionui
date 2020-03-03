@@ -772,20 +772,25 @@ class AbstractCanvasItem:
 
         The canvas item will be repainted by the root canvas item.
         """
-        self._update_count += 1
-        self._updated()
+        self._update_with_items()
 
-    def _updated(self) -> None:
+    def _update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+        self._update_count += 1
+        self._updated(canvas_items)
+
+    def _updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         self.__pending_update = True
-        self._update_container()
+        self._update_container(canvas_items)
 
-    def _update_container(self) -> None:
+    def _update_container(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
         # if not in the middle of a nested update, and if this canvas item has
         # a layout, update the container.
         container = self.__container
         if container and self._has_layout:
-            container.update()
+            canvas_items = canvas_items or list()
+            canvas_items.append(self)
+            container._update_with_items(canvas_items)
 
     @contextlib.contextmanager
     def update_context(self):
@@ -1465,7 +1470,10 @@ class CompositionLayoutRenderTrait:
     def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
         return False
 
-    def _try_updated(self) -> bool:
+    def _try_update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> bool:
+        return False
+
+    def _try_updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"]) -> bool:
         return False
 
     def _try_repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> bool:
@@ -1551,10 +1559,15 @@ class CanvasItemComposition(AbstractCanvasItem):
         # useful for tests
         self.__layout_render_trait.layout_immediate(canvas_size, force)
 
-    def _updated(self) -> None:
+    def _update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
         # extra check for behavior during closing
-        if self.__layout_render_trait and not self.__layout_render_trait._try_updated():
-            super()._updated()
+        if self.__layout_render_trait and not self.__layout_render_trait._try_update_with_items(canvas_items):
+            super()._update_with_items(canvas_items)
+
+    def _updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+        # extra check for behavior during closing
+        if self.__layout_render_trait and not self.__layout_render_trait._try_updated(canvas_items):
+            super()._updated(canvas_items)
 
     def _update_layout(self, canvas_origin, canvas_size, *, immediate=False):
         """Private method, but available to tests."""
@@ -1821,7 +1834,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__trigger_layout()
         return True
 
-    def _try_updated(self) -> bool:
+    def _try_updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"]) -> bool:
         with self.__layer_thread_condition:
             self.__needs_repaint = True
             if not self._layer_thread_suppress:
@@ -1854,6 +1867,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         return True
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool=True) -> None:
+        # used for testing
         orphan = len(self.__prepare_canvas_items) == 0
         if orphan:
             self._canvas_item_composition._inserted(None)
@@ -2545,7 +2559,44 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         return super().mouse_position_changed(x, y, modifiers)
 
 
-class RootCanvasItem(LayerCanvasItem):
+class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
+
+    def __init__(self, canvas_item_composition: CanvasItemComposition):
+        super().__init__(canvas_item_composition)
+        self.__needs_layout = False
+        self.__needs_repaint = False
+
+    @property
+    def is_layer_container(self) -> bool:
+        return True
+
+    def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
+        self.__needs_layout = True
+        return True
+
+    def _try_update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> bool:
+        import time
+        t = time.time()
+        r = None
+        if self.__needs_layout and self._canvas_item_composition.canvas_size:
+            self.__needs_layout = False
+            self._canvas_item_composition._update_child_layouts(self._canvas_item_composition.canvas_size)
+        if self._canvas_item_composition._has_layout and self._canvas_item_composition.canvas_widget and canvas_items:
+            for canvas_item in canvas_items:
+                if getattr(canvas_item, "_is_display_panel", False):
+                    self._canvas_item_composition._update_count += 1
+                    r = Geometry.IntRect(canvas_item.map_to_root_container(Geometry.IntPoint(0, 0)), canvas_item.canvas_size)
+                    drawing_context = DrawingContext.DrawingContext()
+                    drawing_context.translate(r.left, r.top)
+                    canvas_item._repaint_children(drawing_context)
+                    canvas_item._repaint(drawing_context)
+                    self._canvas_item_composition.canvas_widget.draw(drawing_context)
+        elapsed = time.time() - t
+        print(f"{int(elapsed * 1000000)}us at {t}")
+        return True
+
+
+class RootCanvasItem(CanvasItemComposition):
     """A root layer to interface to the widget world.
 
     The root canvas item acts as a bridge between the higher level ui widget and a canvas hierarchy. It connects size
@@ -2559,8 +2610,8 @@ class RootCanvasItem(LayerCanvasItem):
     root canvas item's hierarchy.
     """
 
-    def __init__(self, canvas_widget, max_frame_rate=None):
-        super().__init__()
+    def __init__(self, canvas_widget, max_frame_rate=None, use_layer=True):
+        super().__init__(LayerLayoutRenderTrait(self) if use_layer else RootLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked

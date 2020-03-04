@@ -2407,7 +2407,8 @@ class Menu:
 
     def destroy(self):
         # for backwards compatibility
-        self.close()
+        if self.__items:
+            self.close()
 
     @property
     def items(self) -> typing.Sequence[MenuItem]:

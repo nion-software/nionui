@@ -1769,6 +1769,14 @@ class PyCanvas(QtWidgets.QWidget):
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
         self.__thread = None
+        # start the thread immediately to avoid drawing race conditions
+        self.__start_thread()
+
+    def __start_thread(self):
+        if not self.__thread:
+            self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
+            self.__thread.renderingReady.connect(self.repaint)
+            self.__thread.start()
 
     def hideEvent(self, event: QtGui.QHideEvent) -> None:
         # the __del__ method is not a reliable way to override the QWidget destructor.
@@ -1784,10 +1792,7 @@ class PyCanvas(QtWidgets.QWidget):
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
         # since hideEvent is being used to shut down the thread, use showEvent to create the thread.
-        if not self.__thread:
-            self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
-            self.__thread.renderingReady.connect(self.repaint)
-            self.__thread.start()
+        self.__start_thread()
         super().showEvent(event)
 
     def focusInEvent(self, event) -> None:

@@ -1336,6 +1336,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     layer_image = None
     painter_stack = list()
     layer_image_stack = list()
+    layer_skip_stack = list()
 
     for command in commands:
         args = command.args
@@ -1343,7 +1344,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
         # print(f"{cmd}: {args}")
 
-        if layer_skip and cmd != "end_layer":
+        if layer_skip and cmd != "end_layer" and cmd != "begin_layer":
             continue
 
         if cmd == "save":
@@ -1674,34 +1675,37 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             layer_id = int(args[0])
             layer_seed = int(args[1])
             layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])
-            if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
-                layer_skip = True
-            else:
-                painter_stack.append(painter)
-                layer_image_stack.append(layer_image)
-                layer_image = QtGui.QImage(QtCore.QSize(layer_rect[3], layer_rect[2]), QtGui.QImage.Format_ARGB32)
-                layer_image.fill(QtGui.QColor(0,0,0,0))
-                painter = QtGui.QPainter(layer_image)
-                painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-                painter.translate(layer_rect[1], layer_rect[0])
+            layer_skip_stack.append(layer_skip)
+            if not layer_skip:
+                if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
+                    layer_skip = True
+                else:
+                    painter_stack.append(painter)
+                    layer_image_stack.append(layer_image)
+                    layer_image = QtGui.QImage(QtCore.QSize(layer_rect[3], layer_rect[2]), QtGui.QImage.Format_ARGB32)
+                    layer_image.fill(QtGui.QColor(0,0,0,0))
+                    painter = QtGui.QPainter(layer_image)
+                    painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                    painter.translate(layer_rect[1], layer_rect[0])
             layers_used.add(layer_id)
         elif cmd == "end_layer":
             layer_id = int(args[0])
             layer_seed = int(args[1])
             layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])  # t,l,h,w
-            if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
-                layer_skip = False
-                layer_image = layer_cache[layer_id].layer_image
-                layer_rect = layer_cache[layer_id].layer_rect
-                rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
-                painter.drawImage(rect, layer_image)
-            else:
-                painter.end()
-                layer_cache[layer_id] = LayerCacheEntry(layer_seed, layer_image, layer_rect)
-                rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
-                painter = painter_stack.pop()
-                painter.drawImage(rect, layer_image)
-                layer_image = layer_image_stack.pop()
+            layer_skip = layer_skip_stack.pop()
+            if not layer_skip:
+                if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
+                    layer_image_to_draw = layer_cache[layer_id].layer_image
+                    layer_rect = layer_cache[layer_id].layer_rect
+                    rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
+                    painter.drawImage(rect, layer_image_to_draw)
+                else:
+                    painter.end()
+                    layer_cache[layer_id] = LayerCacheEntry(layer_seed, layer_image, layer_rect)
+                    rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
+                    painter = painter_stack.pop()
+                    painter.drawImage(rect, layer_image)
+                    layer_image = layer_image_stack.pop()
 
     if image_cache is not None:
         for image_id, entry in copy.copy(image_cache).items():

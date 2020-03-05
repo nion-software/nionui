@@ -485,6 +485,7 @@ class AbstractCanvasItem:
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
+        self.is_root_opaque = False
 
     def close(self):
         """ Close the canvas object. """
@@ -887,6 +888,9 @@ class AbstractCanvasItem:
         if canvas_bounds and canvas_bounds.contains_point(Geometry.IntPoint(x=x, y=y)):
             return [self]
         return []
+
+    def get_root_opaque_canvas_items(self) -> typing.List["AbstractCanvasItem"]:
+        return [self] if self.is_root_opaque else list()
 
     def mouse_clicked(self, x, y, modifiers):
         """ Handle a mouse click within this canvas item. Return True if handled. """
@@ -1768,6 +1772,14 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Returns list of canvas items under x, y, ordered from back to front."""
         return self._canvas_items_at_point(self.visible_canvas_items, x, y)
 
+    def get_root_opaque_canvas_items(self) -> typing.List["AbstractCanvasItem"]:
+        if self.is_root_opaque:
+            return [self]
+        canvas_items = list()
+        for canvas_item in self.canvas_items:
+            canvas_items.extend(canvas_item.get_root_opaque_canvas_items())
+        return canvas_items
+
     def pan_gesture(self, dx, dy):
         for canvas_item in reversed(self.visible_canvas_items):
             if canvas_item.pan_gesture(dx, dy):
@@ -1914,13 +1926,12 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                         try:
                             for canvas_item in copy.copy(self.__prepare_canvas_items):
                                 canvas_item.prepare_render()
-                                # layout or repaint that occurs during prepare render should be handled
-                                # but not trigger another repaint after this one.
-                                with self.__layer_thread_condition:
-                                    needs_layout = needs_layout or self.__needs_layout
-                                    needs_repaint = needs_repaint or self.__needs_repaint
-                                    self.__needs_layout = False
-                                    self.__needs_repaint = False
+                            # layout or repaint that occurs during prepare render should be handled
+                            # but not trigger another repaint after this one.
+                            with self.__layer_thread_condition:
+                                needs_layout = needs_layout or self.__needs_layout
+                                self.__needs_layout = False
+                                self.__needs_repaint = False
                             if needs_layout:
                                 assert self._canvas_item_composition.canvas_size is not None
                                 self._canvas_item_composition._update_child_layouts(self._canvas_item_composition.canvas_size)
@@ -2561,39 +2572,70 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
 class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
 
+    next_section_id = 0
+
     def __init__(self, canvas_item_composition: CanvasItemComposition):
         super().__init__(canvas_item_composition)
-        self.__needs_layout = False
         self.__needs_repaint = False
+        self.__section_ids_lock = threading.RLock()
+        self.__section_map = dict()
+
+    def close(self) -> None:
+        with self.__section_ids_lock:
+            section_map = self.__section_map
+            self.__section_map = dict()
+            for section_id in section_map.values():
+                self._canvas_item_composition.canvas_widget.remove_section(section_id)
+        super().close()
 
     @property
     def is_layer_container(self) -> bool:
         return True
 
     def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
-        self.__needs_layout = True
+        if self._canvas_item_composition.canvas_size:
+            # if this is a normal canvas item, tell it's container to layout again.
+            # otherwise, if this is the root, just layout the root.
+            container = canvas_item.container if canvas_item != self._canvas_item_composition else canvas_item
+            if container and container.canvas_size:
+                container.update_layout(container.canvas_origin, container.canvas_size)
+            if container == self._canvas_item_composition:
+                # when the root is resized, be sure to update all of the opaque items since layout
+                # doesn't do it automatically right now.
+                for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
+                    canvas_item.update()
         return True
 
     def _try_update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> bool:
-        import time
-        t = time.time()
-        r = None
-        if self.__needs_layout and self._canvas_item_composition.canvas_size:
-            self.__needs_layout = False
-            self._canvas_item_composition._update_child_layouts(self._canvas_item_composition.canvas_size)
+        drawing_context = DrawingContext.DrawingContext()
         if self._canvas_item_composition._has_layout and self._canvas_item_composition.canvas_widget and canvas_items:
             for canvas_item in canvas_items:
-                if getattr(canvas_item, "_is_display_panel", False):
+                if canvas_item.is_root_opaque:
                     self._canvas_item_composition._update_count += 1
-                    r = Geometry.IntRect(canvas_item.map_to_root_container(Geometry.IntPoint(0, 0)), canvas_item.canvas_size)
-                    drawing_context = DrawingContext.DrawingContext()
-                    drawing_context.translate(r.left, r.top)
-                    canvas_item._repaint_children(drawing_context)
-                    canvas_item._repaint(drawing_context)
-                    self._canvas_item_composition.canvas_widget.draw(drawing_context)
-        elapsed = time.time() - t
-        print(f"{int(elapsed * 1000000)}us at {t}")
+                    canvas_rect = Geometry.IntRect(canvas_item.map_to_root_container(Geometry.IntPoint(0, 0)), canvas_item.canvas_size)
+                    canvas_item._repaint_template(drawing_context, immediate=False)
+                    drawing_context.translate(-canvas_rect.left, -canvas_rect.top)
+                    with self.__section_ids_lock:
+                        section_id = self.__section_map.get(canvas_item, None)
+                        if not section_id:
+                            RootLayoutRenderTrait.next_section_id += 1
+                            section_id = RootLayoutRenderTrait.next_section_id
+                            self.__section_map[canvas_item] = section_id
+                    self._canvas_item_composition.canvas_widget.draw_section(section_id, drawing_context, canvas_rect)
+                    break
+        self.__cull_unused_sections()
         return True
+
+    def __cull_unused_sections(self) -> None:
+        with self.__section_ids_lock:
+            section_map = self.__section_map
+            self.__section_map = dict()
+            for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
+                section_id = section_map.pop(canvas_item, None)
+                if section_id:
+                    self.__section_map[canvas_item] = section_id
+            for section_id in section_map.values():
+                self._canvas_item_composition.canvas_widget.remove_section(section_id)
 
 
 class RootCanvasItem(CanvasItemComposition):
@@ -2676,8 +2718,9 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_drop = None
         self.__canvas_widget.on_tool_tip = None
         self.__canvas_widget.on_pan_gesture = None
-        self.__canvas_widget = None
         super().close()
+        # culling will require the canvas widget; clear it here (after close) so that it is availahle.
+        self.__canvas_widget = None
 
     def _repaint_finished(self, drawing_context):
         self.__canvas_widget.draw(drawing_context)

@@ -16,6 +16,7 @@ import weakref
 # none
 
 # local libraries
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
 
@@ -1403,6 +1404,15 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
         else:
             self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images)
+
+    def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        if hasattr(self.proxy, "Canvas_drawSection_binary"):
+            self.proxy.Canvas_drawSection_binary(self.widget, section_id, drawing_context.binary_commands, drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
+        else:
+            self.proxy.Canvas_drawSection(self.widget, section_id, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
+
+    def remove_section(self, section_id: int) -> None:
+        self.proxy.Canvas_removeSection(self.widget, section_id)
 
     def set_cursor_shape(self, cursor_shape):
         cursor_shape = cursor_shape or "arrow"

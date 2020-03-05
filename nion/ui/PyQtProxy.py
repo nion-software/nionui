@@ -1720,7 +1720,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
 class PyCanvasRenderThread(QtCore.QThread):
 
-    renderingReady = Signal()
+    renderingReady = Signal(QtCore.QRect)
 
     def __init__(self, canvas: "PyCanvas", render_request: QtCore.QWaitCondition, render_request_mutex: QtCore.QMutex):
         super().__init__()
@@ -1744,8 +1744,9 @@ class PyCanvasRenderThread(QtCore.QThread):
 
             while self.__needs_render and not self.__cancel:
                 self.__needs_render = False
-                self.__canvas.render()
-                self.renderingReady.emit()
+                repaint_rect = self.__canvas.render_sections()
+                # print(f"repaint {repaint_rect}")
+                self.renderingReady.emit(repaint_rect)
 
 
 class PyCanvas(QtWidgets.QWidget):
@@ -1755,16 +1756,12 @@ class PyCanvas(QtWidgets.QWidget):
         self.object = None
         self.__pressed = False
         self.__grab_mouse_count = 0
-        self.__rendered_image_mutex = QtCore.QMutex()
-        self.__rendered_image = QtGui.QImage()
         self.__rendered_timestamps = list()
         self.__render_request = QtCore.QWaitCondition()
         self.__render_request_mutex = QtCore.QMutex()
         self.__commands_mutex = QtCore.QMutex()
-        self.__commands = list()
+        self.__sections = dict()
         self.__last_pos = QtCore.QPoint()
-        self.__image_cache = dict()
-        self.__layer_cache = dict()
         self.__grab_reference_point = QtCore.QPoint()
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
@@ -1787,8 +1784,11 @@ class PyCanvas(QtWidgets.QWidget):
     def __start_thread(self):
         if not self.__thread:
             self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
-            self.__thread.renderingReady.connect(self.repaint)
+            self.__thread.renderingReady.connect(self.repaint_rect)
             self.__thread.start()
+
+    def repaint_rect(self, rect: QtCore.QRect) -> None:
+        self.repaint(rect)
 
     def hideEvent(self, event: QtGui.QHideEvent) -> None:
         # the __del__ method is not a reliable way to override the QWidget destructor.
@@ -1819,35 +1819,57 @@ class PyCanvas(QtWidgets.QWidget):
                 traceback.print_exc()
         super().focusOutEvent(event)
 
-    def render(self) -> None:
-        image = QtGui.QImage(self.size().width(), self.size().height(), QtGui.QImage.Format_ARGB32)
-        image.fill(QtGui.QColor(0,0,0,0))
-
-        # TODO: remove this -- it should never occur
-        if image.isNull():
-            return
+    def render_sections(self) -> QtCore.QRect:
+        repaint_rect = None
 
         with QtCore.QMutexLocker(self.__commands_mutex):
-            commands = self.__commands
+            sections = list(self.__sections.values())
 
-        painter = QtGui.QPainter()
-        painter.begin(image)
-        try:
-            painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-            PaintCommands(painter, commands, self.__image_cache, layer_cache=self.__layer_cache)
-        finally:
-            painter.end()
+        for section in sections:
+            with QtCore.QMutexLocker(section.mutex):
+                commands = section.commands
+                rect = section.rect
+                section.commands = None
+                section.rect = None
+            if commands:
+                image = QtGui.QImage(rect.size(), QtGui.QImage.Format_ARGB32)
+                image.fill(QtGui.QColor(0,0,0,0))
+                painter = QtGui.QPainter()
+                painter.begin(image)
+                try:
+                    painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                    # print(f"+ {section.section_id} {self} {len(commands)} {rect.size()}")
+                    PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache)
+                    # painter.drawRect(100, 20, 80, 80)
+                finally:
+                    painter.end()
 
-        with QtCore.QMutexLocker(self.__rendered_image_mutex):
-            self.__rendered_image = image
+                with QtCore.QMutexLocker(section.mutex):
+                    section.image = image
+                    section.image_rect = rect
+                    repaint_rect = repaint_rect.united(rect) if repaint_rect is not None else rect
+
+        return repaint_rect
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter()
         painter.begin(self)
         try:
-            with QtCore.QMutexLocker(self.__rendered_image_mutex):
-                image = QtGui.QImage(self.__rendered_image)
-            painter.drawImage(QtCore.QPointF(0, 0), image)
+            with QtCore.QMutexLocker(self.__commands_mutex):
+                sections = list(self.__sections.values())
+            for section in sections:
+                with QtCore.QMutexLocker(section.mutex):
+                    image = section.image
+                    image_rect = section.image_rect
+                    # section.image = None
+                    # section.image_rect = None
+                # print(f"check {image_rect} {event.rect()}")
+                if image and image_rect.intersects(event.rect()):
+                    # print(f"B {section.section_id} {self} {image.size()} {image_rect}")
+                    painter.drawImage(image_rect.topLeft(), image)
+                    # painter.drawRect(image_rect.left(), image_rect.top(), 32, 32)
+                    # painter.drawRect(image_rect.right() - 32, image_rect.bottom() - 32, 32, 32)
+            # painter.drawRect(20, 20, 80, 80)
         finally:
             painter.end()
 
@@ -2024,9 +2046,28 @@ class PyCanvas(QtWidgets.QWidget):
             self.releaseKeyboard()
             QtWidgets.QApplication.restoreOverrideCursor()
 
+    class CanvasSection:
+        def __init__(self, section_id: int, commands: typing.List[CanvasDrawingCommand], rect: QtCore.QRect):
+            self.section_id = section_id
+            self.mutex = QtCore.QMutex()
+            self.commands = commands
+            self.rect = rect
+            self.image_rect = None
+            self.image = None
+            self.image_cache = dict()
+            self.layer_cache = dict()
+
     def setCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
+        self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())
+
+    def setSectionCommands(self, section_id: int, commands: typing.List[CanvasDrawingCommand], left: int, top: int, width: int, height: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):
-            self.__commands = commands
+            rect = QtCore.QRect(QtCore.QPoint(left, top), QtCore.QSize(width, height))
+            section = self.__sections.setdefault(section_id, PyCanvas.CanvasSection(section_id, commands, rect))
+        with QtCore.QMutexLocker(section.mutex):
+            section.commands = commands
+            section.rect = rect
+            # print(f"q {section_id} {self} {len(commands)} {rect}")
         self.__render_request_mutex.lock()
         try:
             if self.__thread:
@@ -2034,6 +2075,11 @@ class PyCanvas(QtWidgets.QWidget):
                 self.__render_request.wakeAll()
         finally:
             self.__render_request_mutex.unlock()
+
+    def removeSection(self, section_id: int) -> None:
+        with QtCore.QMutexLocker(self.__commands_mutex):
+            # print(f"- {section_id} {self}")
+            self.__sections.pop(section_id, None)
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         if self.object:
@@ -2336,6 +2382,13 @@ class PyQtProxy:
             drawing_commands.append(CanvasDrawingCommand(command[0], command[1:]))
         canvas.setCommands(drawing_commands)
 
+    def Canvas_drawSection(self, canvas: PyCanvas, section_id, commands: list, storage, left, top, width, height) -> None:
+        assert canvas is not None
+        drawing_commands = list()
+        for command in commands:
+            drawing_commands.append(CanvasDrawingCommand(command[0], command[1:]))
+        canvas.setSectionCommands(section_id, drawing_commands, left, top, width, height)
+
     def Canvas_grabMouse(self, canvas: PyCanvas, gx: int, gy: int) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
@@ -2348,6 +2401,9 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert canvas is not None
         canvas.releaseMouse0()
+
+    def Canvas_removeSection(self, canvas: PyCanvas, section_id: int) -> None:
+        canvas.removeSection(section_id)
 
     def Canvas_setCursorShape(self, canvas: PyCanvas, shape_id: str) -> None:
         global app

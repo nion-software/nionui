@@ -2086,6 +2086,12 @@ class CanvasWidget(Widget):
     def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self._behavior.draw(drawing_context)
 
+    def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        self._behavior.draw_section(section_id, drawing_context, canvas_rect)
+
+    def remove_section(self, section_id: int) -> None:
+        self._behavior.remove_section(section_id)
+
     def set_cursor_shape(self, cursor_shape: str) -> None:
         self._behavior.set_cursor_shape(cursor_shape)
 

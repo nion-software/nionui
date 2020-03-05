@@ -1772,6 +1772,18 @@ class PyCanvas(QtWidgets.QWidget):
         # start the thread immediately to avoid drawing race conditions
         self.__start_thread()
 
+    def close(self):
+        self.__stop_thread()
+
+    def __stop_thread(self):
+        if self.__thread:
+            self.__thread.cancel()
+            self.__render_request_mutex.lock()
+            self.__render_request.wakeAll()
+            self.__render_request_mutex.unlock()
+            self.__thread.wait()
+            self.__thread = None
+
     def __start_thread(self):
         if not self.__thread:
             self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
@@ -1781,13 +1793,7 @@ class PyCanvas(QtWidgets.QWidget):
     def hideEvent(self, event: QtGui.QHideEvent) -> None:
         # the __del__ method is not a reliable way to override the QWidget destructor.
         # instead, use the hideEvent, which is the best alternative at the moment.
-        if self.__thread:
-            self.__thread.cancel()
-            self.__render_request_mutex.lock()
-            self.__render_request.wakeAll()
-            self.__render_request_mutex.unlock()
-            self.__thread.wait()
-            self.__thread = None
+        self.__stop_thread()
         super().hideEvent(event)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:

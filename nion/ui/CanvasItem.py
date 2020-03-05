@@ -823,7 +823,8 @@ class AbstractCanvasItem:
             repaint_drawing_context = DrawingContext.DrawingContext()
             self._repaint_template(repaint_drawing_context, immediate)
             self.__repaint_drawing_context = repaint_drawing_context
-        drawing_context.add(self.__repaint_drawing_context)
+        if self.__repaint_drawing_context:
+            drawing_context.add(self.__repaint_drawing_context)
 
     def _repaint_finished(self, drawing_context):
         # when the thread finishes the repaint, this method gets called. the normal container update
@@ -1841,7 +1842,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                 layer_drawing_context = self.__layer_drawing_context
                 layer_seed = self.__layer_seed
             canvas_rect = self._canvas_item_composition.canvas_rect
-            canvas_rect = canvas_rect or (0, 0, 0, 0)
             drawing_context.begin_layer(self.__layer_id, layer_seed, *tuple(canvas_rect.origin), *tuple(canvas_rect.size))
             if layer_drawing_context:
                 drawing_context.add(layer_drawing_context)

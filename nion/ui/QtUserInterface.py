@@ -460,6 +460,8 @@ class QtWidgetBehavior:
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
     def close(self):
+        if callable(getattr(self.widget, "close", None)):
+            self.widget.close()
         self.proxy.Widget_removeWidget(self.widget)
         self.widget = None
         self.proxy = None

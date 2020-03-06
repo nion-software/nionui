@@ -1481,14 +1481,14 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     sum = 0.0
                     mn = 9999.0
                     mx = 0.0
-                    for time in times:
-                        sum += time
-                        mn = min(mn, time)
-                        mx = max(mx, time)
+                    for t in times:
+                        sum += t
+                        mn = min(mn, t)
+                        mx = max(mx, t)
                     mean = sum / times.length()
                     sum_of_squares = 0.0
-                    for time in times:
-                        sum_of_squares += (time - mean) * (time - mean)
+                    for t in times:
+                        sum_of_squares += (t - mean) * (t - mean)
                     std_dev = math.sqrt(sum_of_squares / times.length())
                     print(f"{label} fps {int(100 * (1.0 / mean))/100.0} mean {mean} dev {std_dev} min {mn} max {mx}")
                     count_ref[0] = 0

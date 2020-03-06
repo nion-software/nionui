@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.3.28 (UNRELEASED)
 -------------------
+- Add backend support for multi-threaded section-serialized rendering.
 - Add backend support for section by section drawing for improved performance.
 - Add latency display (optional) to backend.
 - Fix drawing bugs (nested layers, startup race condition, thread shutdown).

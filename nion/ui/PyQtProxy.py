@@ -3,8 +3,10 @@ import copy
 import logging
 import math
 import numpy
+import os
 import pkgutil
 import sys
+import time
 import typing
 
 # third party libraries
@@ -1750,30 +1752,19 @@ class PyCanvasRenderThread(QtCore.QThread):
 
     renderingReady = Signal(QtCore.QRect)
 
-    def __init__(self, canvas: "PyCanvas", render_request: QtCore.QWaitCondition, render_request_mutex: QtCore.QMutex):
+    def __init__(self, canvas: "PyCanvas"):
         super().__init__()
         self.__canvas = canvas
-        self.__render_request = render_request
-        self.__render_request_mutex = render_request_mutex
         self.__cancel = False
-        self.__needs_render = False
 
     def cancel(self):
         self.__cancel = True
 
-    def needsRender(self):
-        self.__needs_render = True
-
     def run(self):
         while not self.__cancel:
-            self.__render_request_mutex.lock()
-            self.__render_request.wait(self.__render_request_mutex)
-            self.__render_request_mutex.unlock()
-
-            while self.__needs_render and not self.__cancel:
-                self.__needs_render = False
-                repaint_rect = self.__canvas.render_sections()
-                # print(f"repaint {repaint_rect}")
+            self.__canvas.wait_render_request()
+            repaint_rect = self.__canvas.render_one()
+            if repaint_rect is not None:
                 self.renderingReady.emit(repaint_rect)
 
 
@@ -1794,40 +1785,55 @@ class PyCanvas(QtWidgets.QWidget):
         self.__grab_reference_point = QtCore.QPoint()
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
-        self.__thread = None
+        self.__threads = list()
         # start the thread immediately to avoid drawing race conditions
-        self.__start_thread()
+        self.__start_threads()
 
     def close(self):
-        self.__stop_thread()
+        self.__stop_threads()
 
-    def __stop_thread(self):
-        if self.__thread:
-            self.__thread.cancel()
-            self.__render_request_mutex.lock()
+    def __stop_threads(self):
+        for thread in self.__threads:
+            thread.cancel()
+        with QtCore.QMutexLocker(self.__render_request_mutex):
             self.__render_request.wakeAll()
-            self.__render_request_mutex.unlock()
-            self.__thread.wait()
-            self.__thread = None
+        for thread in self.__threads:
+            thread.wait()
+        self.__threads = list()
 
-    def __start_thread(self):
-        if not self.__thread:
-            self.__thread = PyCanvasRenderThread(self, self.__render_request, self.__render_request_mutex)
-            self.__thread.renderingReady.connect(self.repaint_rect)
-            self.__thread.start()
+    def __start_threads(self):
+        if not self.__threads:
+            for _ in range(os.cpu_count()):
+                thread = PyCanvasRenderThread(self)
+                thread.renderingReady.connect(self.repaint_rect)
+                thread.start()
+                self.__threads.append(thread)
+
+    def wait_render_request(self) -> None:
+        needs_render = False
+        with QtCore.QMutexLocker(self.__commands_mutex):
+            sections = list(self.__sections.values())
+        for section in sections:
+            with QtCore.QMutexLocker(section.mutex):
+                if not section.rendering and section.commands:
+                    needs_render = True
+                    break
+        with QtCore.QMutexLocker(self.__render_request_mutex):
+            if not needs_render:
+                self.__render_request.wait(self.__render_request_mutex)
 
     def repaint_rect(self, rect: QtCore.QRect) -> None:
-        self.repaint(rect)
+        self.update(rect)
 
     def hideEvent(self, event: QtGui.QHideEvent) -> None:
         # the __del__ method is not a reliable way to override the QWidget destructor.
         # instead, use the hideEvent, which is the best alternative at the moment.
-        self.__stop_thread()
+        self.__stop_threads()
         super().hideEvent(event)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
         # since hideEvent is being used to shut down the thread, use showEvent to create the thread.
-        self.__start_thread()
+        self.__start_threads()
         super().showEvent(event)
 
     def focusInEvent(self, event) -> None:
@@ -1848,41 +1854,61 @@ class PyCanvas(QtWidgets.QWidget):
                 traceback.print_exc()
         super().focusOutEvent(event)
 
-    def render_sections(self) -> QtCore.QRect:
-        repaint_rect = None
-
+    def render_one(self) -> typing.Optional[QtCore.QRect]:
+        rect = None
         with QtCore.QMutexLocker(self.__commands_mutex):
             sections = list(self.__sections.values())
-
+        next_section = None
         for section in sections:
             with QtCore.QMutexLocker(section.mutex):
-                commands = section.commands
-                rect = section.rect
-                section.commands = None
-                section.rect = None
-            if commands:
-                image = QtGui.QImage(rect.size(), QtGui.QImage.Format_ARGB32)
-                image.fill(QtGui.QColor(0,0,0,0))
-                painter = QtGui.QPainter()
-                painter.begin(image)
-                try:
-                    painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-                    # print(f"+ {section.section_id} {self} {len(commands)} {rect.size()}")
-                    rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache)
-                finally:
-                    painter.end()
+                # first check whether the section can be rendered (not rendering already and has commands to render)
+                if not section.rendering and section.commands:
+                    # next check whether it is earlier than the current next_section
+                    # if so, make this the new next section
+                    if next_section is None or section.time < next_section.time:
+                        next_section = section
+        if next_section:
+            with QtCore.QMutexLocker(next_section.mutex):
+                # mark this section as being rendered, but check to make sure it's not being rendered
+                # on another thread (avoids race condition). also check to see if it was deleted.
+                if not next_section.rendering and next_section.commands:
+                    next_section.rendering = True
+                else:
+                    return None
+            rect = self.render_section(next_section)
+            with QtCore.QMutexLocker(next_section.mutex):
+                # mark this section as being finished. no race condition. just clear it and update the time.
+                next_section.rendering = False
+                next_section.time = time.perf_counter()
+            self.wakeRenderer()
+        return rect
 
-                with QtCore.QMutexLocker(section.mutex):
-                    section.image = image
-                    section.image_rect = rect
-                    section.rendered_timestamps = list()
-                    for rendered_timestamp in rendered_timestamps:
-                        transform = rendered_timestamp.transform
-                        transform.translate(rect.left(), rect.top())
-                        section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp))
-                    repaint_rect = repaint_rect.united(rect) if repaint_rect is not None else rect
+    def render_section(self, section) -> typing.Optional[QtCore.QRect]:
+        with QtCore.QMutexLocker(section.mutex):
+            commands = section.commands
+            rect = section.rect
+            section.commands = None
+            section.rect = None
+        if commands and rect:
+            image = QtGui.QImage(rect.size(), QtGui.QImage.Format_ARGB32)
+            image.fill(QtGui.QColor(0, 0, 0, 0))
+            painter = QtGui.QPainter()
+            painter.begin(image)
+            try:
+                painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache)
+            finally:
+                painter.end()
 
-        return repaint_rect
+            with QtCore.QMutexLocker(section.mutex):
+                section.image = image
+                section.image_rect = rect
+                section.rendered_timestamps = list()
+                for rendered_timestamp in rendered_timestamps:
+                    transform = rendered_timestamp.transform
+                    transform.translate(rect.left(), rect.top())
+                    section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp))
+        return rect
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         painter = QtGui.QPainter()
@@ -1895,9 +1921,7 @@ class PyCanvas(QtWidgets.QWidget):
                     image = section.image
                     image_rect = section.image_rect
                     rendered_timestamps = section.rendered_timestamps
-                # print(f"check {image_rect} {event.rect()}")
                 if image and image_rect.intersects(event.rect()):
-                    # print(f"B {section.section_id} {self} {image.size()} {image_rect}")
                     painter.drawImage(image_rect.topLeft(), image)
 
                 known_dts = self.__known_dts
@@ -2113,6 +2137,8 @@ class PyCanvas(QtWidgets.QWidget):
             self.image_cache = dict()
             self.layer_cache = dict()
             self.rendered_timestamps = list()
+            self.rendering = False
+            self.time = 0
 
     def setCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
         self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())
@@ -2124,18 +2150,15 @@ class PyCanvas(QtWidgets.QWidget):
         with QtCore.QMutexLocker(section.mutex):
             section.commands = commands
             section.rect = rect
-            # print(f"q {section_id} {self} {len(commands)} {rect}")
-        self.__render_request_mutex.lock()
-        try:
-            if self.__thread:
-                self.__thread.needsRender()
-                self.__render_request.wakeAll()
-        finally:
-            self.__render_request_mutex.unlock()
+        self.wakeRenderer()
+
+    def wakeRenderer(self) -> None:
+        with QtCore.QMutexLocker(self.__render_request_mutex):
+            if self.__threads:
+                self.__render_request.wakeOne()
 
     def removeSection(self, section_id: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):
-            # print(f"- {section_id} {self}")
             self.__sections.pop(section_id, None)
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:

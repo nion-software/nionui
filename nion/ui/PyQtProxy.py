@@ -1704,7 +1704,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "begin_layer":
             layer_id = int(args[0])
             layer_seed = int(args[1])
-            layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])
+            layer_rect = QtCore.QRect(int(args[3] * display_scaling), int(args[2] * display_scaling), int(args[5] * display_scaling), int(args[4] * display_scaling))
             layer_skip_stack.append(layer_skip)
             if not layer_skip:
                 if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
@@ -1712,29 +1712,27 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 else:
                     painter_stack.append(painter)
                     layer_image_stack.append(layer_image)
-                    layer_image = QtGui.QImage(QtCore.QSize(layer_rect[3], layer_rect[2]), QtGui.QImage.Format_ARGB32)
+                    layer_image = QtGui.QImage(layer_rect.size(), QtGui.QImage.Format_ARGB32)
                     layer_image.fill(QtGui.QColor(0,0,0,0))
                     painter = QtGui.QPainter(layer_image)
                     painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-                    painter.translate(layer_rect[1], layer_rect[0])
+                    painter.translate(layer_rect.left(), layer_rect.top())
             layers_used.add(layer_id)
         elif cmd == "end_layer":
             layer_id = int(args[0])
             layer_seed = int(args[1])
-            layer_rect = int(args[2]), int(args[3]), int(args[4]), int(args[5])  # t,l,h,w
+            layer_rect = QtCore.QRect(int(args[3] * display_scaling), int(args[2] * display_scaling), int(args[5] * display_scaling), int(args[4] * display_scaling))
             layer_skip = layer_skip_stack.pop()
             if not layer_skip:
                 if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
                     layer_image_to_draw = layer_cache[layer_id].layer_image
                     layer_rect = layer_cache[layer_id].layer_rect
-                    rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
-                    painter.drawImage(rect, layer_image_to_draw)
+                    painter.drawImage(layer_rect, layer_image_to_draw)
                 else:
                     painter.end()
                     layer_cache[layer_id] = LayerCacheEntry(layer_seed, layer_image, layer_rect)
-                    rect = QtCore.QRectF(QtCore.QPointF(layer_rect[1] * display_scaling, layer_rect[0] * display_scaling), QtCore.QSizeF(layer_rect[3] * display_scaling, layer_rect[2] * display_scaling))
                     painter = painter_stack.pop()
-                    painter.drawImage(rect, layer_image)
+                    painter.drawImage(layer_rect, layer_image)
                     layer_image = layer_image_stack.pop()
 
     if image_cache is not None:
@@ -2111,8 +2109,9 @@ class PyCanvas(QtWidgets.QWidget):
         self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())
 
     def setSectionCommands(self, section_id: int, commands: typing.List[CanvasDrawingCommand], left: int, top: int, width: int, height: int) -> None:
+        display_scaling = GetDisplayScaling()
         with QtCore.QMutexLocker(self.__commands_mutex):
-            rect = QtCore.QRect(QtCore.QPoint(left, top), QtCore.QSize(width, height))
+            rect = QtCore.QRect(left * display_scaling, top * display_scaling, width * display_scaling, height * display_scaling)
             section = self.__sections.setdefault(section_id, PyCanvas.CanvasSection(section_id, commands, rect))
         with QtCore.QMutexLocker(section.mutex):
             section.commands = commands

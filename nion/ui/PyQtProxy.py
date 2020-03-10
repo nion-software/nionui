@@ -1748,24 +1748,22 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     return rendered_timestamps
 
 
-class PyCanvasRenderThread(QtCore.QThread):
+class PyCanvasRenderTaskSignals(QtCore.QObject):
 
     renderingReady = Signal(QtCore.QRect)
+
+
+class PyCanvasRenderTask(QtCore.QRunnable):
 
     def __init__(self, canvas: "PyCanvas"):
         super().__init__()
         self.__canvas = canvas
-        self.__cancel = False
-
-    def cancel(self):
-        self.__cancel = True
+        self.signals = PyCanvasRenderTaskSignals()
 
     def run(self):
-        while not self.__cancel:
-            self.__canvas.wait_render_request()
-            repaint_rect = self.__canvas.render_one()
-            if repaint_rect is not None:
-                self.renderingReady.emit(repaint_rect)
+        repaint_rect = self.__canvas.render_one()
+        if repaint_rect is not None:
+            self.signals.renderingReady.emit(repaint_rect)
 
 
 class PyCanvas(QtWidgets.QWidget):
@@ -1776,8 +1774,6 @@ class PyCanvas(QtWidgets.QWidget):
         self.__pressed = False
         self.__grab_mouse_count = 0
         self.__rendered_timestamps = list()
-        self.__render_request = QtCore.QWaitCondition()
-        self.__render_request_mutex = QtCore.QMutex()
         self.__known_dts = dict()
         self.__commands_mutex = QtCore.QMutex()
         self.__sections = dict()
@@ -1785,56 +1781,9 @@ class PyCanvas(QtWidgets.QWidget):
         self.__grab_reference_point = QtCore.QPoint()
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
-        self.__threads = list()
-        # start the thread immediately to avoid drawing race conditions
-        self.__start_threads()
-
-    def close(self):
-        self.__stop_threads()
-
-    def __stop_threads(self):
-        for thread in self.__threads:
-            thread.cancel()
-        with QtCore.QMutexLocker(self.__render_request_mutex):
-            self.__render_request.wakeAll()
-        for thread in self.__threads:
-            thread.wait()
-        self.__threads = list()
-
-    def __start_threads(self):
-        if not self.__threads:
-            for _ in range(os.cpu_count()):
-                thread = PyCanvasRenderThread(self)
-                thread.renderingReady.connect(self.repaint_rect)
-                thread.start()
-                self.__threads.append(thread)
-
-    def wait_render_request(self) -> None:
-        needs_render = False
-        with QtCore.QMutexLocker(self.__commands_mutex):
-            sections = list(self.__sections.values())
-        for section in sections:
-            with QtCore.QMutexLocker(section.mutex):
-                if not section.rendering and section.commands:
-                    needs_render = True
-                    break
-        with QtCore.QMutexLocker(self.__render_request_mutex):
-            if not needs_render:
-                self.__render_request.wait(self.__render_request_mutex)
 
     def repaint_rect(self, rect: QtCore.QRect) -> None:
         self.update(rect)
-
-    def hideEvent(self, event: QtGui.QHideEvent) -> None:
-        # the __del__ method is not a reliable way to override the QWidget destructor.
-        # instead, use the hideEvent, which is the best alternative at the moment.
-        self.__stop_threads()
-        super().hideEvent(event)
-
-    def showEvent(self, event: QtGui.QShowEvent) -> None:
-        # since hideEvent is being used to shut down the thread, use showEvent to create the thread.
-        self.__start_threads()
-        super().showEvent(event)
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -2153,9 +2102,9 @@ class PyCanvas(QtWidgets.QWidget):
         self.wakeRenderer()
 
     def wakeRenderer(self) -> None:
-        with QtCore.QMutexLocker(self.__render_request_mutex):
-            if self.__threads:
-                self.__render_request.wakeOne()
+        task = PyCanvasRenderTask(self)
+        task.signals.renderingReady.connect(self.repaint_rect)
+        QtCore.QThreadPool.globalInstance().start(task);
 
     def removeSection(self, section_id: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):

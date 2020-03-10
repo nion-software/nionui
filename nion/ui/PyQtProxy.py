@@ -1293,11 +1293,13 @@ times_map = dict()
 count_map = dict()
 
 
-RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "timestamp"])
+RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "timestamp", "section_id"])
+
 
 def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand],
                   image_cache: typing.MutableMapping[int, PaintImageCacheEntry], display_scaling: float = 1.0, *,
-                  layer_cache: typing.MutableMapping[int, LayerCacheEntry] = None) -> typing.List[RenderedTimestamp]:
+                  layer_cache: typing.MutableMapping[int, LayerCacheEntry] = None,
+                  section_id: int = 0) -> typing.List[RenderedTimestamp]:
     global timer_map
     global times_map
     global count_map
@@ -1698,7 +1700,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             transform = painter.transform()
             for p in reversed(painter_stack):
                 transform = p.transform() * transform
-            rendered_timestamps.append(RenderedTimestamp(transform, date_time))
+            rendered_timestamps.append(RenderedTimestamp(transform, date_time, section_id))
         elif cmd == "begin_layer":
             layer_id = int(args[0])
             layer_seed = int(args[1])
@@ -1836,6 +1838,7 @@ class PyCanvas(QtWidgets.QWidget):
         with QtCore.QMutexLocker(section.mutex):
             commands = section.commands
             rect = section.rect
+            section_id = section.section_id
             section.commands = None
             section.rect = None
         if commands and rect:
@@ -1845,7 +1848,7 @@ class PyCanvas(QtWidgets.QWidget):
             painter.begin(image)
             try:
                 painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
-                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache)
+                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache, section_id=section_id)
             finally:
                 painter.end()
 
@@ -1856,7 +1859,7 @@ class PyCanvas(QtWidgets.QWidget):
                 for rendered_timestamp in rendered_timestamps:
                     transform = rendered_timestamp.transform
                     transform.translate(rect.left(), rect.top())
-                    section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp))
+                    section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp, rendered_timestamp.section_id))
         return rect
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
@@ -1883,7 +1886,20 @@ class PyCanvas(QtWidgets.QWidget):
                     utc = known_dts.get(dt, QtCore.QDateTime.currentDateTimeUtc())
                     self.__known_dts[dt] = utc
                     millisecondsDiff = dt.msecsTo(utc)
+                    latency_average = 0
+                    if rendered_timestamp.section_id > 0:
+                        with QtCore.QMutexLocker(self.__commands_mutex):
+                            section = self.__sections[rendered_timestamp.section_id]
+                        with QtCore.QMutexLocker(section.latencies_mutex):
+                            section.latencies.append(millisecondsDiff)
+                            if len(section.latencies) > 100:
+                                section.latencies.pop(0)
+                            for latency in section.latencies:
+                                latency_average += latency
+                            latency_average //= len(section.latencies)
                     text = "Latency " + str(millisecondsDiff)
+                    if latency_average > 0:
+                        text += " [" + str(latency_average) + "]"
                     text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
                     fm = QtGui.QFontMetrics(text_font)
                     text_width = fm.width(text)
@@ -2088,6 +2104,8 @@ class PyCanvas(QtWidgets.QWidget):
             self.rendered_timestamps = list()
             self.rendering = False
             self.time = 0
+            self.latencies_mutex = QtCore.QMutex()
+            self.latencies = list()
 
     def setCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
         self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())

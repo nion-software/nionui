@@ -5,7 +5,7 @@ Changelog (nionui)
 -------------------
 - Add backend support for multi-threaded section-serialized rendering.
 - Add backend support for section by section drawing for improved performance.
-- Add latency display (optional) to backend.
+- Add latency display capability with rolling average to backend.
 - Fix drawing bugs (nested layers, startup race condition, thread shutdown).
 - Introduce action architecture for declarative menus and key bindings.
 - Add support for "name" keyword for declarative row and column widgets.

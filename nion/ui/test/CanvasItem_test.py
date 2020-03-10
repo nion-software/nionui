@@ -1592,7 +1592,7 @@ class TestCanvasItemClass(unittest.TestCase):
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
             # update the outer layer with the initial size
-            outer_layer._update_self_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
             # sleep a short time to allow thread to run
             time.sleep(0.05)
             # save the repaint counts

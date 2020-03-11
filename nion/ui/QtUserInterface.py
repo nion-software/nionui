@@ -2078,8 +2078,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_text_edit_widget(self, properties=None):
         return UserInterface.TextEditWidget(QtTextEditWidgetBehavior(self.proxy, properties))
 
-    def create_canvas_widget(self, properties=None, *, use_layer=True):
-        return UserInterface.CanvasWidget(QtCanvasWidgetBehavior(self.proxy, properties), use_layer=use_layer)
+    def create_canvas_widget(self, properties=None, *, layout_render: str = None):
+        return UserInterface.CanvasWidget(QtCanvasWidgetBehavior(self.proxy, properties), layout_render=layout_render)
 
     def create_tree_widget(self, properties=None):
         return UserInterface.TreeWidget(QtTreeWidgetBehavior(self.proxy, properties))

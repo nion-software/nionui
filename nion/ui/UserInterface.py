@@ -1878,7 +1878,7 @@ class TextEditWidget(Widget):
 
 class CanvasWidget(Widget):
 
-    def __init__(self, widget_behavior, *, use_layer=True):
+    def __init__(self, widget_behavior, *, layout_render: str = None):
         super().__init__(widget_behavior)
         self.on_periodic = None
         self.on_dispatch_any = None
@@ -2025,7 +2025,7 @@ class CanvasWidget(Widget):
 
         self._behavior.on_pan_gesture = handle_pan_gesture
 
-        self.__canvas_item = CanvasItem.RootCanvasItem(self, use_layer=use_layer)
+        self.__canvas_item = CanvasItem.RootCanvasItem(self, layout_render=layout_render)
         self._behavior._set_canvas_item(self.__canvas_item)
 
     def close(self):
@@ -2855,7 +2855,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_canvas_widget(self, properties=None, *, use_layer=True) -> CanvasWidget:
+    def create_canvas_widget(self, properties=None, *, layout_render: str = None) -> CanvasWidget:
         ...
 
     @abc.abstractmethod

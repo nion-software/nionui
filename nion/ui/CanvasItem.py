@@ -30,8 +30,6 @@ if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
 
 
-DEFAULT_MAX_FRAME_RATE = 25
-
 MAX_VALUE = sys.maxsize
 
 class Orientation(enum.Enum):
@@ -2655,8 +2653,8 @@ class RootCanvasItem(CanvasItemComposition):
     root canvas item's hierarchy.
     """
 
-    def __init__(self, canvas_widget, max_frame_rate=None, use_layer=True):
-        super().__init__(LayerLayoutRenderTrait(self) if use_layer else RootLayoutRenderTrait(self))
+    def __init__(self, canvas_widget, *, layout_render: str = None):
+        super().__init__(RootLayoutRenderTrait(self) if layout_render == "root" else LayerLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked
@@ -2681,7 +2679,6 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
         self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
-        self.__max_frame_rate = float(max_frame_rate) if max_frame_rate is not None else DEFAULT_MAX_FRAME_RATE
         self.__drawing_context_updated = False
         self.__focused_item = None
         self.__last_focused_item = None

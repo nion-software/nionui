@@ -2639,6 +2639,10 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
                 self._canvas_item_composition.canvas_widget.remove_section(section_id)
 
 
+RootLayoutRender = "root"
+DefaultLayoutRender = None
+
+
 class RootCanvasItem(CanvasItemComposition):
     """A root layer to interface to the widget world.
 
@@ -2653,8 +2657,8 @@ class RootCanvasItem(CanvasItemComposition):
     root canvas item's hierarchy.
     """
 
-    def __init__(self, canvas_widget, *, layout_render: str = None):
-        super().__init__(RootLayoutRenderTrait(self) if layout_render == "root" else LayerLayoutRenderTrait(self))
+    def __init__(self, canvas_widget, *, layout_render: str = DefaultLayoutRender):
+        super().__init__(RootLayoutRenderTrait(self) if layout_render == RootLayoutRender else LayerLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked

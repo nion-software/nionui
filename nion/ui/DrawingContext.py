@@ -489,11 +489,11 @@ class DrawingContext:
 
     def begin_layer(self, layer_id: int, layer_seed: int, a, b, c, d) -> None:
         self.commands.append(("begin_layer", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
-        # self.binary_commands.extend(struct.pack("4siiffff", b"bgly", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
+        self.binary_commands.extend(struct.pack("4siiffff", b"bgly", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
 
     def end_layer(self, layer_id: int, layer_seed: int, a, b, c, d) -> None:
         self.commands.append(("end_layer", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
-        # self.binary_commands.extend(struct.pack("4siiffff", b"enly", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
+        self.binary_commands.extend(struct.pack("4siiffff", b"enly", int(layer_id), int(layer_seed), float(a), float(b), float(c), float(d)))
 
     def begin_path(self):
         self.commands.append(("beginPath", ))

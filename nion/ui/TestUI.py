@@ -1,6 +1,7 @@
 # standard libraries
 import collections
-import numbers
+import copy
+import enum
 import typing
 
 # third party libraries
@@ -9,14 +10,14 @@ import numpy
 # local libraries
 from . import CanvasItem
 from . import DrawingContext
-from . import UserInterface
+from . import UserInterface as UserInterfaceModule
 from nion.utils import Geometry
 
 
 focused_widget = None  # simulate focus handling at the widget level
 
 
-class MimeData(UserInterface.MimeData):
+class MimeData(UserInterfaceModule.MimeData):
     def __init__(self, mime_data=None):
         self.mime_data = dict() if mime_data is None else mime_data
 
@@ -39,291 +40,7 @@ class MimeData(UserInterface.MimeData):
         self.mime_data[format] = text
 
 
-class Widget:
-    def __init__(self):
-        self.widget_id = None
-        self.drawing_context = DrawingContext.DrawingContext()
-        self.width = 640
-        self.height = 480
-        self.current_index = 0
-        self.children = []
-        self.index = -1
-        self.parent_row = -1
-        self.parent_id = 0
-        self.current_index = -1
-        self.viewport = ((0, 0), (480, 640))
-        self.__size = None
-        self.__focused = False
-        self.on_editing_finished = None
-        self.on_focus_changed = None
-        self.on_text_edited = None
-        self.on_periodic = None
-        self.on_size_changed = None
-        self.__text_binding = None
-        self.__binding = None
-        self.__content = None
-        self.widget = None
-        self.focusable = False
-        self.__text = None
-        self.canvas_item = None
-    def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        for child in self.children:
-            child.close()
-        self.children = []
-        if self.content:
-            self.content.close()
-            self.content = None
-        if self.widget:
-            self.widget.close()
-            self.widget = None
-        if self.canvas_item:
-            self.canvas_item.close()
-            self.canvas_item = None
-        self.delegate = None
-        self.item_getter = None
-        self.items = []
-        self.item_model_controller = None
-        self.list_model_controller = None
-        self.root_container = None
-        self.header_widget = None
-        self.header_for_empty_list_widget = None
-        self.on_check_state_changed = None
-        self.on_clicked = None
-        self.on_context_menu_event = None
-        self.on_current_index_changed = None
-        self.on_current_item_changed = None
-        self.on_current_text_changed = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_editing_finished = None
-        self.on_escape_pressed = None
-        self.on_focus_changed = None
-        self.on_interpret_command = None
-        self.on_item_clicked = None
-        self.on_item_double_clicked = None
-        self.on_item_key_pressed = None
-        self.on_item_size = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_mouse_clicked = None
-        self.on_mouse_double_clicked = None
-        self.on_mouse_entered = None
-        self.on_mouse_exited = None
-        self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
-        self.on_mouse_pressed = None
-        self.on_mouse_released = None
-        self.on_paint = None
-        self.on_periodic = None
-        self.on_return_pressed = None
-        self.on_selection_changed = None
-        self.on_size_changed = None
-        self.on_slider_moved = None
-        self.on_slider_pressed = None
-        self.on_slider_released = None
-        self.on_text_changed = None
-        self.on_text_edited = None
-        self.on_tool_tip = None
-        self.on_value_changed = None
-        self.on_viewport_changed = None
-        self.on_wheel_changed = None
-    def _set_root_container(self, root_container):
-        pass
-    def periodic(self):
-        for child in self.children:
-            child.periodic()
-        if self.content:
-            self.content.periodic()
-        if callable(self.on_periodic):
-            self.on_periodic()
-    @property
-    def size(self):
-        return self.__size
-    @size.setter
-    def size(self, size):
-        self.size_changed(size)
-    def size_changed(self, size):
-        self.__size = size
-        for child in self.children:
-            child.size_changed(size)
-        if self.content:
-            self.width = size[1] if size is not None else None
-            self.height = size[0] if size is not None else None
-            self.content.size_changed(size)
-            if self.on_size_changed:
-                self.on_size_changed(self.width, self.height)
-        if self.canvas_item and size is not None:
-            self.width = size[1] if size is not None else None
-            self.height = size[0] if size is not None else None
-            if self.on_size_changed:
-                self.on_size_changed(self.width, self.height)
-    def send(self, text):
-        pass
-    @property
-    def child_count(self):
-        return len(self.children)
-    def add(self, widget, fill=False, alignment=None):
-        self.insert(widget, len(self.children), fill, alignment)
-    def insert(self, widget, before, fill=False, alignment=None):
-        self.children.insert(before, widget)
-        widget.size_changed(self.size)
-    def remove(self, widget):
-        if isinstance(widget, numbers.Integral):
-            widget = self.children[widget]
-        widget.close()
-        self.children.remove(widget)
-    def remove_all(self):
-        for widget in self.children:
-            widget.close()
-        self.children = list()
-    @property
-    def content(self):
-        return self.__content
-    @content.setter
-    def content(self, value):
-        self.__content = value
-        if self.__content:
-            self.__content.size_changed(self.size)
-    def add_stretch(self):
-        self.children.append(Widget())
-    def add_spacing(self, spacing):
-        self.children.append(Widget())
-    def draw(self, drawing_context):
-        pass
-    def save_state(self, tag):
-        pass
-    def restore_state(self, tag):
-        pass
-    def set_current_row(self, index, parent_row, parent_id):
-        self.index = index
-        self.parent_row = parent_row
-        self.parent_id = parent_id
-    def clear_current_row(self):
-        self.set_current_row(-1, -1, 0)
-    def set_selected_indexes(self, selected_indexes):
-        pass
-    def scroll_to(self, x, y):
-        pass
-    def set_scrollbar_policies(self, h, v):
-        pass
-    def show(self):
-        pass
-    def hide(self):
-        pass
-    def select_all(self):
-        pass
-    def request_refocus(self):
-        pass
-    @property
-    def text(self):
-        return self.__text
-    @text.setter
-    def text(self, value):
-        if self.__text != value:
-            self.__text = value
-    def bind_text(self, binding):
-        self.__text_binding = binding
-        self.__text = self.__text_binding.get_target_value()
-        self.__text_binding.target_setter = lambda t: setattr(self, "text", t)
-        self.on_editing_finished = lambda text: self.__text_binding.update_source(text)
-    def unbind_text(self):
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-    def bind_checked(self, binding):
-        self.__binding = binding
-        self.checked = self.__binding.get_target_value()
-        self.on_checked_changed = lambda value: self.__binding.update_source(value)
-    def unbind_checked(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-    def bind_check_state(self, binding):
-        self.__binding = binding
-        self.check_state = self.__binding.get_target_value()
-    def unbind_check_state(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-    def editing_finished(self, text):
-        if self.on_editing_finished:
-            self.on_editing_finished(text)
-    def bind_value(self, binding):
-        self.__binding = binding
-        self.value = self.__binding.get_target_value()
-        self.on_value_changed = lambda value: self.__binding.update_source(value)
-    def unbind_value(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.on_value_changed = None
-    def bind_current_index(self, binding):
-        self.__binding = binding
-        self.value = self.__binding.get_target_value()
-        self.current_item = self.items[self.value]
-    def unbind_current_index(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-    @property
-    def focused(self):
-        return self.__focused
-    @focused.setter
-    def focused(self, focused):
-        global focused_widget
-        if self.__focused != focused:
-            if focused and focused_widget != self:
-                if focused_widget:
-                    focused_widget.focused = False
-                focused_widget = self
-            self.__focused = focused
-            if self.on_focus_changed:
-                self.on_focus_changed(focused)
-    def drag(self, mime_data: MimeData, thumbnail_data, drag_finished_fn) -> None:
-        drag_finished_fn("none")
-    def set_cursor_shape(self, cursor_shape):
-        self.cursor_shape = cursor_shape
-    def append_text(self, value):
-        pass
-    def insert_text(self, value):
-        pass
-    def move_cursor_position(self, operation, mode=None, n=1):
-        pass
-    def simulate_mouse_click(self, x, y, modifiers):
-        if self.on_mouse_pressed:
-            self.on_mouse_pressed(x, y, modifiers)
-        if self.on_mouse_released:
-            self.on_mouse_released(x, y, modifiers)
-        if self.on_mouse_clicked:
-            self.on_mouse_clicked(x, y, modifiers)
-    @property
-    def _contained_widgets(self):
-        return [self.__content] if self.__content else self.children
-    def find_widget_by_id(self, widget_id):
-        if self.widget_id == widget_id:
-            return self
-        for contained_widget in self._contained_widgets:
-            found_widget = contained_widget.find_widget_by_id(widget_id)
-            if found_widget:
-                return found_widget
-        return None
-    def size_to_content(self):
-        pass
-    def set_sizes(self, sizes):
-        pass
-    def set_property(self, k, v):
-        pass
-
-
-class MenuItem(UserInterface.MenuAction):
+class MenuItem(UserInterfaceModule.MenuAction):
     def __init__(self, title, action_id, callback, key_sequence, role, menu, is_separator, checked):
         super().__init__(action_id)
         self.__title = title
@@ -357,7 +74,7 @@ class MenuItem(UserInterface.MenuAction):
         self.__enabled = value
 
 
-class Menu(UserInterface.Menu):
+class Menu(UserInterfaceModule.Menu):
     def __init__(self, document_window, title=None, menu_id=None):
         super().__init__(document_window, title, menu_id)
         self.on_popup = None
@@ -374,42 +91,6 @@ class Menu(UserInterface.Menu):
     def popup(self, gx, gy):
         if self.on_popup:
             self.on_popup(self, gx, gy)
-
-
-class DocumentWindow(UserInterface.Window):
-    def __init__(self, size=None):
-        super().__init__(None, "title")
-        self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
-        self.__title = None
-    def request_close(self):
-        if self.on_about_to_close:
-            self.on_about_to_close(str(), str())
-    def _attach_root_widget(self, root_widget):
-        self.root_widget.size_changed(self.__size)
-    def _set_title(self, value):
-        self.__title = value
-    def create_dock_widget(self, widget, panel_id, title, positions, position):
-        dock_widget = Widget()
-        dock_widget.add(widget)
-        dock_widget.size_changed(Geometry.IntSize(height=320, width=480))
-        return dock_widget
-    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
-        pass
-    def insert_menu(self, title, before_menu):
-        menu = Menu(self)
-        self._menu_inserted(menu, before_menu)
-        return menu
-    def add_menu(self, title, menu_id):
-        menu = Menu(self, menu_id)
-        self._menu_added(menu)
-        return menu
-    def show(self, size, position):
-        pass
-    def restore(self, geometry, state):
-        pass
-    def _get_focus_widget(self):
-        global focused_widget
-        return focused_widget
 
 
 class ItemModelController:
@@ -509,7 +190,7 @@ class ListModelController:
         pass
 
 
-class Key(UserInterface.Key):
+class Key(UserInterfaceModule.Key):
     def __init__(self, text, key, modifiers):
         self.__text = text
         self.__key = key
@@ -524,7 +205,7 @@ class Key(UserInterface.Key):
         return self.__key
 
     @property
-    def modifiers(self) -> UserInterface.KeyboardModifiers:
+    def modifiers(self) -> UserInterfaceModule.KeyboardModifiers:
         return self.__modifiers
 
     @property
@@ -615,119 +296,683 @@ class ButtonGroup:
             self.on_button_clicked(button_id)
 
 
-# define a dummy user interface to use during tests
-class UserInterface:
+class Widget:
+
+    def __init__(self, widget_type: str):
+        self.widget_type = widget_type
+        self.children = list()
+        self.size = None
+        self.on_size_changed = None
+
+    def close(self) -> None:
+        self.children = None
+
+    def size_changed(self, size) -> None:
+        if size != self.size:
+            self.size = size
+            if callable(self.on_size_changed):
+                self.on_size_changed(size)
+        for child in self.children:
+            child.size_changed(size)
+
+
+class WidgetBehavior:
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        self.widget = Widget(widget_type)
+        self.widget.on_size_changed = self._size_changed
+        self.does_retain_focus = False
+        self.on_ui_activity = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
+        self.on_size_changed = None
+        self._no_focus = "no_focus"
+        self.__focused = False
+        self.visible = True
+        self.enabled = True
+        self.size = None
+        self.tool_tip = None
+        self.children = list()
+        self.content = None
+        self.canvas_item = None
+
+    def close(self) -> None:
+        if callable(getattr(self.widget, "close", None)):
+            self.widget.close()
+        self.on_ui_activity = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
+        self.on_size_changed = None
+        self.children = list()
+        self.content = None
+        self.canvas_item = None
+
+    def _set_root_container(self, root_container):
+        pass
+
+    def _register_ui_activity(self):
+        pass
+
+    @property
+    def focused(self) -> bool:
+        return self.__focused
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        global focused_widget
+        if self.__focused != focused:
+            if focused and focused_widget != self:
+                if focused_widget:
+                    focused_widget.focused = False
+                focused_widget = self
+            self.__focused = focused
+            if self.on_focus_changed:
+                self.on_focus_changed(focused)
+
+    def set_property(self, key: str, value) -> None:
+        pass
+
+    def _size_changed(self, size: Geometry.IntSize) -> None:
+        pass
+
+    def map_to_global(self, p):
+        return p
+
+
+class NullBehavior:
+
     def __init__(self):
-        CanvasItem._threaded_rendering_enabled = False
-        self.popup = None
-        self.popup_pos = None
-        self.clipboard = MimeData()
+        self.focused = False
+        self.enabled = True
+        self.visible = True
+
     def close(self):
         pass
+
+    def _set_root_container(self, root_container):
+        pass
+
+
+class BoxStretch(UserInterfaceModule.Widget):
+
+    def __init__(self):
+        super().__init__(NullBehavior())
+
+
+class BoxSpacing(UserInterfaceModule.Widget):
+
+    def __init__(self, spacing: int):
+        super().__init__(NullBehavior())
+        self.spacing = spacing
+
+
+def extract_widget(widget: UserInterfaceModule.Widget) -> typing.Optional[Widget]:
+    if hasattr(widget, "content_widget"):
+        return extract_widget(widget.content_widget)
+    elif hasattr(widget, "_behavior"):
+        return widget._behavior.widget
+    return None
+
+
+class WidgetItemType(enum.Enum):
+    WIDGET = 0
+    STRETCH = 1
+    SPACING = 2
+
+
+class WidgetItem:
+
+    def __init__(self, type: WidgetItemType, *, widget=None, fill: bool = False, alignment: str = None, spacing: int = 0):
+        self.type = type
+        self.widget = widget
+        self.fill = fill
+        self.alignment = alignment
+        self.spacing = spacing
+
+
+class BoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.__widgets = list()
+
+    def insert(self, child, index, fill, alignment):
+        # behavior must handle index of None, meaning insert at end
+        child_widget = extract_widget(child)
+        assert child_widget is not None
+        index = index if index is not None else len(self.__widgets)
+        self.__widgets.insert(index, WidgetItem(WidgetItemType.WIDGET, widget=child_widget, fill=fill, alignment=alignment))
+        self.widget.children.insert(index, child_widget)
+        child_widget.size_changed(self.widget.size)
+
+    def add_stretch(self) -> UserInterfaceModule.Widget:
+        self.__widgets.append(WidgetItem(WidgetItemType.STRETCH))
+        self.widget.children.append(Widget("stretch"))
+        return BoxStretch()
+
+    def add_spacing(self, spacing: int) -> UserInterfaceModule.Widget:
+        self.__widgets.append(WidgetItem(WidgetItemType.SPACING, spacing=spacing))
+        self.widget.children.append(Widget("spacing"))
+        return BoxSpacing(spacing)
+
+    def remove_all(self) -> None:
+        self.__widgets.clear()
+        self.widget.children.clear()
+
+
+class SplitterWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class TabWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class StackWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.current_index = -1
+
+    def insert(self, child: UserInterfaceModule.Widget, index: int) -> None:
+        # behavior must handle index of None, meaning insert at end
+        child_widget = extract_widget(child)
+        assert child_widget is not None
+        index = index if index is not None else len(self.widget.children)
+        self.widget.children.insert(index, child_widget)
+        child_widget.size_changed(self.widget.size)
+
+    def add(self, child: UserInterfaceModule.Widget) -> None:
+        child_widget = extract_widget(child)
+        self.widget.children.append(child_widget)
+
+    def remove(self, child: UserInterfaceModule.Widget) -> None:
+        child_widget = extract_widget(child)
+        self.widget.children.remove(child_widget)
+
+
+class GroupWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class ScrollAreaWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+
+    def close(self):
+        self.on_size_changed = None
+        self.on_viewport_changed = None
+        super().close()
+
+    def set_content(self, content: UserInterfaceModule.Widget) -> None:
+        assert not self.widget.children
+        child_widget = extract_widget(content)
+        self.widget.children.append(child_widget)
+        child_widget.size_changed(self.widget.size)
+
+    # called from widget
+    def _size_changed(self, size: Geometry.IntSize) -> None:
+        self._register_ui_activity()
+        if callable(self.on_size_changed):
+            self.on_size_changed(size.width, size.height)
+
+    def scroll_to(self, x, y):
+        pass
+
+    def set_scrollbar_policies(self, horizontal_policy, vertical_policy):
+        pass
+
+
+class ComboBoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.on_current_text_changed = None
+        self.current_index = 0
+        self.item_strings = list()
+
+    def close(self):
+        self.on_current_text_changed = None
+        super().close()
+
+    @property
+    def current_text(self) -> str:
+        return self.item_strings[self.current_index] if 0 <= self.current_index < len(self.item_strings) else str()
+
+    @current_text.setter
+    def current_text(self, value: str) -> None:
+        if 0 <= self.current_index < len(self.item_strings):
+            self.item_strings[self.current_index] = value
+
+    def set_item_strings(self, item_strings: typing.Sequence[str]) -> None:
+        self.item_strings = copy.copy(item_strings)
+
+
+class PushButtonWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class RadioButtonWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class CheckBoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class LabelWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class SliderWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class CanvasWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.on_mouse_entered = None
+        self.on_mouse_exited = None
+        self.on_mouse_clicked = None
+        self.on_mouse_double_clicked = None
+        self.on_mouse_pressed = None
+        self.on_mouse_released = None
+        self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
+        self.on_wheel_changed = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_size_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_tool_tip = None
+        self.on_pan_gesture = None
+        self.__focusable = False
+
+    def close(self):
+        self.on_mouse_entered = None
+        self.on_mouse_exited = None
+        self.on_mouse_clicked = None
+        self.on_mouse_double_clicked = None
+        self.on_mouse_pressed = None
+        self.on_mouse_released = None
+        self.on_mouse_position_changed = None
+        self.on_grabbed_mouse_position_changed = None
+        self.on_wheel_changed = None
+        self.on_key_pressed = None
+        self.on_key_released = None
+        self.on_size_changed = None
+        self.on_drag_enter = None
+        self.on_drag_leave = None
+        self.on_drag_move = None
+        self.on_drop = None
+        self.on_tool_tip = None
+        self.on_pan_gesture = None
+        super().close()
+
+    def _set_canvas_item(self, canvas_item):
+        pass
+
+    def periodic(self):
+        pass
+
+    @property
+    def focusable(self):
+        return self.__focusable
+
+    @focusable.setter
+    def focusable(self, focusable):
+        self.__focusable = focusable
+
+    def draw(self, drawing_context):
+        pass
+
+    def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        pass
+
+    def remove_section(self, section_id: int) -> None:
+        pass
+
+    def set_cursor_shape(self, cursor_shape):
+        cursor_shape = cursor_shape or "arrow"
+
+    def grab_gesture(self, gesture_type):
+        pass
+
+    def release_gesture(self, gesture_type):
+        pass
+
+    def grab_mouse(self, gx, gy):
+        pass
+
+    def release_mouse(self):
+        pass
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        pass
+
+
+class LineEditWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.on_editing_finished = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_text_edited = None
+        self.__clear_button_enabled = False
+        self._no_focus = "click_focus"
+        self.text = str()
+        self.placeholder_text = str()
+        self.editable = True
+        self.clear_button_enabled = False
+
+    def close(self):
+        self.on_editing_finished = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_text_edited = None
+        super().close()
+
+    @property
+    def selected_text(self) -> str:
+        return self.text
+
+    def select_all(self) -> None:
+        pass
+
+    def editing_finished(self, text: str) -> None:
+        self.text = text
+        if self.on_editing_finished:
+            self.on_editing_finished(text)
+
+
+class TextEditWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+        self.__word_wrap_mode = "optimal"
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
+        self._no_focus = "click_focus"
+        self.text = str()
+        self.selected_text = str()
+        self.placeholder = str()
+        self.editable = True
+        self.word_wrap_mode = None
+
+    def close(self):
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
+        super().close()
+
+    @property
+    def cursor_position(self) -> UserInterfaceModule.CursorPosition:
+        return UserInterfaceModule.CursorPosition(0, 0, 0)
+
+    @property
+    def selection(self) -> UserInterfaceModule.Selection:
+        return UserInterfaceModule.Selection(0, 0)
+
+    def append_text(self, value: str) -> None:
+        self.text += value
+
+    def insert_text(self, value: str) -> None:
+        self.text += value
+
+    def clear_selection(self) -> None:
+        pass
+
+    def remove_selected_text(self) -> None:
+        pass
+
+    def select_all(self) -> None:
+        pass
+
+    def move_cursor_position(self, operation, mode=None, n: int = 1) -> None:
+        pass
+
+    def set_text_color(self, color: str) -> None:
+        pass
+
+
+class TreeWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Mapping):
+        super().__init__(widget_type, properties)
+
+
+class DocumentWindowX(UserInterfaceModule.Window):
+
+    def __init__(self, size: typing.Optional[Geometry.IntSize] = None):
+        super().__init__(None, "title")
+        self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
+        self.__title = None
+
+    def request_close(self):
+        if self.on_about_to_close:
+            self.on_about_to_close(str(), str())
+
+    def _attach_root_widget(self, root_widget):
+        extract_widget(root_widget).size_changed(self.__size)
+
+    def _set_title(self, value: str) -> None:
+        self.__title = value
+
+    def create_dock_widget(self, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterfaceModule.DockWidget:
+        dock_widget = DockWidget(self, widget, panel_id, title, positions, position)
+        dock_widget.size_changed(Geometry.IntSize(height=320, width=480))
+        return dock_widget
+
+    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+        pass
+
+    def insert_menu(self, title: str, before_menu, menu_id: str = None) -> UserInterfaceModule.Menu:
+        menu = Menu(self)
+        self._menu_inserted(menu, before_menu)
+        return menu
+
+    def add_menu(self, title: str, menu_id: str = None) -> Menu:
+        menu = Menu(self, menu_id)
+        self._menu_added(menu)
+        return menu
+
+    def show(self, size=None, position=None):
+        pass
+
+    def restore(self, geometry, state):
+        pass
+
+    def _get_focus_widget(self):
+        global focused_widget
+        return focused_widget
+
+
+class DockWidget(UserInterfaceModule.DockWidget):
+
+    def __init__(self, window, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str):
+        super().__init__(window, widget, panel_id, title, positions, position)
+        self.visible = False
+        self.__focus_policy = "no_focus"
+        self.does_retain_focus = False
+
+    @property
+    def toggle_action(self):
+        action = UserInterfaceModule.MenuAction("toggle_dock_widget_" + self.panel_id)
+        action.on_ui_activity = self._register_ui_activity
+        return action
+
+    def show(self):
+        self.visible = True
+        self._register_ui_activity()
+
+    def hide(self):
+        self.visible = False
+        self._register_ui_activity()
+
+    def size_changed(self, size: Geometry.IntSize) -> None:
+        self._handle_size_changed(size)
+
+
+class UserInterface(UserInterfaceModule.UserInterface):
+
+    def __init__(self):
+        CanvasItem._threaded_rendering_enabled = False
+        self.clipboard = MimeData()
+        self.popup = None
+        self.popup_pos = None
+
+    def close(self):
+        pass
+
     def set_application_info(self, name: str, organization: str, domain: str) -> None:
         pass
+
+    # data objects
+
     def create_mime_data(self) -> MimeData:
         return MimeData()
+
     def create_item_model_controller(self, keys):
         return ItemModelController()
-    def create_document_window(self, title=None, parent_window=None):
-        return DocumentWindow()
-    def destroy_document_window(self, document_window):
-        document_window.close()
+
     def create_button_group(self):
         return ButtonGroup()
+
+    # window elements
+
+    def create_document_window(self, title=None, parent_window=None):
+        return DocumentWindowX()
+
+    def destroy_document_window(self, document_window):
+        document_window.close()
+
     def create_row_widget(self, alignment=None, properties=None):
-        return Widget()
+        return UserInterfaceModule.BoxWidget(BoxWidgetBehavior("row", properties), alignment)
+
     def create_column_widget(self, alignment=None, properties=None):
-        return Widget()
+        return UserInterfaceModule.BoxWidget(BoxWidgetBehavior("column", properties), alignment)
+
     def create_splitter_widget(self, orientation="vertical", properties=None):
-        return Widget()
+        return UserInterfaceModule.SplitterWidget(SplitterWidgetBehavior("splitter", properties), orientation)
+
     def create_tab_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.TabWidget(TabWidgetBehavior("tab", properties))
+
     def create_stack_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.StackWidget(StackWidgetBehavior("stack", properties))
+
+    def create_group_widget(self, properties=None):
+        return UserInterfaceModule.GroupWidget(GroupWidgetBehavior("group", properties))
+
     def create_scroll_area_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.ScrollAreaWidget(ScrollAreaWidgetBehavior("scrollarea", properties))
+
     def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
-        widget = Widget()
-        widget.items = items
-        return widget
+        return UserInterfaceModule.ComboBoxWidget(ComboBoxWidgetBehavior("combobox", properties), items, item_getter)
+
     def create_push_button_widget(self, text=None, properties=None):
-        return Widget()
+        return UserInterfaceModule.PushButtonWidget(PushButtonWidgetBehavior("pushbutton", properties), text)
+
     def create_radio_button_widget(self, text=None, properties=None):
-        return Widget()
+        return UserInterfaceModule.RadioButtonWidget(RadioButtonWidgetBehavior("radiobutton", properties), text)
+
     def create_check_box_widget(self, text=None, properties=None):
-        return Widget()
+        return UserInterfaceModule.CheckBoxWidget(CheckBoxWidgetBehavior("checkbox", properties), text)
+
     def create_label_widget(self, text=None, properties=None):
-        widget = Widget()
-        widget.text = text
-        return widget
+        return UserInterfaceModule.LabelWidget(LabelWidgetBehavior("label", properties), text)
+
     def create_slider_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.SliderWidget(SliderWidgetBehavior("slider", properties))
+
     def create_progress_bar_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.ProgressBarWidget(CanvasWidgetBehavior("canvas", properties))
+
     def create_line_edit_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.LineEditWidget(LineEditWidgetBehavior("lineedit", properties))
+
     def create_text_edit_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.TextEditWidget(TextEditWidgetBehavior("textedit", properties))
+
     def create_canvas_widget(self, properties=None, *, layout_render: str = None):
-        widget = Widget()
-        widget.canvas_item = CanvasItem.RootCanvasItem(widget)
-        return widget
+        return UserInterfaceModule.CanvasWidget(CanvasWidgetBehavior("canvas", properties), layout_render=layout_render)
+
     def create_tree_widget(self, properties=None):
-        return Widget()
+        return UserInterfaceModule.TreeWidget(TreeWidgetBehavior("pytree", properties))
+
+    # file i/o
+
     def load_rgba_data_from_file(self, filename):
         return numpy.zeros((20,20), numpy.uint32)
-    def get_persistent_string(self, key, default_value=None):
-        return default_value
-    def set_persistent_string(self, key, value):
+
+    def save_rgba_data_to_file(self, data, filename, format):
         pass
-    def get_persistent_object(self, key, default_value=None):
-        return default_value
-    def set_persistent_object(self, key, value):
-        pass
-    def remove_persistent_key(self, key):
-        pass
+
+    def get_existing_directory_dialog(self, title, directory):
+        return directory, directory
+
+    # persistence (associated with application)
+
     def get_data_location(self):
         return str()
+
     def get_document_location(self):
         return str()
+
     def get_temporary_location(self):
         return str()
-    def create_key_by_id(self, key_id, modifiers=None):
-        return Key(None, key_id, modifiers)
-    def create_modifiers_by_id_list(self, modifiers_id_list):
-        shift = False
-        control = False
-        alt = False
-        meta = False
-        keypad = False
-        for modifiers_id in modifiers_id_list:
-            if modifiers_id == "shift":
-                shift = True
-            elif modifiers_id == "control":
-                control = True
-            elif modifiers_id == "alt":
-                alt = True
-            elif modifiers_id == "meta":
-                meta = True
-            elif modifiers_id == "keypad":
-                keypad = True
-        return CanvasItem.KeyboardModifiers(shift, control, alt, meta, keypad)
-    def get_font_metrics(self, font, text):
-        FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-        return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
-    def create_rgba_image(self, drawing_context, width, height):
-        return numpy.zeros((height, width), dtype=numpy.uint32)
-    def create_context_menu(self, document_window):
-        menu = Menu(document_window)
-        def handle_popup(menu, gx, gy):
-            self.popup = menu
-            self.popup_pos = gx, gy
-        menu.on_popup = handle_popup
-        return menu
-    def create_sub_menu(self, document_window, title, menu_id=None):
-        return Menu(document_window, title)
+
+    def get_configuration_location(self):
+        return str()
+
+    def get_persistent_string(self, key, default_value=None):
+        return default_value
+
+    def set_persistent_string(self, key, value):
+        pass
+
+    def get_persistent_object(self, key, default_value=None):
+        return default_value
+
+    def set_persistent_object(self, key, value):
+        pass
+
+    def remove_persistent_key(self, key):
+        pass
 
     # clipboard
 
@@ -746,3 +991,47 @@ class UserInterface:
 
     def clipboard_text(self):
         self.clipboard.data_as_string('text')
+
+    # misc
+
+    def create_rgba_image(self, drawing_context, width, height):
+        return numpy.zeros((height, width), dtype=numpy.uint32)
+
+    def get_font_metrics(self, font, text):
+        FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
+        return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
+
+    def create_context_menu(self, document_window) -> UserInterfaceModule.Menu:
+        menu = Menu(document_window)
+        def handle_popup(menu, gx, gy):
+            self.popup = menu
+            self.popup_pos = gx, gy
+        menu.on_popup = handle_popup
+        return menu
+
+    def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterfaceModule.Menu:
+        return Menu(document_window, title)
+
+    # testing
+
+    def create_key_by_id(self, key_id: str, modifiers: CanvasItem.KeyboardModifiers = None) -> UserInterfaceModule.Key:
+        return Key(None, key_id, modifiers)
+
+    def create_modifiers_by_id_list(self, modifiers_id_list: typing.Sequence[str]) -> CanvasItem.KeyboardModifiers:
+        shift = False
+        control = False
+        alt = False
+        meta = False
+        keypad = False
+        for modifiers_id in modifiers_id_list:
+            if modifiers_id == "shift":
+                shift = True
+            elif modifiers_id == "control":
+                control = True
+            elif modifiers_id == "alt":
+                alt = True
+            elif modifiers_id == "meta":
+                meta = True
+            elif modifiers_id == "keypad":
+                keypad = True
+        return CanvasItem.KeyboardModifiers(shift, control, alt, meta, keypad)

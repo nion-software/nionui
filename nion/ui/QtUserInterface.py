@@ -464,6 +464,9 @@ class QtWidgetBehavior:
         if callable(getattr(self.widget, "close", None)):
             self.widget.close()
         self.proxy.Widget_removeWidget(self.widget)
+        self.on_ui_activity = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
         self.widget = None
         self.proxy = None
 

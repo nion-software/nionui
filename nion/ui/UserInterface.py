@@ -1688,6 +1688,9 @@ class LineEditWidget(Widget):
         self.on_return_pressed = None
         self.on_escape_pressed = None
 
+    def editing_finished(self, text: str) -> None:
+        self._behavior.editing_finished(text)
+
 
 Selection = collections.namedtuple("Selection", ["start", "end"])
 

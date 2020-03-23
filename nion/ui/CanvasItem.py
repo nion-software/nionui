@@ -1807,7 +1807,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__needs_layout = False
         self.__needs_repaint = False
         self.__prepare_canvas_items = list()
-        global _threaded_rendering_enabled
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_condition = threading.Condition()
 
@@ -2658,7 +2657,7 @@ class RootCanvasItem(CanvasItemComposition):
     """
 
     def __init__(self, canvas_widget, *, layout_render: str = DefaultLayoutRender):
-        super().__init__(RootLayoutRenderTrait(self) if layout_render == RootLayoutRender else LayerLayoutRenderTrait(self))
+        super().__init__(RootLayoutRenderTrait(self) if layout_render == RootLayoutRender and _threaded_rendering_enabled else LayerLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked

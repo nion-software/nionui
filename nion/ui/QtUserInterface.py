@@ -705,7 +705,7 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         super().__init__(proxy, "stack", properties)
         self.__current_index = -1
 
-    def insert(self, child, index):
+    def insert(self, child: UserInterface.Widget, index: int) -> None:
         # behavior must handle index of None, meaning insert at end
         child_widget = extract_widget(child)
         assert self.widget is not None
@@ -720,11 +720,11 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         self.proxy.StackWidget_removeWidget(self.widget, extract_widget(child))
 
     @property
-    def current_index(self):
+    def current_index(self) -> int:
         return self.__current_index
 
     @current_index.setter
-    def current_index(self, index):
+    def current_index(self, index: int) -> None:
         self.__current_index = index
         self.proxy.StackWidget_setCurrentIndex(self.widget, index)
 
@@ -800,14 +800,14 @@ class QtComboBoxWidgetBehavior(QtWidgetBehavior):
         super().close()
 
     @property
-    def current_text(self):
+    def current_text(self) -> str:
         return self.proxy.ComboBox_getCurrentText(self.widget)
 
     @current_text.setter
-    def current_text(self, value):
+    def current_text(self, value: str) -> None:
         self.proxy.ComboBox_setCurrentText(self.widget, notnone(value))
 
-    def set_item_strings(self, item_strings):
+    def set_item_strings(self, item_strings: typing.Sequence[str]) -> None:
         # note: do not send on_current_text_changed during this method
         # this problem occurred in camera panel during binning init
         on_current_text_changed = self.on_current_text_changed
@@ -1109,7 +1109,6 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
         self.on_key_pressed = None
         self.on_text_edited = None
         self.proxy.LineEdit_connect(self.widget, self)
-        self.__binding = None
         self.__clear_button_enabled = False
         self._no_focus = "click_focus"
 
@@ -1137,7 +1136,7 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.LineEdit_setPlaceholderText(self.widget, notnone(text))
 
     @property
-    def selected_text(self):
+    def selected_text(self) -> str:
         return self.proxy.LineEdit_getSelectedText(self.widget)
 
     @property
@@ -1157,7 +1156,7 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
     def editable(self, editable: bool) -> None:
         self.proxy.LineEdit_setEditable(self.widget, editable)
 
-    def select_all(self):
+    def select_all(self) -> None:
         self.proxy.LineEdit_selectAll(self.widget)
 
     def editingFinished(self, text):
@@ -1215,62 +1214,62 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
         super().close()
 
     @property
-    def text(self):
+    def text(self) -> str:
         return self.proxy.TextEdit_getText(self.widget)
 
     @text.setter
-    def text(self, value):
+    def text(self, value: str) -> None:
         self.proxy.TextEdit_setText(self.widget, notnone(value))
 
     @property
-    def placeholder(self):
+    def placeholder(self) -> str:
         return self.proxy.TextEdit_getPlaceholderText(self.widget)
 
     @placeholder.setter
-    def placeholder(self, value):
+    def placeholder(self, value: str) -> None:
         self.proxy.TextEdit_setPlaceholderText(self.widget, notnone(value))
 
     @property
-    def editable(self):
+    def editable(self) -> bool:
         return bool(self.proxy.TextEdit_getEditable(self.widget))
 
     @editable.setter
-    def editable(self, value):
+    def editable(self, value: bool) -> None:
         self.proxy.TextEdit_setEditable(self.widget, value)
 
     @property
-    def selected_text(self):
+    def selected_text(self) -> str:
         return self.proxy.TextEdit_getSelectedText(self.widget)
 
     @property
-    def cursor_position(self):
+    def cursor_position(self) -> UserInterface.CursorPosition:
         position, block_number, column_number, _, _ = self.proxy.TextEdit_getCursorInfo(self.widget)
         return UserInterface.CursorPosition(position, block_number, column_number)
 
     @property
-    def selection(self):
+    def selection(self) -> UserInterface.Selection:
         _, _, _, start, end = self.proxy.TextEdit_getCursorInfo(self.widget)
         return UserInterface.Selection(start, end)
 
-    def append_text(self, value):
+    def append_text(self, value: str) -> None:
         self.proxy.TextEdit_appendText(self.widget, notnone(value))
 
-    def insert_text(self, value):
+    def insert_text(self, value: str) -> None:
         self.proxy.TextEdit_insertText(self.widget, notnone(value))
 
-    def clear_selection(self):
+    def clear_selection(self) -> None:
         self.proxy.TextEdit_clearSelection(self.widget)
 
-    def remove_selected_text(self):
+    def remove_selected_text(self) -> None:
         self.proxy.TextEdit_removeSelectedText(self.widget)
 
-    def select_all(self):
+    def select_all(self) -> None:
         self.proxy.TextEdit_selectAll(self.widget)
 
-    def move_cursor_position(self, operation, mode=None, n=1):
+    def move_cursor_position(self, operation, mode=None, n: int = 1) -> None:
         self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
 
-    def set_text_color(self, color):
+    def set_text_color(self, color: str) -> None:
         if color == "red":
             self.proxy.TextEdit_setTextColor(self.widget, 255, 0, 0)
         elif color == "green":

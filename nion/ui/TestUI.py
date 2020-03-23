@@ -659,7 +659,9 @@ class UserInterface:
     def create_check_box_widget(self, text=None, properties=None):
         return Widget()
     def create_label_widget(self, text=None, properties=None):
-        return Widget()
+        widget = Widget()
+        widget.text = text
+        return widget
     def create_slider_widget(self, properties=None):
         return Widget()
     def create_progress_bar_widget(self, properties=None):

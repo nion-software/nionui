@@ -462,7 +462,7 @@ class Widget:
             if self.__tool_tip_binding:
                 self.__tool_tip_binding.update_source(tool_tip)
 
-    def set_property(self, key, value):
+    def set_property(self, key: str, value) -> None:
         self._behavior.set_property(key, value)
 
     def drag(self, mime_data: MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
@@ -2492,6 +2492,100 @@ class Menu:
         raise NotImplemented()
 
 
+class DockWidget:
+
+    def __init__(self, document_window: "Window", widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str):
+        self.document_window = document_window
+        self.document_window.register_dock_widget(self)
+        self.widget = widget
+        self.widget._set_root_container(self)
+        self.panel_id = panel_id
+        self.title = title
+        self.positions = positions
+        self.position = position
+        self.on_size_changed = None
+        self.on_focus_changed = None
+        self.on_ui_activity = None
+        self.size = None
+
+    def close(self):
+        self.widget.close()
+        self.widget = None
+        self.document_window.unregister_dock_widget(self)
+        self.document_window = None
+        self.on_size_changed = None
+        self.on_focus_changed = None
+        self.on_ui_activity = None
+
+    def _register_ui_activity(self):
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
+
+    @property
+    def width(self) -> int:
+        return self.size.width if self.size else 0
+
+    @property
+    def height(self) -> int:
+        return self.size.height if self.size else 0
+
+    def refocus_widget(self, widget):
+        self.document_window.refocus_widget(widget)
+
+    @property
+    def focus_widget(self):
+        def match_native_widget(widget):
+            if widget.focused:
+                return widget
+            for child_widget in widget._contained_widgets:
+                matched_widget = match_native_widget(child_widget)
+                if matched_widget:
+                    return matched_widget
+            return None
+        return match_native_widget(self.widget)
+
+    def queue_task(self, task):
+        self.document_window.queue_task(task)
+
+    def clear_queued_tasks(self):
+        self.document_window.clear_queued_tasks()
+
+    def add_task(self, key, task):
+        self.document_window.add_task(key + str(id(self)), task)
+
+    def clear_task(self, key):
+        self.document_window.clear_task(key + str(id(self)))
+
+    def periodic(self):
+        self.widget.periodic()
+
+    @property
+    def toggle_action(self) -> MenuAction:
+        raise NotImplementedError()
+
+    def show(self):
+        self._register_ui_activity()
+
+    def hide(self):
+        self._register_ui_activity()
+
+    def _handle_size_changed(self, size: Geometry.IntSize) -> None:
+        self._register_ui_activity()
+        self.size = size
+        if callable(self.on_size_changed):
+            self.on_size_changed(self.width, self.height)
+
+    def _handle_focus_in(self) -> None:
+        self._register_ui_activity()
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(True)
+
+    def _handle_focus_out(self) -> None:
+        self._register_ui_activity()
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(False)
+
+
 class Window:
 
     def __init__(self, parent_window, title):
@@ -2622,7 +2716,7 @@ class Window:
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
         raise NotImplemented()
 
-    def create_dock_widget(self, widget, panel_id, title, positions, position):
+    def create_dock_widget(self, widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> DockWidget:
         raise NotImplemented()
 
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):

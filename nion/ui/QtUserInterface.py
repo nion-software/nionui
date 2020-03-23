@@ -474,7 +474,7 @@ class QtWidgetBehavior:
         for key in self.properties.keys():
             self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(self.properties[key]))
 
-    def set_property(self, key, value):
+    def set_property(self, key: str, value) -> None:
         self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(value))
 
     def _set_root_container(self, root_container):
@@ -1801,7 +1801,7 @@ class QtWindow(UserInterface.Window):
         file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_path, filter, directory
 
-    def create_dock_widget(self, widget, panel_id, title, positions, position):
+    def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
         return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
 
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
@@ -1887,54 +1887,20 @@ class QtWindow(UserInterface.Window):
         self._handle_position_changed(x, y)
 
 
-class QtDockWidget:
+class QtDockWidget(UserInterface.DockWidget):
 
     def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
+        super().__init__(document_window, widget, panel_id, title, positions, position)
         self.proxy = proxy
-        self.document_window = document_window
-        self.document_window.register_dock_widget(self)
-        self.widget = widget
-        self.widget._set_root_container(self)
-        self.on_size_changed = None
-        self.on_focus_changed = None
-        self.on_ui_activity = None
-        self.width = None
-        self.height = None
         self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
         self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.native_dock_widget)
-        self.__panel_id = panel_id
 
     def close(self):
         self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
-        self.widget.close()
-        self.document_window.unregister_dock_widget(self)
-        self.document_window = None
-        self.on_size_changed = None
-        self.on_focus_changed = None
-        self.on_ui_activity = None
-        self.widget = None
         self.native_dock_widget = None
         self.proxy = None
-
-    def _register_ui_activity(self):
-        if callable(self.on_ui_activity):
-            self.on_ui_activity()
-
-    def refocus_widget(self, widget):
-        self.document_window.refocus_widget(widget)
-
-    @property
-    def focus_widget(self):
-        def match_native_widget(widget):
-            if widget.focused:
-                return widget
-            for child_widget in widget._contained_widgets:
-                matched_widget = match_native_widget(child_widget)
-                if matched_widget:
-                    return matched_widget
-            return None
-        return match_native_widget(self.widget)
+        super().close()
 
     @property
     def does_retain_focus(self):
@@ -1948,21 +1914,6 @@ class QtDockWidget:
         else:
             self.proxy.Widget_setFocusPolicy(self.native_dock_widget, "click_focus")
 
-    def queue_task(self, task):
-        self.document_window.queue_task(task)
-
-    def clear_queued_tasks(self):
-        self.document_window.clear_queued_tasks()
-
-    def add_task(self, key, task):
-        self.document_window.add_task(key + str(id(self)), task)
-
-    def clear_task(self, key):
-        self.document_window.clear_task(key + str(id(self)))
-
-    def periodic(self):
-        self.widget.periodic()
-
     @property
     def toggle_action(self):
         action = QtAction(self.proxy, self.proxy.DockWidget_getToggleAction(self.native_dock_widget))
@@ -1970,29 +1921,21 @@ class QtDockWidget:
         return action
 
     def show(self):
-        self._register_ui_activity()
         self.proxy.Widget_show(self.native_dock_widget)
+        self._register_ui_activity()
 
     def hide(self):
-        self._register_ui_activity()
         self.proxy.Widget_hide(self.native_dock_widget)
+        self._register_ui_activity()
 
     def sizeChanged(self, width, height):
-        self._register_ui_activity()
-        self.width = width
-        self.height = height
-        if callable(self.on_size_changed):
-            self.on_size_changed(self.width, self.height)
+        self._handle_size_changed(Geometry.IntSize(width=width, height=height))
 
     def focusIn(self):
-        self._register_ui_activity()
-        if callable(self.on_focus_changed):
-            self.on_focus_changed(True)
+        self._handle_focus_in()
 
     def focusOut(self):
-        self._register_ui_activity()
-        if callable(self.on_focus_changed):
-            self.on_focus_changed(False)
+        self._handle_focus_out()
 
 
 class QtUserInterface(UserInterface.UserInterface):

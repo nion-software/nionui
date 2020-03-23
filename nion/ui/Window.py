@@ -294,7 +294,7 @@ class Window:
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
         return self.__document_window.get_save_file_path(title, directory, filter, selected_filter)
 
-    def create_dock_widget(self, widget, panel_id, title, positions, position):
+    def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
         return self.__document_window.create_dock_widget(widget, panel_id, title, positions, position)
 
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):

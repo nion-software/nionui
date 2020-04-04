@@ -7,8 +7,10 @@ import copy
 import logging
 import os
 import sys
+import typing
 
 # local libraries
+from . import Window
 from nion.utils import Process
 
 
@@ -32,7 +34,7 @@ class LoggingHandler(logging.StreamHandler):
 logging_handler = LoggingHandler()
 
 
-class Application:
+class BaseApplication:
     """A basic application class.
 
     Subclass this class and implement the start method. The start method should create a document window that will be
@@ -47,7 +49,6 @@ class Application:
         logger.setLevel(logging.INFO)
         logger.addHandler(logging_handler)
         self.window = None
-        self.on_start = on_start
         self.__windows = list()
         self.__window_close_event_listeners = dict()
         self.__event_loop = None
@@ -74,16 +75,22 @@ class Application:
 
     def start(self):
         """The start method should create a window that will be the focus of the UI."""
-        if self.on_start:
-            return self.on_start()
         raise NotImplemented()
 
-    def _window_created(self, window):
-        self.__window_close_event_listeners[window] = window._window_close_event.listen(self.__window_did_close)
+    def stop(self):
+        # program is really stopping, clean up.
+        self.deinitialize()
+
+    @property
+    def windows(self) -> typing.List[Window.Window]:
+        return copy.copy(self.__windows)
+
+    def _window_created(self, window: Window.Window) -> None:
+        self.__window_close_event_listeners[window] = window._window_close_event.listen(self._window_did_close)
         assert window not in self.__windows
         self.__windows.append(window)
 
-    def __window_did_close(self, window):
+    def _window_did_close(self, window: Window.Window) -> None:
         self.__window_close_event_listeners[window].close()
         del self.__window_close_event_listeners[window]
         self.__windows.remove(window)
@@ -92,8 +99,8 @@ class Application:
         """The exit method should request to close or close the window."""
         for window in copy.copy(self.__windows):
             # closing the window will trigger the about_to_close event to be called which
-            # will then call window close which will fire its did_close_event which will
-            # remove the window from the list of window.
+            # will then call window close which will fire its _window_close_event which will
+            # remove the window from the list of window in _window_did_close.
             window.request_close()
 
     def periodic(self):

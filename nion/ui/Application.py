@@ -2,11 +2,14 @@
 A basic class to serve as the basis of a typical one window application.
 """
 # standard libraries
+import asyncio
 import copy
 import logging
+import os
+import sys
 
 # local libraries
-# None
+from nion.utils import Process
 
 
 class LoggingHandler(logging.StreamHandler):
@@ -47,12 +50,22 @@ class Application:
         self.on_start = on_start
         self.__windows = list()
         self.__window_close_event_listeners = dict()
+        self.__event_loop = None
 
     def initialize(self):
         """Initialize. Separate from __init__ so that overridden methods can be called."""
-        pass
+        # configure the event loop, which can be used for non-window clients.
+        logger = logging.getLogger()
+        old_level = logger.level
+        logger.setLevel(logging.INFO)
+        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
+        logger.setLevel(old_level)
 
     def deinitialize(self):
+        Process.close_event_loop(self.__event_loop)
+        self.__event_loop = None
+        with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
+            f.write(sys.prefix + '\n')
         self.ui.close()
 
     def run(self):
@@ -85,7 +98,13 @@ class Application:
 
     def periodic(self):
         """The periodic method can be overridden to implement periodic behavior."""
-        pass
+        if self.__event_loop:  # special for shutdown
+            self.__event_loop.stop()
+            self.__event_loop.run_forever()
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        return self.__event_loop
 
 
 def make_ui(bootstrap_args):

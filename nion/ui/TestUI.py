@@ -465,6 +465,24 @@ class SplitterWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
 
+    def add(self, child: UserInterfaceModule.Widget) -> None:
+        # behavior must handle index of None, meaning insert at end
+        child_widget = extract_widget(child)
+        assert child_widget is not None
+        index = len(self.widget.children)
+        self.widget.children.insert(index, child_widget)
+        child_widget.size_changed(self.widget.size)
+
+    def restore_state(self, tag: str) -> None:
+        pass
+
+    def save_state(self, tag: str) -> None:
+        pass
+
+    def set_sizes(self, sizes: typing.Sequence[int]) -> None:
+        for child, size in zip(self.widget.children, sizes):
+            child.size = size
+
 
 class TabWidgetBehavior(WidgetBehavior):
 
@@ -773,6 +791,15 @@ class TreeWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
+
+    def set_current_row(self, index, parent_row, parent_id):
+        pass
+
+    def clear_current_row(self):
+        pass
+
+    def size_to_content(self):
+        pass
 
 
 class DocumentWindowX(UserInterfaceModule.Window):

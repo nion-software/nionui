@@ -461,6 +461,7 @@ class QtWidgetBehavior:
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
     def close(self):
+        # not sure if this call to close is needed. it only applies in the PyQtProxy case.
         if callable(getattr(self.widget, "close", None)):
             self.widget.close()
         self.proxy.Widget_removeWidget(self.widget)
@@ -1888,18 +1889,21 @@ class QtWindow(UserInterface.Window):
 
 class QtDockWidget(UserInterface.DockWidget):
 
-    def __init__(self, proxy, document_window, widget, panel_id, title, positions, position):
+    def __init__(self, proxy, document_window: QtWindow, widget, panel_id, title, positions, position):
         super().__init__(document_window, widget, panel_id, title, positions, position)
         self.proxy = proxy
-        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.document_window.native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
+        self.__native_document_window = document_window.native_document_window
+        self.native_dock_widget = self.proxy.DocumentWindow_addDockWidget(self.__native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
         self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.native_dock_widget)
 
     def close(self):
-        self.proxy.DocumentWindow_removeDockWidget(self.document_window.native_document_window, self.native_dock_widget)
+        # close the child widgets before remove dock widget.
+        super().close()
+        # this must go after close since remove dock widget will delete all of the widgets.
+        self.proxy.DocumentWindow_removeDockWidget(self.__native_document_window, self.native_dock_widget)
         self.native_dock_widget = None
         self.proxy = None
-        super().close()
 
     @property
     def does_retain_focus(self):

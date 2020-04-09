@@ -1809,8 +1809,12 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__prepare_canvas_items = list()
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_condition = threading.Condition()
+        self.__repaint_lock = threading.RLock()
+
 
     def _stop_render_behavior(self) -> None:
+        with self.__repaint_lock:
+            pass
         self.__cancel = True
         self.__layer_drawing_context = None
 
@@ -1906,15 +1910,16 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         return True
 
     def __repaint_one(self):
-        with self.__layer_thread_condition:
-            if self.__executing:
-                return
-            self.__executing = True
-        self.__repaint_layer()
-        with self.__layer_thread_condition:
-            self.__executing = False
-            if self.__needs_layout or self.__needs_repaint:
-                LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
+        with self.__repaint_lock:
+            with self.__layer_thread_condition:
+                if self.__executing:
+                    return
+                self.__executing = True
+            self.__repaint_layer()
+            with self.__layer_thread_condition:
+                self.__executing = False
+                if self.__needs_layout or self.__needs_repaint:
+                    LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
 
     def __repaint_layer(self):
         with self.__layer_thread_condition:

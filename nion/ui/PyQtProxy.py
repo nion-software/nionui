@@ -2843,11 +2843,38 @@ class PyQtProxy:
         assert document_window is not None
         document_window.setWindowTitle(title)
 
-    def DocumentWindow_show(self, document_window: PyDocumentWindow, window_style: str) -> None:
+    def DocumentWindow_setWindowStyle(self, document_window: PyDocumentWindow, styles: typing.Sequence[str]) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert document_window is not None
-        assert window_style in ["window", "dialog", "popup", "mousegrab", "tool"]
+        style_mapping = {
+            "dialog": QtCore.Qt.Dialog,
+            "popup": QtCore.Qt.Popup,
+            "tool": QtCore.Qt.Tool,
+            "floating-hint": QtCore.Qt.WindowStaysOnTopHint,
+            "frameless-hint": QtCore.Qt.FramelessWindowHint,
+            "title-hint": QtCore.Qt.WindowTitleHint,
+            "customize-hint": QtCore.Qt.CustomizeWindowHint,
+            "close-button-hint": QtCore.Qt.WindowCloseButtonHint,
+            "min-button-hint": QtCore.Qt.WindowMinimizeButtonHint,
+            "max-button-hint": QtCore.Qt.WindowMaximizeButtonHint,
+            "system-menu-hint": QtCore.Qt.WindowSystemMenuHint,
+            "help-hint": QtCore.Qt.WindowContextHelpButtonHint,
+            "fullscreen-hint": QtCore.Qt.WindowFullscreenButtonHint,
+            "input-transparent": QtCore.Qt.WindowTransparentForInput,
+            "no-focus": QtCore.Qt.WindowDoesNotAcceptFocus,
+        }
+        window_flags = 0
+        for style in styles:
+            window_flags |= style_mapping.get(style, 0)
+        document_window.setWindowFlags(window_flags)
+
+    def DocumentWindow_show(self, document_window: PyDocumentWindow, window_style: typing.Optional[str]) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert document_window is not None
+        if window_style:
+            assert window_style in ["window", "dialog", "popup", "mousegrab", "tool"]
         if window_style == "dialog":
             document_window.setWindowFlags(QtCore.Qt.Dialog)
         elif window_style == "popup":
@@ -3847,6 +3874,24 @@ class PyQtProxy:
         # Python_ThreadAllow thread_allow
         widget.setParent(None)
 
+    def Widget_setAttributes(self, widget: QtWidgets.QWidget, attributes: typing.Sequence[str]) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert widget is not None
+        attribute_mapping = {
+            "translucent-background": QtCore.Qt.WA_TranslucentBackground,
+            "mouse-transparent": QtCore.Qt.WA_TransparentForMouseEvents,
+            "accept-drops": QtCore.Qt.WA_AcceptDrops,
+        }
+        for attribute in attributes:
+            if attribute.startswith("!"):
+                attribute = attribute[1:]
+                if attribute in attribute_mapping:
+                    widget.setAttribute(attribute_mapping[attribute], False)
+            else:
+                if attribute in attribute_mapping:
+                    widget.setAttribute(attribute_mapping[attribute], True)
+
     def Widget_setEnabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
@@ -3870,6 +3915,11 @@ class PyQtProxy:
             "wheel_focus": QtCore.Qt.WheelFocus,
         }.get(policy, QtCore.Qt.NoFocus)
         widget.setFocusPolicy(focus_policy)
+
+    def Widget_setPaletteColor(self, widget: QtWidgets.QWidget, role: str, r: int, g: int, b: int, a: int) -> None:
+        palette = widget.palette()
+        palette.setColor(widget.backgroundRole(), QtGui.QColor(r, g, b, a))
+        widget.setPalette(palette)
 
     def Widget_setToolTip(self, widget: QtWidgets.QWidget, tool_tip: str) -> None:
         global app

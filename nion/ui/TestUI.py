@@ -819,6 +819,15 @@ class DocumentWindowX(UserInterfaceModule.Window):
     def _set_title(self, value: str) -> None:
         self.__title = value
 
+    def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
+        pass
+
+    def set_window_style(self, styles: typing.Sequence[str]) -> None:
+        pass
+
+    def set_attributes(self, attributes: typing.Sequence[str]) -> None:
+        pass
+
     @property
     def position(self) -> Geometry.IntPoint:
         return Geometry.IntPoint(x=0, y=0)

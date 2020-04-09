@@ -1825,6 +1825,8 @@ class QtWindow(UserInterface.Window):
             self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
         if position is not None:
             self.proxy.DocumentWindow_setPosition(self.native_document_window, position.x, position.y)
+        if not hasattr(self.proxy, "Widget_setPaletteColor"):
+            self.window_style = self.window_style or "tool"
         self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
 
     def fill_screen(self):
@@ -1834,6 +1836,20 @@ class QtWindow(UserInterface.Window):
 
     def _set_title(self, value):
         self.proxy.DocumentWindow_setTitle(self.native_document_window, notnone(value))
+
+    def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
+        if hasattr(self.proxy, "Widget_setPaletteColor"):
+            self.proxy.Widget_setPaletteColor(self.native_document_window, role, r, g, b, a)
+
+    def set_window_style(self, styles: typing.Sequence[str]) -> None:
+        if hasattr(self.proxy, "DocumentWindow_setWindowStyle"):
+            self.proxy.DocumentWindow_setWindowStyle(self.native_document_window, styles)
+        else:
+            self.window_style = "tool"
+
+    def set_attributes(self, attributes: typing.Sequence[str]) -> None:
+        if hasattr(self.proxy, "Widget_setAttributes"):
+            self.proxy.Widget_setAttributes(self.native_document_window, attributes)
 
     def periodic(self):
         self._handle_periodic()

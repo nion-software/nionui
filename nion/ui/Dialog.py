@@ -12,6 +12,7 @@ from typing import Callable
 # none
 
 # local libraries
+from nion.ui import Application
 from nion.ui import Window
 from nion.ui import UserInterface
 
@@ -22,8 +23,11 @@ class OkCancelDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, include_ok: bool=True, include_cancel: bool=True, ok_title: str=None, cancel_title: str=None, persistent_id: str=None):
-        super().__init__(ui, window_style="dialog", persistent_id=persistent_id)
+
+    def __init__(self, ui, include_ok: bool = True, include_cancel: bool = True, ok_title: str = None,
+                 cancel_title: str = None, persistent_id: str = None, *, app: Application.BaseApplication = None,
+                 parent_window: Window.Window = None):
+        super().__init__(ui, app=app, parent_window=parent_window, window_style="dialog", persistent_id=persistent_id)
 
         self.on_reject = None
         self.on_accept = None
@@ -67,8 +71,12 @@ class OkCancelDialog(Window.Window):
 
         self.attach_widget(content_column)
 
+        if parent_window:
+            parent_window.register_dialog(self)
+        elif app:
+            app.register_dialog(self)
+
     def close(self) -> None:
-        self.finish_periodic()  # required to finish periodic operations during tests
         self.on_reject = None
         self.on_accept = None
         super().close()
@@ -83,7 +91,9 @@ class ActionDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
     """
-    def __init__(self, ui, title: str=None, app=None, parent_window=None, persistent_id=None, window_style=None):
+
+    def __init__(self, ui: UserInterface.UserInterface, title: str = None, app: Application.BaseApplication = None,
+                 parent_window: Window.Window = None, persistent_id: str = None, window_style: str = None):
         if window_style is None:
             window_style = "tool"
         super().__init__(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
@@ -106,9 +116,10 @@ class ActionDialog(Window.Window):
 
         self.attach_widget(content_column)
 
-    def close(self) -> None:
-        self.finish_periodic()  # required to finish periodic operations during tests
-        super().close()
+        if parent_window:
+            parent_window.register_dialog(self)
+        elif app:
+            app.register_dialog(self)
 
     def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> UserInterface.PushButtonWidget:
         def on_clicked():

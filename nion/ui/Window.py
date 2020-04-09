@@ -10,6 +10,7 @@ import functools
 import gettext
 import logging
 import typing
+import weakref
 
 # local libraries
 from nion.utils import Event
@@ -96,7 +97,8 @@ class Window:
     def __init__(self, ui: UserInterface.UserInterface, app=None, parent_window=None, window_style=None, persistent_id=None):
         Window.count += 1
         self.ui = ui
-        self.app = app
+        self.parent_window = parent_window
+        self.app = app or (parent_window.app if parent_window else None)
         self.on_close = None
         parent_window = parent_window._document_window if parent_window else None
         self.__document_window = self.ui.create_document_window(parent_window=parent_window)
@@ -104,6 +106,8 @@ class Window:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id
         self.__shown = False
+
+        self.__dialogs : typing.List[weakref.ReferenceType] = list()
 
         self._window_close_event = Event.Event()
 
@@ -150,6 +154,8 @@ class Window:
         if app: app._window_created(self)
 
     def close(self):
+        self._finish_periodic()  # required to finish periodic operations during tests
+        self._close_dialogs()
         self._window_close_event.fire(self)
         self._window_close_event = None
         self.on_close = None
@@ -173,6 +179,7 @@ class Window:
         self._minimize_action = None
         self._zoom_action = None
         self._bring_to_front_action = None
+        self.parent_window = None
         self.app = None
         Window.count -= 1
 
@@ -236,7 +243,7 @@ class Window:
     def _register_ui_activity(self) -> None:
         pass
 
-    def finish_periodic(self) -> None:
+    def _finish_periodic(self) -> None:
         # recognize when we're running as test and finish out periodic operations
         if not self.__document_window.has_event_loop:
             self.periodic()
@@ -248,6 +255,28 @@ class Window:
         self.__event_loop.run_forever()
         if self.app:
             self.app.periodic()
+
+    def _close_dialogs(self) -> None:
+        for weak_dialog in self.__dialogs:
+            dialog = typing.cast("Window", weak_dialog())
+            if dialog:
+                try:
+                    dialog.request_close()
+                except Exception as e:
+                    pass
+        self.__dialogs = list()
+
+    def is_dialog_type_open(self, dialog_class) -> bool:
+        for dialog_weakref in self.__dialogs:
+            if isinstance(dialog_weakref(), dialog_class):
+                return True
+        return False
+
+    def register_dialog(self, dialog: "Window") -> None:
+        def close_dialog():
+            self.__dialogs.remove(weakref.ref(dialog))
+        dialog.on_close = close_dialog
+        self.__dialogs.append(weakref.ref(dialog))
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:

@@ -49,7 +49,7 @@ class PreferencesManager(metaclass=Singleton):
 
 class PreferencesDialog(Dialog.ActionDialog):
     def __init__(self, ui, app):
-        super().__init__(ui, _("Preferences"), app)
+        super().__init__(ui, _("Preferences"), app=app)
 
         self.ui = ui
         self.document_controller = self

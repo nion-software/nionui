@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 import typing
+import weakref
 
 # local libraries
 from . import Window
@@ -48,10 +49,10 @@ class BaseApplication:
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         logger.addHandler(logging_handler)
-        self.window = None
-        self.__windows = list()
+        self.__windows : typing.List[Window.Window] = list()
         self.__window_close_event_listeners = dict()
         self.__event_loop = None
+        self.__dialogs : typing.List[weakref.ReferenceType] = list()
 
     def initialize(self):
         """Initialize. Separate from __init__ so that overridden methods can be called."""
@@ -63,6 +64,7 @@ class BaseApplication:
         logger.setLevel(old_level)
 
     def deinitialize(self):
+        self._close_dialogs()
         Process.close_event_loop(self.__event_loop)
         self.__event_loop = None
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
@@ -108,6 +110,28 @@ class BaseApplication:
         if self.__event_loop:  # special for shutdown
             self.__event_loop.stop()
             self.__event_loop.run_forever()
+
+    def _close_dialogs(self) -> None:
+        for weak_dialog in self.__dialogs:
+            dialog = typing.cast("Window", weak_dialog())
+            if dialog:
+                try:
+                    dialog.request_close()
+                except Exception as e:
+                    pass
+        self.__dialogs = list()
+
+    def is_dialog_type_open(self, dialog_class) -> bool:
+        for dialog_weakref in self.__dialogs:
+            if isinstance(dialog_weakref(), dialog_class):
+                return True
+        return False
+
+    def register_dialog(self, dialog: "Window") -> None:
+        def close_dialog():
+            self.__dialogs.remove(weakref.ref(dialog))
+        dialog.on_close = close_dialog
+        self.__dialogs.append(weakref.ref(dialog))
 
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:

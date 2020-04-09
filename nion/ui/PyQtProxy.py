@@ -3,7 +3,6 @@ import copy
 import logging
 import math
 import numpy
-import os
 import pkgutil
 import sys
 import time
@@ -2815,8 +2814,8 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert document_window is not None
         # state, then geometry, otherwise the size isn't handled right. ugh.
-        geometry = self.saveGeometry().toHex().data().decode("utf8")
-        state = self.saveState().toHex().data().decode("utf8")
+        geometry = document_window.saveGeometry().toHex().data().decode("utf8")
+        state = document_window.saveState().toHex().data().decode("utf8")
         return geometry, state
 
     def DocumentWindow_setCentralWidget(self, document_window: PyDocumentWindow, widget: QtWidgets.QWidget) -> None:
@@ -2838,7 +2837,7 @@ class PyQtProxy:
         assert document_window is not None
         document_window.resize(QtCore.QSize(width, height))
 
-    def DocumentWindow_setTitle(self, document_window: PyDocumentWindow, title: str):
+    def DocumentWindow_setTitle(self, document_window: PyDocumentWindow, title: str) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert document_window is not None
@@ -2858,7 +2857,6 @@ class PyQtProxy:
             document_window.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         elif window_style == "tool":
             document_window.setWindowFlags(QtCore.Qt.Tool | QtCore.Qt.WindowStaysOnTopHint)
-
         document_window.show()
 
     def Drag_connect(self, drag: PyDrag, object) -> None:

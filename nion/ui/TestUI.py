@@ -819,6 +819,14 @@ class DocumentWindowX(UserInterfaceModule.Window):
     def _set_title(self, value: str) -> None:
         self.__title = value
 
+    @property
+    def position(self) -> Geometry.IntPoint:
+        return Geometry.IntPoint(x=0, y=0)
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        return Geometry.IntSize(w=640, h=480)
+
     def create_dock_widget(self, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterfaceModule.DockWidget:
         dock_widget = DockWidget(self, widget, panel_id, title, positions, position)
         dock_widget.size_changed(Geometry.IntSize(height=320, width=480))

@@ -1886,6 +1886,16 @@ class QtWindow(UserInterface.Window):
         self._register_ui_activity()
         self._handle_position_changed(x, y)
 
+    @property
+    def position(self) -> Geometry.IntPoint:
+        gx, gy = self.proxy.Widget_mapToGlobal(self.native_document_window, 0, 0)
+        return Geometry.IntPoint(x=gx, y=gy)
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        w, h = self.proxy.Widget_getWidgetSize(self.native_document_window)
+        return Geometry.IntSize(w=w, h=h)
+
 
 class QtDockWidget(UserInterface.DockWidget):
 

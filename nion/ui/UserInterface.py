@@ -2447,25 +2447,25 @@ class Menu:
         action.on_ui_activity = self._register_ui_activity
 
     def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def add_action(self, action) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def add_sub_menu(self, title, menu) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def add_separator(self) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def insert_menu_item(self, title, before_action: MenuAction, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def insert_separator(self, before_action: MenuAction) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def remove_action(self, action: MenuAction) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _item_added(self, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
         # subclasses should call this when adding a menu item
@@ -2492,7 +2492,7 @@ class Menu:
                 break
 
     def popup(self, gx, gy):
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class DockWidget:
@@ -2652,7 +2652,7 @@ class Window:
         self.on_ui_activity = None
 
     def request_close(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _register_ui_activity(self):
         if callable(self.on_ui_activity):
@@ -2666,7 +2666,7 @@ class Window:
         self._attach_root_widget(root_widget)
 
     def _attach_root_widget(self, root_widget):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def detach(self):
         assert self.root_widget is not None
@@ -2704,61 +2704,61 @@ class Window:
         return self._get_focus_widget()
 
     def _get_focus_widget(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def refocus_widget(self, widget):
         if callable(self.on_refocus_widget):
             self.on_refocus_widget(widget)
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def create_dock_widget(self, widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> DockWidget:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     def screen_size(self) -> Geometry.IntSize:
         return self._get_screen_size()
 
     def _get_screen_size(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     def screen_logical_dpi(self) -> float:
         return self._get_screen_logical_dpi()
 
     def _get_screen_logical_dpi(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     def screen_physical_dpi(self) -> float:
         return self._get_screen_physical_dpi()
 
     def _get_screen_physical_dpi(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     def display_scaling(self) -> float:
         return self._get_display_scaling()
 
     def _get_display_scaling(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     # call show to display the window.
     def show(self, size=None, position=None):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def fill_screen(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @property
     def title(self):
@@ -2770,7 +2770,7 @@ class Window:
         self._set_title(value)
 
     def _set_title(self, value):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _handle_periodic(self):
         if self.root_widget:
@@ -2801,10 +2801,10 @@ class Window:
         return False
 
     def add_menu(self, title: str, menu_id: str = None) -> Menu:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def insert_menu(self, title: str, before_menu: Menu, menu_id: str = None) -> Menu:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _menu_added(self, menu: Menu) -> None:
         # subclasses should call this when adding a menu
@@ -2840,7 +2840,7 @@ class Window:
         return self.__menu_map.get(menu_id)
 
     def restore(self, geometry, state):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _handle_size_changed(self, width, height):
         self.width = width
@@ -2853,6 +2853,14 @@ class Window:
         self.pos_y = y
         if callable(self.on_position_changed):
             self.on_position_changed(self.pos_x, self.pos_y)
+
+    @property
+    def position(self) -> Geometry.IntPoint:
+        raise NotImplementedError()
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        raise NotImplementedError()
 
 
 class UserInterface(abc.ABC):

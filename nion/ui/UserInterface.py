@@ -2848,6 +2848,9 @@ class Window:
     def get_menu(self, menu_id: str) -> typing.Optional[Menu]:
         return self.__menu_map.get(menu_id)
 
+    def save(self) -> typing.Tuple[str, str]:
+        raise NotImplementedError()
+
     def restore(self, geometry, state):
         raise NotImplementedError()
 

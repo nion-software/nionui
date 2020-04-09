@@ -18,11 +18,18 @@ from nion.utils import Geometry
 from nion.utils import Process
 from nion.ui import UserInterface
 
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
+
 
 _ = gettext.gettext
 
 
-ActionContext = collections.namedtuple("ActionContext", ["application", "window", "focus_widget"])
+class ActionContext:
+    def __init__(self, application: "Application.BaseApplication", window: typing.Optional["Window"], focus_widget: typing.Optional[UserInterface.Widget]):
+        self.application = application
+        self.window = window
+        self.focus_widget = focus_widget
 
 
 class ReportType(enum.Enum):
@@ -36,10 +43,11 @@ Report = collections.namedtuple("Report", ["type", "message"])
 
 
 class Action:
-    action_id = None
-    action_name = None
-    action_summary = None
-    action_description = None
+    action_id : str = str()
+    action_name : str = str()
+    action_role : typing.Optional[str] = None
+    action_summary : typing.Optional[str] = None
+    action_description : typing.Optional[str] = None
 
     def __init__(self):
         self.__reports : typing.List[Report] = list()
@@ -70,13 +78,13 @@ actions : typing.Mapping[str, Action] = dict()
 
 def register_action(action: Action) -> None:
     assert not action.action_id in actions
-    actions[action.action_id] = action
+    typing.cast(typing.MutableMapping[str, Action], actions)[action.action_id] = action
 
 
-action_shortcuts = dict()
+action_shortcuts : typing.Mapping[str, typing.Mapping] = dict()
 
 def add_action_shortcut(action_id: str, action_context: str, key_sequence: str) -> None:
-    action_shortcuts.setdefault(action_id, dict())[action_context] = key_sequence
+    typing.cast(typing.MutableMapping[str, typing.MutableMapping], action_shortcuts).setdefault(action_id, dict())[action_context] = key_sequence
 
 def register_action_shortcuts(action_shortcuts: typing.Mapping) -> None:
     for action_id, action_shortcut_d in action_shortcuts.items():
@@ -99,7 +107,7 @@ class Window:
         self.ui = ui
         self.parent_window = parent_window
         self.app = app or (parent_window.app if parent_window else None)
-        self.on_close = None
+        self.on_close : typing.Optional[typing.Callable[[], None]] = None
         parent_window = parent_window._document_window if parent_window else None
         self.__document_window = self.ui.create_document_window(parent_window=parent_window)
         if window_style:
@@ -342,7 +350,7 @@ class Window:
     def title(self, value: str) -> None:
         self.__document_window.title = value
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_paths_dialog(title, directory, filter, selected_filter)
 
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
@@ -409,7 +417,7 @@ class Window:
     def restore(self, geometry: str, state: str) -> None:
         self.__document_window.restore(geometry, state)
 
-    def save(self) -> (str, str):
+    def save(self) -> typing.Tuple[str, str]:
         return self.__document_window.save()
 
     # tasks can be added in two ways, queued or added
@@ -462,13 +470,16 @@ class Window:
                 if action:
                     key_sequence = action_shortcuts.get(action_id, dict()).get("window")
                     role = getattr(action, "role", None)
+                    assert menu is not None
                     menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),
                                        key_sequence=key_sequence, role=role, action_id=action_id)
                 else:
                     logging.debug("Unregistered action {action_id}")
             elif item_type == "separator":
+                assert menu is not None
                 menu.add_separator()
             elif item_type == "sub_menu":
+                assert menu is not None
                 menu_id = item_d["menu_id"]
                 menu_title = item_d["title"]
                 menu_items = item_d["items"]
@@ -478,13 +489,13 @@ class Window:
                 # setattr(self, "_" + menu_id + "_menu", new_menu)
                 self.build_menu(new_menu, menu_items)
 
-    def _get_action_context(self) -> typing.NamedTuple:
+    def _get_action_context(self) -> ActionContext:
         focus_widget = self.focus_widget
         return ActionContext(self.app, self, focus_widget)
 
-    def _apply_menu_state(self, action_id: str, action_context: typing.NamedTuple) -> None:
+    def _apply_menu_state(self, action_id: str, action_context: ActionContext) -> None:
         menu_action = self.__document_window.get_menu_action(action_id)
-        if menu_action:
+        if menu_action and menu_action.action_id:
             action = actions.get(menu_action.action_id)
             if action:
                 title = action.get_action_name(action_context)
@@ -496,7 +507,8 @@ class Window:
         action = actions.get(action_id)
         if action:
             action.clear()
-            action.invoke(self._get_action_context())
+            action_context = self._get_action_context()
+            action.invoke(action_context)
             for report in action.reports:
                 self.display_report(report)
 
@@ -547,12 +559,13 @@ class Window:
         else:
             action_context = self._get_action_context()
             for menu_action in menu.get_menu_actions():
-                action = actions.get(menu_action.action_id)
-                if action:
-                    title = action.get_action_name(action_context)
-                    enabled = action and action.is_enabled(action_context)
-                    checked = action and action.is_checked(action_context)
-                    menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+                if menu_action.action_id:
+                    action = actions.get(menu_action.action_id)
+                    if action:
+                        title = action.get_action_name(action_context)
+                        enabled = action and action.is_enabled(action_context)
+                        checked = action and action.is_checked(action_context)
+                        menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
     def _file_menu_about_to_show(self):
         action_context = self._get_action_context()
@@ -651,10 +664,10 @@ class AboutBoxAction(Action):
     action_role = "about"
 
     def invoke(self, context: ActionContext) -> None:
-        if hasattr(context.window, "open_preferences"):
-            context.window.show_about_box()
-        elif hasattr(context.application, "open_preferences"):
-            context.application.show_about_box()
+        show_about_box = getattr(context.window, "show_about_box", None)
+        show_about_box = show_about_box or getattr(context.application, "show_about_box", None)
+        if callable(show_about_box):
+            show_about_box()
 
 
 class BringToFrontAction(Action):
@@ -662,7 +675,8 @@ class BringToFrontAction(Action):
     action_name = _("Bring to Front")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("bring_to_front")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("bring_to_front")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "bring_to_front")
@@ -673,7 +687,8 @@ class CloseWindowAction(Action):
     action_name = _("Close Window")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window.request_close()
+        if context.window:
+            context.window.request_close()
 
 
 class CopyAction(Action):
@@ -681,7 +696,8 @@ class CopyAction(Action):
     action_name = _("Copy")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_copy")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_copy")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_copy")
@@ -692,7 +708,8 @@ class CutAction(Action):
     action_name = _("Cut")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_cut")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_cut")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_cut")
@@ -703,7 +720,8 @@ class DeleteAction(Action):
     action_name = _("Delete")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_delete")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_delete")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_delete")
@@ -723,7 +741,8 @@ class MinimizeAction(Action):
     action_name = _("Minimize")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_minimize")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_minimize")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_minimize")
@@ -734,7 +753,8 @@ class PageSetupAction(Action):
     action_name = _("Page Setup")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_page_setup")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_page_setup")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_page_setup")
@@ -745,7 +765,8 @@ class PasteAction(Action):
     action_name = _("Paste")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_paste")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_paste")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_paste")
@@ -757,10 +778,10 @@ class PreferencesAction(Action):
     action_role = "preferences"
 
     def invoke(self, context: ActionContext) -> None:
-        if hasattr(context.window, "open_preferences"):
-            context.window.open_preferences()
-        elif hasattr(context.application, "open_preferences"):
-            context.application.open_preferences()
+        open_preferences = getattr(context.window, "open_preferences", None)
+        open_preferences = open_preferences or getattr(context.application, "open_preferences", None)
+        if callable(open_preferences):
+            open_preferences()
 
 
 class PrintAction(Action):
@@ -768,7 +789,8 @@ class PrintAction(Action):
     action_name = _("Print...")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_print")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_print")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_print")
@@ -779,7 +801,8 @@ class RedoAction(Action):
     action_name = _("Redo")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_redo")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_redo")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_redo")
@@ -790,7 +813,8 @@ class SelectAllAction(Action):
     action_name = _("Select All")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_select_all")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_select_all")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_select_all")
@@ -801,7 +825,8 @@ class UndoAction(Action):
     action_name = _("Undo")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_undo")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_undo")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_undo")
@@ -812,7 +837,8 @@ class ZoomAction(Action):
     action_name = _("Zoom")
 
     def invoke(self, context: ActionContext) -> None:
-        context.window._dispatch_any_to_focus_widget("handle_zoom")
+        if context.window:
+            context.window._dispatch_any_to_focus_widget("handle_zoom")
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_zoom")

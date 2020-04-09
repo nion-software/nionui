@@ -5,6 +5,7 @@ A basic class to serve as the document controller of a typical one window applic
 # standard libraries
 import asyncio
 import collections
+import enum
 import functools
 import gettext
 import logging
@@ -23,11 +24,31 @@ _ = gettext.gettext
 ActionContext = collections.namedtuple("ActionContext", ["application", "window", "focus_widget"])
 
 
+class ReportType(enum.Enum):
+    DEBUG = 1
+    INFO = 2
+    WARNING = 3
+    ERROR = 4
+
+
+Report = collections.namedtuple("Report", ["type", "message"])
+
+
 class Action:
     action_id = None
     action_name = None
     action_summary = None
     action_description = None
+
+    def __init__(self):
+        self.__reports : typing.List[Report] = list()
+
+    @property
+    def reports(self) -> typing.List[Report]:
+        return self.__reports
+
+    def clear(self) -> None:
+        self.__reports = list()
 
     def invoke(self, context: ActionContext) -> None: ...
 
@@ -40,7 +61,11 @@ class Action:
     def get_action_name(self, context: ActionContext) -> str:
         return self.action_name
 
-actions = dict()
+    def report(self, type: ReportType, message: str) -> None:
+        self.__reports.append(Report(type, message))
+
+
+actions : typing.Mapping[str, Action] = dict()
 
 def register_action(action: Action) -> None:
     assert not action.action_id in actions
@@ -66,8 +91,10 @@ def get_action_id_for_key(context: str, key) -> typing.Optional[str]:
 
 
 class Window:
+    count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui: UserInterface.UserInterface, app=None, parent_window=None, window_style=None, persistent_id=None):
+        Window.count += 1
         self.ui = ui
         self.app = app
         self.on_close = None
@@ -147,6 +174,7 @@ class Window:
         self._zoom_action = None
         self._bring_to_front_action = None
         self.app = None
+        Window.count -= 1
 
     @property
     def _document_window(self):
@@ -438,7 +466,10 @@ class Window:
     def perform_action(self, action_id: str) -> None:
         action = actions.get(action_id)
         if action:
+            action.clear()
             action.invoke(self._get_action_context())
+            for report in action.reports:
+                logging.info(f"{report.type} {report.message}")
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
         # if there is a specific menu item state for the command_id, use it

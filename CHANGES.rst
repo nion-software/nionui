@@ -1,8 +1,10 @@
 Changelog (nionui)
 ==================
 
-0.3.28 (UNRELEASED)
--------------------
+0.4.0 (UNRELEASED)
+------------------
+- Add basic notification dialog when actions report warnings/errors.
+- Consolidate default behavior (dock windows, window closing, etc.).
 - Add backend support for multi-threaded section-serialized rendering.
 - Add backend support for section by section drawing for improved performance.
 - Add latency display capability with rolling average to backend.

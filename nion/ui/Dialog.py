@@ -4,6 +4,7 @@
 
 # standard libraries
 import gettext
+import time
 
 # typing
 from typing import Callable
@@ -15,6 +16,7 @@ from typing import Callable
 from nion.ui import Application
 from nion.ui import Window
 from nion.ui import UserInterface
+from nion.utils import Geometry
 
 _ = gettext.gettext
 
@@ -132,3 +134,36 @@ class ActionDialog(Window.Window):
         self.button_row.add(button)
         self.button_row.add_spacing(13)
         return button
+
+
+class NotificationDialog(Window.Window):
+    width = 320
+
+    def __init__(self, ui: UserInterface.UserInterface, *, message: str, parent_window: Window.Window):
+        super().__init__(ui, parent_window=parent_window)
+        self._document_window.set_window_style(["tool", "frameless-hint"])
+        self._document_window.set_palette_color("background", 255, 255, 204, 224)
+        content_column = ui.create_column_widget()
+        content_row = ui.create_row_widget()
+        label = ui.create_label_widget(message, properties={"width": NotificationDialog.width})
+        label.word_wrap = True
+        content_row.add_spacing(8)
+        content_row.add(label)
+        content_row.add_spacing(8)
+        content_column.add_spacing(8)
+        content_column.add(content_row)
+        content_column.add_stretch()
+        content_column.add_spacing(8)
+        self.__start_time = time.time()
+        self.attach_widget(content_column)
+        parent_window.register_dialog(self)
+
+    def periodic(self) -> None:
+        if time.time() - self.__start_time > 5.0:
+            self.request_close()
+
+    def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
+        if size is None and position is None:
+            parent_window = self.parent_window
+            position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - NotificationDialog.width // 2)
+        super().show(position=position)

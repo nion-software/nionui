@@ -498,7 +498,20 @@ class Window:
             action.clear()
             action.invoke(self._get_action_context())
             for report in action.reports:
-                logging.info(f"{report.type} {report.message}")
+                self.display_report(report)
+
+    def display_report(self, report: Report) -> None:
+        from nion.ui import Dialog  # avoid circular reference
+        if report.type == ReportType.DEBUG:
+            logging.debug(report.message)
+        elif report.type == ReportType.INFO:
+            logging.info(report.message)
+        elif report.type == ReportType.WARNING:
+            logging.warning(report.message)
+            Dialog.NotificationDialog(self.ui, message=f"WARNING: {report.message}", parent_window=self).show()
+        elif report.type == ReportType.ERROR:
+            logging.error(report.message)
+            Dialog.NotificationDialog(self.ui, message=f"ERROR: {report.message}", parent_window=self).show()
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
         # if there is a specific menu item state for the command_id, use it

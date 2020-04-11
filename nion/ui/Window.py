@@ -469,7 +469,7 @@ class Window:
                 action = actions.get(action_id)
                 if action:
                     key_sequence = action_shortcuts.get(action_id, dict()).get("window")
-                    role = getattr(action, "role", None)
+                    role = getattr(action, "about_role", None)
                     assert menu is not None
                     menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),
                                        key_sequence=key_sequence, role=role, action_id=action_id)

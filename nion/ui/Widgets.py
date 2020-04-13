@@ -158,6 +158,7 @@ class SectionWidget(CompositeWidgetBase):
         section_content_column.visible = section_open
         twist_down_canvas_item.on_button_clicked = toggle
 
+        self.section_title_row = section_title_row
         self.__twist_down_canvas_item = twist_down_canvas_item
 
     @property

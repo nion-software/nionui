@@ -533,10 +533,10 @@ class DrawingContext:
 
     def round_rect(self, x, y, w, h, r):
         self.move_to(x + r, y)
-        self.arc_to(x + w, y, x + w, y + h, r)
-        self.arc_to(x + w, y + h, x, y + h, r)
-        self.arc_to(x, y + h, x, y, r)
-        self.arc_to(x, y, x + w, y, r)
+        self.arc_to(x + w, y, x + w, y + r, r)
+        self.arc_to(x + w, y + h, x + w - r, y + h, r)
+        self.arc_to(x, y + h, x, y + h - r, r)
+        self.arc_to(x, y, x + r, y, r)
         self.close_path()
 
     def arc(self, x, y, r, sa, ea, ac=False):

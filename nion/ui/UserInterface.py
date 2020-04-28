@@ -6,6 +6,7 @@ Provides a user interface object that can render to an Qt host.
 import abc
 import collections
 import copy
+import enum
 import numbers
 import typing
 import weakref
@@ -2875,6 +2876,10 @@ class Window:
         raise NotImplementedError()
 
 
+class ToleranceType(enum.IntEnum):
+    CURSOR = 1
+
+
 class UserInterface(abc.ABC):
 
     @abc.abstractmethod
@@ -3056,7 +3061,11 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_font_metrics(self, font, text) -> FontMetrics:
+    def get_font_metrics(self, font: str, text: str) -> FontMetrics:
+        ...
+
+    @abc.abstractmethod
+    def get_tolerance(self, tolerance_type: ToleranceType) -> float:
         ...
 
     @abc.abstractmethod

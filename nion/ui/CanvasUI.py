@@ -686,6 +686,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font, text):
         return self.__get_font_metrics_fn(font, text)
 
+    def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
+        return 5
+
     def create_context_menu(self, document_window):
         raise NotImplementedError()
 

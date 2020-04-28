@@ -2142,6 +2142,9 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font, text):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))
 
+    def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
+        return 5
+
     def create_context_menu(self, document_window) -> UserInterface.Menu:
         context_menu = QtMenu(document_window, None, None, self.proxy, self.proxy.Menu_create())
         # the original code would destroy the menu when it was being hidden.

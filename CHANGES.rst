@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add UI function to retrieve default cursor tolerance for hit testing.
 - Add basic notification dialog when actions report warnings/errors.
 - Consolidate default behavior (dock windows, window closing, etc.).
 - Add backend support for multi-threaded section-serialized rendering.

@@ -963,17 +963,17 @@ class ComboBoxWidget(Widget):
 
     def __init__(self, widget_behavior, items, item_getter):
         super().__init__(widget_behavior)
-        self.__items = None
-        self.on_items_changed = None
-        self.on_current_text_changed = None
-        self.on_current_item_changed = None
-        self.on_current_index_changed = None
+        self.__items : typing.Optional[typing.List] = None
+        self.on_items_changed : typing.Optional[typing.Callable[[typing.List], None]] = None
+        self.on_current_text_changed : typing.Optional[typing.Callable[[str], None]]= None
+        self.on_current_item_changed : typing.Optional[typing.Callable[[typing.Any], None]] = None
+        self.on_current_index_changed : typing.Optional[typing.Callable[[int], None]] = None
         self.item_getter = item_getter
-        self.items = items if items else []
+        self.items = items if items else list()
         self.__current_item_binding = None
         self.__items_binding = None
 
-        def handle_current_text_changed(text):
+        def handle_current_text_changed(text: str) -> None:
             if callable(self.on_current_text_changed):
                 self.on_current_text_changed(text)
             if callable(self.on_current_item_changed):
@@ -983,7 +983,7 @@ class ComboBoxWidget(Widget):
 
         self._behavior.on_current_text_changed = handle_current_text_changed
 
-    def close(self):
+    def close(self) -> None:
         if self.__current_item_binding:
             self.__current_item_binding.close()
             self.__current_item_binding = None
@@ -1009,7 +1009,7 @@ class ComboBoxWidget(Widget):
         self._behavior.current_text = value
 
     @property
-    def current_item(self):
+    def current_item(self) -> typing.Optional[typing.Any]:
         current_text = self.current_text
         for item in self.items or list():
             if current_text == notnone(self.item_getter(item) if self.item_getter else item):
@@ -1017,7 +1017,7 @@ class ComboBoxWidget(Widget):
         return None
 
     @current_item.setter
-    def current_item(self, value):
+    def current_item(self, value: typing.Optional[typing.Any]) -> None:
         item_string = notnone(self.item_getter(value) if self.item_getter and value is not None else value)
         self.current_text = item_string
 
@@ -1031,11 +1031,11 @@ class ComboBoxWidget(Widget):
         self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
 
     @property
-    def items(self):
+    def items(self) -> typing.List:
         return self.__items if self.__items is not None else list()
 
     @items.setter
-    def items(self, items):
+    def items(self, items: typing.Sequence) -> None:
         current_index = self.current_index
         item_strings = list()
         self.__items = list()
@@ -1049,7 +1049,7 @@ class ComboBoxWidget(Widget):
         if current_index != self.current_index:
             self.current_index = current_index
 
-    def bind_items(self, binding):
+    def bind_items(self, binding) -> None:
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
@@ -1064,13 +1064,13 @@ class ComboBoxWidget(Widget):
         self.__items_binding.target_setter = update_items
         self.on_items_changed = lambda items: self.__items_binding.update_source(items)
 
-    def unbind_items(self):
+    def unbind_items(self) -> None:
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
         self.on_items_changed = None
 
-    def bind_current_index(self, binding):
+    def bind_current_index(self, binding) -> None:
         if self.__current_item_binding:
             self.__current_item_binding.close()
             self.__current_item_binding = None
@@ -1079,7 +1079,7 @@ class ComboBoxWidget(Widget):
         if current_index is not None and 0 <= current_index < len(self.__items):
             self.current_item = self.__items[current_index]
         self.__current_item_binding = binding
-        def update_current_index(current_index):
+        def update_current_index(current_index: int) -> None:
             if current_index is not None and 0 <= current_index < len(self.__items):
                 item = self.__items[current_index]
                 def update_current_item_():
@@ -1090,7 +1090,7 @@ class ComboBoxWidget(Widget):
         self.__current_item_binding.target_setter = update_current_index
         self.on_current_index_changed = lambda index: self.__current_item_binding.update_source(index)
 
-    def unbind_current_index(self):
+    def unbind_current_index(self) -> None:
         if self.__current_item_binding:
             self.__current_item_binding.close()
             self.__current_item_binding = None
@@ -1544,29 +1544,29 @@ class LineEditWidget(Widget):
 
     def __init__(self, widget_behavior):
         super().__init__(widget_behavior)
-        self.on_editing_finished = None
-        self.on_escape_pressed = None
-        self.on_return_pressed = None
-        self.on_key_pressed = None
-        self.on_text_edited = None
+        self.on_editing_finished : typing.Optional[typing.Callable[[str], None]] = None
+        self.on_escape_pressed : typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed : typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed : typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_text_edited : typing.Optional[typing.Callable[[str], None]] = None
         self.__binding = None
         self.__last_text = None
 
-        def handle_editing_finished(text):
+        def handle_editing_finished(text: str) -> None:
             if callable(self.on_editing_finished):
                 self.on_editing_finished(text)
             self.__last_text = text
 
         self._behavior.on_editing_finished = handle_editing_finished
 
-        def handle_escape_pressed():
+        def handle_escape_pressed() -> bool:
             if callable(self.on_escape_pressed):
                 return self.on_escape_pressed()
             return False
 
         self._behavior.on_escape_pressed = handle_escape_pressed
 
-        def handle_return_pressed():
+        def handle_return_pressed() -> bool:
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()
             return False
@@ -1580,13 +1580,13 @@ class LineEditWidget(Widget):
 
         self._behavior.on_key_pressed = handle_key_pressed
 
-        def handle_text_edited(text):
+        def handle_text_edited(text: str) -> None:
             if callable(self.on_text_edited):
                 self.on_text_edited(text)
 
         self._behavior.on_text_edited = handle_text_edited
 
-    def close(self):
+    def close(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -1634,18 +1634,18 @@ class LineEditWidget(Widget):
     def editable(self, editable: bool) -> None:
         self._behavior.editable = editable
 
-    def select_all(self):
+    def select_all(self) -> None:
         self._behavior.select_all()
 
-    def handle_select_all(self):
+    def handle_select_all(self) -> bool:
         self.select_all()
         return True
 
-    def refocus(self):
+    def refocus(self) -> None:
         self.select_all()
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -1653,26 +1653,26 @@ class LineEditWidget(Widget):
             self.on_return_pressed = None
             self.on_escape_pressed = None
         self.text = binding.get_target_value()
-        def update_field(text):
+        def update_field(text: str) -> None:
             if self._behavior:
                 if self.text != text and (not self.focused or self.selected_text == self.text):
                     self.text = text
                     if self.focused:
                         self.select_all()
         self.__binding = binding
-        def update_text(text):
+        def update_text(text: str) -> None:
             self.add_task("update_text", lambda: update_field(text))
         self.__binding.target_setter = update_text
-        def editing_finished(text):
+        def editing_finished(text: str) -> None:
             if text != self.__last_text:
                 self.__binding.update_source(text)
         self.on_editing_finished = editing_finished
-        def return_pressed():
+        def return_pressed() -> bool:
             text = self.text
             self.__binding.update_source(text)
             self.request_refocus()
             return True
-        def escape_pressed():
+        def escape_pressed() -> bool:
             text = self.__last_text
             self.__binding.update_source(text)
             self.request_refocus()
@@ -1680,7 +1680,7 @@ class LineEditWidget(Widget):
         self.on_return_pressed = return_pressed
         self.on_escape_pressed = escape_pressed
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None

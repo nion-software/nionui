@@ -236,7 +236,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super().mouse_position_changed(x, y, modifiers)
 
-    def __make_selection_visible(self, top):
+    def __make_selection_visible(self, style: int) -> None:
         if self.__delegate:
             selected_indexes = list(self.__selection.indexes)
             if len(selected_indexes) > 0 and self.canvas_bounds is not None:
@@ -246,19 +246,21 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 max_rect = self.__rect_for_index(max_index)
                 visible_rect = getattr(self.container, "visible_rect", None)
                 if visible_rect is not None:
-                    if top:
+                    if style < 0:
                         if min_rect.top < visible_rect.top:
                             self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=self.canvas_origin.x), self.canvas_size)
                         elif min_rect.bottom > visible_rect.bottom:
                             self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
-                    else:
+                    elif style > 0:
                         if max_rect.bottom > visible_rect.bottom:
                             self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=self.canvas_origin.x), self.canvas_size)
                         elif max_rect.top < visible_rect.top:
                             self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=self.canvas_origin.x), self.canvas_size)
+                    else:
+                        pass  # do nothing. maybe a use case will pop up where this should do something?
 
     def make_selection_visible(self):
-        self.__make_selection_visible(True)
+        self.__make_selection_visible(0)
 
     def key_pressed(self, key):
         if self.__delegate:
@@ -288,7 +290,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                         self.__selection.extend(new_index)
                     else:
                         self.__selection.set(new_index)
-                self.__make_selection_visible(top=True)
+                self.__make_selection_visible(-1)
                 return True
             if key.is_down_arrow:
                 new_index = None
@@ -302,7 +304,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                         self.__selection.extend(new_index)
                     else:
                         self.__selection.set(new_index)
-                self.__make_selection_visible(top=False)
+                self.__make_selection_visible(1)
                 return True
         return super().key_pressed(key)
 

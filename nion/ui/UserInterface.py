@@ -419,8 +419,6 @@ class Widget:
     @does_retain_focus.setter
     def does_retain_focus(self, value: bool) -> None:
         self._behavior.does_retain_focus = value
-        for widget in self._contained_widgets:
-            widget.does_retain_focus = value
 
     @property
     def visible(self) -> bool:
@@ -475,6 +473,9 @@ class Widget:
     def _dispatch_any(self, method: str, *args, **kwargs) -> bool:
         if hasattr(self, method):
             return getattr(self, method)(*args, **kwargs)
+        return False
+
+    def _can_dispatch_any(self, method: str) -> bool:
         return False
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[MenuItemState]:
@@ -587,7 +588,6 @@ class BoxWidget(Widget):
             alignment = self.alignment
         self.children.insert(index, child)
         child._set_root_container(self.root_container)
-        child.does_retain_focus = self.does_retain_focus
         self._behavior.insert(child, index, fill, alignment)
 
     def add(self, child, fill=False, alignment=None):
@@ -654,7 +654,6 @@ class SplitterWidget(Widget):
         self._behavior.add(child)
         self.children.append(child)
         child._set_root_container(self.root_container)
-        child.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag: str) -> None:
         self._behavior.restore_state(tag)
@@ -705,7 +704,6 @@ class TabWidget(Widget):
         self._behavior.add(child, label)
         self.children.append(child)
         child._set_root_container(self.root_container)
-        child.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag: str) -> None:
         self._behavior.restore_state(tag)
@@ -942,7 +940,6 @@ class ScrollAreaWidget(Widget):
         self._behavior.set_content(content)
         self.__content = content
         content._set_root_container(self.root_container)
-        content.does_retain_focus = self.does_retain_focus
 
     def restore_state(self, tag):
         pass
@@ -1886,6 +1883,7 @@ class CanvasWidget(Widget):
         super().__init__(widget_behavior)
         self.on_periodic = None
         self.on_dispatch_any = None
+        self.on_can_dispatch_any = None
         self.on_get_menu_item_state = None
         self.on_mouse_entered = None
         self.on_mouse_exited = None
@@ -2039,6 +2037,7 @@ class CanvasWidget(Widget):
         # messages generated from this class
         self.on_periodic = None
         self.on_dispatch_any = None
+        self.on_can_dispatch_any = None
         self.on_get_menu_item_state = None
         # messages passed on from the behavior
         self.on_mouse_entered = None
@@ -2125,6 +2124,11 @@ class CanvasWidget(Widget):
     def _dispatch_any(self, method: str, *args, **kwargs):
         if callable(self.on_dispatch_any):
             return self.on_dispatch_any(method, *args, **kwargs)
+        return False
+
+    def _can_dispatch_any(self, method: str) -> bool:
+        if callable(self.on_can_dispatch_any):
+            return self.on_can_dispatch_any(method)
         return False
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[MenuItemState]:

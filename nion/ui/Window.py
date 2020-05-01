@@ -454,6 +454,14 @@ class Window:
             return True
         return False
 
+    def _can_dispatch_to_focus_widget(self, method: str) -> bool:
+        focus_widget = self.focus_widget
+        if focus_widget and focus_widget._can_dispatch_any(method):
+            return True
+        if hasattr(self, method):
+            return True
+        return False
+
     def build_menu(self, menu: typing.Optional[UserInterface.Menu], menu_descriptions: typing.Sequence[typing.Mapping]) -> None:
         for item_d in menu_descriptions:
             item_type = item_d["type"]
@@ -835,7 +843,7 @@ class SelectAllAction(Action):
         return ActionResult.FINISHED
 
     def is_enabled(self, context: ActionContext) -> bool:
-        return hasattr(context.window, "handle_select_all")
+        return context.window and (context.window._can_dispatch_to_focus_widget("handle_select_all") or hasattr(context.window, "handle_select_all"))
 
 
 class UndoAction(Action):

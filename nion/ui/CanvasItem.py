@@ -967,6 +967,9 @@ class AbstractCanvasItem:
             return getattr(self, method)(*args, **kwargs)
         return False
 
+    def _can_dispatch_any(self, method: str) -> bool:
+        return hasattr(self, method)
+
     def _get_menu_item_state(self, command_id: str):
         handle_method = "handle_" + command_id
         menu_item_state_method = "get_" + command_id + "_menu_item_state"
@@ -2685,6 +2688,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_tool_tip = self.handle_tool_tip
         self.__canvas_widget.on_pan_gesture = self.pan_gesture
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
+        self.__canvas_widget.on_can_dispatch_any = self.__can_dispatch_any
         self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
         self.__drawing_context_updated = False
@@ -2838,6 +2842,12 @@ class RootCanvasItem(CanvasItemComposition):
         focused_item = self.focused_item
         if focused_item:
             return focused_item._dispatch_any(method, *args, **kwargs)
+        return False
+
+    def __can_dispatch_any(self, method: str) -> bool:
+        focused_item = self.focused_item
+        if focused_item:
+            return focused_item._can_dispatch_any(method)
         return False
 
     def __get_menu_item_state(self, command_id: str):

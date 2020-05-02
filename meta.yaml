@@ -19,7 +19,7 @@ requirements:
     - python
     - setuptools
   run:
-    - python >=3.6
+    - python >=3.7
     - nionutils >=0.3.19
     - numpy
     - imageio

@@ -1045,6 +1045,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
         return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
 
+    def get_qt_version(self) -> str:
+        return "TEST"
+
     def get_tolerance(self, tolerance_type: UserInterfaceModule.ToleranceType) -> float:
         return 5
 

@@ -3069,6 +3069,10 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def get_qt_version(self) -> str:
+        ...
+
+    @abc.abstractmethod
     def get_tolerance(self, tolerance_type: ToleranceType) -> float:
         ...
 

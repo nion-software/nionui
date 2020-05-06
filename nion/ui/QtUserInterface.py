@@ -2142,6 +2142,11 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font, text):
         return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))
 
+    def get_qt_version(self) -> str:
+        if hasattr(self.proxy, "has_method") and self.proxy.has_method("Core_getQtVersion"):
+            return self.proxy.Core_getQtVersion()
+        return "UNKNOWN"
+
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
         return 5
 

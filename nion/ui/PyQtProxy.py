@@ -2243,6 +2243,8 @@ class PyQtProxy:
         sys.stdout = StdoutCatcher()
         sys.stderr = sys.stdout
 
+    def has_method(self, name: str) -> bool:
+        return hasattr(self, name)
 
     # main event loop
 
@@ -2612,6 +2614,9 @@ class PyQtProxy:
         font = ParseFontString(font_str, display_scaling)
         font_metrics = QtGui.QFontMetrics(font)
         return font_metrics.width(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
+
+    def Core_getQtVersion(self) -> str:
+        return QtCore.qVersion()
 
     def Core_getLocation(self, location_id: str) -> str:
         location = QtCore.QStandardPaths.DocumentsLocation

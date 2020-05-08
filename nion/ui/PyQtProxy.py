@@ -2120,7 +2120,7 @@ class PyCanvas(QtWidgets.QWidget):
     def wakeRenderer(self) -> None:
         task = PyCanvasRenderTask(self)
         task.signals.renderingReady.connect(self.repaint_rect)
-        QtCore.QThreadPool.globalInstance().start(task);
+        QtCore.QThreadPool.globalInstance().start(task)
 
     def removeSection(self, section_id: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):

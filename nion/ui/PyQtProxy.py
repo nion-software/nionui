@@ -1227,6 +1227,8 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
         if family in families:
             font.setFamily(family)
             break
+        elif family == "monospace":
+            font.setFamily(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont).family())
         elif family == "serif":
             font.setStyleHint(QtGui.QFont.Serif)
         elif family == "sans-serif":
@@ -3016,6 +3018,22 @@ class PyQtProxy:
         else:
             label.clear()
 
+    def Label_setTextColor(self, label: QtWidgets.QLabel, r: int, g: int, b: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert label is not None
+        palette = label.palette()
+        palette.setColor(QtGui.QPalette.Text, QtGui.QColor(r, g, b))
+        label.setPalette(palette)
+
+    def Label_setTextFont(self, label: QtWidgets.QLabel, font_str: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert label is not None
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
+        label.setFont(font)
+
     def Label_setWordWrap(self, label: QtWidgets.QLabel, word_wrap: bool) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
@@ -3502,17 +3520,41 @@ class PyQtProxy:
         if sys.platform != "linux":
             text_edit.setPlaceholderText(text)
 
+    def TextEdit_setProportionalLineHeight(self, text_edit: PyTextEdit, proportional_line_height: float) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_edit is not None
+        bf = text_edit.textCursor().blockFormat()
+        bf.setLineHeight(int(proportional_line_height * 100), QtGui.QTextBlockFormat.ProportionalHeight)
+        text_edit.textCursor().setBlockFormat(bf)
+
     def TextEdit_setText(self, text_edit: PyTextEdit, text: str) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert text_edit is not None
         text_edit.setText(text)
 
+    def TextEdit_setTextBackgroundColor(self, text_edit: PyTextEdit, r: int, g: int, b: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_edit is not None
+        palette = text_edit.palette()
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor(r, g, b))
+        text_edit.setPalette(palette)
+
     def TextEdit_setTextColor(self, text_edit: PyTextEdit, r: int, g: int, b: int) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert text_edit is not None
         text_edit.setTextColor(QtGui.QColor(r, g, b))
+
+    def TextEdit_setTextFont(self, text_edit: PyTextEdit, font_str: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_edit is not None
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
+        text_edit.setFont(font)
 
     def TextEdit_setWordWrapMode(self, text_edit: PyTextEdit, wrap_mode: str) -> None:
         global app
@@ -3923,7 +3965,8 @@ class PyQtProxy:
 
     def Widget_setPaletteColor(self, widget: QtWidgets.QWidget, role: str, r: int, g: int, b: int, a: int) -> None:
         palette = widget.palette()
-        palette.setColor(widget.backgroundRole(), QtGui.QColor(r, g, b, a))
+        if role == "background":
+            palette.setColor(widget.backgroundRole(), QtGui.QColor(r, g, b, a))
         widget.setPalette(palette)
 
     def Widget_setToolTip(self, widget: QtWidgets.QWidget, tool_tip: str) -> None:

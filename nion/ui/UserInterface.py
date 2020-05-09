@@ -1385,6 +1385,7 @@ class LabelWidget(Widget):
     def __init__(self, widget_behavior, text):
         super().__init__(widget_behavior)
         self.text = text
+        self.__text_font = None
         self.__text_color = None
         self.__binding = None
 
@@ -1404,13 +1405,22 @@ class LabelWidget(Widget):
         self._behavior.text = text
 
     @property
-    def text_color(self):
+    def text_color(self) -> str:
         return self.__text_color
 
     @text_color.setter
-    def text_color(self, value):
+    def text_color(self, value: str) -> None:
         self.__text_color = value
         self._behavior.set_text_color(value)
+
+    @property
+    def text_font(self) -> str:
+        return self.__text_font
+
+    @text_font.setter
+    def text_font(self, value: str) -> None:
+        self.__text_font = value
+        self._behavior.set_text_font(value)
 
     @property
     def word_wrap(self):
@@ -1836,8 +1846,17 @@ class TextEditWidget(Widget):
         self.select_all()
         return True
 
+    def set_line_height_proportional(self, proportional_line_height: float) -> None:
+        self._behavior.set_line_height_proportional(proportional_line_height)
+
+    def set_text_background_color(self, color: str) -> None:
+        self._behavior.set_text_background_color(color)
+
     def set_text_color(self, color):
         self._behavior.set_text_color(color)
+
+    def set_text_font(self, font_str: str) -> None:
+        self._behavior.set_text_font(font_str)
 
     @property
     def word_wrap_mode(self):

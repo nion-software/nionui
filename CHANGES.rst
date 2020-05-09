@@ -3,6 +3,8 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add color/font methods to eliminate need for stylesheet properties.
+- Improve handling of scrolling when changing list selection.
 - Add UI function to retrieve default cursor tolerance for hit testing.
 - Add basic notification dialog when actions report warnings/errors.
 - Consolidate default behavior (dock windows, window closing, etc.).

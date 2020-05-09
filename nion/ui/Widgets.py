@@ -122,7 +122,7 @@ class SectionWidget(CompositeWidgetBase):
     The section is composed of a title in bold and then content.
     """
 
-    def __init__(self, ui, section_title: str, section, section_id: str=None):
+    def __init__(self, ui: UserInterface.UserInterface, section_title: str, section, section_id: str=None):
         super().__init__(ui.create_column_widget())
 
         section_widget = self.content_widget
@@ -134,8 +134,11 @@ class SectionWidget(CompositeWidgetBase):
         twist_down_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
         twist_down_canvas_widget.canvas_item.add_canvas_item(twist_down_canvas_item)
 
+        section_title_label = ui.create_label_widget(section_title)
+        section_title_label.text_font = "bold"
+
         section_title_row.add(twist_down_canvas_widget)
-        section_title_row.add(ui.create_label_widget(section_title, properties={"stylesheet": "font-weight: bold"}))
+        section_title_row.add(section_title_label)
         section_title_row.add_stretch()
         section_widget.add(section_title_row)
         section_content_row = ui.create_row_widget()

@@ -25,6 +25,26 @@ def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
 
 
+def parse_color(color: str) -> typing.Tuple[int, int, int, int]:
+    if color == "red":
+        return 255, 0, 0, 255
+    elif color == "green":
+        return 0, 255, 0, 255
+    elif color == "blue":
+        return 0, 0, 255, 255
+    elif color == "orange":
+        return 255, 128, 0, 255
+    elif color == "purple":
+        return 128, 0, 128, 255
+    elif color == "brown":
+        return 150, 75, 0, 255
+    elif color == "gray":
+        return 128, 128, 128, 255
+    elif color == "black":
+        return 0, 0, 0, 255
+    else:
+        return 255, 255, 255, 255
+
 class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     def __init__(self, raw_modifiers):
         self.raw_modifiers = int(raw_modifiers)  # convert from internal Qt type to int (pyqt)
@@ -995,21 +1015,22 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy, properties):
         super().__init__(proxy, "label", properties)
         self.__text = None
-        self.__text_color = None
         self.__word_wrap = False
 
     @property
-    def text(self):
+    def text(self) -> str:
         return self.__text
 
     @text.setter
-    def text(self, text):
+    def text(self, text: str) -> None:
         self.__text = text if text else ""
-        self.__update_text()
+        self.proxy.Label_setText(self.widget, self.__text)
 
-    def set_text_color(self, color):
-        self.__text_color = color
-        self.__update_text()
+    def set_text_color(self, color: str) -> None:
+        self.proxy.Label_setTextColor(self.widget, *(parse_color(color)[:-1]))
+
+    def set_text_font(self, font_str: str) -> None:
+        self.proxy.Label_setTextFont(self.widget, font_str)
 
     @property
     def word_wrap(self):
@@ -1019,12 +1040,6 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
     def word_wrap(self, value):
         self.__word_wrap = value
         self.proxy.Label_setWordWrap(self.widget, value)
-
-    def __update_text(self):
-        text = notnone(self.__text)
-        if self.__text_color:
-            text = "<font color='" + self.__text_color + "'>" + text + "</font>"
-        self.proxy.Label_setText(self.widget, text)
 
 
 class QtSliderWidgetBehavior(QtWidgetBehavior):
@@ -1270,25 +1285,17 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
     def move_cursor_position(self, operation, mode=None, n: int = 1) -> None:
         self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
 
+    def set_line_height_proportional(self, proportional_line_height: float) -> None:
+        self.proxy.TextEdit_setProportionalLineHeight(self.widget, proportional_line_height)
+
+    def set_text_background_color(self, color: str) -> None:
+        self.proxy.TextEdit_setTextBackgroundColor(self.widget, *(parse_color(color)[:-1]))
+
     def set_text_color(self, color: str) -> None:
-        if color == "red":
-            self.proxy.TextEdit_setTextColor(self.widget, 255, 0, 0)
-        elif color == "green":
-            self.proxy.TextEdit_setTextColor(self.widget, 0, 255, 0)
-        elif color == "blue":
-            self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 255)
-        elif color == "orange":
-            self.proxy.TextEdit_setTextColor(self.widget, 255, 128, 0)
-        elif color == "purple":
-            self.proxy.TextEdit_setTextColor(self.widget, 128, 0, 128)
-        elif color == "brown":
-            self.proxy.TextEdit_setTextColor(self.widget, 150, 75, 0)
-        elif color == "gray":
-            self.proxy.TextEdit_setTextColor(self.widget, 128, 128, 128)
-        elif color == "black":
-            self.proxy.TextEdit_setTextColor(self.widget, 0, 0, 0)
-        else:
-            self.proxy.TextEdit_setTextColor(self.widget, 255, 255, 255)
+        self.proxy.TextEdit_setTextColor(self.widget, *(parse_color(color)[:-1]))
+
+    def set_text_font(self, font_str: str) -> None:
+        self.proxy.TextEdit_setTextFont(self.widget, font_str)
 
     @property
     def word_wrap_mode(self):

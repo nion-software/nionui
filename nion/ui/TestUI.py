@@ -598,6 +598,12 @@ class LabelWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
 
+    def set_text_color(self, color: str) -> None:
+        pass
+
+    def set_text_font(self, font_str: str) -> None:
+        pass
+
 
 class SliderWidgetBehavior(WidgetBehavior):
 
@@ -783,7 +789,16 @@ class TextEditWidgetBehavior(WidgetBehavior):
     def move_cursor_position(self, operation, mode=None, n: int = 1) -> None:
         pass
 
+    def set_line_height_proportional(self, proportional_line_height: float) -> None:
+        pass
+
+    def set_text_background_color(self, color: str) -> None:
+        pass
+
     def set_text_color(self, color: str) -> None:
+        pass
+
+    def set_text_font(self, font_str: str) -> None:
         pass
 
 

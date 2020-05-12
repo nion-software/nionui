@@ -2146,15 +2146,16 @@ class QtUserInterface(UserInterface.UserInterface):
         else:
             return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
 
-    def get_font_metrics(self, font, text):
-        return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font, text))
+    def get_font_metrics(self, font_str: str, text: str) -> UserInterface.FontMetrics:
+        return self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font_str, text))
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
+        if self.proxy.has_method("Core_truncateToWidth"):
+            return self.proxy.Core_truncateToWidth(font_str, text, pixel_width, int(mode))
+        return text
 
     def get_qt_version(self) -> str:
-        try:
-            if hasattr(self.proxy, "has_method") and self.proxy.has_method("Core_getQtVersion"):
-                return self.proxy.Core_getQtVersion()
-        except Exception as e:
-            return "UNKNOWN"
+        return self.proxy.Core_getQtVersion()
 
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
         return 5

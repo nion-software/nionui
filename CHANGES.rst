@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add function to truncate string to pixel width.
 - Add color/font methods to eliminate need for stylesheet properties.
 - Improve handling of scrolling when changing list selection.
 - Add UI function to retrieve default cursor tolerance for hit testing.

@@ -686,6 +686,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font, text):
         return self.__get_font_metrics_fn(font, text)
 
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
+        return text
+
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
         return 5
 

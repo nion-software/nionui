@@ -1056,9 +1056,12 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_rgba_image(self, drawing_context, width, height):
         return numpy.zeros((height, width), dtype=numpy.uint32)
 
-    def get_font_metrics(self, font, text):
+    def get_font_metrics(self, font_str: str, text: str) -> typing.Tuple[int, int, int, int, int]:
         FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
         return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterfaceModule.TruncateModeType) -> str:
+        return text
 
     def get_qt_version(self) -> str:
         return "TEST"

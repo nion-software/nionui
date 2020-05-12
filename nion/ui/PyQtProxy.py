@@ -2664,6 +2664,19 @@ class PyQtProxy:
         self.__timer_offset_ns = value * 1E9 - self.__timer.nsecsElapsed()
         return self.__timer.nsecsElapsed()
 
+    def Core_truncateToWidth(self, font_str: str, text: str, pixel_width: int, mode: int) -> str:
+        text = text if text else str()
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
+        font_metrics = QtGui.QFontMetrics(font)
+        mapping = {
+            0: QtCore.Qt.ElideLeft,
+            1: QtCore.Qt.ElideRight,
+            2: QtCore.Qt.ElideMiddle,
+            3: QtCore.Qt.ElideNone
+        }
+        return font_metrics.elidedText(text, mapping[mode], pixel_width)
+
     def Core_URLToPath(self, url: str) -> str:
         url = QtCore.QUrl(url)
         file_path = url.toLocalFile()

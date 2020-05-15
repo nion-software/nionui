@@ -7,18 +7,20 @@
 """
 
 # futures
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import annotations
 
 # standard libraries
-# none
+import typing
 
 # third party libraries
 # none
 
 # local libraries
-from . import CanvasItem
+from nion.ui import CanvasItem
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    from nion.utils import Selection
 
 
 class ListCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -39,7 +41,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
 
-    def __init__(self, delegate, selection, item_height=80):
+    def __init__(self, delegate, selection: Selection.IndexedSelection, item_height: int = 80):
         super().__init__()
         # store parameters
         self.__delegate = delegate
@@ -59,12 +61,12 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drop_index = None
         self.__item_height = item_height
 
-    def close(self):
+    def close(self) -> None:
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         super().close()
 
-    def detach_delegate(self):
+    def detach_delegate(self) -> None:
         self.__delegate = None
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
@@ -218,19 +220,21 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         if self.__mouse_pressed_for_dragging:
             if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
                 self.__mouse_dragging = True
-                if self.__delegate and hasattr(self.__delegate, "drag_started") and self.__delegate.drag_started:
+                drag_started = getattr(self.__delegate, "drag_started", None) if self.__delegate else None
+                if callable(drag_started):
                     root_container = self.root_container
                     if root_container:
                         root_container.bypass_request_focus()
-                    self.__delegate.drag_started(self.__mouse_index, x, y, modifiers)
+                    drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
                 # TODO: delete soon. only here for backwards compatibility.
-                if self.__delegate and hasattr(self.__delegate, "on_drag_started") and self.__delegate.on_drag_started:
+                on_drag_started = getattr(self.__delegate, "on_drag_started", None) if self.__delegate else None
+                if callable(on_drag_started):
                     root_container = self.root_container
                     if root_container:
                         root_container.bypass_request_focus()
-                    self.__delegate.on_drag_started(self.__mouse_index, x, y, modifiers)
+                    on_drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
                 return True

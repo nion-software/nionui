@@ -1,6 +1,7 @@
 """
 A basic class to serve as the document controller of a typical one window application.
 """
+from __future__ import annotations
 
 # standard libraries
 import asyncio
@@ -19,6 +20,7 @@ from nion.utils import Process
 from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
+    import numpy
     from nion.ui import Application
 
 
@@ -26,7 +28,7 @@ _ = gettext.gettext
 
 
 class ActionContext:
-    def __init__(self, application: "Application.BaseApplication", window: typing.Optional["Window"], focus_widget: typing.Optional[UserInterface.Widget]):
+    def __init__(self, application: Application.BaseApplication, window: typing.Optional[Window], focus_widget: typing.Optional[UserInterface.Widget]):
         self.application = application
         self.window = window
         self.focus_widget = focus_widget
@@ -47,14 +49,14 @@ Report = collections.namedtuple("Report", ["type", "message"])
 
 
 class Action:
-    action_id : str = str()
-    action_name : str = str()
-    action_role : typing.Optional[str] = None
-    action_summary : typing.Optional[str] = None
-    action_description : typing.Optional[str] = None
+    action_id: str = str()
+    action_name: str = str()
+    action_role: typing.Optional[str] = None
+    action_summary: typing.Optional[str] = None
+    action_description: typing.Optional[str] = None
 
     def __init__(self):
-        self.__reports : typing.List[Report] = list()
+        self.__reports: typing.List[Report] = list()
 
     @property
     def reports(self) -> typing.List[Report]:
@@ -78,22 +80,26 @@ class Action:
         self.__reports.append(Report(type, message))
 
 
-actions : typing.Mapping[str, Action] = dict()
+actions: typing.Mapping[str, Action] = dict()
+
 
 def register_action(action: Action) -> None:
-    assert not action.action_id in actions
+    assert action.action_id not in actions
     typing.cast(typing.MutableMapping[str, Action], actions)[action.action_id] = action
 
 
-action_shortcuts : typing.Mapping[str, typing.Mapping] = dict()
+action_shortcuts: typing.Mapping[str, typing.Mapping] = dict()
+
 
 def add_action_shortcut(action_id: str, action_context: str, key_sequence: str) -> None:
     typing.cast(typing.MutableMapping[str, typing.MutableMapping], action_shortcuts).setdefault(action_id, dict())[action_context] = key_sequence
+
 
 def register_action_shortcuts(action_shortcuts: typing.Mapping) -> None:
     for action_id, action_shortcut_d in action_shortcuts.items():
         for action_context, key_sequence in action_shortcut_d.items():
             add_action_shortcut(action_id, action_context, key_sequence)
+
 
 def get_action_id_for_key(context: str, key) -> typing.Optional[str]:
     for action_id, action_shortcut_d in action_shortcuts.items():
@@ -106,20 +112,22 @@ def get_action_id_for_key(context: str, key) -> typing.Optional[str]:
 class Window:
     count = 0  # useful for detecting leaks in tests
 
-    def __init__(self, ui: UserInterface.UserInterface, app=None, parent_window=None, window_style=None, persistent_id=None):
+    def __init__(self, ui: UserInterface.UserInterface, app: typing.Optional[Application.BaseApplication] = None,
+                 parent_window: Window = None, window_style: typing.Optional[str] = None,
+                 persistent_id: typing.Optional[str] = None):
         Window.count += 1
         self.ui = ui
         self.parent_window = parent_window
-        self.app = app or (parent_window.app if parent_window else None)
-        self.on_close : typing.Optional[typing.Callable[[], None]] = None
-        parent_window = parent_window._document_window if parent_window else None
-        self.__document_window = self.ui.create_document_window(parent_window=parent_window)
+        self.app: typing.Optional[Application.BaseApplication] = app or (parent_window.app if parent_window else None)
+        self.on_close: typing.Optional[typing.Callable[[], None]] = None
+        parent_ui_window = parent_window._document_window if parent_window else None
+        self.__document_window = self.ui.create_document_window(parent_window=parent_ui_window)
         if window_style:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id
         self.__shown = False
 
-        self.__dialogs : typing.List[weakref.ReferenceType] = list()
+        self.__dialogs: typing.List[weakref.ReferenceType] = list()
 
         self._window_close_event = Event.Event()
 
@@ -163,20 +171,21 @@ class Window:
         self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
         logger.setLevel(old_level)
 
-        if app: app._window_created(self)
+        if app:
+            app._window_created(self)
 
-    def close(self):
+    def close(self) -> None:
         self._finish_periodic()  # required to finish periodic operations during tests
         self._close_dialogs()
         self._window_close_event.fire(self)
-        self._window_close_event = None
+        self._window_close_event = typing.cast(Event.Event, None)
         self.on_close = None
         Process.close_event_loop(self.__event_loop)
-        self.__event_loop = None
+        self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         self.ui.destroy_document_window(self.__document_window)  # close the ui window
-        self.__document_window = None
-        self.__periodic_queue = None
-        self.__periodic_set = None
+        self.__document_window = typing.cast(UserInterface.Window, None)
+        self.__periodic_queue = typing.cast(Process.TaskQueue, None)
+        self.__periodic_set = typing.cast(Process.TaskSet, None)
         self._close_action = None
         self._page_setup_action = None
         self._print_action = None
@@ -196,11 +205,11 @@ class Window:
         Window.count -= 1
 
     @property
-    def _document_window(self):
+    def _document_window(self) -> UserInterface.Window:
         # for testing only
         return self.__document_window
 
-    def _create_menus(self):
+    def _create_menus(self) -> None:
         menu_descriptions = [
             {"type": "menu", "menu_id": "file", "title": _("File"), "items":
                 [
@@ -238,7 +247,7 @@ class Window:
              },
         ]
 
-        self.build_menu(None, menu_descriptions)
+        self.build_menu(None, typing.cast(typing.List[typing.Dict], menu_descriptions))
 
     def _adjust_menus(self) -> None:
         # called when key may be shortcut. does not work for sub-menus.
@@ -274,17 +283,17 @@ class Window:
             if dialog:
                 try:
                     dialog.request_close()
-                except Exception as e:
+                except Exception:
                     pass
         self.__dialogs = list()
 
-    def is_dialog_type_open(self, dialog_class) -> bool:
+    def is_dialog_type_open(self, dialog_class: typing.Type[Window]) -> bool:
         for dialog_weakref in self.__dialogs:
             if isinstance(dialog_weakref(), dialog_class):
                 return True
         return False
 
-    def register_dialog(self, dialog: "Window") -> None:
+    def register_dialog(self, dialog: Window) -> None:
         def close_dialog():
             self.__dialogs.remove(weakref.ref(dialog))
         dialog.on_close = close_dialog
@@ -294,10 +303,10 @@ class Window:
     def event_loop(self) -> asyncio.AbstractEventLoop:
         return self.__event_loop
 
-    def attach_widget(self, widget):
+    def attach_widget(self, widget: UserInterface.Widget) -> None:
         self.__document_window.attach(widget)
 
-    def detach_widget(self):
+    def detach_widget(self) -> None:
         self.__document_window.detach()
 
     def about_to_show(self) -> None:
@@ -317,10 +326,10 @@ class Window:
         # so care must be taken to not close windows in cases where the widget triggering the close is still in use.
         self.close()
 
-    def refocus_widget(self, widget):
+    def refocus_widget(self, widget: UserInterface.Widget) -> None:
         widget.refocus()
 
-    def __save_bounds(self):
+    def __save_bounds(self) -> None:
         if self.__shown and self.__persistent_id:
             geometry, state = self.save()
             self.ui.set_persistent_string("{}/Geometry".format(self.__persistent_id), geometry)
@@ -343,7 +352,7 @@ class Window:
             self._adjust_menus()
         return False
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail, hot_spot_x, hot_spot_y) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: numpy.ndarray, hot_spot_x: int, hot_spot_y: int) -> None:
         self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     @property
@@ -354,42 +363,43 @@ class Window:
     def title(self, value: str) -> None:
         self.__document_window.title = value
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_paths_dialog(title, directory, filter, selected_filter)
 
-    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_path_dialog(title, directory, filter, selected_filter)
 
-    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[str, str, str]:
         return self.__document_window.get_save_file_path(title, directory, filter, selected_filter)
 
-    def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
+    def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str,
+                           positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
         return self.__document_window.create_dock_widget(widget, panel_id, title, positions, position)
 
-    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
-        return self.__document_window.tabify_dock_widgets(dock_widget1, dock_widget2)
+    def tabify_dock_widgets(self, dock_widget1: UserInterface.DockWidget, dock_widget2: UserInterface.DockWidget) -> None:
+        self.__document_window.tabify_dock_widgets(dock_widget1, dock_widget2)
 
     @property
-    def screen_size(self):
+    def screen_size(self) -> Geometry.IntSize:
         return self.__document_window.screen_size
 
     @property
-    def screen_logical_dpi(self):
+    def screen_logical_dpi(self) -> float:
         return self.__document_window.screen_logical_dpi
 
     @property
-    def screen_physical_dpi(self):
+    def screen_physical_dpi(self) -> float:
         return self.__document_window.screen_physical_dpi
 
     @property
-    def display_scaling(self):
+    def display_scaling(self) -> float:
         return self.__document_window.display_scaling
 
-    def get_font_metrics(self, font, text):
+    def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
         return self.ui.get_font_metrics(font, text)
 
     @property
-    def focus_widget(self):
+    def focus_widget(self) -> typing.Optional[UserInterface.Widget]:
         focus_widget = self.__document_window.focus_widget
         if focus_widget:
             return focus_widget
@@ -400,22 +410,22 @@ class Window:
         return None
 
     @property
-    def dock_widgets(self):
+    def dock_widgets(self) -> typing.Sequence[UserInterface.DockWidget]:
         return self.__document_window.dock_widgets
 
-    def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
+    def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
         self.__document_window.show(size=size, position=position)
 
     def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
         return self.__document_window.add_menu(title, menu_id)
 
-    def insert_menu(self, title: str, before_menu, menu_id: str = None) -> UserInterface.Menu:
+    def insert_menu(self, title: str, before_menu: UserInterface.Menu, menu_id: str = None) -> UserInterface.Menu:
         return self.__document_window.insert_menu(title, before_menu, menu_id)
 
     def create_sub_menu(self, title: str = None, menu_id: str = None) -> UserInterface.Menu:
         return self.ui.create_sub_menu(self.__document_window, title, menu_id)
 
-    def create_context_menu(self):
+    def create_context_menu(self) -> UserInterface.Menu:
         return self.ui.create_context_menu(self.__document_window)
 
     def restore(self, geometry: str, state: str) -> None:
@@ -429,21 +439,22 @@ class Window:
     # added tasks are only executed if not replaced before execution.
     # added tasks do not guarantee execution order or execution at all.
 
-    def add_task(self, key, task):
+    def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
         assert task
         self.__periodic_set.add_task(key + str(id(self)), task)
 
-    def clear_task(self, key):
+    def clear_task(self, key: str) -> None:
         self.__periodic_set.clear_task(key + str(id(self)))
 
-    def queue_task(self, task):
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
         assert task
         self.__periodic_queue.put(task)
 
-    def clear_queued_tasks(self):
+    def clear_queued_tasks(self) -> None:
         self.__periodic_queue.clear_tasks()
 
-    def handle_quit(self):
+    def handle_quit(self) -> None:
+        assert self.app
         self.app.exit()
 
     def _dispatch_any_to_focus_widget(self, method: str, *args, **kwargs) -> bool:
@@ -502,6 +513,7 @@ class Window:
                 self.build_menu(new_menu, menu_items)
 
     def _get_action_context(self) -> ActionContext:
+        assert self.app
         focus_widget = self.focus_widget
         return ActionContext(self.app, self, focus_widget)
 
@@ -579,7 +591,7 @@ class Window:
                         checked = action and action.is_checked(action_context)
                         menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
-    def _file_menu_about_to_show(self):
+    def _file_menu_about_to_show(self) -> None:
         action_context = self._get_action_context()
         self._apply_menu_state("window.close", action_context)
         self._apply_menu_state("window.page_setup", action_context)
@@ -595,7 +607,7 @@ class Window:
         if self._quit_action:
             self._quit_action.enabled = True
 
-    def _edit_menu_about_to_show(self):
+    def _edit_menu_about_to_show(self) -> None:
         action_context = self._get_action_context()
         self._apply_menu_state("window.undo", action_context)
         self._apply_menu_state("window.redo", action_context)
@@ -620,7 +632,7 @@ class Window:
         if self._select_all_action:
             self._select_all_action.apply_state(self._get_focus_widget_menu_item_state("select_all"))
 
-    def _window_menu_about_to_show(self):
+    def _window_menu_about_to_show(self) -> None:
         action_context = self._get_action_context()
         self._apply_menu_state("window.minimize", action_context)
         self._apply_menu_state("window.zoom", action_context)
@@ -633,40 +645,40 @@ class Window:
         if self._bring_to_front_action:
             self._bring_to_front_action.apply_state(self._get_focus_widget_menu_item_state("bring_to_front"))
 
-    def _page_setup(self):
+    def _page_setup(self) -> None:
         self.perform_action("window.page_setup")
 
-    def _print(self):
+    def _print(self) -> None:
         self.perform_action("window.print")
 
-    def _cut(self):
+    def _cut(self) -> None:
         self._dispatch_any_to_focus_widget("handle_cut")
 
-    def _copy(self):
+    def _copy(self) -> None:
         self._dispatch_any_to_focus_widget("handle_copy")
 
-    def _paste(self):
+    def _paste(self) -> None:
         self._dispatch_any_to_focus_widget("handle_paste")
 
-    def _delete(self):
+    def _delete(self) -> None:
         self._dispatch_any_to_focus_widget("handle_delete")
 
-    def _select_all(self):
+    def _select_all(self) -> None:
         self._dispatch_any_to_focus_widget("handle_select_all")
 
-    def _undo(self):
+    def _undo(self) -> None:
         self._dispatch_any_to_focus_widget("handle_undo")
 
-    def _redo(self):
+    def _redo(self) -> None:
         self._dispatch_any_to_focus_widget("handle_redo")
 
-    def _minimize(self):
+    def _minimize(self) -> None:
         self._dispatch_any_to_focus_widget("handle_minimize")
 
-    def _zoom(self):
+    def _zoom(self) -> None:
         self._dispatch_any_to_focus_widget("handle_zoom")
 
-    def _bring_to_front(self):
+    def _bring_to_front(self) -> None:
         self._dispatch_any_to_focus_widget("bring_to_front")
 
 
@@ -843,7 +855,9 @@ class SelectAllAction(Action):
         return ActionResult.FINISHED
 
     def is_enabled(self, context: ActionContext) -> bool:
-        return context.window and (context.window._can_dispatch_to_focus_widget("handle_select_all") or hasattr(context.window, "handle_select_all"))
+        if context.window:
+            return context.window._can_dispatch_to_focus_widget("handle_select_all") or hasattr(context.window, "handle_select_all")
+        return False
 
 
 class UndoAction(Action):

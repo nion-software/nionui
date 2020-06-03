@@ -5,7 +5,6 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
-import collections
 import enum
 import functools
 import gettext
@@ -32,20 +31,33 @@ class ActionContext:
         self.application = application
         self.window = window
         self.focus_widget = focus_widget
+        self.event_type_str : typing.Optional[str] = None
 
 
-class ActionResult(enum.Enum):
+class ActionResult(enum.IntEnum):
     FINISHED = 0
+    MODAL = 1
+    CANCELLED = 2
+    PASS = 3
 
 
-class ReportType(enum.Enum):
-    DEBUG = 1
-    INFO = 2
-    WARNING = 3
-    ERROR = 4
+class ReportType(enum.IntEnum):
+    NOTSET = 0
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
 
 
-Report = collections.namedtuple("Report", ["type", "message"])
+class Report:
+    def __init__(self, type: ReportType, message: str):
+        self.type = type
+        self.message = message
+
+    @classmethod
+    def from_log_record(cls, record: logging.LogRecord) -> Report:
+        return Report(ReportType(record.levelno), record.getMessage())
 
 
 class Action:
@@ -65,7 +77,17 @@ class Action:
     def clear(self) -> None:
         self.__reports = list()
 
-    def invoke(self, context: ActionContext) -> ActionResult: ...
+    def event(self, context: ActionContext) -> ActionResult:
+        """Handle the event."""
+        ...
+
+    def execute(self, context: ActionContext) -> ActionResult:
+        """Execute the action with the context. No user interaction allowed. May be called from scripts."""
+        ...
+
+    def invoke(self, context: ActionContext) -> ActionResult:
+        """Called to execute the action with the context. User interaction allowed. Typically calls `execute`."""
+        return self.execute(context)
 
     def is_checked(self, context: ActionContext) -> bool:
         return False
@@ -78,6 +100,9 @@ class Action:
 
     def report(self, type: ReportType, message: str) -> None:
         self.__reports.append(Report(type, message))
+
+    def log_record(self, record: logging.LogRecord) -> None:
+        self.__reports.append(Report.from_log_record(record))
 
 
 actions: typing.Mapping[str, Action] = dict()
@@ -147,6 +172,7 @@ class Window:
         self.__document_window.on_ui_activity = self._register_ui_activity
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
+        self.__modal_actions : typing.List[Action] = list()
 
         # define old-style menu actions for backwards compatibility
         self._close_action = None
@@ -186,6 +212,7 @@ class Window:
         self.__document_window = typing.cast(UserInterface.Window, None)
         self.__periodic_queue = typing.cast(Process.TaskQueue, None)
         self.__periodic_set = typing.cast(Process.TaskSet, None)
+        self.__modal_actions = typing.cast(typing.List[Action], None)
         self._close_action = None
         self._page_setup_action = None
         self._print_action = None
@@ -276,6 +303,26 @@ class Window:
         self.__event_loop.run_forever()
         if self.app:
             self.app.periodic()
+
+    def exec_action_events(self, event_type_str: str, **kwargs) -> bool:
+        action_context = None
+        for action in self.__modal_actions:
+            if not action_context:
+                action_context = self._get_action_context()
+                action_context.event_type_str = event_type_str
+                for k, v in kwargs.items():
+                    setattr(action_context, k, v)
+            action_result = action.event(action_context)
+            # finished or cancelled will remove the action
+            if action_result not in {ActionResult.MODAL, ActionResult.PASS}:
+                self.__modal_actions.remove(action)
+            # modal, finished, or cancelled will stop iterating and return True
+            if action_result != ActionResult.PASS:
+                for report in action.reports:
+                    self.display_report(report)
+                return True
+        # pass will return False
+        return False
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:
@@ -529,10 +576,11 @@ class Window:
 
     def perform_action(self, action_id: str) -> None:
         action = actions.get(action_id)
-        if action:
+        if action and action not in self.__modal_actions:
             action.clear()
             action_context = self._get_action_context()
-            action.invoke(action_context)
+            if action.invoke(action_context) == ActionResult.MODAL:
+                self.__modal_actions.append(action)
             for report in action.reports:
                 self.display_report(report)
 
@@ -548,6 +596,9 @@ class Window:
         elif report.type == ReportType.ERROR:
             logging.error(report.message)
             Dialog.NotificationDialog(self.ui, message=f"ERROR: {report.message}", parent_window=self).show()
+
+    def display_log_record(self, record: logging.LogRecord) -> None:
+        self.display_report(Report.from_log_record(record))
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
         # if there is a specific menu item state for the command_id, use it

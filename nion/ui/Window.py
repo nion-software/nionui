@@ -31,7 +31,7 @@ class ActionContext:
         self.application = application
         self.window = window
         self.focus_widget = focus_widget
-        self.event_type_str : typing.Optional[str] = None
+        self.event_type_str: typing.Optional[str] = None
 
 
 class ActionResult(enum.IntEnum):
@@ -172,7 +172,7 @@ class Window:
         self.__document_window.on_ui_activity = self._register_ui_activity
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
-        self.__modal_actions : typing.List[Action] = list()
+        self.__modal_actions: typing.List[Action] = list()
 
         # define old-style menu actions for backwards compatibility
         self._close_action = None

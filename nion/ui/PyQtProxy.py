@@ -3737,7 +3737,7 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
         if property:
-            raise NotImplemented()
+            raise NotImplementedError()
         return str()
 
     def Widget_getWidgetSize(self, widget: QtWidgets.QWidget) -> typing.Tuple[int, int]:

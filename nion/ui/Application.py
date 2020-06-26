@@ -77,7 +77,7 @@ class BaseApplication:
 
     def start(self):
         """The start method should create a window that will be the focus of the UI."""
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def stop(self):
         # program is really stopping, clean up.

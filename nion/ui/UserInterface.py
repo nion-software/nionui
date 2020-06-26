@@ -2797,13 +2797,13 @@ class Window:
         raise NotImplementedError()
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def set_window_style(self, styles: typing.Sequence[str]) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def set_attributes(self, attributes: typing.Sequence[str]) -> None:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def _handle_periodic(self):
         if self.root_widget:

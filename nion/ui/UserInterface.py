@@ -2470,7 +2470,7 @@ class Menu:
         action.on_triggered = callback
         action.on_ui_activity = self._register_ui_activity
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> MenuAction:
         raise NotImplementedError()
 
     def add_action(self, action) -> None:

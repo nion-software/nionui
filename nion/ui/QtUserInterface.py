@@ -1721,7 +1721,7 @@ class QtMenu(UserInterface.Menu):
     def aboutToHide(self):
         self.about_to_hide()
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> UserInterface.MenuAction:
         action = QtAction(self.proxy)
         self._prepare_action(action, title, action_id, callback, key_sequence, role)
         self.proxy.Menu_addAction(self.native_menu, action.native_action)

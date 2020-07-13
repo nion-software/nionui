@@ -78,7 +78,7 @@ class Menu(UserInterfaceModule.Menu):
     def __init__(self, document_window, title=None, menu_id=None):
         super().__init__(document_window, title, menu_id)
         self.on_popup = None
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None):
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> UserInterfaceModule.MenuAction:
         menu_item = MenuItem(title, action_id, callback, key_sequence, role, None, False, False)
         self._item_added(action=menu_item)
         return menu_item

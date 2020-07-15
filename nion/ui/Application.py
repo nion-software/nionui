@@ -11,6 +11,7 @@ import typing
 import weakref
 
 # local libraries
+from . import UserInterface
 from . import Window
 from nion.utils import Process
 
@@ -136,6 +137,9 @@ class BaseApplication:
     @property
     def event_loop(self) -> asyncio.AbstractEventLoop:
         return self.__event_loop
+
+    def _menu_about_to_show(self, window: Window.Window, menu: UserInterface.Menu) -> bool:
+        return False
 
 
 def make_ui(bootstrap_args):

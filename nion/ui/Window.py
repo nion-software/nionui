@@ -625,7 +625,9 @@ class Window:
     # standard menu items
 
     def _menu_about_to_show(self, menu: UserInterface.Menu) -> None:
-        if menu.menu_id == "file":
+        if self.app and self.app._menu_about_to_show(self, menu):
+            pass
+        elif menu.menu_id == "file":
             self._file_menu_about_to_show()
         elif menu.menu_id == "edit":
             self._edit_menu_about_to_show()

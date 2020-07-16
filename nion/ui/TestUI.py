@@ -1004,6 +1004,15 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_existing_directory_dialog(self, title, directory):
         return directory, directory
 
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+        raise NotImplementedError()
+
+    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+        raise NotImplementedError()
+
+    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+        raise NotImplementedError()
+
     # persistence (associated with application)
 
     def get_data_location(self):

@@ -2079,6 +2079,21 @@ class QtUserInterface(UserInterface.UserInterface):
         existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", notnone(title), notnone(directory), str(), str())
         return existing_directory, directory
 
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+        selected_filter = selected_filter if selected_filter else str()
+        file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
+        return file_paths, filter, directory
+
+    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+        selected_filter = selected_filter if selected_filter else str()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "load", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
+        return file_path, filter, directory
+
+    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+        selected_filter = selected_filter if selected_filter else str()
+        file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "save", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
+        return file_path, filter, directory
+
     # persistence (associated with application)
 
     def get_data_location(self):

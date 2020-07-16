@@ -3,6 +3,8 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add functions for opening file dialogs without a window.
+- Add support for adjusting menus at the application level.
 - Add function to truncate string to pixel width.
 - Add color/font methods to eliminate need for stylesheet properties.
 - Improve handling of scrolling when changing list selection.

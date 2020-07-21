@@ -50,6 +50,17 @@ class BaseApplication:
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         logger.addHandler(logging_handler)
+
+        class ContextFilter(logging.Filter):
+            def filter(self, record):
+                if record.exc_info and record.exc_info[0] == ConnectionResetError:
+                    return False
+                return True
+
+        # work around bug 39010 here
+        logger = logging.getLogger('asyncio')
+        logger.addFilter(ContextFilter())
+
         self.__windows : typing.List[Window.Window] = list()
         self.__window_close_event_listeners = dict()
         self.__event_loop = None
@@ -157,3 +168,4 @@ def make_ui(bootstrap_args):
         return CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
     else:
         return None
+

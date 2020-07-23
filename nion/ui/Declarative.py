@@ -931,17 +931,28 @@ class WindowHandler:
     `close_window` can be called directly or used as a target for a button.
     """
 
-    def __init__(self):
+    def __init__(self, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None):
         self.window = None
+        self.__completion_fn = completion_fn
+        self.__on_close = None
 
     def close_window(self, widget: typing.Optional[UIWidget] = None) -> None:
         self.window.request_close()
 
     def run(self, app: Application.BaseApplication, d) -> None:
         self.window = run_window(app, d, self)
+        self.__on_close = self.window.on_close
+
+        def handle_close() -> None:
+            if callable(self.__on_close):
+                self.__on_close()
+            if callable(self.__completion_fn):
+                self.__completion_fn()
+
+        self.window.on_close = handle_close
 
 
-def run_window(app, d, handler):
+def run_window(app: Application.BaseApplication, d, handler) -> typing.Optional[Window.Window]:
     ui = app.ui
     d_type = d.get("type")
     if d_type == "window":
@@ -985,6 +996,7 @@ def run_window(app, d, handler):
         if callable(getattr(handler, "init_handler", None)):
             handler.init_handler()
         return window
+    return None
 
 
 def construct_margin(ui, content, margin):

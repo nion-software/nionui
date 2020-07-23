@@ -1,16 +1,20 @@
+from __future__ import annotations
+
 # standard libraries
 import gettext
 import re
 import typing
 
 # local libraries
-from nion.ui import Application
 from nion.ui import Dialog
 from nion.ui import Window
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Registry
+
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
 
 
 UIDescription = typing.Dict  # when napolean works: typing.NewType("UIDescription", typing.Dict)
@@ -745,7 +749,7 @@ class DeclarativeUI:
             d["resources"] = resources
         return d
 
-    def create_window(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
+    def create_window(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None, window_style: str=None) -> UIDescription:
         """Create a window UI description with content, title, resources, and margin.
 
         Args:
@@ -766,6 +770,8 @@ class DeclarativeUI:
             d["margin"] = margin
         if resources is not None:
             d["resources"] = resources
+        if window_style is not None:
+            d["window_style"] = window_style
         return d
 
     def define_component(self, content, *, component_id=None, events=None):
@@ -919,6 +925,22 @@ def connect_attributes(widget, d, handler, finishes):
     connect_string_value(widget, d, handler, "tool_tip", finishes)
 
 
+class WindowHandler:
+    """Base handler to run a declarative window inside the application.
+
+    `close_window` can be called directly or used as a target for a button.
+    """
+
+    def __init__(self):
+        self.window = None
+
+    def close_window(self, widget: typing.Optional[UIWidget] = None) -> None:
+        self.window.request_close()
+
+    def run(self, app: Application.BaseApplication, d) -> None:
+        self.window = run_window(app, d, self)
+
+
 def run_window(app, d, handler):
     ui = app.ui
     d_type = d.get("type")
@@ -926,6 +948,7 @@ def run_window(app, d, handler):
         title = d.get("title", _("Untitled"))
         margin = d.get("margin")
         persistent_id = d.get("persistent_id")
+        window_style = d.get("window_style")
         content = d.get("content")
         resources = d.get("resources", dict())
         for k, v in resources.items():
@@ -936,7 +959,7 @@ def run_window(app, d, handler):
             handler.resources.update(resources)
         closer = Closer()
         finishes = list()
-        window = Window.Window(ui, app=app, persistent_id=persistent_id)
+        window = Window.Window(ui, app=app, persistent_id=persistent_id, window_style=window_style)
         window.title = title
         window.on_close = closer.close
         # make and attach closer for the handler; put handler into container closer
@@ -1408,14 +1431,3 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
     def close(self):
         self.__closer.close()
         super().close()
-
-
-def run_ui(args, bootstrap_args, d, handler):
-
-    def start():
-        run_window(app, d, handler)
-        return True
-
-    app = Application.Application(Application.make_ui(bootstrap_args), on_start=start)
-    app.initialize()
-    return app

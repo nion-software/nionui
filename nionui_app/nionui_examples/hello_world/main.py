@@ -5,6 +5,7 @@ import gettext
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import Declarative
 
 _ = gettext.gettext
@@ -23,10 +24,13 @@ class Handler:
 
 
 def main(args, bootstrap_args):
+
     ui = Declarative.DeclarativeUI()
     button = ui.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
     label = ui.create_label(name="label_item", text=_("Not Clicked"))
     column = ui.create_column(button, label, spacing=8)
     window = ui.create_window(column, title=_("Hello World"), margin=12)
+
     handler = Handler()
-    return Declarative.run_ui(args, bootstrap_args, window, handler)
+
+    return Application.run_window(args, bootstrap_args, window, handler)

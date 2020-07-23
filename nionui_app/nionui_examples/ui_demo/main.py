@@ -5,6 +5,7 @@ import gettext
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import Declarative
 
 # ui imports
@@ -91,4 +92,4 @@ def main(args, bootstrap_args):
 
     window = ui.create_window(main_column, title=_("UI Demo"), margin=12, resources=resources)
 
-    return Declarative.run_ui(args, bootstrap_args, window, handler)
+    return Application.run_window(args, bootstrap_args, window, handler)

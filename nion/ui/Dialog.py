@@ -2,9 +2,12 @@
     Dialog classes.
 """
 
+from __future__ import annotations
+
 # standard libraries
 import gettext
 import time
+import typing
 
 # typing
 from typing import Callable
@@ -13,10 +16,13 @@ from typing import Callable
 # none
 
 # local libraries
-from nion.ui import Application
 from nion.ui import Window
 from nion.ui import UserInterface
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
+
 
 _ = gettext.gettext
 

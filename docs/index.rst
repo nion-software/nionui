@@ -50,6 +50,9 @@ The declarative features allow you to have a clean separation between the UI and
 
 .. code-block:: python
 
+    from nion.ui import Application
+    from nion.ui import Declarative
+
     class Handler:
         def __init__(self):
             self.label_item = None
@@ -66,7 +69,7 @@ The declarative features allow you to have a clean separation between the UI and
         column = ui.create_column(button, label, spacing=8)
         window = ui.create_window(column, title=_("Hello World"), margin=12)
         handler = Handler()
-        return Declarative.run_ui(args, bootstrap_args, window, handler)
+        return Application.run_window(args, bootstrap_args, window, handler)
 
 At the top, a ``Handler`` class is defined which includes a property ``label_item`` and a method ``button_clicked``
 which will be connected to the UI. It also includes a property ``click_count`` that will be used separately.
@@ -85,10 +88,10 @@ declaration.
 
 Next, an instance of ``Handler`` is created.
 
-Finally, the ``window`` and ``handler`` are passed to ``Declarative.run_ui`` which constructs the window UI, connects it
-to the handler, and presents the UI to the user.
+Finally, the ``window`` and ``handler`` are passed to ``Application.run_window`` which constructs the window UI,
+connects it to the handler, and presents the UI to the user.
 
-The ``window`` variable is a Python dictionary. It gets connected to the ``Handler`` in the ``Declarative.run_ui``
+The ``window`` variable is a Python dictionary. It gets connected to the ``Handler`` in the ``Application.run_window``
 method. The dictionary looks like this::
 
     {'content': {'children': [{'on_clicked': 'button_clicked',
@@ -353,7 +356,7 @@ Application and Windows
 The declarative UI provides top level support for windows and dialogs.
 
 You can declare a window using ``ui.create_window`` (see below). Once you have a window declaration, you can run the
-window using ``Declarative.run_ui`` in your ``main`` function.
+window using ``Application.run_window`` in your ``main`` function.
 
 .. code-block:: python
 
@@ -362,7 +365,7 @@ window using ``Declarative.run_ui`` in your ``main`` function.
         content = ui.create_column(ui.create_label(text="Hello World"))
         window = ui.create_window(content, title="Hello World", margin=12)
         handler = object()  # a dummy handler in this example
-        return Declarative.run_ui(args, bootstrap_args, window, handler)
+        return Application.run_window(args, bootstrap_args, window, handler)
 
 .. autoclass:: nion.ui.Declarative.DeclarativeUI
     :members: create_window, create_modeless_dialog

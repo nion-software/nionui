@@ -1,9 +1,12 @@
 """
 A basic class to serve as the basis of a typical one window application.
 """
+from __future__ import annotations
+
 # standard libraries
 import asyncio
 import copy
+import gettext
 import logging
 import os
 import sys
@@ -11,9 +14,12 @@ import typing
 import weakref
 
 # local libraries
-from . import UserInterface
-from . import Window
+from nion.ui import Declarative
+from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Process
+
+_ = gettext.gettext
 
 
 class LoggingHandler(logging.StreamHandler):
@@ -47,6 +53,7 @@ class BaseApplication:
 
     def __init__(self, ui, *, on_start=None):
         self.ui = ui
+        self.__on_start = on_start
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         logger.addHandler(logging_handler)
@@ -89,7 +96,8 @@ class BaseApplication:
 
     def start(self):
         """The start method should create a window that will be the focus of the UI."""
-        raise NotImplementedError()
+        if callable(self.__on_start):
+            return self.__on_start()
 
     def stop(self):
         # program is really stopping, clean up.
@@ -152,6 +160,14 @@ class BaseApplication:
     def _menu_about_to_show(self, window: Window.Window, menu: UserInterface.Menu) -> bool:
         return False
 
+    def show_ok_dialog(self, title: str, message: str) -> None:
+        u = Declarative.DeclarativeUI()
+        error_message = u.create_label(text=message)
+        button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("OK"), on_clicked="close_window"))
+        main_column = u.create_column(error_message, button_row, spacing=8, width=300)
+        window = u.create_window(main_column, title=title, margin=12, window_style="tool")
+        Declarative.WindowHandler().run(self, window)
+
 
 def make_ui(bootstrap_args):
     if "proxy" in bootstrap_args:
@@ -169,3 +185,15 @@ def make_ui(bootstrap_args):
     else:
         return None
 
+
+def run_window(args, bootstrap_args, d, handler) -> BaseApplication:
+    """Make base application and run it with the declarative d and handler."""
+
+    def start():
+        Declarative.run_window(app, d, handler)
+        return True
+
+    app = BaseApplication(make_ui(bootstrap_args), on_start=start)
+    app.initialize()
+
+    return app

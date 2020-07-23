@@ -1435,7 +1435,8 @@ class LabelWidget(Widget):
         if self.__binding:
             self.__binding.close()
             self.__binding = None
-        self.text = binding.get_target_value()
+        text = binding.get_target_value()
+        self.text = str(text) if text is not None else None
         self.__binding = binding
         def update_text(text):
             def update_text_():

@@ -168,6 +168,35 @@ class BaseApplication:
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
         Declarative.WindowHandler(completion_fn=completion_fn).run(self, window)
 
+    def show_ok_cancel_dialog(self, title: str, message: str, *, ok_text: str = None, cancel_text: str = None, completion_fn: typing.Optional[typing.Callable[[bool], None]] = None) -> None:
+        u = Declarative.DeclarativeUI()
+        error_message = u.create_label(text=message)
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_text or _("Cancel"), on_clicked="handle_reject"),
+                                  u.create_push_button(text=ok_text or _("OK"), on_clicked="handle_accept"),
+                                  spacing=12)
+        main_column = u.create_column(error_message, button_row, spacing=8, width=380)
+        window = u.create_window(main_column, title=title, margin=12, window_style="tool")
+
+        class OkCancelHandler(Declarative.WindowHandler):
+            def __init__(self):
+                super().__init__(completion_fn=self.handle_close)
+                self.__result = False
+
+            def handle_close(self) -> None:
+                if callable(completion_fn):
+                    completion_fn(self.__result)
+
+            def handle_accept(self, widget: typing.Optional[Declarative.UIWidget]) -> None:
+                self.__result = True
+                self.close_window(widget)
+
+            def handle_reject(self, widget: typing.Optional[Declarative.UIWidget]) -> None:
+                self.__result = False
+                self.close_window(widget)
+
+        OkCancelHandler().run(self, window)
+
 
 def make_ui(bootstrap_args):
     if "proxy" in bootstrap_args:

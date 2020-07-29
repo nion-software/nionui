@@ -12,6 +12,7 @@ from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Registry
+from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
@@ -728,6 +729,47 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
+    def create_list_box(self, *,
+                        name: UIIdentifier = None,
+                        items: typing.List[UILabel] = None,
+                        items_ref: UIIdentifier = None,
+                        current_index: UIIdentifier = None,
+                        on_item_changed: UICallableIdentifier = None,
+                        on_item_selected: UICallableIdentifier = None,
+                        **kwargs) -> UIDescription:
+        """Create a list box UI description with name, items, current index, and events.
+
+        The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the list box.
+        The widget and the new index of the selected item are passed to the callback. The type signature in the handler
+        should be ``typing.Callable[[UIWidget, int], None]``.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            items: list list box items (strings, optional)
+            items_ref: handler reference of list box items (bindable, optional)
+            current_index: current index handler reference (bindable, optional)
+            on_item_changed: callback when current item changes (optional)
+            on_item_selected: callback when current item changes (optional)
+
+        Returns:
+            UI description of the list box
+        """
+        d = {"type": "list_box"}
+        if name is not None:
+            d["name"] = name
+        if items is not None:
+            d["items"] = items
+        if items_ref is not None:
+            d["items_ref"] = items_ref
+        if current_index is not None:
+            d["current_index"] = current_index
+        if on_item_changed is not None:
+            d["on_item_changed"] = on_item_changed
+        if on_item_selected is not None:
+            d["on_item_selected"] = on_item_selected
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
         """Create a modeless dialog UI description with content, title, resources, and margin.
 
@@ -1368,6 +1410,19 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
         if handler:
             connect_name(widget, d, handler)
             connect_string_value(widget, d, handler, "title", finishes)
+            connect_attributes(widget, d, handler, finishes)
+        return widget
+    elif d_type == "list_box":
+        items = d.get("items", None)
+        properties = construct_sizing_properties(d)
+        widget = Widgets.ListWidget(ui, Widgets.StringListCanvasItemDelegate(lambda x: x), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
+        if handler:
+            connect_name(widget, d, handler)
+            # note: items_ref connects before current_index so that current_index can be valid
+            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
+            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+            connect_event(widget, widget, d, handler, "on_item_changed", ["current_index"])
+            connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "component":

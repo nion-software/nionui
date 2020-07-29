@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add support for specifying expanding declarative items (horizontal/vertical-size-policy).
 - Add show_ok_dialog and show_ok_cancel_dialog methods to application class.
 - Add run_ui to application for running simple declarative windows.
 - Add functions for opening file dialogs without a window.

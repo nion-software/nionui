@@ -7,8 +7,8 @@ import typing
 
 # local libraries
 from nion.ui import Dialog
-from nion.ui import Window
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
 from nion.utils import Registry
@@ -94,6 +94,8 @@ class DeclarativeUI:
             "height",
             "min_height",
             "max_height",
+            "size_policy_horizontal",
+            "size_policy_vertical",
             "tool_tip"
         )
         for k in common_properties:
@@ -1078,6 +1080,10 @@ def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
         v = d.get(k, None)
         if v is not None:
             properties[k] = int(v)
+    for k in ("size_policy_horizontal", "size_policy_vertical"):
+        v = d.get(k, None)
+        if v is not None:
+            properties[k] = str(v)
     return properties
 
 

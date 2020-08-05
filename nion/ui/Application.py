@@ -166,7 +166,7 @@ class BaseApplication:
         button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("OK"), on_clicked="close_window"))
         main_column = u.create_column(error_message, button_row, spacing=8, width=300)
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
-        Declarative.WindowHandler(completion_fn=completion_fn).run(self, window)
+        Declarative.WindowHandler(completion_fn=completion_fn).run(window, app=self)
 
     def show_ok_cancel_dialog(self, title: str, message: str, *, ok_text: str = None, cancel_text: str = None, completion_fn: typing.Optional[typing.Callable[[bool], None]] = None) -> None:
         u = Declarative.DeclarativeUI()
@@ -195,7 +195,7 @@ class BaseApplication:
                 self.__result = False
                 self.close_window(widget)
 
-        OkCancelHandler().run(self, window)
+        OkCancelHandler().run(window, app=self)
 
 
 def make_ui(bootstrap_args):
@@ -219,7 +219,7 @@ def run_window(args, bootstrap_args, d, handler) -> BaseApplication:
     """Make base application and run it with the declarative d and handler."""
 
     def start():
-        Declarative.run_window(app, d, handler)
+        Declarative.run_window(d, handler, app=app)
         return True
 
     app = BaseApplication(make_ui(bootstrap_args), on_start=start)

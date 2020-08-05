@@ -11,6 +11,7 @@ from nion.ui import UserInterface
 from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
+from nion.utils import Observable
 from nion.utils import Registry
 from nion.utils import Selection
 
@@ -969,13 +970,14 @@ def connect_attributes(widget, d, handler, finishes):
     connect_string_value(widget, d, handler, "tool_tip", finishes)
 
 
-class WindowHandler:
+class WindowHandler(Observable.Observable):
     """Base handler to run a declarative window inside the application.
 
     `close_window` can be called directly or used as a target for a button.
     """
 
     def __init__(self, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None):
+        super().__init__()
         self.window = None
         self.__completion_fn = completion_fn
         self.__on_close = None
@@ -983,8 +985,10 @@ class WindowHandler:
     def close_window(self, widget: typing.Optional[UIWidget] = None) -> None:
         self.window.request_close()
 
-    def run(self, app: Application.BaseApplication, d) -> None:
-        self.window = run_window(app, d, self)
+    def run(self, d, *, app: typing.Optional[Application.BaseApplication] = None,
+            parent_window: Window = None, window_style: typing.Optional[str] = None,
+            persistent_id: typing.Optional[str] = None) -> None:
+        self.window = run_window(d, self, app=app, parent_window=parent_window, window_style=window_style, persistent_id=persistent_id)
         self.__on_close = self.window.on_close
 
         def handle_close() -> None:
@@ -996,14 +1000,17 @@ class WindowHandler:
         self.window.on_close = handle_close
 
 
-def run_window(app: Application.BaseApplication, d, handler) -> typing.Optional[Window.Window]:
+def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] = None,
+               parent_window: Window = None, window_style: typing.Optional[str] = None,
+               persistent_id: typing.Optional[str] = None) -> typing.Optional[Window.Window]:
+    app = app or (parent_window.app if parent_window else None)
     ui = app.ui
     d_type = d.get("type")
     if d_type == "window":
         title = d.get("title", _("Untitled"))
         margin = d.get("margin")
-        persistent_id = d.get("persistent_id")
-        window_style = d.get("window_style")
+        persistent_id = d.get("persistent_id", persistent_id)
+        window_style = d.get("window_style", window_style)
         content = d.get("content")
         resources = d.get("resources", dict())
         for k, v in resources.items():
@@ -1014,7 +1021,7 @@ def run_window(app: Application.BaseApplication, d, handler) -> typing.Optional[
             handler.resources.update(resources)
         closer = Closer()
         finishes = list()
-        window = Window.Window(ui, app=app, persistent_id=persistent_id, window_style=window_style)
+        window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
         window.title = title
         window.on_close = closer.close
         # make and attach closer for the handler; put handler into container closer

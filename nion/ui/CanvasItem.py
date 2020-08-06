@@ -733,9 +733,10 @@ class AbstractCanvasItem:
 
     @visible.setter
     def visible(self, value: bool) -> None:
-        self.__visible = value
-        if self.__container:
-            self.__container.refresh_layout()
+        if self.__visible != value:
+            self.__visible = value
+            if self.__container:
+                self.__container.refresh_layout()
 
     @property
     def sizing(self):

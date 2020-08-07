@@ -9,22 +9,23 @@ from nion.ui import Application
 from nion.ui import Declarative
 
 # ui imports
-from . import Bindings
-from . import Buttons
-from . import CheckBoxes
-from . import ComboBoxes
-from . import Compositions
-from . import ComponentLayout
-from . import ComponentStack
-from . import Converters
-from . import Groups
-from . import LineEdits
-from . import ProgressBars
-from . import RadioButtons
-from . import Sliders
-from . import Stacks
-from . import StatusBar
-from . import Tabs
+from nionui_app.nionui_examples.ui_demo import (
+    Bindings, 
+    Buttons, 
+    CheckBoxes, 
+    ComboBoxes, 
+    Compositions, 
+    ComponentLayout, 
+    ComponentStack,
+    Converters,
+    Groups,
+    LineEdits,
+    ProgressBars,
+    RadioButtons,
+    Sliders,
+    Stacks,
+    StatusBar,
+    Tabs, )
 
 _ = gettext.gettext
 

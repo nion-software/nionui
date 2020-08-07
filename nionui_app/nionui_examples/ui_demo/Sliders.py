@@ -1,5 +1,5 @@
 from nion.utils import Model
-
+from nion.utils import Converter
 
 class Handler:
 
@@ -17,6 +17,8 @@ class Handler:
 
     def slider_moved(self, widget, value):
         print(f"M {value}")
+    
+    slider_converter = Converter.IntegerToStringConverter(format="{0}")
 
 
 def construct_ui(ui):
@@ -25,7 +27,8 @@ def construct_ui(ui):
 
     slider2 = ui.create_slider(name="slider2", value="vv", on_value_changed="value_changed", on_slider_moved="slider_moved")
 
-    label = ui.create_label(text="@binding(slider_value_model.value)")
+    label = ui.create_label(
+        text="@binding(slider_value_model.value, converter=slider_converter)")
 
     button = ui.create_push_button(text="Reset to 50", on_clicked="reset")
 

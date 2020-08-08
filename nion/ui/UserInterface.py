@@ -1140,21 +1140,31 @@ class PushButtonWidget(Widget):
     def icon(self, rgba_image) -> None:
         self._behavior.icon = rgba_image
 
+    # bind to text. takes ownership of binding.
     def bind_text(self, binding):
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        self.text = binding.get_target_value()
-        self.__text_binding = binding
+        # close the old binding
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
 
-        def update_text(text):
-            def update_text_():
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding and configure the the target setter
+        # which will set the text when the binding changes
+        self.__binding = binding
+
+        def update_value(value) -> None:
+            def update_value_inner() -> None:
                 if self._behavior:
+                    # use str method to convert value to text.
+                    text = str(value) if value is not None else None
                     self.text = text
+            self.add_task("update_text", update_value_inner)
 
-            self.add_task("update_text", update_text_)
-
-        self.__text_binding.target_setter = update_text
+        self.__binding.target_setter = update_value
 
     def unbind_text(self):
         if self.__text_binding:
@@ -1432,18 +1442,29 @@ class LabelWidget(Widget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
+        # close the old binding
         if self.__binding:
             self.__binding.close()
             self.__binding = None
-        text = binding.get_target_value()
-        self.text = str(text) if text is not None else None
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding and configure the the target setter
+        # which will set the text when the binding changes
         self.__binding = binding
-        def update_text(text):
-            def update_text_():
+
+        def update_value(value) -> None:
+            def update_value_inner() -> None:
                 if self._behavior:
+                    # use str method to convert value to text.
+                    text = str(value) if value is not None else None
                     self.text = text
-            self.add_task("update_text", update_text_)
-        self.__binding.target_setter = update_text
+            self.add_task("update_text", update_value_inner)
+
+        self.__binding.target_setter = update_value
 
     def unbind_text(self):
         if self.__binding:
@@ -1655,37 +1676,58 @@ class LineEditWidget(Widget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding) -> None:
+        # close the old binding and clear other listener methods
         if self.__binding:
             self.__binding.close()
             self.__binding = None
             self.on_editing_finished = None
             self.on_return_pressed = None
             self.on_escape_pressed = None
-        self.text = binding.get_target_value()
-        def update_field(text: str) -> None:
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding
+        self.__binding = binding
+
+        def update_value_(value) -> None:
             if self._behavior:
+                text = str(value) if value is not None else None
                 if self.text != text and (not self.focused or self.selected_text == self.text):
                     self.text = text
                     if self.focused:
                         self.select_all()
-        self.__binding = binding
-        def update_text(text: str) -> None:
-            self.add_task("update_text", lambda: update_field(text))
-        self.__binding.target_setter = update_text
+
+        def update_value(value) -> None:
+            self.add_task("update_text", lambda: update_value_(value))
+
+        # configure the the target setter which will set the text when the binding changes
+        self.__binding.target_setter = update_value
+
         def editing_finished(text: str) -> None:
             if text != self.__last_text:
                 self.__binding.update_source(text)
+
+        # when editing is finished, update the binding value. the binding value will always
+        # be set as a string.
         self.on_editing_finished = editing_finished
+
         def return_pressed() -> bool:
             text = self.text
             self.__binding.update_source(text)
             self.request_refocus()
             return True
+
         def escape_pressed() -> bool:
             text = self.__last_text
             self.__binding.update_source(text)
             self.request_refocus()
             return True
+
+        # when return or escape are pressed, update th binding value (always a string).
+        # in the case of escape, revert the value to the last text.
         self.on_return_pressed = return_pressed
         self.on_escape_pressed = escape_pressed
 
@@ -1869,24 +1911,38 @@ class TextEditWidget(Widget):
 
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
+        # close the old binding and clear other listener methods
         if self.__binding:
             self.__binding.close()
             self.__binding = None
             self.on_text_changed = None
             self.on_text_edited = None
-        self.text = binding.get_target_value()
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding
         self.__binding = binding
-        def update_text(text):
-            def update_text_():
+
+        def update_value(value):
+            def update_value_():
                 if self._behavior:
+                    text = str(value) if value is not None else None
                     self.text = text
             if not self.__in_update:
-                self.add_task("update_text", update_text_)
-        self.__binding.target_setter = update_text
+                self.add_task("update_text", update_value_)
+
+        # configure the the target setter which will set the text when the binding changes
+        self.__binding.target_setter = update_value
+
         def on_text_edited(text):
             self.__in_update = True
             self.__binding.update_source(text)
             self.__in_update = False
+
+        # when text is edited, update the binding value (always a string).
         self.on_text_edited = on_text_edited
 
     def unbind_text(self):

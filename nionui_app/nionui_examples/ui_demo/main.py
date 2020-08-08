@@ -9,7 +9,7 @@ from nion.ui import Application
 from nion.ui import Declarative
 
 # ui imports
-from nionui_app.nionui_examples.ui_demo import (
+from . import (
     Bindings, 
     Buttons, 
     CheckBoxes, 

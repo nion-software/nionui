@@ -42,6 +42,7 @@ and easily and connect it to your application specific code.
 .. todo:: tabs
 .. todo:: windows, modeless dialogs
 .. todo:: embedding sub-components
+.. todo:: resources
 
 
 Introduction to the Declarative UI
@@ -410,6 +411,22 @@ Each is described below.
 Components
 ----------
 It provides experimental support for compositions (reusable UI sections).
+
+Resources
+^^^^^^^^^
+Widgets that construct their content dynamically get the dynamic content via resources. Resources can be returned by as a ``dict`` from the associated handler's ``resources`` property, or by implementing ``get_resources`` on the handler, or both.
+
+.. code-block:: python
+
+    class Handler:
+        def __init__(self):
+            u = Declarative.DeclarativeUI()
+            self.resources = {"component": u.define_component(u.create_label(text="Component"))}
+
+        def get_resource(resource_id: str, **kwargs) -> typing.Optional[UIDescription]:
+            if resource_id == "component2":
+                return u.define_component(u.create_label(text="Component 2"))
+            return None
 
 Indices and tables
 ==================

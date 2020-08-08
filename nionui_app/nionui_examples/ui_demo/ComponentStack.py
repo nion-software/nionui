@@ -117,7 +117,7 @@ class Handler:
         balance_field = ui.create_line_edit(text="@binding(mode.balance, converter=balance_converter)")
         remove_button = ui.create_push_button(text="X", on_clicked="remove")
         row = ui.create_row(title_label, balance_field, remove_button, ui.create_stretch(), spacing=8)
-        component = ui.define_component(content=row, component_id="mode")
+        component = ui.define_component(content=row)
         return {"mode": component}
 
 

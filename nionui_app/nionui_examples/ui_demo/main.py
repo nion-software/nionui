@@ -77,7 +77,7 @@ def main(args, bootstrap_args):
     items = list()
 
     for page_cls, page_id, page_title in page_list:
-        resources[page_id] = ui.define_component(content=page_cls.construct_ui(ui), component_id=page_id)
+        resources[page_id] = ui.define_component(content=page_cls.construct_ui(ui))
         instance = ui.create_component_instance(page_id)
         pages.append(ui.create_column(instance, ui.create_stretch()))
         items.append(page_title)

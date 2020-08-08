@@ -53,7 +53,7 @@ class Handler:
         field_line_edit = ui.create_line_edit(name="value_widget", on_editing_finished="value_changed")
         field = ui.create_row(field_label, field_line_edit, ui.create_stretch(), spacing=8)
         field_events = [{"event": "on_value_changed", "parameters": ["value"]}]
-        field_component = ui.define_component(content=field, component_id="field", events=field_events)
+        field_component = ui.define_component(content=field, events=field_events)
         return {"field": field_component}
 
 

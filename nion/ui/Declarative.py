@@ -982,6 +982,9 @@ class WindowHandler(Observable.Observable):
         self.__completion_fn = completion_fn
         self.__on_close = None
 
+    def close(self) -> None:
+        pass
+
     def close_window(self, widget: typing.Optional[UIWidget] = None) -> None:
         self.window.request_close()
 
@@ -1078,13 +1081,16 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
 
     def insert_item(index, item):
         item_widget = None
-        component = handler.resources.get(item_component_id)
+        component = None
+        if callable(getattr(handler, "get_resource", None)):
+            component = handler.get_resource(item_component_id, item=item, container=container)
+        component = component or handler.resources.get(item_component_id)
         if component:
             assert component.get("type") == "component"
             # the component will have a content portion, which is a widget description. component events are
             # ignored in this case.
             content = component.get("content")
-            component_id = component.get("component_id")
+            component_id = component.get("component_id", item_component_id)
             assert component_id == item_component_id
             assert callable(getattr(handler, "create_handler", None))
             # create the handler first, but don't initialize it.
@@ -1434,14 +1440,17 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
         return widget
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.
-        # look up the identifier in the handler resoureces.
+        # look up the identifier in the handler resources.
         identifier = d.get("identifier", None)
-        component = handler.resources.get(identifier)
+        component = None
+        if callable(getattr(handler, "get_resource", None)):
+            component = handler.get_resource(identifier)
+        component = component or handler.resources.get(identifier)
         if component:
             assert component.get("type") == "component"
             # the component will have a content portion, which is a widget description, and a list of events.
             content = component.get("content")
-            component_id = component.get("component_id")
+            component_id = component.get("component_id", identifier)
             events = component.get("events", list())
             # create the handler first, but don't initialize it.
             component_handler = handler.create_handler(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None

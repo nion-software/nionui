@@ -72,7 +72,7 @@ class Handler:
         decrease_button = ui.create_push_button(text="--", on_clicked="decrease_count")
         remove_button = ui.create_push_button(text="X", on_clicked="remove")
         row = ui.create_row(title_label, count_label, increase_button, decrease_button, remove_button, ui.create_stretch(), spacing=8)
-        component = ui.define_component(content=row, component_id="section")
+        component = ui.define_component(content=row)
         return {"section": component}
 
 

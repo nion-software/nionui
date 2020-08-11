@@ -14,7 +14,9 @@ from . import Buttons
 from . import CheckBoxes
 from . import ComboBoxes
 from . import Compositions
+from . import ComponentContent
 from . import ComponentLayout
+from . import ComponentPolymorphic
 from . import ComponentStack
 from . import Converters
 from . import Groups
@@ -66,6 +68,8 @@ def main(args, bootstrap_args):
         (Tabs, "tabs", _("Tabs")),
         (ComponentLayout, "component_layout", _("Component Layout")),
         (ComponentStack, "component_stack", _("Component Stack")),
+        (ComponentContent, "component_content", _("Component Content")),
+        (ComponentPolymorphic, "component_polymorphic", _("Component Polymorphic")),
         ]
 
     handler = Handler()

@@ -523,7 +523,7 @@ class DeclarativeUI:
     def create_check_box(self, *,
                          text: UILabel=None,
                          name: UIIdentifier=None,
-                         checked: bool=None,
+                         checked: str=None,
                          check_state: str=None,
                          tristate: bool=None,
                          on_checked_changed: UICallableIdentifier=None,
@@ -865,7 +865,7 @@ def connect_string_value(widget, d, handler, property, finishes):
                 binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
                 getattr(widget, "bind_" + property)(binding)
             else:
-                setattr(widget, property, getattr(source, handler_property_path[-1].strip()))
+                setattr(widget, property, str(getattr(source, handler_property_path[-1].strip())))
         finishes.append(finish_binding)
     else:
         setattr(widget, property, v)
@@ -1006,8 +1006,10 @@ class WindowHandler(Observable.Observable):
 def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] = None,
                parent_window: Window = None, window_style: typing.Optional[str] = None,
                persistent_id: typing.Optional[str] = None) -> typing.Optional[Window.Window]:
-    app = app or (parent_window.app if parent_window else None)
-    ui = app.ui
+    if app:
+        ui = app.ui
+    else:
+        ui = parent_window.ui
     d_type = d.get("type")
     if d_type == "window":
         title = d.get("title", _("Untitled"))
@@ -1441,8 +1443,60 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
     elif d_type == "component":
         # a component needs to be registered before it is instantiated.
         # look up the identifier in the handler resources.
-        identifier = d.get("identifier", None)
+        widget = ComponentWidget(ui, window, handler, d)
+        connect_string_value(widget, d, handler, "identifier", finishes)
+        return widget
+    else:
+        # if the component is not handled yet, check with registered component handlers.
+        constructors = typing.cast(typing.List[DeclarativeConstructor], Registry.get_components_by_type("declarative_constructor"))
+        for constructor in constructors:
+            widget = constructor.construct(d_type, ui, window, d, handler, finishes)
+            if widget:
+                return widget
+    return None
+
+
+class ComponentWidget(Widgets.CompositeWidgetBase):
+    def __init__(self, ui: UserInterface.UserInterface, window, handler, d):
+        super().__init__(ui.create_column_widget())
+        self.ui = ui
+        self.__window = window
+        self.__handler = handler
+        self.__identifier = None
+        self.__identifier_binding = None
+        self.__d = d
+        self.__component_handler = None
+
+    def close(self) -> None:
+        if self.__identifier_binding:
+            self.__identifier_binding.close()
+            self.__identifier_binding = None
+        super().close()
+
+    @property
+    def identifier(self) -> str:
+        return self.__identifier
+
+    @identifier.setter
+    def identifier(self, value: str) -> None:
+        if self.__identifier != value:
+            self.__identifier = value
+            if self.__identifier_binding:
+                self.__identifier_binding.update_source(value)
+            self.__update_identifier()
+
+    def __update_identifier(self) -> None:
+        if self.__component_handler:
+            self.__handler._closer.pop_closeable(self.__component_handler)
+        self.__component_handler = None
+        self.content_widget.remove_all()
+        window = self.__window
+        handler = self.__handler
+        identifier = self.__identifier
+        d = self.__d
+        ui = self.ui
         component = None
+        finishes = list()
         if callable(getattr(handler, "get_resource", None)):
             component = handler.get_resource(identifier)
         component = component or handler.resources.get(identifier)
@@ -1462,6 +1516,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
                 for k, v in d.get("properties", dict()).items():
                     # print(f"setting property {k} to {v}")
                     setattr(component_handler, k, v)
+                self.__component_handler = component_handler
             # now construct the widget
             widget = construct(ui, window, content, component_handler, finishes)
             # connect the name to the handler if desired
@@ -1477,15 +1532,26 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
                 connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
             if handler:
                 connect_attributes(widget, d, handler, finishes)
-            return widget
-    else:
-        # if the component is not handled yet, check with registered component handlers.
-        constructors = typing.cast(typing.List[DeclarativeConstructor], Registry.get_components_by_type("declarative_constructor"))
-        for constructor in constructors:
-            widget = constructor.construct(d_type, ui, window, d, handler, finishes)
-            if widget:
-                return widget
-    return None
+            self.content_widget.add(widget)
+        for finish in finishes:
+            finish()
+
+    def bind_identifier(self, binding):
+        if self.__identifier_binding:
+            self.__identifier_binding.close()
+            self.__identifier_binding = None
+        self.identifier = binding.get_target_value()
+        self.__identifier_binding = binding
+        def update_identifier(identifier):
+            def update_identifier_():
+                self.identifier = identifier
+            self.add_task("update_identifier", update_identifier_)
+        self.__identifier_binding.target_setter = update_identifier
+
+    def unbind_identifier(self):
+        if self.__identifier_binding:
+            self.__identifier_binding.close()
+            self.__identifier_binding = None
 
 
 class DeclarativeWidget(Widgets.CompositeWidgetBase):

@@ -580,6 +580,7 @@ class BoxWidget(Widget):
         return self.children.index(child)
 
     def insert(self, child, before: typing.Optional[typing.Union[Widget, int]], fill=False, alignment=None):
+        assert child
         if isinstance(before, numbers.Integral):
             index = before
         else:

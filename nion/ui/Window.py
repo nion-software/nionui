@@ -341,8 +341,11 @@ class Window:
         return False
 
     def register_dialog(self, dialog: Window) -> None:
+        old_on_close = dialog.on_close
         def close_dialog():
             self.__dialogs.remove(weakref.ref(dialog))
+            if callable(old_on_close):
+                old_on_close()
         dialog.on_close = close_dialog
         self.__dialogs.append(weakref.ref(dialog))
 

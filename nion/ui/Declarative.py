@@ -1289,27 +1289,28 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "push_button":
-        text = d.get("text", None)
-        icon_identifier = d.get("icon", None)
         properties = construct_sizing_properties(d)
-        widget = ui.create_push_button_widget(text, properties)
+        widget = ui.create_push_button_widget(properties=properties)
         if handler:
-            if icon_identifier:
-                connect_reference_value(widget, d, handler, "icon", finishes)
             connect_name(widget, d, handler)
+            if d.get("icon", None):
+                connect_reference_value(widget, d, handler, "icon", finishes)
+            if d.get("text", None):
+                connect_string_value(widget, d, handler, "text", finishes)
             connect_event(widget, widget, d, handler, "on_clicked", [])
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "check_box":
         # TODO: 'checked' and 'check_state' are bindings, not values
-        text = d.get("text", None)
         tristate = d.get("tristate", None)
         properties = construct_sizing_properties(d)
-        widget = ui.create_check_box_widget(text, properties=properties)
+        widget = ui.create_check_box_widget(properties=properties)
         if tristate is not None:
             widget.tristate = tristate
         if handler:
             connect_name(widget, d, handler)
+            if d.get("text", None):
+                connect_string_value(widget, d, handler, "text", finishes)
             connect_reference_value(widget, d, handler, "checked", finishes, value_type=bool)
             connect_reference_value(widget, d, handler, "check_state", finishes, value_type=str)
             connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])

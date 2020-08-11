@@ -1144,9 +1144,9 @@ class PushButtonWidget(Widget):
     # bind to text. takes ownership of binding.
     def bind_text(self, binding):
         # close the old binding
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
 
         # grab the initial value from the binding. use str method to convert value to text.
         value = binding.get_target_value()
@@ -1155,7 +1155,7 @@ class PushButtonWidget(Widget):
 
         # save the binding and configure the the target setter
         # which will set the text when the binding changes
-        self.__binding = binding
+        self.__text_binding = binding
 
         def update_value(value) -> None:
             def update_value_inner() -> None:
@@ -1165,7 +1165,7 @@ class PushButtonWidget(Widget):
                     self.text = text
             self.add_task("update_text", update_value_inner)
 
-        self.__binding.target_setter = update_value
+        self.__text_binding.target_setter = update_value
 
     def unbind_text(self):
         if self.__text_binding:
@@ -1295,7 +1295,8 @@ class CheckBoxWidget(Widget):
         self.on_checked_changed = None
         self.on_check_state_changed = None
         self.text = text
-        self.__binding = None
+        self.__check_binding = None
+        self.__text_binding = None
 
         def handle_check_state_changed(check_state):
             if callable(self.on_checked_changed):
@@ -1306,9 +1307,13 @@ class CheckBoxWidget(Widget):
         self._behavior.on_check_state_changed = handle_check_state_changed
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+        if self.__check_binding:
+            self.__check_binding.close()
+            self.__check_binding = None
+        self.clear_task("update_text")
         self.clear_task("update_check_state")
         self.on_checked_changed = None
         self.on_check_state_changed = None
@@ -1346,48 +1351,79 @@ class CheckBoxWidget(Widget):
     def check_state(self, value):
         self._behavior.check_state = value
 
+    # bind to text. takes ownership of binding.
+    def bind_text(self, binding):
+        # close the old binding
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding and configure the the target setter
+        # which will set the text when the binding changes
+        self.__text_binding = binding
+
+        def update_value(value) -> None:
+            def update_value_inner() -> None:
+                if self._behavior:
+                    # use str method to convert value to text.
+                    text = str(value) if value is not None else None
+                    self.text = text
+            self.add_task("update_text", update_value_inner)
+
+        self.__text_binding.target_setter = update_value
+
+    def unbind_text(self):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
     # bind to state. takes ownership of binding.
     def bind_checked(self, binding):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__check_binding:
+            self.__check_binding.close()
+            self.__check_binding = None
             self.on_checked_changed = None
         self.checked = binding.get_target_value()
-        self.__binding = binding
+        self.__check_binding = binding
         def update_checked(checked):
             def update_checked_():
                 if self._behavior:
                     self.checked = checked
             self.add_task("update_checked", update_checked_)
-        self.__binding.target_setter = update_checked
-        self.on_checked_changed = lambda checked: self.__binding.update_source(checked)
+        self.__check_binding.target_setter = update_checked
+        self.on_checked_changed = lambda checked: self.__check_binding.update_source(checked)
 
     def unbind_checked(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__check_binding:
+            self.__check_binding.close()
+            self.__check_binding = None
         self.on_checked_changed = None
 
     # bind to state. takes ownership of binding.
     def bind_check_state(self, binding):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__check_binding:
+            self.__check_binding.close()
+            self.__check_binding = None
             self.on_check_state_changed = None
         self.check_state = binding.get_target_value()
-        self.__binding = binding
+        self.__check_binding = binding
         def update_check_state(check_state):
             def update_check_state_():
                 if self._behavior:
                     self.check_state = check_state
             self.add_task("update_check_state", update_check_state_)
-        self.__binding.target_setter = update_check_state
-        self.on_check_state_changed = lambda check_state: self.__binding.update_source(check_state)
+        self.__check_binding.target_setter = update_check_state
+        self.on_check_state_changed = lambda check_state: self.__check_binding.update_source(check_state)
 
     def unbind_check_state(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__check_binding:
+            self.__check_binding.close()
+            self.__check_binding = None
         self.on_check_state_changed = None
 
 

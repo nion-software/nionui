@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Allow binding to push button and check box text content.
 - Add support for declarative polymorphic components using get_resource and examples.
 - Add support for declarative list box.
 - Add support for specifying expanding declarative items (horizontal/vertical-size-policy).

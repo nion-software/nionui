@@ -1136,11 +1136,11 @@ def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
     for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
         v = d.get(k, None)
         if v is not None:
-            properties[k] = int(v)
+            properties[k.replace("_", "-")] = int(v)
     for k in ("size_policy_horizontal", "size_policy_vertical"):
         v = d.get(k, None)
         if v is not None:
-            properties[k] = str(v)
+            properties[k.replace("_", "-")] = str(v)
     return properties
 
 

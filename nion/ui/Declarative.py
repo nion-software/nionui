@@ -862,7 +862,11 @@ def connect_string_value(widget, d, handler, property, finishes):
                 if part.startswith("converter="):
                     converter = getattr(handler, part[len("converter="):])
             if hasattr(source, "property_changed_event"):
-                binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                binding = None
+                get_binding = getattr(handler, "get_binding", None)
+                if callable(get_binding):
+                    binding = get_binding(source, handler_property_path[-1].strip(), converter=converter)
+                binding = binding or Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
                 getattr(widget, "bind_" + property)(binding)
             else:
                 setattr(widget, property, str(getattr(source, handler_property_path[-1].strip())))
@@ -931,7 +935,11 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
                 converter = handler.get_object_converter(converter)
             # configure the binding if the source and widget meet the criteria.
             if hasattr(source, "property_changed_event") and hasattr(widget, "bind_" + binding_name):
-                binding = Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                binding = None
+                get_binding = getattr(handler, "get_binding", None)
+                if callable(get_binding):
+                    binding = get_binding(source, handler_property_path[-1].strip(), converter=converter)
+                binding = binding or Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
                 getattr(widget, "bind_" + binding_name)(binding)
             # otherwise just set the value.
             else:

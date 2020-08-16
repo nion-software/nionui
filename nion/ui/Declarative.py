@@ -1527,6 +1527,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         self.__component_handler = None
 
     def close(self) -> None:
+        self.clear_task("update_identifier")
         if self.__identifier_binding:
             self.__identifier_binding.close()
             self.__identifier_binding = None
@@ -1545,6 +1546,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             self.__update_identifier()
 
     def __update_identifier(self) -> None:
+        self.clear_task("update_identifier")
         if self.__component_handler:
             self.__handler._closer.pop_closeable(self.__component_handler)
         self.__component_handler = None
@@ -1608,6 +1610,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         self.__identifier_binding.target_setter = update_identifier
 
     def unbind_identifier(self):
+        self.clear_task("update_identifier")
         if self.__identifier_binding:
             self.__identifier_binding.close()
             self.__identifier_binding = None

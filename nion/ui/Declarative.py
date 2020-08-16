@@ -1102,7 +1102,7 @@ def construct_margin(ui, content, margin):
     return content
 
 
-def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes):
+def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes, spacing_h: int = 0, spacing_v: int = 0):
     assert window is not None
     items_parts = items.split('.')
     container = handler
@@ -1114,7 +1114,19 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
     # assumption so that sub-components have a path by which to get closed.
     assert handler._closer
 
-    def insert_item(index, item):
+    def adjust_spacing():
+        spacing = max(spacing_h, spacing_v)
+        if spacing and container_widget.children:
+            last_child = container_widget.children[-1]
+            for spacing_widget in container_widget.children:
+                if spacing_widget != last_child:
+                    if len(spacing_widget.children) == 1:
+                        spacing_widget.add_spacing(spacing)
+                else:
+                    if len(spacing_widget.children) == 2:
+                        spacing_widget.remove(spacing_widget.children[-1])
+
+    def insert_item(index, item) -> None:
         item_widget = None
         component = None
         if callable(getattr(handler, "get_resource", None)):
@@ -1144,8 +1156,13 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()
-        container_widget.insert(item_widget, index)
-        return item_widget
+        if spacing_h:
+            spacing_widget = ui.create_row_widget()
+        else:
+            spacing_widget = ui.create_column_widget()
+        spacing_widget.add(item_widget)
+        container_widget.insert(spacing_widget, index)
+        adjust_spacing()
 
     def row_item_inserted(key, value, before_index):
         if key == items_key:
@@ -1154,8 +1171,9 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
     def row_item_removed(key, value, before_index):
          if key == items_key:
             item_widget = container_widget.children[before_index]
-            handler._closer.pop_closeable(item_widget.handler)
+            handler._closer.pop_closeable(item_widget.children[0].handler)
             container_widget.remove(item_widget)
+            adjust_spacing()
 
     for item in getattr(container, items_key):
         insert_item(len(container_widget.children), item)
@@ -1242,8 +1260,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
                 column_widget.add(construct(ui, window, child, handler, finishes))
             first = False
         if items and item_component_id:
-            # TODO: spacing does not work on rows/columns
-            connect_items(ui, window, column_widget, handler, items, item_component_id, finishes)
+            connect_items(ui, window, column_widget, handler, items, item_component_id, finishes, spacing_v=spacing)
         if handler:
             connect_name(column_widget, d, handler)
             connect_attributes(column_widget, d, handler, finishes)
@@ -1269,8 +1286,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
                 row_widget.add(construct(ui, window, child, handler, finishes))
             first = False
         if items and item_component_id:
-            # TODO: spacing does not work on rows/columns
-            connect_items(ui, window, row_widget, handler, items, item_component_id, finishes)
+            connect_items(ui, window, row_widget, handler, items, item_component_id, finishes, spacing_h=spacing)
         if handler:
             connect_name(row_widget, d, handler)
             connect_attributes(row_widget, d, handler, finishes)

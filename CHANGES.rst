@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Spacing in item-bound rows/columns now works.
 - Add a declarative image widget.
 - Allow custom bindings in declarative handlers.
 - Allow binding to push button and check box text content.

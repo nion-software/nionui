@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add a declarative image widget.
 - Allow custom bindings in declarative handlers.
 - Allow binding to push button and check box text content.
 - Add support for declarative polymorphic components using get_resource and examples.

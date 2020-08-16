@@ -560,3 +560,38 @@ class TextPushButtonWidget(CompositeWidgetBase):
         text_button_canvas_widget.on_mouse_exited = text_button_canvas_item.root_container.canvas_widget.on_mouse_exited
 
         self.content_widget.add(text_button_canvas_widget)
+
+
+class ImageWidget(CompositeWidgetBase):
+    def __init__(self, ui, rgba_bitmap_data: typing.Optional = None, properties = None):
+        super().__init__(ui.create_column_widget(properties=properties))
+        self.ui = ui
+        self.on_clicked = None
+        self.image = rgba_bitmap_data
+
+    @property
+    def image(self) -> typing.Optional:
+        return self.__rgba_bitmap_data
+
+    @image.setter
+    def image(self, rgba_bitmap_data: typing.Optional) -> None:
+        self.content_widget.remove_all()
+
+        if rgba_bitmap_data is not None:
+            height, width = rgba_bitmap_data.shape
+
+            bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(rgba_bitmap_data)
+            # bitmap_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=height, width=width))
+
+            def button_clicked():
+                if callable(self.on_clicked):
+                    self.on_clicked()
+
+            bitmap_canvas_item.on_button_clicked = button_clicked
+
+            bitmap_canvas_widget = self.ui.create_canvas_widget()
+            bitmap_canvas_widget.canvas_item.add_canvas_item(bitmap_canvas_item)
+
+            self.content_widget.add(bitmap_canvas_widget)
+
+        self.__rgba_bitmap_data = rgba_bitmap_data

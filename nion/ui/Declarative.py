@@ -53,7 +53,7 @@ class DeclarativeUI:
     # ----: combo box
     # ----: radio buttons
     # TODO: splitter
-    # TODO: image
+    # ----: image
     # ----: component
     # TODO: part
     # TODO: data view
@@ -363,6 +363,31 @@ class DeclarativeUI:
             d["text"] = text
         if name is not None:
             d["name"] = name
+        self.__process_common_properties(d, **kwargs)
+        return d
+
+    def create_image(self, *, image: UIIdentifier=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
+        """Create an image UI description with image, name, an event.
+
+        The ``on_clicked`` callback is invoked when the user clicks the image. The widget is passed to the callback.
+        The type signature in the handler should be ``typing.Callable[[UIWidget], None]``.
+
+        Keyword Args:
+            image: image, bindable to numpy uint32 bgra array
+            name: handler property in which to store widget (optional)
+            width: width in points (optional, default None)
+            on_clicked: callback when button clicked
+
+        Returns:
+            UI description of the push button
+        """
+        d = {"type": "image"}
+        if image is not None:
+            d["image"] = image
+        if name is not None:
+            d["name"] = name
+        if on_clicked is not None:
+            d["on_clicked"] = on_clicked
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1256,6 +1281,15 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
         if handler:
             connect_string_value(widget, d, handler, "text", finishes)
             connect_name(widget, d, handler)
+            connect_attributes(widget, d, handler, finishes)
+        return widget
+    elif d_type == "image":
+        properties = construct_sizing_properties(d)
+        widget = Widgets.ImageWidget(ui, properties=properties)
+        if handler:
+            connect_name(widget, d, handler)
+            connect_reference_value(widget, d, handler, "image", finishes)
+            connect_event(widget, widget, d, handler, "on_clicked", [])
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "line_edit":

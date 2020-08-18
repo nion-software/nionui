@@ -1510,6 +1510,9 @@ class LabelWidget(Widget):
 
 
 class SliderWidget(Widget):
+    # note: sliders with exactly the same configuration have problems on macOS.
+    # see https://bugreports.qt.io/browse/QTBUG-77368
+    # ensure different sliders by setting different min/max. argh.
 
     def __init__(self, widget_behavior):
         super().__init__(widget_behavior)
@@ -1562,7 +1565,8 @@ class SliderWidget(Widget):
 
     @value.setter
     def value(self, value):
-        self._behavior.value = value
+        if value != self.value:
+            self._behavior.value = value
 
     @property
     def minimum(self):
@@ -1592,13 +1596,32 @@ class SliderWidget(Widget):
             self.on_value_changed = None
         self.value = binding.get_target_value()
         self.__binding = binding
+
         def update_value(value):
             def update_value_():
                 if self._behavior:
-                    self.value = value
+                    # ensure that setting the value does not loop around with another value changed
+                    old_value_changed = self.on_value_changed
+                    self.on_value_changed = None
+                    try:
+                        self.value = value
+                    finally:
+                        self.on_value_changed = old_value_changed
+
             self.add_task("update_value", update_value_)
+
         self.__binding.target_setter = update_value
-        self.on_value_changed = lambda value: self.__binding.update_source(value)
+
+        def update_source(value):
+            # ensure that responding to a changing slider value does not loop around with another value
+            old_target_setter = self.__binding.target_setter
+            self.__binding.target_setter = None
+            try:
+                self.__binding.update_source(value)
+            finally:
+                self.__binding.target_setter = old_target_setter
+
+        self.on_value_changed = update_source
 
     def unbind_value(self):
         if self.__binding:

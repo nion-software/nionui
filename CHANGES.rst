@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Improve handling of slider value to avoid update cycles in multiple sliders bound to same value.
 - Spacing in item-bound rows/columns now works.
 - Add a declarative image widget.
 - Allow custom bindings in declarative handlers.

@@ -609,6 +609,7 @@ class SliderWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
+        self.value = 0
 
 
 class CanvasWidgetBehavior(WidgetBehavior):

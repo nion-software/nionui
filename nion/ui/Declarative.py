@@ -1115,7 +1115,7 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
     assert handler._closer
 
     def adjust_spacing():
-        spacing = max(spacing_h, spacing_v)
+        spacing = max(spacing_h or 0, spacing_v or 0)
         if spacing and container_widget.children:
             last_child = container_widget.children[-1]
             for spacing_widget in container_widget.children:

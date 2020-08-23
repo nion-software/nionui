@@ -9,9 +9,6 @@ import gettext
 import time
 import typing
 
-# typing
-from typing import Callable
-
 # third party libraries
 # none
 
@@ -19,9 +16,11 @@ from typing import Callable
 from nion.ui import Window
 from nion.ui import UserInterface
 from nion.utils import Geometry
+from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
+    from nion.ui import Declarative
 
 
 _ = gettext.gettext
@@ -129,7 +128,7 @@ class ActionDialog(Window.Window):
         elif app:
             app.register_dialog(self)
 
-    def add_button(self, title: str, on_clicked_fn: Callable[[], bool]) -> UserInterface.PushButtonWidget:
+    def add_button(self, title: str, on_clicked_fn: typing.Callable[[], bool]) -> UserInterface.PushButtonWidget:
         def on_clicked():
             do_close = on_clicked_fn()
             if do_close:
@@ -173,3 +172,113 @@ class NotificationDialog(Window.Window):
             parent_window = self.parent_window
             position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - NotificationDialog.width // 2)
         super().show(position=position)
+
+
+class PopupWindow(Window.Window):
+
+    def __init__(self, parent_window: Window.Window, ui_widget: Declarative.UIDescription, ui_handler):
+        super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style="popup")
+
+        from nion.ui import Declarative  # avoid circular reference
+
+        def request_close():
+            # this may be called in response to the user clicking a button to close.
+            # make sure that the button is not destructed as a side effect of closing
+            # the window by queueing the close. and it is not possible to use event loop
+            # here because the event loop limitations: not able to run both parent and child
+            # event loops simultaneously.
+            parent_window.queue_task(self.request_close)
+
+        # make and attach closer for the handler; put handler into container closer
+        self.__closer = Declarative.Closer()
+        if ui_handler and hasattr(ui_handler, "close"):
+            ui_handler._closer = Declarative.Closer()
+            self.__closer.push_closeable(ui_handler)
+
+        finishes = list()
+
+        self.widget = Declarative.construct(parent_window.ui, self, ui_widget, ui_handler, finishes)
+
+        self.attach_widget(self.widget)
+
+        for finish in finishes:
+            finish()
+        if ui_handler and hasattr(ui_handler, "init_handler"):
+            ui_handler.init_handler()
+        if ui_handler and hasattr(ui_handler, "init_popup"):
+            ui_handler.init_popup(request_close)
+
+        self._create_menus()
+
+        self.__ui_handler = ui_handler
+
+    def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
+        super().show(size=size, position=position)
+        ui_handler = self.__ui_handler
+        if ui_handler and hasattr(ui_handler, "did_show"):
+            self.__ui_handler.did_show()
+
+    def close(self) -> None:
+        self.__closer.close()
+        super().close()
+
+
+def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Optional[typing.Callable[[typing.Any], None]],
+                            *, window: Window.Window = None,
+                            current_item: int = 0,
+                            item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> None:
+
+    item_getter = item_getter or str
+
+    class Handler:
+        def __init__(self):
+            self.is_rejected = True
+            self.computation_index_model = Model.PropertyModel(current_item)
+            self.item_list = None
+
+        def init_popup(self, request_close_fn: typing.Callable[[], None]) -> None:
+            self.__request_close_fn = request_close_fn
+
+        def did_show(self):
+            self.item_list.focused = True
+
+        def reject(self, widget):
+            # receive this when the user hits escape. let the window handle the escape by returning False.
+            # mark popup as rejected.
+            return False
+
+        def accept(self, widget):
+            # receive this when the user hits return. need to request a close and return True to say we handled event.
+            self.__request_close_fn()
+            self.is_rejected = False
+            return True
+
+        def handle_done(self, widget):
+            self.is_rejected = False
+            self.__request_close_fn()
+
+        def handle_cancel(self, widget):
+            self.__request_close_fn()
+
+    from nion.ui import Declarative  # avoid circular reference
+
+    # calculate the max string width, add 10%, min 200, max 480
+    width = min(max(int(max([window.get_font_metrics("system", item_getter(c)).width for c in items]) * 1.10), 200), 480)
+
+    ui_handler = Handler()
+    u = Declarative.DeclarativeUI()
+    title_row = u.create_row(u.create_label(text=_("Select Computation")), u.create_stretch())
+    item_list = u.create_list_box(name="item_list", items=[item_getter(c) for c in items], width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(computation_index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
+    button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Done"), on_clicked="handle_done"), spacing=8)
+    column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
+    popup = PopupWindow(window, column, ui_handler)
+
+    def handle_close() -> None:
+        if not ui_handler.is_rejected:
+            computation = items[ui_handler.computation_index_model.value]
+            completion_fn(computation)
+        else:
+            completion_fn(None)
+
+    popup.on_close = handle_close
+    popup.show()#position=position, size=size)

@@ -193,11 +193,12 @@ class ListCanvasItemDelegate:
     def item_count(self):
         return len(self.__items)
 
-    def key_pressed(self, key):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_escape:
             if callable(self.on_cancel):
                 self.on_cancel()
-                return True
+                # returning False here will allow window to handle the escape key.
+                return False
         return False
 
     def item_selected(self, index):
@@ -214,13 +215,18 @@ class ListWidget(CompositeWidgetBase):
 
     def __init__(self, ui, list_item_delegate, *, items=None, selection_style=None, properties=None, selection=None, border_color=None, v_scroll_enabled: bool=True, v_auto_resize: bool=False):
         super().__init__(ui.create_column_widget())
+        self.property_changed_event = Event.Event()
         items = items or list()
         self.__items = list()
         self.on_selection_changed = None
         self.on_item_selected = None
         self.on_cancel = None
         self.__items_binding = None
+        self.__current_index_binding = None
+        self.__on_current_index_changed = None
         self.__v_auto_resize = v_auto_resize
+        self.on_escape_pressed : typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed : typing.Optional[typing.Callable[[], bool]] = None
 
         self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
 
@@ -228,14 +234,20 @@ class ListWidget(CompositeWidgetBase):
             on_selection_changed = self.on_selection_changed
             if callable(on_selection_changed):
                 on_selection_changed(self.__selection.indexes)
+            if callable(self.__on_current_index_changed):
+                self.__on_current_index_changed(self.current_index)
 
         def handle_delegate_cancel():
             if callable(self.on_cancel):
                 self.on_cancel()
+            if callable(self.on_escape_pressed):
+                self.on_escape_pressed()
 
         def handle_delegate_item_selected(index):
             if callable(self.on_item_selected):
                 self.on_item_selected(index)
+            if callable(self.on_return_pressed):
+                self.on_return_pressed()
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
         self.__list_canvas_item_delegate = list_item_delegate
@@ -271,6 +283,11 @@ class ListWidget(CompositeWidgetBase):
             self.__items_binding.close()
             self.__items_binding = None
         self.clear_task("update_items")
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        self.__on_current_index_changed = None
+        self.clear_task("update_current_index")
         self.__items = None
         super().close()
 
@@ -320,6 +337,7 @@ class ListWidget(CompositeWidgetBase):
         # setting items on the widget will not update items on the bound items since the list widget is merely a view
 
     def bind_items(self, binding) -> None:
+        self.clear_task("update_items")
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
@@ -346,12 +364,45 @@ class ListWidget(CompositeWidgetBase):
     def update(self) -> None:
         self.__list_canvas_item.update()
 
+    @property
+    def current_index(self) -> int:
+        return self.__selection.current_index
+
+    @current_index.setter
+    def current_index(self, index: int) -> None:
+        self.__selection.set(index)
+
+    def bind_current_index(self, binding):
+        self.clear_task("update_current_index")
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        current_index = binding.get_target_value()
+        if current_index is not None and 0 <= current_index < len(self.items):
+            self.current_index = current_index
+        self.__current_index_binding = binding
+        def update_current_index(current_index):
+            if current_index is not None and 0 <= current_index < len(self.items):
+                def update_current_index_():
+                    if self._behavior:
+                        self.current_index = current_index
+                self.add_task("update_current_index", update_current_index_)
+        self.__current_index_binding.target_setter = update_current_index
+        self.__on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
+
+    def unbind_current_index(self):
+        if self.__current_index_binding:
+            self.__current_index_binding.close()
+            self.__current_index_binding = None
+        self.__on_current_index_changed = None
+
+
 
 class StringListCanvasItemDelegate(ListCanvasItemDelegate):
 
-    def __init__(self, item_getter):
+    def __init__(self, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None):
         super().__init__()
-        self.__item_getter = item_getter
+        self.__item_getter = item_getter or (lambda x: x)
 
     def close(self):
         self.__item_getter = None

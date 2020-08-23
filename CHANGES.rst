@@ -3,6 +3,8 @@ Changelog (nionui)
 
 0.4.0 (UNRELEASED)
 ------------------
+- Add support for declarative pop-up window (preliminary).
+- Improve key handling in list widget.
 - Improve handling of slider value to avoid update cycles in multiple sliders bound to same value.
 - Spacing in item-bound rows/columns now works.
 - Add a declarative image widget.

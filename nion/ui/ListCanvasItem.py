@@ -17,6 +17,7 @@ import typing
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -266,14 +267,10 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def make_selection_visible(self):
         self.__make_selection_visible(0)
 
-    def key_pressed(self, key):
+    def key_pressed(self, key: UserInterface.Key) -> bool:
         if self.__delegate:
             if self.__delegate and hasattr(self.__delegate, "key_pressed") and self.__delegate.key_pressed:
                 if self.__delegate.key_pressed(key):
-                    return True
-            # TODO: delete soon. only here for backwards compatibility.
-            if self.__delegate and hasattr(self.__delegate, "on_key_pressed") and self.__delegate.on_key_pressed:
-                if self.__delegate.on_key_pressed(key):
                     return True
             if key.is_delete:
                 return self.handle_delete()

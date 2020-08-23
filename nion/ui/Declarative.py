@@ -762,6 +762,8 @@ class DeclarativeUI:
                         current_index: UIIdentifier = None,
                         on_item_changed: UICallableIdentifier = None,
                         on_item_selected: UICallableIdentifier = None,
+                        on_escape_pressed: UICallableIdentifier=None,
+                        on_return_pressed: UICallableIdentifier=None,
                         **kwargs) -> UIDescription:
         """Create a list box UI description with name, items, current index, and events.
 
@@ -776,6 +778,8 @@ class DeclarativeUI:
             current_index: current index handler reference (bindable, optional)
             on_item_changed: callback when current item changes (optional)
             on_item_selected: callback when current item changes (optional)
+            on_escape_pressed: callback when escape is pressed, return true if handled
+            on_return_pressed: callback when return is pressed, return true if handled
 
         Returns:
             UI description of the list box
@@ -793,6 +797,10 @@ class DeclarativeUI:
             d["on_item_changed"] = on_item_changed
         if on_item_selected is not None:
             d["on_item_selected"] = on_item_selected
+        if on_escape_pressed is not None:
+            d["on_escape_pressed"] = on_escape_pressed
+        if on_return_pressed is not None:
+            d["on_return_pressed"] = on_return_pressed
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1489,7 +1497,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
     elif d_type == "list_box":
         items = d.get("items", None)
         properties = construct_sizing_properties(d)
-        widget = Widgets.ListWidget(ui, Widgets.StringListCanvasItemDelegate(lambda x: x), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
+        widget = Widgets.ListWidget(ui, Widgets.StringListCanvasItemDelegate(), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
         if handler:
             connect_name(widget, d, handler)
             # note: items_ref connects before current_index so that current_index can be valid
@@ -1497,6 +1505,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
             connect_event(widget, widget, d, handler, "on_item_changed", ["current_index"])
             connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
+            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+            connect_event(widget, widget, d, handler, "on_return_pressed", [])
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "component":

@@ -213,6 +213,10 @@ class PopupWindow(Window.Window):
         self.__ui_handler = ui_handler
 
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
+        if size is None and position is None:
+            parent_window = self.parent_window
+            position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - 300 // 2,
+                                                                                  h=parent_window._document_window.size.height // 2 - 300 // 2)
         super().show(size=size, position=position)
         ui_handler = self.__ui_handler
         if ui_handler and hasattr(ui_handler, "did_show"):

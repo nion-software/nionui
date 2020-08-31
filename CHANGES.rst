@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.0 (UNRELEASED)
+0.4.0 (2020-08-31)
 ------------------
 - Add support for declarative pop-up window (preliminary).
 - Improve key handling in list widget.

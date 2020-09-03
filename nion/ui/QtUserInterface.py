@@ -1985,6 +1985,9 @@ class QtUserInterface(UserInterface.UserInterface):
         self.proxy.Application_close()
         self.proxy = None
 
+    def request_quit(self):
+        self.proxy.Application_close()
+
     def set_application_info(self, application_name: str, organization_name: str, organization_domain: str):
         self.proxy.Core_setApplicationInfo(application_name, organization_name, organization_domain)
 

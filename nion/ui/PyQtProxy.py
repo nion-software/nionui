@@ -158,18 +158,13 @@ class PyApplication(QtWidgets.QApplication):
     def __init__(self, application, args):
         super().__init__(args)
         self.application = application
-        self.__quit_on_last_window = False
         global g_timer
         if g_timer is None:
             g_timer = QtCore.QElapsedTimer()
         g_timer.start()
-        self.setQuitOnLastWindowClosed(True)
-        self.lastWindowClosed.connect(self.__continue_quit)
+        # setQuitOnLastWindowClosed should be false so that we can handle it explicitly.
+        self.setQuitOnLastWindowClosed(False)
         self.aboutToQuit.connect(self.__about_to_quit)
-
-    def __continue_quit(self):
-        if self.__quit_on_last_window:
-            self.quit()
 
     def __about_to_quit(self):
         if self.application and hasattr(self.application, "stop"):
@@ -2772,25 +2767,25 @@ class PyQtProxy:
 
         if mode == "save":
             selected_filter_ref = [selected_filter]
-            selected_dir_ref = [None]
+            selected_dir_ref = [QtCore.QDir(WorkingDirectory(dir))]
             # Python_ThreadAllow thread_allow;
             result = GetSaveFileName(document_window, caption, dir, filter, selected_filter_ref, selected_dir_ref)
             return result, selected_filter_ref[0], selected_dir_ref[0].absolutePath()
         elif mode == "load":
             selected_filter_ref = [selected_filter]
-            selected_dir_ref = [None]
+            selected_dir_ref = [QtCore.QDir(WorkingDirectory(dir))]
             # Python_ThreadAllow thread_allow;
             result = GetOpenFileName(document_window, caption, dir, filter, selected_filter_ref, selected_dir_ref)
             return result, selected_filter_ref[0], selected_dir_ref[0].absolutePath()
         elif mode == "directory":
-            selected_dir_ref = [None]
+            selected_dir_ref = [QtCore.QDir(WorkingDirectory(dir))]
             QtCore.QDir.setCurrent(dir)
             # Python_ThreadAllow thread_allow;
             directory = GetExistingDirectory(document_window, caption, dir, selected_dir_ref)
             return directory, str(), selected_dir_ref[0].absolutePath()
         elif mode == "loadmany":
             selected_filter_ref = [selected_filter]
-            selected_dir_ref = [None]
+            selected_dir_ref = [QtCore.QDir(WorkingDirectory(dir))]
             # Python_ThreadAllow thread_allow;
             file_names = GetOpenFileNames(document_window, caption, dir, filter, selected_filter_ref, selected_dir_ref)
             return file_names, str(), selected_dir_ref[0].absolutePath()

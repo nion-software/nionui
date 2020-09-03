@@ -918,6 +918,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def close(self):
         pass
 
+    def request_quit(self):
+        pass
+
     def set_application_info(self, name: str, organization: str, domain: str) -> None:
         pass
 

@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.4.1 (UNRELEASED)
+------------------
+- Improve capabilities of window closing workflow.
+- Fix issues with file dialogs in PyQt version.
+
 0.4.0 (2020-08-31)
 ------------------
 - Add support for declarative pop-up window (preliminary).

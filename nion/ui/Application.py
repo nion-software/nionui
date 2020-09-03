@@ -53,6 +53,14 @@ class BaseApplication:
 
     def __init__(self, ui, *, on_start=None):
         self.ui = ui
+
+        # handle last window closing in Python; but use this variable so tool can continue to
+        # close on last window for backwards compatibility. setting this flag will tell the
+        # tool to not close on last window closing. it is handled when items are removed from
+        # __windows instead.
+        self._should_close_on_last_window = False
+        self.__prevent_close_count = 0
+
         self.__on_start = on_start
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -91,7 +99,7 @@ class BaseApplication:
         self.ui.close()
 
     def run(self):
-        """Alternate start which allows ui to control event loop."""
+        """Run the application. Called from PyQt."""
         self.ui.run(self)
 
     def start(self):
@@ -116,6 +124,31 @@ class BaseApplication:
         self.__window_close_event_listeners[window].close()
         del self.__window_close_event_listeners[window]
         self.__windows.remove(window)
+        with self.prevent_close():
+            pass  # trigger close if all windows closed.
+
+    def prevent_close(self):
+
+        class Context:
+            def __init__(self, application: BaseApplication):
+                self.__application = application
+
+            def __enter__(self):
+                self.__application._enter_prevent_close_state()
+                return self
+
+            def __exit__(self, type, value, traceback):
+                self.__application._exit_prevent_close_state()
+
+        return Context(self)
+
+    def _enter_prevent_close_state(self) -> None:
+        self.__prevent_close_count += 1
+
+    def _exit_prevent_close_state(self) -> None:
+        self.__prevent_close_count -= 1
+        if not self.__prevent_close_count and not self.__windows and not self.__dialogs:
+            self.ui.request_quit()
 
     def exit(self):
         """The exit method should request to close or close the window."""

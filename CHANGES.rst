@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.1 (UNRELEASED)
+0.4.1 (2020-09-03)
 ------------------
 - Improve capabilities of window closing workflow.
 - Fix issues with file dialogs in PyQt version.

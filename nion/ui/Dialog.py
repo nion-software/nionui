@@ -230,7 +230,8 @@ class PopupWindow(Window.Window):
 def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Optional[typing.Callable[[typing.Any], None]],
                             *, window: Window.Window = None,
                             current_item: int = 0,
-                            item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None) -> None:
+                            item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None,
+                            title: str = None) -> None:
 
     item_getter = item_getter or str
 
@@ -257,7 +258,7 @@ def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Option
             self.is_rejected = False
             return True
 
-        def handle_done(self, widget):
+        def handle_select(self, widget):
             self.is_rejected = False
             self.__request_close_fn()
 
@@ -271,9 +272,9 @@ def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Option
 
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()
-    title_row = u.create_row(u.create_label(text=_("Select Computation")), u.create_stretch())
+    title_row = u.create_row(u.create_label(text=title or _("Select Item")), u.create_stretch())
     item_list = u.create_list_box(name="item_list", items=[item_getter(c) for c in items], width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(computation_index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
-    button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Done"), on_clicked="handle_done"), spacing=8)
+    button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Select"), on_clicked="handle_select"), spacing=8)
     column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
     popup = PopupWindow(window, column, ui_handler)
 

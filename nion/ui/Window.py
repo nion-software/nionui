@@ -579,11 +579,27 @@ class Window:
                 checked = action and action.is_checked(action_context)
                 menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
+    def add_action_to_menu(self, menu: UserInterface.Menu, action_id: str, action_context: ActionContext) -> typing.Optional[Action]:
+        action = actions.get(action_id)
+        if action:
+            key_sequence = action_shortcuts.get(action_id, dict()).get("window")
+            assert menu is not None
+            menu_action = menu.add_menu_item(action.action_name,
+                                             functools.partial(self.perform_action_in_context, action_id, action_context),
+                                             key_sequence=key_sequence, action_id=action_id)
+            title = action.get_action_name(action_context)
+            enabled = action and action.is_enabled(action_context)
+            checked = action and action.is_checked(action_context)
+            menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+        return action
+
     def perform_action(self, action_id: str) -> None:
+        self.perform_action_in_context(action_id, self._get_action_context())
+
+    def perform_action_in_context(self, action_id: str, action_context: ActionContext) -> None:
         action = actions.get(action_id)
         if action and action not in self.__modal_actions:
             action.clear()
-            action_context = self._get_action_context()
             if action.invoke(action_context) == ActionResult.MODAL:
                 self.__modal_actions.append(action)
             for report in action.reports:
@@ -638,16 +654,16 @@ class Window:
             self._edit_menu_about_to_show()
         elif menu.menu_id == "window":
             self._window_menu_about_to_show()
-        else:
-            action_context = self._get_action_context()
-            for menu_action in menu.get_menu_actions():
-                if menu_action.action_id:
-                    action = actions.get(menu_action.action_id)
-                    if action:
-                        title = action.get_action_name(action_context)
-                        enabled = action and action.is_enabled(action_context)
-                        checked = action and action.is_checked(action_context)
-                        menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+        # perform enable/disable/title for all menus
+        action_context = self._get_action_context()
+        for menu_action in menu.get_menu_actions():
+            if menu_action.action_id:
+                action = actions.get(menu_action.action_id)
+                if action:
+                    title = action.get_action_name(action_context)
+                    enabled = action and action.is_enabled(action_context)
+                    checked = action and action.is_checked(action_context)
+                    menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
     def _file_menu_about_to_show(self) -> None:
         action_context = self._get_action_context()

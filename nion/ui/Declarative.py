@@ -82,6 +82,7 @@ class DeclarativeUI:
     # TODO: tab label should be bindable
     # TODO: window and dialog title should be bindable
     # TODO: placeholder text should be bindable
+    # TODO: text color, font, etc. bindable
 
     def __init__(self):
         pass

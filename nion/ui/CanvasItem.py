@@ -497,6 +497,13 @@ class AbstractCanvasItem:
         self.on_layout_updated = None
 
     @property
+    def is_ui_interaction_active(self) -> bool:
+        root_container = self.root_container
+        if root_container:
+            return root_container.is_ui_interaction_active
+        return False
+
+    @property
     def canvas_size(self):
         """ Returns size of canvas_rect (external coordinates). """
         return self.__canvas_size
@@ -2693,6 +2700,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
         self.__drawing_context_updated = False
+        self.__interaction_count = 0
         self.__focused_item = None
         self.__last_focused_item = None
         self.__mouse_canvas_item = None  # not None when the mouse is pressed
@@ -2752,6 +2760,29 @@ class RootCanvasItem(CanvasItemComposition):
 
     def map_to_global(self, p):
         return self.__canvas_widget.map_to_global(p)
+
+    @property
+    def is_ui_interaction_active(self) -> bool:
+        return self.__interaction_count > 0
+
+    def _adjust_ui_interaction(self, value: int) -> None:
+        self.__interaction_count += value
+
+    def _ui_interaction(self):
+        class UIInteractionContext:
+            def __init__(self, root_canvas_item):
+                self.__root_canvas_item = root_canvas_item
+
+            def close(self):
+                self.__root_canvas_item._adjust_ui_interaction(-1)
+
+            def __enter__(self):
+                self.__root_canvas_item._adjust_ui_interaction(1)
+
+            def __exit__(self, type, value, traceback):
+                self.close()
+
+        return UIInteractionContext(self)
 
     @property
     def focusable(self):
@@ -2897,19 +2928,22 @@ class RootCanvasItem(CanvasItemComposition):
             canvas_item = canvas_item.container
 
     def __mouse_clicked(self, x, y, modifiers):
-        canvas_item = self.__mouse_canvas_item_at_point(x, y)
-        if canvas_item:
-            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-            return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        with self._ui_interaction():
+            canvas_item = self.__mouse_canvas_item_at_point(x, y)
+            if canvas_item:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
 
     def __mouse_double_clicked(self, x, y, modifiers):
-        canvas_item = self.__mouse_canvas_item_at_point(x, y)
-        if canvas_item:
-            self.__request_focus(canvas_item)
-            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-            return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        with self._ui_interaction():
+            canvas_item = self.__mouse_canvas_item_at_point(x, y)
+            if canvas_item:
+                self.__request_focus(canvas_item)
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
 
     def __mouse_pressed(self, x, y, modifiers):
+        self._adjust_ui_interaction(1)
         self.__mouse_position_changed(x, y, modifiers)
         if not self.__mouse_tracking_canvas_item:
             self.__mouse_tracking_canvas_item = self.__mouse_canvas_item_at_point(x, y)
@@ -2925,6 +2959,7 @@ class RootCanvasItem(CanvasItemComposition):
         return False
 
     def __mouse_released(self, x, y, modifiers):
+        result = False
         if self.__mouse_canvas_item:
             if self.__request_focus_canvas_item:
                 self.__request_focus(self.__request_focus_canvas_item)
@@ -2933,8 +2968,8 @@ class RootCanvasItem(CanvasItemComposition):
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
             self.__mouse_canvas_item = None
             self.__mouse_position_changed(x, y, modifiers)
-            return result
-        return False
+        self._adjust_ui_interaction(-1)
+        return result
 
     def bypass_request_focus(self):
         self.__request_focus_canvas_item = None
@@ -2980,22 +3015,26 @@ class RootCanvasItem(CanvasItemComposition):
             self.__grab_canvas_item.grabbed_mouse_position_changed(dx, dy, modifiers)
 
     def __context_menu_event(self, x, y, gx, gy):
-        canvas_items = self.canvas_items_at_point(x, y)
-        for canvas_item in canvas_items:
-            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-            if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, gx, gy):
-                return True
-        return False
+        with self._ui_interaction():
+            canvas_items = self.canvas_items_at_point(x, y)
+            for canvas_item in canvas_items:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                    return True
+            return False
 
     def __key_pressed(self, key):
+        self._adjust_ui_interaction(1)
         if self.focused_item:
             return self.focused_item.key_pressed(key)
         return False
 
     def __key_released(self, key):
+        result = False
         if self.focused_item:
-            return self.focused_item.key_released(key)
-        return False
+            result = self.focused_item.key_released(key)
+        self._adjust_ui_interaction(-1)
+        return result
 
     def __drag_enter(self, mime_data: "UserInterface.MimeData") -> str:
         self.__drag_tracking = True
@@ -3034,25 +3073,29 @@ class RootCanvasItem(CanvasItemComposition):
         return response
 
     def __drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
-        response = "ignore"
-        if self.__drag_tracking_canvas_item:
-            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
-            response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
-        self.__drag_leave()
-        return response
+        with self._ui_interaction():
+            response = "ignore"
+            if self.__drag_tracking_canvas_item:
+                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
+                response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
+            self.__drag_leave()
+            return response
 
     def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self.__canvas_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def grab_gesture(self, gesture_type):
         """ Grab gesture """
+        self._adjust_ui_interaction(1)
         self.__canvas_widget.grab_gesture(gesture_type)
 
     def ungrab_gesture(self, gesture_type):
         """ Ungrab gesture """
         self.__canvas_widget.ungrab_gesture(gesture_type)
+        self._adjust_ui_interaction(-1)
 
     def grab_mouse(self, grabbed_canvas_item, gx, gy):
+        self._adjust_ui_interaction(1)
         self.__canvas_widget.grab_mouse(gx, gy)
         self.__grab_canvas_item = grabbed_canvas_item
 
@@ -3060,6 +3103,7 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget.release_mouse()
         self._restore_cursor_shape()
         self.__grab_canvas_item = None
+        self._adjust_ui_interaction(-1)
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self.__canvas_widget.show_tool_tip_text(text, gx, gy)

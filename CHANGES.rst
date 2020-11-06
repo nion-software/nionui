@@ -1,6 +1,12 @@
 Changelog (nionui)
 ==================
 
+0.4.2 (UNRELEASED)
+------------------
+- Add ability to determine whether a canvas item is interacting with user.
+- Add ability to add actions to context menus.
+- Improve look of pose dialog.
+
 0.4.1 (2020-09-03)
 ------------------
 - Improve capabilities of window closing workflow.

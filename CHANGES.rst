@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.2 (UNRELEASED)
+0.4.2 (2020-11-06)
 ------------------
 - Add ability to determine whether a canvas item is interacting with user.
 - Add ability to add actions to context menus.

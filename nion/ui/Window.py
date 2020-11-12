@@ -151,6 +151,7 @@ class Window:
             self.__document_window.window_style = window_style
         self.__persistent_id = persistent_id
         self.__shown = False
+        self.__request_close = False
 
         self.__dialogs: typing.List[weakref.ReferenceType] = list()
 
@@ -201,6 +202,7 @@ class Window:
             app._window_created(self)
 
     def close(self) -> None:
+        self.__request_close = False
         self._finish_periodic()  # required to finish periodic operations during tests
         self._close_dialogs()
         self._window_close_event.fire(self)
@@ -288,6 +290,11 @@ class Window:
     def request_close(self) -> None:
         self.__document_window.request_close()
 
+    def queue_request_close(self) -> None:
+        # used to request a close from inside an event loop task.
+        # sets the flag and the request close will be executed during the next periodic.
+        self.__request_close = True
+
     def _register_ui_activity(self) -> None:
         pass
 
@@ -303,6 +310,11 @@ class Window:
         self.__event_loop.run_forever()
         if self.app:
             self.app.periodic()
+        # if the request close flag is set, request the close.
+        # this must be at the end of periodic since it will result in the window
+        # close method being called.
+        if self.__request_close:
+            self.request_close()
 
     def exec_action_events(self, event_type_str: str, **kwargs) -> bool:
         action_context = None

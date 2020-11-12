@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.4.3 (UNRELEASED)
+------------------
+- Add mechanism to request window close from within event loop.
+
 0.4.2 (2020-11-06)
 ------------------
 - Add ability to determine whether a canvas item is interacting with user.

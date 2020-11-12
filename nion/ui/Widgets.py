@@ -397,7 +397,6 @@ class ListWidget(CompositeWidgetBase):
         self.__on_current_index_changed = None
 
 
-
 class StringListCanvasItemDelegate(ListCanvasItemDelegate):
 
     def __init__(self, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None):

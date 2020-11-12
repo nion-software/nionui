@@ -758,32 +758,37 @@ class DeclarativeUI:
 
     def create_list_box(self, *,
                         name: UIIdentifier = None,
-                        items: typing.List[UILabel] = None,
+                        items: typing.List[typing.Union[UILabel, typing.Any]] = None,
                         items_ref: UIIdentifier = None,
                         current_index: UIIdentifier = None,
                         on_item_changed: UICallableIdentifier = None,
                         on_item_selected: UICallableIdentifier = None,
-                        on_escape_pressed: UICallableIdentifier=None,
-                        on_return_pressed: UICallableIdentifier=None,
+                        on_escape_pressed: UICallableIdentifier = None,
+                        on_return_pressed: UICallableIdentifier = None,
+                        on_item_handle_context_menu: UICallableIdentifier = None,
                         **kwargs) -> UIDescription:
         """Create a list box UI description with name, items, current index, and events.
 
-        The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the list box.
-        The widget and the new index of the selected item are passed to the callback. The type signature in the handler
-        should be ``typing.Callable[[UIWidget, int], None]``.
-
         Keyword Args:
             name: handler property in which to store widget (optional)
-            items: list list box items (strings, optional)
+            items: list list box items (strings or objects which have str conversion, optional)
             items_ref: handler reference of list box items (bindable, optional)
             current_index: current index handler reference (bindable, optional)
             on_item_changed: callback when current item changes (optional)
             on_item_selected: callback when current item changes (optional)
             on_escape_pressed: callback when escape is pressed, return true if handled
             on_return_pressed: callback when return is pressed, return true if handled
+            on_item_handle_context_menu: callback to display context menu, passes gx, gy, index (optional).
 
         Returns:
             UI description of the list box
+
+        The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the list box.
+        The widget and the new index of the selected item are passed to the callback. The type signature in the handler
+        should be ``typing.Callable[[UIWidget, int], None]``.
+
+        The items can be either strings or objects which implement a str conversion. The items can also include a
+        `tool_tip` property which will be displayed when the user hovers over the item.
         """
         d = {"type": "list_box"}
         if name is not None:
@@ -802,6 +807,8 @@ class DeclarativeUI:
             d["on_escape_pressed"] = on_escape_pressed
         if on_return_pressed is not None:
             d["on_return_pressed"] = on_return_pressed
+        if on_item_handle_context_menu is not None:
+            d["on_item_handle_context_menu"] = on_item_handle_context_menu
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1498,7 +1505,32 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
     elif d_type == "list_box":
         items = d.get("items", None)
         properties = construct_sizing_properties(d)
-        widget = Widgets.ListWidget(ui, Widgets.StringListCanvasItemDelegate(), items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
+
+        class ListBoxDelegate(Widgets.StringListCanvasItemDelegate):
+            def __init__(self):
+                super().__init__()
+                self.on_item_handle_context_menu = None
+
+            def item_tool_tip(self, index: int) -> typing.Optional[str]:
+                return getattr(self.items[index], "tool_tip", None)
+
+            def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+                if callable(self.on_item_handle_context_menu):
+                    self.on_item_handle_context_menu(index=index, x=x, y=y, gx=gx, gy=gy)
+                return False
+
+        list_box_delegate = ListBoxDelegate()
+        widget = Widgets.ListWidget(ui, list_box_delegate, items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
+        widget.on_item_handle_context_menu = None
+
+        def trampoline_handle_context_menu(*args, **kwargs) -> bool:
+            # this will be called from the delegate when the delegate gets a context menu event.
+            # the call is passed on to the widget on_item_handle_context_menu function.
+            if callable(widget.on_item_handle_context_menu):
+                return widget.on_item_handle_context_menu(*args, **kwargs)
+            return False
+
+        list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
         if handler:
             connect_name(widget, d, handler)
             # note: items_ref connects before current_index so that current_index can be valid
@@ -1508,6 +1540,7 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
             connect_event(widget, widget, d, handler, "on_escape_pressed", [])
             connect_event(widget, widget, d, handler, "on_return_pressed", [])
+            connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
             connect_attributes(widget, d, handler, finishes)
         return widget
     elif d_type == "component":

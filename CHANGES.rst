@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.3 (UNRELEASED)
+0.4.3 (2020-11-13)
 ------------------
 - Extend declarative list box to support item tool tips and context menu.
 - Add mechanism to request window close from within event loop.

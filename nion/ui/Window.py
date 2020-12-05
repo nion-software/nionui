@@ -596,8 +596,17 @@ class Window:
         if action:
             key_sequence = action_shortcuts.get(action_id, dict()).get("window")
             assert menu is not None
+
+            def perform_action():
+                self.perform_action_in_context(action_id, action_context)
+
+            def queue_perform_action():
+                # delay execution to ensure menu closes properly
+                # this would manifest itself by export dialog crashes in nionswift.
+                self.queue_task(perform_action)
+
             menu_action = menu.add_menu_item(action.action_name,
-                                             functools.partial(self.perform_action_in_context, action_id, action_context),
+                                             queue_perform_action,
                                              key_sequence=key_sequence, action_id=action_id)
             title = action.get_action_name(action_context)
             enabled = action and action.is_enabled(action_context)

@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.4.4 (UNRELEASED)
+------------------
+- Execute context menus actions by queue to fix crashes.
+
 0.4.3 (2020-11-13)
 ------------------
 - Extend declarative list box to support item tool tips and context menu.

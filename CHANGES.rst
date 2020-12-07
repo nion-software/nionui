@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.4 (UNRELEASED)
+0.4.4 (2020-12-07)
 ------------------
 - Execute context menus actions by queue to fix crashes.
 

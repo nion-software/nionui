@@ -2857,6 +2857,9 @@ class Window:
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
         raise NotImplementedError()
 
+    def get_color_dialog(self, title: str, color: str, show_alpha: bool) -> str:
+        raise NotImplementedError()
+
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
         raise NotImplementedError()
 
@@ -3241,4 +3244,8 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def create_sub_menu(self, document_window: Window, title: str = None, menu_id: str = None) -> Menu:
+        ...
+
+    @abc.abstractmethod
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         ...

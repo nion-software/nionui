@@ -2750,6 +2750,20 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         return PyDocumentWindow(title, parent_window)
 
+    def DocumentWindow_getColorDialog(self, parent: QtWidgets.QWidget, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        q_color = QtGui.QColor(color)
+        dialog = QtWidgets.QColorDialog(q_color, parent)
+        if show_alpha:
+            dialog.setOptions(QtWidgets.QColorDialog.ShowAlphaChannel)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            if dialog.selectedColor().alpha() != 255:
+                return f"#{dialog.selectedColor().alpha():02x}{dialog.selectedColor().name()[1:]}"
+            else:
+                return dialog.selectedColor().name()
+        return color
+
     def DocumentWindow_getDisplayScaling(self, document_window: PyDocumentWindow) -> None:
         assert document_window is not None
         if sys.platform == 'darwin':

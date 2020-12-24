@@ -2,8 +2,11 @@
 A library of custom widgets.
 """
 
+from __future__ import annotations
+
 # standard libraries
 import copy
+import gettext
 import typing
 
 # third party libraries
@@ -11,11 +14,18 @@ import typing
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Selection
+
+if typing.TYPE_CHECKING:
+    from nion.utils import Binding
+
+
+_ = gettext.gettext
 
 
 class CompositeWidgetBehavior:
@@ -645,3 +655,155 @@ class ImageWidget(CompositeWidgetBase):
             self.content_widget.add(bitmap_canvas_widget)
 
         self.__rgba_bitmap_data = rgba_bitmap_data
+
+
+class ColorButtonCell:
+
+    def __init__(self, color: typing.Optional[str]):
+        super().__init__()
+        self.update_event = Event.Event()
+        self.__color = color
+
+    @property
+    def color(self) -> typing.Optional[str]:
+        return self.__color
+
+    @color.setter
+    def color(self, value: typing.Optional[str]) -> None:
+        self.__color = value
+
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: str) -> None:
+        # style: "disabled" (default is enabled)
+
+        margin_rect = rect.inset(4, 4)
+
+        drawing_context.begin_path()
+        drawing_context.rect(margin_rect.left, margin_rect.top, margin_rect.width, margin_rect.height)
+        drawing_context.fill_style = "#BBB"
+        drawing_context.fill()
+
+        inset_rect = margin_rect.inset(4, 4)
+
+        drawing_context.begin_path()
+        drawing_context.rect(inset_rect.left, inset_rect.top, inset_rect.width, inset_rect.height)
+        drawing_context.close_path()
+        drawing_context.fill_style = self.__color
+        drawing_context.fill()
+
+        drawing_context.begin_path()
+        drawing_context.move_to(inset_rect.right, inset_rect.top)
+        drawing_context.line_to(inset_rect.right, inset_rect.bottom)
+        drawing_context.line_to(inset_rect.left, inset_rect.bottom)
+        drawing_context.close_path()
+        drawing_context.fill_style = DrawingContext.color_without_alpha(self.__color)
+        drawing_context.fill()
+
+        drawing_context.begin_path()
+        drawing_context.rect(inset_rect.left, inset_rect.top, inset_rect.width, inset_rect.height)
+        drawing_context.stroke_style = "#454545"
+        drawing_context.stroke()
+
+        if "disabled" in style:
+            drawing_context.begin_path()
+            drawing_context.rect(margin_rect.left, margin_rect.top, margin_rect.width, margin_rect.height)
+            drawing_context.fill_style = "rgba(255, 255, 255, 0.5)"
+            drawing_context.fill()
+
+
+class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, color: typing.Optional[str]):
+        super().__init__()
+        self.cell = ColorButtonCell(color)
+        self.wants_mouse_events = True
+        self.on_button_clicked = None
+
+    def close(self) -> None:
+        self.on_button_clicked = None
+        super().close()
+
+    def mouse_entered(self) -> None:
+        self._mouse_inside = True
+
+    def mouse_exited(self) -> None:
+        self._mouse_inside = False
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self._mouse_pressed = True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        self._mouse_pressed = False
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.enabled:
+            if self.on_button_clicked:
+                self.on_button_clicked()
+        return True
+
+
+class ColorPushButtonWidget(CompositeWidgetBase):
+    def __init__(self, ui, color: typing.Optional[str] = None):
+        super().__init__(ui.create_column_widget())
+
+        self.on_color_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+
+        color_button_canvas_item = ColorButtonCanvasItem(color)
+        color_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=30, width=44))
+
+        def button_clicked():
+            color = ui.get_color_dialog(_("Select Color"), self.color, True)
+            if color != self.color:
+                self.color = color
+                if callable(self.on_color_changed):
+                    self.on_color_changed(self.color)
+
+        color_button_canvas_item.on_button_clicked = button_clicked
+
+        color_button_canvas_widget = ui.create_canvas_widget(properties={"height": 30, "width": 44})
+        color_button_canvas_widget.canvas_item.add_canvas_item(color_button_canvas_item)
+        # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
+        color_button_canvas_widget.on_mouse_exited = color_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+
+        self.__color_button_canvas_item = color_button_canvas_item
+
+        self.content_widget.add(color_button_canvas_widget)
+
+        self.__color_binding = None
+
+    def close(self):
+        if self.__color_binding:
+            self.__color_binding.close()
+            self.__color_binding = None
+        self.clear_task("update_color")
+        super().close()
+
+    @property
+    def color(self) -> typing.Optional[str]:
+        return self.__color_button_canvas_item.cell.color
+
+    @color.setter
+    def color(self, color: typing.Optional[str]) -> None:
+        if color != self.color:
+            self.__color_button_canvas_item.cell.color = color
+            self.__color_button_canvas_item.update()
+
+    def bind_color(self, binding: Binding.Binding) -> None:
+        if self.__color_binding:
+            self.__color_binding.close()
+            self.__color_binding = None
+        self.color = binding.get_target_value()
+        self.__color_binding = binding
+
+        def update_color(color):
+            def update_color_():
+                if self._behavior:
+                    self.color = color
+
+            self.add_task("update_color", update_color_)
+
+        self.__color_binding.target_setter = update_color
+
+    def unbind_color(self) -> None:
+        if self.__color_binding:
+            self.__color_binding.close()
+            self.__color_binding = None

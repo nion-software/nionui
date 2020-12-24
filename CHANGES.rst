@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+UNRELEASED
+----------
+- Add color dialog support, a color well widget, and some color utility functions.
+
 0.4.4 (2020-12-07)
 ------------------
 - Execute context menus actions by queue to fix crashes.

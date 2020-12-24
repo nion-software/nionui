@@ -1808,6 +1808,9 @@ class QtWindow(UserInterface.Window):
         file_path, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "save", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_path, filter, directory
 
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        return self.proxy.DocumentWindow_getColorDialog(self.native_document_window, color, show_alpha)
+
     def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
         return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
 
@@ -2190,3 +2193,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterface.Menu:
         sub_menu = QtMenu(document_window, title, menu_id, self.proxy, self.proxy.Menu_create())
         return sub_menu
+
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        if self.proxy.has_method("DocumentWindow_getColorDialog"):
+            return self.proxy.DocumentWindow_getColorDialog(None, color, show_alpha)
+        return color

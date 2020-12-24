@@ -1093,6 +1093,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterfaceModule.Menu:
         return Menu(document_window, title)
 
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        return color
+
     # testing
 
     def create_key_by_id(self, key_id: str, modifiers: CanvasItem.KeyboardModifiers = None) -> UserInterfaceModule.Key:

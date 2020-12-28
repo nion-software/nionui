@@ -751,8 +751,9 @@ class ColorPushButtonWidget(CompositeWidgetBase):
         color_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=30, width=44))
 
         def button_clicked():
-            color = ui.get_color_dialog(_("Select Color"), self.color, True)
-            if color != self.color:
+            start_color = self.color or "rgba(255, 255, 255, 0.0)"
+            color = ui.get_color_dialog(_("Select Color"), start_color, True)
+            if color != start_color:
                 self.color = color
                 if callable(self.on_color_changed):
                     self.on_color_changed(self.color)

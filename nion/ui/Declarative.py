@@ -45,7 +45,7 @@ class DeclarativeUI:
     # TODO: scroll area
     # ----: group box
     # ----: status bar
-    # TODO: tool tips
+    # ----: tool tips
     # TODO: expander
     # TODO: border
     # ----: push button
@@ -76,12 +76,12 @@ class DeclarativeUI:
     # ----: bindings
     # TODO: commands
     # TODO: standard dialog boxes, open, save, print, confirm
-    # TODO: all static text (checkbox 'text') should be bindable
+    # ----: all static text (checkbox 'text') should be bindable
     # TODO: how to define resources for a sub component?
     # TODO: windows: fit to content; fixed sizes
-    # TODO: tab label should be bindable
+    # ----: tab label should be bindable
     # TODO: window and dialog title should be bindable
-    # TODO: placeholder text should be bindable
+    # ----: placeholder text should be bindable
     # TODO: text color, font, etc. bindable
 
     def __init__(self):

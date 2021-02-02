@@ -12,7 +12,7 @@ import typing
 import weakref
 
 # third party libraries
-# none
+import numpy
 
 # local libraries
 from nion.ui import CanvasItem
@@ -464,7 +464,7 @@ class Widget:
     def set_property(self, key: str, value) -> None:
         self._behavior.set_property(key, value)
 
-    def drag(self, mime_data: MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[numpy.ndarray] = None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p) -> Geometry.IntPoint:

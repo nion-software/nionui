@@ -352,7 +352,7 @@ class DrawingContext:
                     get_byte_view(adj_color_table)[:, 1] = get_byte_view(color_table)[:, 1]
                     get_byte_view(adj_color_table)[:, 2] = get_byte_view(color_table)[:, 0]
                     get_byte_view(adj_color_table)[:, 3] = get_byte_view(color_table)[:, 3]
-                    clipped_array = numpy.clip((m * (data - low)).astype(numpy.int), 0, 255).astype(numpy.uint8)
+                    clipped_array = numpy.clip((m * (data - low)).astype(int), 0, 255).astype(numpy.uint8)
                     image[:] = adj_color_table[clipped_array]
                 else:
                     clipped_array = numpy.clip(data, low, high)

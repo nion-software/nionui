@@ -2381,6 +2381,9 @@ class SplitterCanvasItem(CanvasItemComposition):
                 new_sizings.append(sizing)
             with self.__lock:
                 self.__sizings = new_sizings
+            # update once more with restore sizings. addresses issue nionswift/605
+            self.refresh_layout()
+            self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
             return True
         else:
             control = self.__hit_test(x, y, modifiers)

@@ -688,6 +688,14 @@ class AbstractCanvasItem:
         pass
 
     def prepare_render(self):
+        """Subclasses may override to prepare for layout and repaint. DEPRECATED see _prepare_render."""
+        pass
+
+    def _prepare_render(self):
+        """Subclasses may override to prepare for layout and repaint."""
+        self._prepare_render_self()
+
+    def _prepare_render_self(self):
         """Subclasses may override to prepare for layout and repaint."""
         pass
 
@@ -1497,7 +1505,9 @@ class CompositionLayoutRenderTrait:
         return False
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool=True) -> None:
-        pass
+        self._canvas_item_composition._prepare_render()
+        self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
+        self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
 
     def _try_repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> bool:
         return False
@@ -1542,10 +1552,17 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self if self.__layout_render_trait.is_layer_container else super().layer_container
 
     def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        """DEPRECATED see _prepare_render."""
         self.__layout_render_trait.register_prepare_canvas_item(canvas_item)
 
     def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        """DEPRECATED see _prepare_render."""
         self.__layout_render_trait.unregister_prepare_canvas_item(canvas_item)
+
+    def _prepare_render(self):
+        for canvas_item in self.__canvas_items:
+            canvas_item._prepare_render()
+        super()._prepare_render()
 
     @property
     def canvas_items_count(self) -> int:
@@ -1822,7 +1839,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__layer_thread_condition = threading.Condition()
         self.__repaint_lock = threading.RLock()
 
-
     def _stop_render_behavior(self) -> None:
         with self.__repaint_lock:
             pass
@@ -1876,10 +1892,10 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                 layer_drawing_context = self.__layer_drawing_context
                 layer_seed = self.__layer_seed
             canvas_rect = self._canvas_item_composition.canvas_rect
-            drawing_context.begin_layer(self.__layer_id, layer_seed, *tuple(canvas_rect.origin), *tuple(canvas_rect.size))
+            drawing_context.begin_layer(self.__layer_id, layer_seed, 0, 0, *tuple(canvas_rect.size))
             if layer_drawing_context:
                 drawing_context.add(layer_drawing_context)
-            drawing_context.end_layer(self.__layer_id, layer_seed, *tuple(canvas_rect.origin), *tuple(canvas_rect.size))
+            drawing_context.end_layer(self.__layer_id, layer_seed, 0, 0, *tuple(canvas_rect.size))
         return True
 
     def _try_repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> bool:
@@ -1897,6 +1913,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
             layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
             for canvas_item in copy.copy(self.__prepare_canvas_items):
                 canvas_item.prepare_render()
+            self._canvas_item_composition._prepare_render()
             self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
             self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
             self._layer_thread_suppress = layer_thread_suppress
@@ -1943,6 +1960,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                 try:
                     for canvas_item in copy.copy(self.__prepare_canvas_items):
                         canvas_item.prepare_render()
+                    self._canvas_item_composition._prepare_render()
                     # layout or repaint that occurs during prepare render should be handled
                     # but not trigger another repaint after this one.
                     with self.__layer_thread_condition:

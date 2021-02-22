@@ -8,6 +8,7 @@ import collections
 import copy
 import enum
 import numbers
+import pathlib
 import typing
 import weakref
 
@@ -2756,6 +2757,7 @@ class Window:
         self.width = None
         self.height = None
         self.__title = title if title is not None else str()
+        self.__window_file_path: typing.Optional[pathlib.Path] = None
         self.__menus = list()
         self.__menu_map = dict()
         self.__menu_actions = dict()
@@ -2904,15 +2906,27 @@ class Window:
         raise NotImplementedError()
 
     @property
-    def title(self):
+    def title(self) -> str:
         return self.__title
 
     @title.setter
-    def title(self, value):
+    def title(self, value: str) -> None:
         self.__title = value
         self._set_title(value)
 
-    def _set_title(self, value):
+    def _set_title(self, value: str) -> None:
+        raise NotImplementedError()
+
+    @property
+    def window_file_path(self) -> typing.Optional[pathlib.Path]:
+        return self.__window_file_path
+
+    @window_file_path.setter
+    def window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self.__window_file_path = value
+        self._set_window_file_path(value)
+
+    def _set_window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
         raise NotImplementedError()
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:

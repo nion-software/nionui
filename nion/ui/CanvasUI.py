@@ -461,6 +461,9 @@ class Window(UserInterface.Window):
     def _set_title(self, value):
         pass
 
+    def _set_window_file_path(self, value):
+        pass
+
     def draw(self, canvas_item, drawing_context):
         """Render the drawing context by called draw on the ui object."""
         assert canvas_item == self.root_widget._behavior.canvas_item

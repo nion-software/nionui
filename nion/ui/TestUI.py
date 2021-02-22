@@ -2,6 +2,7 @@
 import collections
 import copy
 import enum
+import pathlib
 import typing
 
 # third party libraries
@@ -834,6 +835,9 @@ class DocumentWindowX(UserInterfaceModule.Window):
 
     def _set_title(self, value: str) -> None:
         self.__title = value
+
+    def _set_window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self.__window_file_path = value
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
         pass

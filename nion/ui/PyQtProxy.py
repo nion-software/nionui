@@ -2872,6 +2872,12 @@ class PyQtProxy:
         assert document_window is not None
         document_window.setWindowTitle(title)
 
+    def DocumentWindow_setWindowFilePath(self, document_window: PyDocumentWindow, window_file_path: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert document_window is not None
+        document_window.setWindowFilePath(window_file_path)
+
     def DocumentWindow_setWindowStyle(self, document_window: PyDocumentWindow, styles: typing.Sequence[str]) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()

@@ -6,6 +6,7 @@ Provides a user interface object that can render to an Qt host.
 import binascii
 import copy
 import os
+import pathlib
 import pickle
 import sys
 import time
@@ -1844,8 +1845,12 @@ class QtWindow(UserInterface.Window):
         self.proxy.DocumentWindow_setPosition(self.native_document_window, 0, 0)
         self.proxy.DocumentWindow_setSize(self.native_document_window, screen_size.width, screen_size.height)
 
-    def _set_title(self, value):
+    def _set_title(self, value: str) -> None:
         self.proxy.DocumentWindow_setTitle(self.native_document_window, notnone(value))
+
+    def _set_window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        if self.proxy.has_method("DocumentWindow_setWindowFilePath"):
+            self.proxy.DocumentWindow_setWindowFilePath(self.native_document_window, str(value) if value else str())
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
         if hasattr(self.proxy, "Widget_setPaletteColor"):

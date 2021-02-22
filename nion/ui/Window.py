@@ -9,6 +9,7 @@ import enum
 import functools
 import gettext
 import logging
+import pathlib
 import typing
 import weakref
 
@@ -286,6 +287,14 @@ class Window:
     def _request_exit(self) -> None:
         if self.app:
             self.app.exit()
+
+    @property
+    def window_file_path(self) -> typing.Optional[pathlib.Path]:
+        return self.__document_window.window_file_path
+
+    @window_file_path.setter
+    def window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self.__document_window.window_file_path = value
 
     def request_close(self) -> None:
         self.__document_window.request_close()

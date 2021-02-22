@@ -720,6 +720,9 @@ class AbstractCanvasItem:
             self.__canvas_origin = canvas_origin
             self.update()
 
+    def _container_layout_changed(self) -> None:
+        pass
+
     @property
     def canvas_widget(self):
         return self.container.canvas_widget if self.container else None
@@ -1675,6 +1678,9 @@ class CompositionLayoutRenderTrait:
     def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         pass
 
+    def _container_layout_changed(self) -> None:
+        pass
+
     def _try_update_layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, *, immediate: bool = False) -> bool:
         return False
 
@@ -1747,6 +1753,9 @@ class CanvasItemComposition(AbstractCanvasItem):
     def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         """DEPRECATED see _prepare_render."""
         self.__layout_render_trait.unregister_prepare_canvas_item(canvas_item)
+
+    def _container_layout_changed(self) -> None:
+        self.__layout_render_trait._container_layout_changed()
 
     def _prepare_render(self):
         for canvas_item in self.__canvas_items:
@@ -2027,6 +2036,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_condition = threading.Condition()
         self.__repaint_lock = threading.RLock()
+        self.__repaint_one_future: typing.Optional[concurrent.futures.Future] = None
 
     def _stop_render_behavior(self) -> None:
         with self.__repaint_lock:
@@ -2050,6 +2060,15 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         assert canvas_item in self.__prepare_canvas_items
         self.__prepare_canvas_items.remove(canvas_item)
 
+    def _container_layout_changed(self) -> None:
+        # the section drawing code has no layout information; so it's possible for the sections to
+        # overlap, particularly during resizing, resulting in one layer drawing only to be overwritten
+        # by an older layer whose size hasn't been updated. this method is called quickly when the
+        # enclosing container changes layout and helps ensure that all layers in the container are drawn
+        # with the correct size.
+        if self.__layer_drawing_context:
+            self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
+
     def _try_update_layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, *, immediate: bool = False) -> bool:
         # layout self, but not the children. layout for children goes to thread.
         self._canvas_item_composition._update_self_layout(canvas_origin, canvas_size)
@@ -2060,11 +2079,35 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__trigger_layout()
         return True
 
+    def _sync_repaint(self) -> None:
+        done_event = threading.Event()
+        with self.__layer_thread_condition:
+            if self.__repaint_one_future:
+                def repaint_done(future: concurrent.futures.Future) -> None:
+                    done_event.set()
+
+                self.__repaint_one_future.add_done_callback(repaint_done)
+            else:
+                done_event.set()
+        done_event.wait()
+
+    def __repaint_done(self, future: concurrent.futures.Future) -> None:
+        with self.__layer_thread_condition:
+            self.__repaint_one_future = None
+            if self.__needs_layout or self.__needs_repaint:
+                self.__queue_repaint()
+
+    def __queue_repaint(self) -> None:
+        with self.__layer_thread_condition:
+            if not self.__repaint_one_future:
+                self.__repaint_one_future = LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
+                self.__repaint_one_future.add_done_callback(self.__repaint_done)
+
     def _try_updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"]) -> bool:
         with self.__layer_thread_condition:
             self.__needs_repaint = True
             if not self._layer_thread_suppress:
-                LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
+                self.__queue_repaint()
         # normally, this method would mark a pending update and forward the update to the container;
         # however with the layer, since drawing occurs on a thread, this must occur after the thread
         # is finished. if the thread is suppressed (typically during testing), use the regular flow.
@@ -2135,8 +2178,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
             self.__repaint_layer()
             with self.__layer_thread_condition:
                 self.__executing = False
-                if self.__needs_layout or self.__needs_repaint:
-                    LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
 
     def __repaint_layer(self):
         with self.__layer_thread_condition:
@@ -2177,7 +2218,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         with self.__layer_thread_condition:
             self.__needs_layout = True
             if not self._layer_thread_suppress:
-                LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
+                self.__queue_repaint()
 
 
 class LayerCanvasItem(CanvasItemComposition):
@@ -2415,8 +2456,6 @@ class SplitterCanvasItem(CanvasItemComposition):
                 assert canvas_item._has_layout
             for sizing, size in zip(sizings, sizes):
                 sizing._preferred_width = size
-        for canvas_item in canvas_items:
-            assert canvas_item._has_layout
         with self.__lock:
             self.__actual_sizings = sizings
             self.__canvas_items = canvas_items
@@ -2427,6 +2466,12 @@ class SplitterCanvasItem(CanvasItemComposition):
         # might not go all the way up the chain if this splitter has no layout. by now, it will
         # have a layout, so force an update.
         self.update()
+        # canvas items that cache their drawing bitmap (layers) need to know as quickly as possible
+        # that their layout has changed to a new size to avoid partially updated situations where
+        # their bitmaps overlap and a newer bitmap gets overwritten by a older overlapping bitmap,
+        # resulting in drawing anomaly. request a repaint for each canvas item at its new size here.
+        for canvas_item in canvas_items:
+            canvas_item._container_layout_changed()
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None
@@ -2556,7 +2601,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             with self.__lock:
                 self.__sizings = temp_sizings
             self.refresh_layout()
-            self.update_layout(self.canvas_origin, self.canvas_size, immediate=True)
+            self.update_layout(self.canvas_origin, self.canvas_size)
             # restore the freedom of the others
             new_sizings = list()
             for index, (old_sizing, temp_sizing) in enumerate(zip(old_sizings, temp_sizings)):

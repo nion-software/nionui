@@ -2376,6 +2376,11 @@ class PyQtProxy:
         app.closeAllWindows()
         app.quit()
 
+    def Application_getKeyboardModifiers(self, query: bool) -> int:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        return app.queryKeyboardModifiers() if query else app.keyboardModifiers()
+
     def ButtonGroup_addButton(self, button_group: PyButtonGroup, radio_button: PyRadioButton, button_id: int) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()

@@ -3262,3 +3262,7 @@ class UserInterface(abc.ABC):
     @abc.abstractmethod
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         ...
+
+    @abc.abstractmethod
+    def get_keyboard_modifiers(self, query: bool = False) -> KeyboardModifiers:
+        ...

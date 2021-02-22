@@ -1100,6 +1100,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         return color
 
+    def get_keyboard_modifiers(self, query: bool = False) -> UserInterfaceModule.KeyboardModifiers:
+        return CanvasItem.KeyboardModifiers()
+
     # testing
 
     def create_key_by_id(self, key_id: str, modifiers: CanvasItem.KeyboardModifiers = None) -> UserInterfaceModule.Key:

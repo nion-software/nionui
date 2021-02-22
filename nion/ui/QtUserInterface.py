@@ -2203,3 +2203,7 @@ class QtUserInterface(UserInterface.UserInterface):
         if self.proxy.has_method("DocumentWindow_getColorDialog"):
             return self.proxy.DocumentWindow_getColorDialog(None, color, show_alpha)
         return color
+
+    def get_keyboard_modifiers(self, query: bool = False) -> UserInterface.KeyboardModifiers:
+        if self.proxy.has_method("Application_getKeyboardModifiers"):
+            return QtKeyboardModifiers(self.proxy.Application_getKeyboardModifiers(query))

@@ -51,7 +51,7 @@ class BaseApplication:
     Pass the desired user interface to the init method. Then call initialize and start.
     """
 
-    def __init__(self, ui, *, on_start=None):
+    def __init__(self, ui: UserInterface.UserInterface, *, on_start=None):
         self.ui = ui
 
         # handle last window closing in Python; but use this variable so tool can continue to

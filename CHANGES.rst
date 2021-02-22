@@ -3,9 +3,10 @@ Changelog (nionui)
 
 0.4.6 (UNRELEASED)
 ------------------
-- Add window file path support to Window.
 - Fix some drawing inconsistencies during splitter dragging.
 - Minor improvements to drawing performance.
+- Add window file path support to Window.
+- Add support for directly getting last or current keyboard modifiers.
 
 0.4.5 (2021-02-02)
 ------------------

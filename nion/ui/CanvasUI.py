@@ -273,9 +273,9 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.__focusable = False
         self.__draw_mutex = threading.Lock()  # don't delete while drawing
         if self.width > 0:
-            self.canvas_item.sizing.set_fixed_width(self.width)
+            self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_width(self.width))
         if self.height > 0:
-            self.canvas_item.sizing.set_fixed_height(self.height)
+            self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_height(self.height))
 
     def close(self):
         with self.__draw_mutex:
@@ -370,9 +370,9 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.width = width
         self.height = height
         if self.width > 0:
-            self.canvas_item.sizing.set_fixed_width(self.width)
+            self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_width(self.width))
         if self.height > 0:
-            self.canvas_item.sizing.set_fixed_height(self.height)
+            self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_height(self.height))
         if callable(self.on_size_changed):
             self.on_size_changed(self.width, self.height)
 

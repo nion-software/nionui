@@ -335,9 +335,9 @@ class ListWidget(CompositeWidgetBase):
 
             new_sizing = self.__canvas_widget.canvas_item.copy_sizing()
             content_height = self.__list_canvas_item.sizing.maximum_height
-            new_sizing.minimum_height = content_height
-            new_sizing.preferred_height = content_height
-            new_sizing.maximum_height = content_height
+            new_sizing._minimum_height = content_height
+            new_sizing._preferred_height = content_height
+            new_sizing._maximum_height = content_height
             self.__canvas_widget.canvas_item.update_sizing(new_sizing)
 
             self.__canvas_widget.set_property("min-height", content_height)
@@ -606,7 +606,7 @@ class TextPushButtonWidget(CompositeWidgetBase):
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
         text_button_canvas_item = TextButtonCanvasItem(text)
-        text_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6))
+        text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
 
         def button_clicked():
             if callable(self.on_button_clicked):
@@ -641,7 +641,7 @@ class ImageWidget(CompositeWidgetBase):
             height, width = rgba_bitmap_data.shape
 
             bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(rgba_bitmap_data)
-            # bitmap_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=height, width=width))
+            # bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=height, width=width)))
 
             def button_clicked():
                 if callable(self.on_clicked):
@@ -748,7 +748,7 @@ class ColorPushButtonWidget(CompositeWidgetBase):
         self.on_color_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
 
         color_button_canvas_item = ColorButtonCanvasItem(color)
-        color_button_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=30, width=44))
+        color_button_canvas_item.update_sizing(color_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=30, width=44)))
 
         def button_clicked():
             start_color = self.color or "rgba(255, 255, 255, 0.0)"

@@ -96,7 +96,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
-        canvas_item.canvas_items[0].sizing.minimum_aspect_ratio = 2.0
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_aspect_ratio(2.0))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=80))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=640, height=320))
@@ -106,7 +106,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
-        canvas_item.canvas_items[0].sizing.maximum_aspect_ratio = 1.0
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_maximum_aspect_ratio(1.0))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=80, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=480, height=480))
@@ -118,7 +118,7 @@ class TestCanvasItemClass(unittest.TestCase):
         child_canvas = CanvasItem.CanvasItemComposition()
         child_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(child_canvas)
-        child_canvas.sizing.preferred_aspect_ratio = 1.0
+        child_canvas.update_sizing(child_canvas.sizing.with_preferred_aspect_ratio(1.0))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=80, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=480, height=480))
@@ -128,8 +128,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout.margins = Geometry.Margins(top=4, bottom=6, left=8, right=10)
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
-        canvas_item.canvas_items[0].sizing.minimum_width = 16
-        canvas_item.canvas_items[0].sizing.maximum_height = 24
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(16).with_maximum_height(24))
         self.assertEqual(canvas_item.layout_sizing.minimum_width, 16 + 8 + 10)
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 24 + 4 + 6)
 
@@ -140,12 +139,9 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
-        canvas_item.canvas_items[0].sizing.minimum_width = 16
-        canvas_item.canvas_items[0].sizing.maximum_height = 12
-        canvas_item.canvas_items[1].sizing.minimum_width = 32
-        canvas_item.canvas_items[1].sizing.maximum_height = 24
-        canvas_item.canvas_items[2].sizing.minimum_width = 48
-        canvas_item.canvas_items[2].sizing.maximum_height = 36
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(16).with_maximum_height(12))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_width(32).with_maximum_height(24))
+        canvas_item.canvas_items[2].update_sizing(canvas_item.canvas_items[2].sizing.with_minimum_width(48).with_maximum_height(36))
         self.assertEqual(canvas_item.layout_sizing.minimum_width, 16 + 32 + 48 + 2 * 7 + 8 + 10)  # includes margins and spacing
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 36 + 4 + 6)  # includes margins only
 
@@ -156,12 +152,9 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
-        canvas_item.canvas_items[0].sizing.minimum_width = 16
-        canvas_item.canvas_items[0].sizing.maximum_height = 12
-        canvas_item.canvas_items[1].sizing.minimum_width = 32
-        canvas_item.canvas_items[1].sizing.maximum_height = 24
-        canvas_item.canvas_items[2].sizing.minimum_width = 48
-        canvas_item.canvas_items[2].sizing.maximum_height = 36
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(16).with_maximum_height(12))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_width(32).with_maximum_height(24))
+        canvas_item.canvas_items[2].update_sizing(canvas_item.canvas_items[2].sizing.with_minimum_width(48).with_maximum_height(36))
         self.assertEqual(canvas_item.layout_sizing.minimum_width, 48 + 8 + 10)  # includes margins only
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 12 + 24 + 36 + 2 * 7 + 4 + 6)  # includes margins and spacing
 
@@ -173,12 +166,9 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"), Geometry.IntPoint(x=1, y=0))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"), Geometry.IntPoint(x=0, y=1))
         #canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#888"), Geometry.IntPoint(x=1, y=1))
-        canvas_item.canvas_items[0].sizing.minimum_width = 16
-        canvas_item.canvas_items[0].sizing.maximum_height = 12
-        canvas_item.canvas_items[1].sizing.minimum_width = 32
-        canvas_item.canvas_items[1].sizing.maximum_height = 24
-        canvas_item.canvas_items[2].sizing.minimum_width = 48
-        canvas_item.canvas_items[2].sizing.maximum_height = 36
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(16).with_maximum_height(12))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_width(32).with_maximum_height(24))
+        canvas_item.canvas_items[2].update_sizing(canvas_item.canvas_items[2].sizing.with_minimum_width(48).with_maximum_height(36))
         self.assertEqual(canvas_item.layout_sizing.minimum_width, 32 + 48 + 1 * 7 + 8 + 10)  # includes margins only
         self.assertEqual(canvas_item.layout_sizing.maximum_height, 24 + 36 + 1 * 7 + 4 + 6)  # includes margins and spacing
 
@@ -238,7 +228,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[0].sizing.minimum_width = 500
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(500))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=500, height=480))
@@ -249,7 +239,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[0].sizing.minimum_height = 300
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_height(300))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=640, height=300))
@@ -262,7 +252,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[1].sizing.minimum_width = 500
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_width(500))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=140, height=480))
@@ -273,7 +263,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[1].sizing.minimum_height = 300
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_height(300))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=640, height=180))
@@ -286,7 +276,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[0].sizing.maximum_width = 100
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_maximum_width(100))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=100, height=480))
@@ -299,7 +289,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        canvas_item.canvas_items[1].sizing.maximum_width = 100
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_maximum_width(100))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=540, height=480))
@@ -316,8 +306,8 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
-        canvas_item.canvas_items[0].sizing.minimum_width = 230
-        canvas_item.canvas_items[1].sizing.maximum_width = 100
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_width(230))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_maximum_width(100))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         for i, child_canvas_item in enumerate(canvas_item.canvas_items):
             print("{} {} {}".format(i, child_canvas_item.canvas_origin, child_canvas_item.canvas_size))
@@ -332,7 +322,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -343,7 +333,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -354,7 +344,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout(alignment="start")
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -365,7 +355,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout(alignment="end")
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -376,7 +366,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -387,7 +377,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(alignment="start")
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -398,7 +388,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.layout = CanvasItem.CanvasItemRowLayout(alignment="end")
         canvas_item.add_stretch()
         background_canvas_item = CanvasItem.BackgroundCanvasItem("#F00")
-        background_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        background_canvas_item.update_sizing(background_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.add_canvas_item(background_canvas_item)
         canvas_item.add_stretch()
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -414,8 +404,8 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(row)
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         canvas_item.add_stretch()
-        canvas_item.canvas_items[0].canvas_items[0].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
-        canvas_item.canvas_items[1].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        canvas_item.canvas_items[0].canvas_items[0].update_sizing(canvas_item.canvas_items[0].canvas_items[0].sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
         self.assertEqual(canvas_item.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 305, 40, 335))
@@ -429,8 +419,8 @@ class TestCanvasItemClass(unittest.TestCase):
         row.add_stretch()
         canvas_item.add_canvas_item(row)
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
-        canvas_item.canvas_items[0].canvas_items[0].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
-        canvas_item.canvas_items[1].sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        canvas_item.canvas_items[0].canvas_items[0].update_sizing(canvas_item.canvas_items[0].canvas_items[0].sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_items[0].canvas_rect, Geometry.IntRect.from_tlbr(0, 0, 20, 30))
         self.assertEqual(canvas_item.canvas_items[1].canvas_rect, Geometry.IntRect.from_tlbr(20, 305, 40, 335))
@@ -442,7 +432,7 @@ class TestCanvasItemClass(unittest.TestCase):
         row.layout = CanvasItem.CanvasItemRowLayout()
         row.add_stretch()
         content_item = CanvasItem.BackgroundCanvasItem("#F00")
-        content_item.sizing.set_fixed_size(Geometry.IntSize(height=20, width=30))
+        content_item.update_sizing(content_item.sizing.with_fixed_size(Geometry.IntSize(height=20, width=30)))
         row.add_canvas_item(content_item)
         row.add_stretch()
         canvas_item.add_canvas_item(row)
@@ -475,8 +465,8 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"), Geometry.IntPoint(x=1, y=0))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#888"), Geometry.IntPoint(x=0, y=1))
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"), Geometry.IntPoint(x=1, y=1))
-        canvas_item.canvas_items[1].sizing.minimum_height = 300
-        canvas_item.canvas_items[1].sizing.minimum_width = 500
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_height(300))
+        canvas_item.canvas_items[1].update_sizing(canvas_item.canvas_items[1].sizing.with_minimum_width(500))
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=140, height=300))
@@ -615,8 +605,7 @@ class TestCanvasItemClass(unittest.TestCase):
         composition = CanvasItem.CanvasItemComposition()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        composition.canvas_items[0].sizing.maximum_height = 40
-        composition.canvas_items[0].sizing.minimum_height = 40
+        composition.canvas_items[0].update_sizing(composition.canvas_items[0].sizing.with_maximum_height(40).with_minimum_height(40))
         composition.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(composition.layout_sizing.minimum_height, 40)
         self.assertIsNone(composition.layout_sizing.maximum_height)
@@ -625,8 +614,7 @@ class TestCanvasItemClass(unittest.TestCase):
         composition = CanvasItem.CanvasItemComposition()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        composition.canvas_items[1].sizing.maximum_height = 40
-        composition.canvas_items[1].sizing.minimum_height = 40
+        composition.canvas_items[1].update_sizing(composition.canvas_items[1].sizing.with_maximum_height(40).with_minimum_height(40))
         composition.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(composition.layout_sizing.minimum_height, 40)
         self.assertIsNone(composition.layout_sizing.maximum_height)
@@ -636,8 +624,7 @@ class TestCanvasItemClass(unittest.TestCase):
         composition.layout = CanvasItem.CanvasItemColumnLayout()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        composition.canvas_items[0].sizing.maximum_height = 40
-        composition.canvas_items[0].sizing.minimum_height = 40
+        composition.canvas_items[0].update_sizing(composition.canvas_items[0].sizing.with_maximum_height(40).with_minimum_height(40))
         composition.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(composition.layout_sizing.minimum_height, 40)
         self.assertIsNone(composition.layout_sizing.maximum_height)
@@ -649,10 +636,9 @@ class TestCanvasItemClass(unittest.TestCase):
         grid_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"), Geometry.IntPoint(x=1, y=0))
         grid_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#888"), Geometry.IntPoint(x=0, y=1))
         grid_canvas.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"), Geometry.IntPoint(x=1, y=1))
-        grid_canvas.canvas_items[0].sizing.maximum_height = 40
-        grid_canvas.canvas_items[0].sizing.minimum_height = 40
-        grid_canvas.canvas_items[0].sizing.maximum_width = 40
-        grid_canvas.canvas_items[0].sizing.minimum_width = 40
+        grid_canvas.canvas_items[0].update_sizing(
+            grid_canvas.canvas_items[0].sizing.with_maximum_height(40).with_minimum_height(40).with_maximum_width(
+                40).with_minimum_width(40))
         grid_canvas.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(grid_canvas.layout_sizing.minimum_height, 40)
         self.assertIsNone(grid_canvas.layout_sizing.maximum_height)
@@ -664,14 +650,12 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
         canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
-        canvas_item.canvas_items[0].sizing.maximum_height = 10
-        canvas_item.canvas_items[0].sizing.minimum_height = 10
+        canvas_item.canvas_items[0].update_sizing(canvas_item.canvas_items[0].sizing.with_minimum_height(10).with_maximum_height(10))
         composition = CanvasItem.CanvasItemComposition()
         composition.layout = CanvasItem.CanvasItemColumnLayout()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#0F0"))
-        composition.canvas_items[1].sizing.maximum_height = 40
-        composition.canvas_items[1].sizing.minimum_height = 40
+        composition.canvas_items[1].update_sizing(composition.canvas_items[1].sizing.with_minimum_height(40).with_maximum_height(40))
         canvas_item.add_canvas_item(composition)
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=0, y=0))
@@ -701,12 +685,12 @@ class TestCanvasItemClass(unittest.TestCase):
         column = CanvasItem.CanvasItemComposition()
         column.layout = CanvasItem.CanvasItemColumnLayout()
         content = CanvasItem.BackgroundCanvasItem("#F00")
-        content.sizing.set_fixed_size(Geometry.IntSize(width=250, height=60))
+        content.update_sizing(content.sizing.with_fixed_size(Geometry.IntSize(width=250, height=60)))
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_area_canvas_item.auto_resize_contents = True
         right_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item)
         bottom_canvas_item = CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item, CanvasItem.Orientation.Horizontal)
-        bottom_canvas_item.sizing.set_fixed_height(20)
+        bottom_canvas_item.update_sizing(bottom_canvas_item.sizing.with_fixed_height(20))
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemGridLayout(Geometry.IntSize(width=2, height=2))
         canvas_item.add_canvas_item(scroll_area_canvas_item, Geometry.IntPoint(x=0, y=0))
@@ -723,8 +707,7 @@ class TestCanvasItemClass(unittest.TestCase):
         column.layout = CanvasItem.CanvasItemColumnLayout()
         column.add_spacing(20)
         item = CanvasItem.EmptyCanvasItem()
-        item.sizing.preferred_height = 10
-        item.sizing.minimum_height = 20
+        item.update_sizing(item.sizing.with_preferred_height(10).with_minimum_height(20))
         column.add_canvas_item(item)
         column.add_spacing(20)
         column.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=30, height=100))
@@ -1439,7 +1422,7 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
             empty1 = CanvasItem.EmptyCanvasItem()
             empty2 = CanvasItem.EmptyCanvasItem()
-            empty2.sizing.set_fixed_height(40)
+            empty2.update_sizing(empty2.sizing.with_fixed_height(40))
             canvas_item.add_canvas_item(empty1)
             canvas_item.add_canvas_item(empty2)
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=100), immediate=True)
@@ -1460,10 +1443,10 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
             empty1 = CanvasItem.EmptyCanvasItem()
             row = CanvasItem.CanvasItemComposition()
-            row.sizing.collapsible = True
+            row.update_sizing(row.sizing.with_collapsible(True))
             row.layout = CanvasItem.CanvasItemRowLayout()
             empty2 = CanvasItem.EmptyCanvasItem()
-            empty2.sizing.set_fixed_height(40)
+            empty2.update_sizing(empty2.sizing.with_fixed_height(40))
             canvas_item.add_canvas_item(empty1)
             row.add_canvas_item(empty2)
             canvas_item.add_canvas_item(row)

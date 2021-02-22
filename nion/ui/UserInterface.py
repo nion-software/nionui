@@ -2286,8 +2286,7 @@ class ProgressBarWidget(CanvasWidget):
         self.__binding = None
 
         self.__progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
-        self.__progress_bar_canvas_item.sizing.set_fixed_width(500)
-        self.__progress_bar_canvas_item.sizing.set_fixed_height(20)
+        self.__progress_bar_canvas_item.update_sizing(self.__progress_bar_canvas_item.sizing.with_fixed_size(Geometry.IntSize(w=500, h=20)))
         self.canvas_item.add_canvas_item(self.__progress_bar_canvas_item)
 
     def close(self):

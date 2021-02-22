@@ -202,91 +202,286 @@ class Sizing:
     """
 
     def __init__(self):
-        self.preferred_width = None
-        self.preferred_height = None
-        self.preferred_aspect_ratio = None
-        self.minimum_width = None
-        self.minimum_height = None
-        self.minimum_aspect_ratio = None
-        self.maximum_width = None
-        self.maximum_height = None
-        self.maximum_aspect_ratio = None
-        self.collapsible = False
+        self.__preferred_width: typing.Optional[int] = None
+        self.__preferred_height: typing.Optional[int] = None
+        self.__preferred_aspect_ratio: typing.Optional[float] = None
+        self.__minimum_width: typing.Optional[int] = None
+        self.__minimum_height: typing.Optional[int] = None
+        self.__minimum_aspect_ratio: typing.Optional[float] = None
+        self.__maximum_width: typing.Optional[int] = None
+        self.__maximum_height: typing.Optional[int] = None
+        self.__maximum_aspect_ratio: typing.Optional[float] = None
+        self.__collapsible: bool = False
 
     def __repr__(self):
         format_str = "Sizing (min_w={0}, max_w={1}, pref_w={2}, min_h={3}, max_h={4}, pref_h={5}, min_a={6}, max_a={7}, pref_a={8}, collapsible={9})"
-        return format_str.format(self.minimum_width, self.maximum_width, self.preferred_width,
-                                 self.minimum_height, self.maximum_height, self.preferred_height,
-                                 self.minimum_aspect_ratio, self.maximum_aspect_ratio, self.preferred_aspect_ratio,
-                                 self.collapsible)
+        return format_str.format(self.__minimum_width, self.__maximum_width, self.__preferred_width,
+                                 self.__minimum_height, self.__maximum_height, self.__preferred_height,
+                                 self.__minimum_aspect_ratio, self.__maximum_aspect_ratio, self.__preferred_aspect_ratio,
+                                 self.__collapsible)
 
     def __eq__(self, other):
-        if self.preferred_width != other.preferred_width:
+        if self.__preferred_width != other.preferred_width:
             return False
-        if self.preferred_height != other.preferred_height:
+        if self.__preferred_height != other.preferred_height:
             return False
-        if self.preferred_aspect_ratio != other.preferred_aspect_ratio:
+        if self.__preferred_aspect_ratio != other.preferred_aspect_ratio:
             return False
-        if self.minimum_width != other.minimum_width:
+        if self.__minimum_width != other.minimum_width:
             return False
-        if self.minimum_height != other.minimum_height:
+        if self.__minimum_height != other.minimum_height:
             return False
-        if self.minimum_aspect_ratio != other.minimum_aspect_ratio:
+        if self.__minimum_aspect_ratio != other.minimum_aspect_ratio:
             return False
-        if self.maximum_width != other.maximum_width:
+        if self.__maximum_width != other.maximum_width:
             return False
-        if self.maximum_height != other.maximum_height:
+        if self.__maximum_height != other.maximum_height:
             return False
-        if self.maximum_aspect_ratio != other.maximum_aspect_ratio:
+        if self.__maximum_aspect_ratio != other.maximum_aspect_ratio:
             return False
-        if self.collapsible != other.collapsible:
+        if self.__collapsible != other.collapsible:
             return False
         return True
 
     def __deepcopy__(self, memo):
         deepcopy = Sizing()
-        deepcopy.copy_from(self)
+        deepcopy._copy_from(self)
         memo[id(self)] = deepcopy
         return deepcopy
 
-    def copy_from(self, other):
-        self.preferred_width = other.preferred_width
-        self.preferred_height = other.preferred_height
-        self.preferred_aspect_ratio = other.preferred_aspect_ratio
-        self.minimum_width = other.minimum_width
-        self.minimum_height = other.minimum_height
-        self.minimum_aspect_ratio = other.minimum_aspect_ratio
-        self.maximum_width = other.maximum_width
-        self.maximum_height = other.maximum_height
-        self.maximum_aspect_ratio = other.maximum_aspect_ratio
-        self.collapsible = other.collapsible
+    @property
+    def preferred_width(self) -> typing.Optional[int]:
+        return self.__preferred_width
 
-    def clear_height_constraint(self):
-        self.preferred_height = None
-        self.minimum_height = None
-        self.maximum_height = None
+    @property
+    def preferred_height(self) -> typing.Optional[int]:
+        return self.__preferred_height
 
-    def clear_width_constraint(self):
-        self.preferred_width = None
-        self.minimum_width = None
-        self.maximum_width = None
+    @property
+    def preferred_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__preferred_aspect_ratio
 
-    def set_fixed_height(self, height):
-        self.preferred_height = height
-        self.minimum_height = height
-        self.maximum_height = height
+    @property
+    def minimum_width(self) -> typing.Optional[int]:
+        return self.__minimum_width
 
-    def set_fixed_width(self, width):
-        self.preferred_width = width
-        self.minimum_width = width
-        self.maximum_width = width
+    @property
+    def minimum_height(self) -> typing.Optional[int]:
+        return self.__minimum_height
 
-    def set_fixed_size(self, size):
+    @property
+    def minimum_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__minimum_aspect_ratio
+
+    @property
+    def maximum_width(self) -> typing.Optional[int]:
+        return self.__maximum_width
+
+    @property
+    def maximum_height(self) -> typing.Optional[int]:
+        return self.__maximum_height
+
+    @property
+    def maximum_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__maximum_aspect_ratio
+
+    @property
+    def collapsible(self) -> bool:
+        return self.__collapsible
+
+    @property
+    def _preferred_width(self) -> typing.Optional[int]:
+        return self.__preferred_width
+
+    @_preferred_width.setter
+    def _preferred_width(self, value: typing.Optional[int]) -> None:
+        self.__preferred_width = value
+
+    def with_preferred_width(self, width: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._preferred_width = width
+        return sizing
+
+    @property
+    def _preferred_height(self) -> typing.Optional[int]:
+        return self.__preferred_height
+
+    @_preferred_height.setter
+    def _preferred_height(self, value: typing.Optional[int]) -> None:
+        self.__preferred_height = value
+
+    def with_preferred_height(self, height: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._preferred_height = height
+        return sizing
+
+    @property
+    def _preferred_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__preferred_aspect_ratio
+
+    @_preferred_aspect_ratio.setter
+    def _preferred_aspect_ratio(self, value: typing.Optional[float]) -> None:
+        self.__preferred_aspect_ratio = value
+
+    def with_preferred_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._preferred_aspect_ratio = aspect_ratio
+        return sizing
+
+    @property
+    def _minimum_width(self) -> typing.Optional[int]:
+        return self.__minimum_width
+
+    @_minimum_width.setter
+    def _minimum_width(self, value: typing.Optional[int]) -> None:
+        self.__minimum_width = value
+
+    def with_minimum_width(self, width: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._minimum_width = width
+        return sizing
+
+    @property
+    def _minimum_height(self) -> typing.Optional[int]:
+        return self.__minimum_height
+
+    @_minimum_height.setter
+    def _minimum_height(self, value: typing.Optional[int]) -> None:
+        self.__minimum_height = value
+
+    def with_minimum_height(self, height: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._minimum_height = height
+        return sizing
+
+    @property
+    def _minimum_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__minimum_aspect_ratio
+
+    @_minimum_aspect_ratio.setter
+    def _minimum_aspect_ratio(self, value: typing.Optional[float]) -> None:
+        self.__minimum_aspect_ratio = value
+
+    def with_minimum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._minimum_aspect_ratio = aspect_ratio
+        return sizing
+
+    @property
+    def _maximum_width(self) -> typing.Optional[int]:
+        return self.__maximum_width
+
+    @_maximum_width.setter
+    def _maximum_width(self, value: typing.Optional[int]) -> None:
+        self.__maximum_width = value
+
+    def with_maximum_width(self, width: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._maximum_width = width
+        return sizing
+
+    @property
+    def _maximum_height(self) -> typing.Optional[int]:
+        return self.__maximum_height
+
+    @_maximum_height.setter
+    def _maximum_height(self, value: typing.Optional[int]) -> None:
+        self.__maximum_height = value
+
+    def with_maximum_height(self, height: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._maximum_height = height
+        return sizing
+
+    @property
+    def _maximum_aspect_ratio(self) -> typing.Optional[float]:
+        return self.__maximum_aspect_ratio
+
+    @_maximum_aspect_ratio.setter
+    def _maximum_aspect_ratio(self, value: typing.Optional[float]) -> None:
+        self.__maximum_aspect_ratio = value
+
+    def with_maximum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._maximum_aspect_ratio = aspect_ratio
+        return sizing
+
+    @property
+    def _collapsible(self) -> bool:
+        return self.__collapsible
+
+    @_collapsible.setter
+    def _collapsible(self, value: typing.Optional[int]) -> None:
+        self.__collapsible = value
+
+    def with_collapsible(self, collapsible: bool) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._collapsible = collapsible
+        return sizing
+
+    def _copy_from(self, other: "Sizing") -> None:
+        self.__preferred_width = other.preferred_width
+        self.__preferred_height = other.preferred_height
+        self.__preferred_aspect_ratio = other.preferred_aspect_ratio
+        self.__minimum_width = other.minimum_width
+        self.__minimum_height = other.minimum_height
+        self.__minimum_aspect_ratio = other.minimum_aspect_ratio
+        self.__maximum_width = other.maximum_width
+        self.__maximum_height = other.maximum_height
+        self.__maximum_aspect_ratio = other.maximum_aspect_ratio
+        self.__collapsible = other.collapsible
+
+    def _clear_height_constraint(self) -> None:
+        self.__preferred_height = None
+        self.__minimum_height = None
+        self.__maximum_height = None
+
+    def with_unconstrained_height(self) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._clear_height_constraint()
+        return sizing
+
+    def _clear_width_constraint(self) -> None:
+        self.__preferred_width = None
+        self.__minimum_width = None
+        self.__maximum_width = None
+
+    def with_unconstrained_width(self) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._clear_width_constraint()
+        return sizing
+
+    def _set_fixed_height(self, height: typing.Optional[int]) -> None:
+        self.__preferred_height = height
+        self.__minimum_height = height
+        self.__maximum_height = height
+
+    def with_fixed_height(self, height: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._set_fixed_height(height)
+        return sizing
+
+    def _set_fixed_width(self, width: typing.Optional[int]) -> None:
+        self.__preferred_width = width
+        self.__minimum_width = width
+        self.__maximum_width = width
+
+    def with_fixed_width(self, width: typing.Optional[int]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._set_fixed_width(width)
+        return sizing
+
+    def _set_fixed_size(self, size: typing.Union[Geometry.IntSize, typing.Tuple[int, int]]) -> None:
         size = Geometry.IntSize.make(size)
-        self.set_fixed_height(size.height)
-        self.set_fixed_width(size.width)
+        self._set_fixed_height(size.height)
+        self._set_fixed_width(size.width)
 
-    def get_width_constraint(self, width):
+    def with_fixed_size(self, size: typing.Union[Geometry.IntSize, typing.Tuple[int, int]]) -> "Sizing":
+        sizing = copy.deepcopy(self)
+        sizing._set_fixed_size(size)
+        return sizing
+
+    def get_width_constraint(self, width: typing.Optional[int]) -> Constraint:
         """ Create and return a new width Constraint object made from this sizing object. """
         constraint = Constraint()
         if self.minimum_width is not None:
@@ -312,7 +507,7 @@ class Sizing:
             constraint.preferred = None
         return constraint
 
-    def get_height_constraint(self, height):
+    def get_height_constraint(self, height: typing.Optional[int]) -> Constraint:
         """ Create and return a new height Constraint object made from this sizing object. """
         constraint = Constraint()
         if self.minimum_height is not None:
@@ -338,14 +533,14 @@ class Sizing:
             constraint.preferred = None
         return constraint
 
-    def get_unrestrained_width(self, maximum_width):
+    def get_unrestrained_width(self, maximum_width: typing.Optional[int]) -> typing.Optional[int]:
         if self.maximum_width is not None:
             if isinstance(self.maximum_width, float) and self.maximum_width < 1.0:
                 return self.maximum_width * maximum_width
             return min(self.maximum_width, maximum_width)
         return maximum_width
 
-    def get_unrestrained_height(self, maximum_height):
+    def get_unrestrained_height(self, maximum_height: typing.Optional[int]) -> typing.Optional[int]:
         if self.maximum_height is not None:
             if isinstance(self.maximum_height, float) and self.maximum_height < 1.0:
                 return self.maximum_height * maximum_height
@@ -754,33 +949,31 @@ class AbstractCanvasItem:
                 self.__container.refresh_layout()
 
     @property
-    def sizing(self):
+    def sizing(self) -> Sizing:
         """
             Return sizing information for this canvas item.
 
             The sizing property is read only, but the object itself
             can be modified.
         """
-        return self.__sizing
+        return copy.deepcopy(self.__sizing)
 
     @property
-    def layout_sizing(self):
+    def layout_sizing(self) -> Sizing:
         """
             Return layout sizing information for this canvas item.
 
             The layout sizing is read only and cannot be modified. It is
             used from the layout engine.
         """
+        return copy.deepcopy(self.sizing)
+
+    def copy_sizing(self) -> Sizing:
         return self.sizing
 
-    def copy_sizing(self):
-        new_sizing = Sizing()
-        new_sizing.copy_from(self.sizing)
-        return new_sizing
-
-    def update_sizing(self, new_sizing):
+    def update_sizing(self, new_sizing: Sizing) -> None:
         if new_sizing != self.sizing:
-            self.sizing.copy_from(new_sizing)
+            self.__sizing._copy_from(new_sizing)
             self.refresh_layout()
 
     def update(self) -> None:
@@ -1082,6 +1275,7 @@ class CanvasItemAbstractLayout:
 
     def _combine_sizing_property(self, sizing, canvas_item_sizing, property, combiner, clear_if_missing=False):
         """ Utility method for updating the property of the sizing object using the combiner function and the canvas_item_sizing. """
+        property = "_" + property
         canvas_item_value = getattr(canvas_item_sizing, property)
         value = getattr(sizing, property)
         if canvas_item_value is not None:
@@ -1092,16 +1286,16 @@ class CanvasItemAbstractLayout:
         elif clear_if_missing:
             setattr(sizing, property, None)
 
-    def _get_overlap_sizing(self, canvas_items):
+    def _get_overlap_sizing(self, canvas_items) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is stacked/overlapping.
             Does not include spacing or margins.
         """
         sizing = Sizing()
-        sizing.maximum_width = 0
-        sizing.maximum_height = 0
-        sizing.preferred_width = 0
-        sizing.preferred_height = 0
+        sizing._maximum_width = 0
+        sizing._maximum_height = 0
+        sizing._preferred_width = 0
+        sizing._preferred_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
@@ -1112,24 +1306,24 @@ class CanvasItemAbstractLayout:
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", max, True)
         if sizing.maximum_width == 0 or len(canvas_items) == 0:
-            sizing.maximum_width = None
+            sizing._maximum_width = None
         if sizing.maximum_height == 0 or len(canvas_items) == 0:
-            sizing.maximum_height = None
+            sizing._maximum_height = None
         if sizing.preferred_width == 0 or len(canvas_items) == 0:
-            sizing.preferred_width = None
+            sizing._preferred_width = None
         if sizing.preferred_height == 0 or len(canvas_items) == 0:
-            sizing.preferred_height = None
+            sizing._preferred_height = None
         return sizing
 
-    def _get_column_sizing(self, canvas_items):
+    def _get_column_sizing(self, canvas_items)-> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
         """
         sizing = Sizing()
-        sizing.maximum_width = 0
-        sizing.maximum_height = 0
-        sizing.preferred_width = 0
+        sizing._maximum_width = 0
+        sizing._maximum_height = 0
+        sizing._preferred_width = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
@@ -1140,22 +1334,22 @@ class CanvasItemAbstractLayout:
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", max, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
         if sizing.maximum_width == 0 or len(canvas_items) == 0:
-            sizing.maximum_width = None
+            sizing._maximum_width = None
         if sizing.preferred_width == 0 or len(canvas_items) == 0:
-            sizing.preferred_width = None
+            sizing._preferred_width = None
         if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
-            sizing.maximum_height = None
+            sizing._maximum_height = None
         return sizing
 
-    def _get_row_sizing(self, canvas_items):
+    def _get_row_sizing(self, canvas_items) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
         """
         sizing = Sizing()
-        sizing.maximum_width = 0
-        sizing.maximum_height = 0
-        sizing.preferred_height = 0
+        sizing._maximum_width = 0
+        sizing._maximum_height = 0
+        sizing._preferred_height = 0
         for canvas_item in canvas_items:
             if canvas_item is not None:
                 canvas_item_sizing = canvas_item.layout_sizing
@@ -1166,27 +1360,27 @@ class CanvasItemAbstractLayout:
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_width", operator.add, True)
                 self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", max, True)
         if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
-            sizing.maximum_width = None
+            sizing._maximum_width = None
         if sizing.maximum_height == 0 or len(canvas_items) == 0:
-            sizing.maximum_height = None
+            sizing._maximum_height = None
         if sizing.preferred_height == 0 or len(canvas_items) == 0:
-            sizing.preferred_height = None
+            sizing._preferred_height = None
         return sizing
 
-    def _adjust_sizing(self, sizing, x_spacing, y_spacing):
+    def _adjust_sizing(self, sizing: Sizing, x_spacing: int, y_spacing: int) -> None:
         """ Adjust the sizing object by adding margins and spacing. Spacing is total, not per item. """
-        if sizing.minimum_width is not None:
-            sizing.minimum_width += self.margins.left + self.margins.right + x_spacing
-        if sizing.maximum_width is not None:
-            sizing.maximum_width += self.margins.left + self.margins.right + x_spacing
-        if sizing.preferred_width is not None:
-            sizing.preferred_width += self.margins.left + self.margins.right + x_spacing
-        if sizing.minimum_height is not None:
-            sizing.minimum_height += self.margins.top + self.margins.bottom + y_spacing
-        if sizing.maximum_height is not None:
-            sizing.maximum_height += self.margins.top + self.margins.bottom + y_spacing
-        if sizing.preferred_height is not None:
-            sizing.preferred_height += self.margins.top + self.margins.bottom + y_spacing
+        if sizing._minimum_width is not None:
+            sizing._minimum_width += self.margins.left + self.margins.right + x_spacing
+        if sizing._maximum_width is not None:
+            sizing._maximum_width += self.margins.left + self.margins.right + x_spacing
+        if sizing._preferred_width is not None:
+            sizing._preferred_width += self.margins.left + self.margins.right + x_spacing
+        if sizing._minimum_height is not None:
+            sizing._minimum_height += self.margins.top + self.margins.bottom + y_spacing
+        if sizing._maximum_height is not None:
+            sizing._maximum_height += self.margins.top + self.margins.bottom + y_spacing
+        if sizing._preferred_height is not None:
+            sizing._preferred_height += self.margins.top + self.margins.bottom + y_spacing
 
     def insert_canvas_item(self, before_index, canvas_item, pos):
         """
@@ -1287,13 +1481,12 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
 
     def create_spacing_item(self, spacing):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.set_fixed_height(spacing)
-        spacing_item.sizing.set_fixed_width(0)
+        spacing_item.update_sizing(spacing_item.sizing.with_fixed_height(spacing).with_fixed_width(0))
         return spacing_item
 
     def create_stretch_item(self):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.set_fixed_width(0)
+        spacing_item.update_sizing(spacing_item.sizing.with_fixed_width(0))
         return spacing_item
 
 
@@ -1329,13 +1522,12 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
 
     def create_spacing_item(self, spacing):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.set_fixed_width(spacing)
-        spacing_item.sizing.set_fixed_height(0)
+        spacing_item.update_sizing(spacing_item.sizing.with_fixed_width(spacing).with_fixed_height(0))
         return spacing_item
 
     def create_stretch_item(self):
         spacing_item = EmptyCanvasItem()
-        spacing_item.sizing.set_fixed_height(0)
+        spacing_item.update_sizing(spacing_item.sizing.with_fixed_height(0))
         return spacing_item
 
 
@@ -1411,16 +1603,13 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
                     combined_canvas_items.append(canvas_item)
         self.layout_canvas_items(combined_xs, combined_ys, combined_widths, combined_heights, combined_canvas_items, immediate=immediate)
 
-    def get_sizing(self, canvas_items):
+    def get_sizing(self, canvas_items) -> Sizing:
         """
             Calculate the sizing for the grid. Treat columns and rows independently.
 
             Override from abstract layout.
         """
-        sizing = Sizing()
-        sizing.maximum_width = 0
-        sizing.maximum_height = 0
-        sizing.preferred_height = 0
+        sizing = Sizing().with_maximum_width(0).with_maximum_height(0).with_preferred_height(0)
         # the widths
         canvas_item_sizings = list()
         for x in range(self.__size.width):
@@ -1440,17 +1629,17 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             self._combine_sizing_property(sizing, canvas_item_sizing, "minimum_height", operator.add)
             self._combine_sizing_property(sizing, canvas_item_sizing, "maximum_height", operator.add, True)
         if sizing.maximum_width == MAX_VALUE or len(canvas_items) == 0:
-            sizing.maximum_width = None
+            sizing._maximum_width = None
         if sizing.maximum_height == MAX_VALUE or len(canvas_items) == 0:
-            sizing.maximum_height = None
+            sizing._maximum_height = None
         if sizing.maximum_width == 0 or len(canvas_items) == 0:
-            sizing.maximum_width = None
+            sizing._maximum_width = None
         if sizing.preferred_width == 0 or len(canvas_items) == 0:
-            sizing.preferred_width = None
+            sizing._preferred_width = None
         if sizing.maximum_height == 0 or len(canvas_items) == 0:
-            sizing.maximum_height = None
+            sizing._maximum_height = None
         if sizing.preferred_height == 0 or len(canvas_items) == 0:
-            sizing.preferred_height = None
+            sizing._preferred_height = None
         self._adjust_sizing(sizing, self.spacing * (self.__size.width - 1), self.spacing * (self.__size.height - 1))
         return sizing
 
@@ -1570,7 +1759,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return len(self.__canvas_items)
 
     @property
-    def canvas_items(self):
+    def canvas_items(self) -> typing.List[AbstractCanvasItem]:
         """ Return a copy of the canvas items managed by this composition. """
         return copy.copy(self.__canvas_items)
 
@@ -1625,34 +1814,34 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     # override sizing information. let layout provide it.
     @property
-    def layout_sizing(self):
+    def layout_sizing(self) -> Sizing:
         sizing = self.sizing
         layout_sizing = self.layout.get_sizing(self.visible_canvas_items)
         if sizing.minimum_width is not None:
-            layout_sizing.minimum_width = sizing.minimum_width
+            layout_sizing._minimum_width = sizing.minimum_width
         if sizing.maximum_width is not None:
-            layout_sizing.maximum_width = sizing.maximum_width
+            layout_sizing._maximum_width = sizing.maximum_width
         if sizing.preferred_width is not None:
-            layout_sizing.preferred_width = sizing.preferred_width
+            layout_sizing._preferred_width = sizing.preferred_width
         if sizing.minimum_height is not None:
-            layout_sizing.minimum_height = sizing.minimum_height
+            layout_sizing._minimum_height = sizing.minimum_height
         if sizing.maximum_height is not None:
-            layout_sizing.maximum_height = sizing.maximum_height
+            layout_sizing._maximum_height = sizing.maximum_height
         if sizing.preferred_height is not None:
-            layout_sizing.preferred_height = sizing.preferred_height
+            layout_sizing._preferred_height = sizing.preferred_height
         if sizing.minimum_aspect_ratio is not None:
-            layout_sizing.minimum_aspect_ratio = sizing.minimum_aspect_ratio
+            layout_sizing._minimum_aspect_ratio = sizing.minimum_aspect_ratio
         if sizing.maximum_aspect_ratio is not None:
-            layout_sizing.maximum_aspect_ratio = sizing.maximum_aspect_ratio
+            layout_sizing._maximum_aspect_ratio = sizing.maximum_aspect_ratio
         if sizing.preferred_aspect_ratio is not None:
-            layout_sizing.preferred_aspect_ratio = sizing.preferred_aspect_ratio
+            layout_sizing._preferred_aspect_ratio = sizing.preferred_aspect_ratio
         if len(self.visible_canvas_items) == 0 and sizing.collapsible:
-            layout_sizing.minimum_width = 0
-            layout_sizing.preferred_width = 0
-            layout_sizing.maximum_width = 0
-            layout_sizing.minimum_height = 0
-            layout_sizing.preferred_height = 0
-            layout_sizing.maximum_height = 0
+            layout_sizing._minimum_width = 0
+            layout_sizing._preferred_width = 0
+            layout_sizing._maximum_width = 0
+            layout_sizing._minimum_height = 0
+            layout_sizing._preferred_height = 0
+            layout_sizing._maximum_height = 0
         return layout_sizing
 
     def canvas_item_layout_sizing_changed(self, canvas_item):
@@ -2143,7 +2332,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.on_splits_will_change = None
         self.on_splits_changed = None
 
-    def __calculate_layout(self, canvas_size, sizings):
+    def __calculate_layout(self, canvas_size, sizings: typing.Sequence[Sizing]):
         if self.orientation == "horizontal":
             content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).height
@@ -2175,9 +2364,9 @@ class SplitterCanvasItem(CanvasItemComposition):
         assert len(splits) == len(sizings)
         for split, sizing in zip(splits, sizings):
             if self.orientation == "horizontal":
-                sizing.preferred_height = split
+                sizing._preferred_height = split
             else:
-                sizing.preferred_width = split
+                sizing._preferred_width = split
         with self.__lock:
             self.__sizings = sizings
         self.refresh_layout()
@@ -2188,13 +2377,13 @@ class SplitterCanvasItem(CanvasItemComposition):
     def insert_canvas_item(self, before_index, canvas_item, sizing=None):
         sizing = copy.copy(sizing) if sizing else Sizing()
         if self.orientation == "horizontal":
-            sizing.preferred_height = None
-            if sizing.minimum_height is None:
-                sizing.minimum_height = 0.1
+            sizing._preferred_height = None
+            if sizing._minimum_height is None:
+                sizing._minimum_height = 0.1
         else:
-            sizing.preferred_width = None
-            if sizing.minimum_width is None:
-                sizing.minimum_width = 0.1
+            sizing._preferred_width = None
+            if sizing._minimum_width is None:
+                sizing._minimum_width = 0.1
         with self.__lock:
             self.__sizings.insert(before_index, sizing)
         super().insert_canvas_item(before_index, canvas_item)
@@ -2217,7 +2406,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
                 assert canvas_item._has_layout
             for sizing, size in zip(sizings, sizes):
-                sizing.preferred_height = size
+                sizing._preferred_height = size
         else:
             for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
@@ -2225,7 +2414,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
                 assert canvas_item._has_layout
             for sizing, size in zip(sizings, sizes):
-                sizing.preferred_width = size
+                sizing._preferred_width = size
         for canvas_item in canvas_items:
             assert canvas_item._has_layout
         with self.__lock:
@@ -2341,8 +2530,8 @@ class SplitterCanvasItem(CanvasItemComposition):
                         if abs(offset - snap) < 12:
                             offset = snap
                             break
-                temp_sizings[self.__tracking_start_index].preferred_height = self.__tracking_start_preferred + offset
-                temp_sizings[self.__tracking_start_index + 1].preferred_height = self.__tracking_start_preferred_next - offset
+                temp_sizings[self.__tracking_start_index]._preferred_height = self.__tracking_start_preferred + offset
+                temp_sizings[self.__tracking_start_index + 1]._preferred_height = self.__tracking_start_preferred_next - offset
             else:
                 offset = x - self.__tracking_start_pos.x
                 if not modifiers.shift:
@@ -2354,15 +2543,15 @@ class SplitterCanvasItem(CanvasItemComposition):
                         if abs(offset - snap) < 12:
                             offset = snap
                             break
-                temp_sizings[self.__tracking_start_index].preferred_width = self.__tracking_start_preferred + offset
-                temp_sizings[self.__tracking_start_index + 1].preferred_width = self.__tracking_start_preferred_next - offset
+                temp_sizings[self.__tracking_start_index]._preferred_width = self.__tracking_start_preferred + offset
+                temp_sizings[self.__tracking_start_index + 1]._preferred_width = self.__tracking_start_preferred_next - offset
             # fix the size of all children except for the two in question
             for index, sizing in enumerate(temp_sizings):
                 if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
                     if self.orientation == "horizontal":
-                        sizing.set_fixed_height(sizing.preferred_height)
+                        sizing._set_fixed_height(sizing.preferred_height)
                     else:
-                        sizing.set_fixed_width(sizing.preferred_width)
+                        sizing._set_fixed_width(sizing.preferred_width)
             # update the layout
             with self.__lock:
                 self.__sizings = temp_sizings
@@ -2372,12 +2561,12 @@ class SplitterCanvasItem(CanvasItemComposition):
             new_sizings = list()
             for index, (old_sizing, temp_sizing) in enumerate(zip(old_sizings, temp_sizings)):
                 sizing = Sizing()
-                sizing.copy_from(old_sizing)
+                sizing._copy_from(old_sizing)
                 if index == self.__tracking_start_index or index == self.__tracking_start_index + 1:
                     if self.orientation == "horizontal":
-                        sizing.preferred_height = temp_sizing.preferred_height
+                        sizing._preferred_height = temp_sizing.preferred_height
                     else:
-                        sizing.preferred_width = temp_sizing.preferred_width
+                        sizing._preferred_width = temp_sizing.preferred_width
                 new_sizings.append(sizing)
             with self.__lock:
                 self.__sizings = new_sizings
@@ -2411,9 +2600,9 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         self.__tracking = False
         self.__orientation = orientation
         if self.__orientation == Orientation.Vertical:
-            self.sizing.set_fixed_width(16)
+            self.update_sizing(self.sizing.with_fixed_width(16))
         else:
-            self.sizing.set_fixed_height(16)
+            self.update_sizing(self.sizing.with_fixed_height(16))
 
     def close(self):
         self.__scroll_area_canvas_item_content_updated_listener.close()
@@ -3610,8 +3799,8 @@ class StaticTextCanvasItem(AbstractCanvasItem):
             vertical_padding = 4
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
         new_sizing = self.copy_sizing()
-        new_sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding)
-        new_sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        new_sizing._set_fixed_width(font_metrics.width + 2 * horizontal_padding)
+        new_sizing._set_fixed_height(font_metrics.height + 2 * vertical_padding)
         self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
@@ -3837,8 +4026,8 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         vertical_padding = 3
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
         new_sizing = self.copy_sizing()
-        new_sizing.set_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
-        new_sizing.set_fixed_height(font_metrics.height + 2 * vertical_padding)
+        new_sizing._set_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
+        new_sizing._set_fixed_height(font_metrics.height + 2 * vertical_padding)
         self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context):
@@ -3935,7 +4124,7 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
         super().__init__()
         self.__enabled = True
         self.__progress = 0.0  # 0.0 to 1.0
-        self.sizing.set_fixed_height(4)
+        self.update_sizing(self.sizing.with_fixed_height(4))
 
     @property
     def enabled(self) -> bool:

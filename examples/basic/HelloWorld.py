@@ -28,8 +28,7 @@ class BrownSquareCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self):
         super().__init__()
-        self.sizing.set_fixed_height(40)
-        self.sizing.set_fixed_width(40)
+        self.update_sizing(self.sizing.with_fixed_size((40, 40)))
 
     def _repaint(self, drawing_context):
         drawing_context.save()
@@ -75,18 +74,17 @@ class HelloWorldWindow(Window.Window):
         progress_bar_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
         progress_bar_canvas_item.progress = 0
-        progress_bar_canvas_item.sizing.set_fixed_width(500)
+        progress_bar_canvas_item.update_sizing(progress_bar_canvas_item.sizing.with_fixed_width(500))
         progress_bar_row.add_canvas_item(progress_bar_canvas_item)
         progress_bar_row.add_stretch()
-        progress_bar_row.sizing.set_fixed_height(progress_bar_canvas_item.sizing.preferred_height)
+        progress_bar_row.update_sizing(progress_bar_row.sizing.with_fixed_height(progress_bar_canvas_item.sizing.preferred_height))
         check_box_row = CanvasItem.CanvasItemComposition()
         check_box_row.layout = CanvasItem.CanvasItemRowLayout(spacing=4)
         check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
-        check_box_canvas_item.sizing.set_fixed_width(20)
-        check_box_canvas_item.sizing.set_fixed_height(20)
+        check_box_canvas_item.update_sizing(check_box_canvas_item.sizing.with_fixed_size((20, 20)))
         check_box_row.add_canvas_item(check_box_canvas_item)
         check_box_row.add_stretch()
-        check_box_row.sizing.set_fixed_height(20)
+        check_box_row.update_sizing(check_box_row.sizing.with_fixed_height(20))
         column_canvas_item = CanvasItem.CanvasItemComposition()
         column_canvas_item.layout = CanvasItem.CanvasItemColumnLayout(spacing=12, alignment="start")
         brown_square_row = CanvasItem.CanvasItemComposition()
@@ -94,7 +92,7 @@ class HelloWorldWindow(Window.Window):
         brown_square_canvas_item = BrownSquareCanvasItem()
         brown_square_row.add_canvas_item(brown_square_canvas_item)
         brown_square_row.add_stretch()
-        brown_square_row.sizing.set_fixed_height(brown_square_canvas_item.sizing.preferred_height)
+        brown_square_row.update_sizing(brown_square_row.sizing.with_fixed_height(brown_square_canvas_item.sizing.preferred_height))
         column_canvas_item.add_canvas_item(brown_square_row)
         column_canvas_item.add_canvas_item(progress_bar_row)
         column_canvas_item.add_canvas_item(check_box_row)

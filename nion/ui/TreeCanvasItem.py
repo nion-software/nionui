@@ -67,12 +67,12 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__get_font_metrics_fn, item_width):
             indent = (len(value_path) - 1) * indent_size
             item_row = CanvasItem.CanvasItemComposition()
-            item_row.sizing.set_fixed_height(ITEM_HEIGHT)
+            item_row.update_sizing(item_row.sizing.with_fixed_height(ITEM_HEIGHT))
             item_row.layout = CanvasItem.CanvasItemRowLayout()
             item_row.add_spacing(indent)
             if item_type == "parent":
                 twist_down_canvas_item = CanvasItem.TwistDownCanvasItem()
-                twist_down_canvas_item.sizing.set_fixed_size(Geometry.IntSize(height=ITEM_HEIGHT, width=16))
+                twist_down_canvas_item.update_sizing(twist_down_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=ITEM_HEIGHT, width=16)))
                 twist_down_canvas_item.checked = is_expanded
 
                 def twist_down_clicked(toggle_value_path):

@@ -101,7 +101,7 @@ def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: 
         relative_pos = mousegrab_window_pos
         document_window.fill_screen()
     canvas_widget = ui.create_canvas_widget()
-    tracking_canvas_item.sizing.set_fixed_size(size)
+    tracking_canvas_item.update_sizing(tracking_canvas_item.sizing.with_fixed_size(size))
     content_row_canvas_item = CanvasItem.CanvasItemComposition()
     content_row_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
     content_row_canvas_item.add_spacing(relative_pos.x)

@@ -35,6 +35,10 @@ class KeyboardModifiers(abc.ABC):
     def __str__(self):
         return "shift:{} control:{} alt:{} option:{} meta:{}".format(self.shift, self.control, self.alt, self.option, self.meta)
 
+    @property
+    def any_modifier(self) -> bool:
+        return self.shift or self.control or self.alt or self.meta
+
     # shift
     @property
     @abc.abstractmethod

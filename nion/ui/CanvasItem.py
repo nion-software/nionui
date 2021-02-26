@@ -1,6 +1,7 @@
 """
     CanvasItem module contains classes related to canvas items.
 """
+from __future__ import annotations
 
 # standard libraries
 import collections
@@ -556,6 +557,10 @@ class KeyboardModifiers:
         self.__meta = meta
         self.__keypad = keypad
 
+    @property
+    def any_modifier(self) -> bool:
+        return self.shift or self.control or self.alt or self.meta
+
     # shift
     @property
     def shift(self):
@@ -800,7 +805,7 @@ class AbstractCanvasItem:
         """ Return whether the canvas item is focused. """
         return self.__focused
 
-    def _set_focused(self, focused):
+    def _set_focused(self, focused: bool) -> None:
         """ Set whether the canvas item is focused. Only called from container. """
         if focused != self.__focused:
             self.__focused = focused
@@ -808,19 +813,30 @@ class AbstractCanvasItem:
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
 
-    def request_focus(self):
-        """ Request focus. """
+    def _request_focus(self, p: typing.Optional[Geometry.IntPoint] = None,
+                       modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
+        # protected method
         if not self.focused:
             root_container = self.root_container
             if root_container:
-                root_container._request_root_focus(self)
+                root_container._request_root_focus(self, p, modifiers)
+
+    def request_focus(self) -> None:
+        """Request focus.
+
+        Subclasses should not override. Override _request_focus instead."""
+        self._request_focus()
+
+    def adjust_secondary_focus(self, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        """Adjust secondary focus. Default does nothing."""
+        pass
 
     def clear_focus(self):
         """ Relinquish focus. """
         if self.focused:
             root_container = self.root_container
             if root_container:
-                root_container.focused_item = None
+                root_container._set_focused_item(None)
 
     def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         root_container = self.root_container
@@ -3067,41 +3083,42 @@ class RootCanvasItem(CanvasItemComposition):
         """
         return self.__focused_item
 
-    @focused_item.setter
-    def focused_item(self, focused_item):
+    def _set_focused_item(self, focused_item: typing.Optional[AbstractCanvasItem], p: typing.Optional[Geometry.IntPoint] = None, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         """ Set the canvas focused item. This will also update the focused property of both old item (if any) and new item (if any). """
-        if focused_item != self.__focused_item:
+        if not modifiers or not modifiers.any_modifier:
+            if focused_item != self.__focused_item:
+                if self.__focused_item:
+                    self.__focused_item._set_focused(False)
+                self.__focused_item = focused_item
+                if self.__focused_item:
+                    self.__focused_item._set_focused(True)
             if self.__focused_item:
-                self.__focused_item._set_focused(False)
-            self.__focused_item = focused_item
-            if self.__focused_item:
-                self.__focused_item._set_focused(True)
-        if self.__focused_item:
-            self.__last_focused_item = self.__focused_item
+                self.__last_focused_item = self.__focused_item
+        else:
+            focused_item.adjust_secondary_focus(p, modifiers)
 
     def __focus_changed(self, focused):
         """ Called when widget focus changes. """
         if focused and not self.focused_item:
-            self.focused_item = self.__last_focused_item
+            self._set_focused_item(self.__last_focused_item)
         elif not focused and self.focused_item:
-            self.focused_item = None
+            self._set_focused_item(None)
 
-    def _request_root_focus(self, focused_item):
-        """
-            Requests that the root widget gets focus.
+    def _request_root_focus(self, focused_item, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        """Requests that the root widget gets focus.
 
-            This focused is different from the focus within the canvas system. This is
-            the external focus in the widget system.
+        This focused is different from the focus within the canvas system. This is
+        the external focus in the widget system.
 
-            If the canvas widget is already focused, this simply sets the focused item
-            to be the requested one. Otherwise, the widget has to request focus. When
-            it receives focus, a __focus_changed from the widget which will restore the
-            last focused item to be the new focused canvas item.
+        If the canvas widget is already focused, this simply sets the focused item
+        to be the requested one. Otherwise, the widget has to request focus. When
+        it receives focus, a __focus_changed from the widget which will restore the
+        last focused item to be the new focused canvas item.
         """
         if self.__canvas_widget.focused:
-            self.focused_item = focused_item
+            self._set_focused_item(focused_item, p, modifiers)
         else:
-            self.focused_item = None
+            self._set_focused_item(None, p, modifiers)
             self.__last_focused_item = focused_item
             self.__canvas_widget.focused = True  # this will trigger focus changed to set the focus
 
@@ -3174,10 +3191,10 @@ class RootCanvasItem(CanvasItemComposition):
                 return canvas_item
         return None
 
-    def __request_focus(self, canvas_item):
+    def __request_focus(self, canvas_item, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         while canvas_item:
             if canvas_item.focusable:
-                canvas_item.request_focus()
+                canvas_item._request_focus(p, modifiers)
                 break
             canvas_item = canvas_item.container
 
@@ -3192,7 +3209,7 @@ class RootCanvasItem(CanvasItemComposition):
         with self._ui_interaction():
             canvas_item = self.__mouse_canvas_item_at_point(x, y)
             if canvas_item:
-                self.__request_focus(canvas_item)
+                self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
                 canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
                 return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
 
@@ -3216,7 +3233,7 @@ class RootCanvasItem(CanvasItemComposition):
         result = False
         if self.__mouse_canvas_item:
             if self.__request_focus_canvas_item:
-                self.__request_focus(self.__request_focus_canvas_item)
+                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
                 self.__request_focus_canvas_item = None
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)

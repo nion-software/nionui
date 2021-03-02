@@ -1746,13 +1746,17 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.__layout_render_trait = None
         with self.__layout_lock:
             canvas_items = self.canvas_items
-            self.__canvas_items = None
             for canvas_item in canvas_items:
                 canvas_item.close()
+            # this goes after closing; if this goes before closing, threaded canvas items don't get closed properly
+            # since they notify their container (to cull). to reproduce the bug, create a 1x2, then a 4x3 in the bottom.
+            # then close several panels and undo. not sure if this is  the permanent fix or not.
+            self.__canvas_items = None
         super().close()
 
     def _stop_render_behavior(self) -> None:
-        self.__layout_render_trait._stop_render_behavior()
+        if self.__layout_render_trait:
+            self.__layout_render_trait._stop_render_behavior()
 
     @property
     def _needs_layout_for_testing(self) -> bool:
@@ -1925,7 +1929,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in reversed(copy.copy(self.__canvas_items)):
             self._remove_canvas_item(canvas_item)
 
-    def replace_canvas_item(self, old_canvas_item, new_canvas_item, container=None):
+    def replace_canvas_item(self, old_canvas_item, new_canvas_item):
         """ Replace the given canvas item with the new one. Canvas item is closed. """
         index = self.__canvas_items.index(old_canvas_item)
         self.remove_canvas_item(old_canvas_item)
@@ -2054,10 +2058,13 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__repaint_lock = threading.RLock()
         self.__repaint_one_future: typing.Optional[concurrent.futures.Future] = None
 
+    def close(self) -> None:
+        self._sync_repaint()
+        super().close()
+
     def _stop_render_behavior(self) -> None:
-        with self.__repaint_lock:
-            pass
         self.__cancel = True
+        self._sync_repaint()
         self.__layer_drawing_context = None
 
     @property
@@ -2115,7 +2122,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
 
     def __queue_repaint(self) -> None:
         with self.__layer_thread_condition:
-            if not self.__repaint_one_future:
+            if not self.__cancel and not self.__repaint_one_future:
                 self.__repaint_one_future = LayerLayoutRenderTrait._executor.submit(self.__repaint_one)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)
 
@@ -2383,7 +2390,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.wants_mouse_events = True
         self.__lock = threading.RLock()
         self.__sizings = []
-        self.__canvas_items = []
+        self.__shadow_canvas_items = []
         self.__actual_sizings = []
         self.__tracking = False
         self.on_splits_will_change = None
@@ -2474,7 +2481,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                 sizing._preferred_width = size
         with self.__lock:
             self.__actual_sizings = sizings
-            self.__canvas_items = canvas_items
+            self.__shadow_canvas_items = canvas_items
         # instead of calling the canvas item composition, call the one for abstract canvas item.
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
@@ -2492,7 +2499,7 @@ class SplitterCanvasItem(CanvasItemComposition):
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
-            canvas_items = copy.copy(self.__canvas_items)
+            canvas_items = copy.copy(self.__shadow_canvas_items)
             sizings = copy.deepcopy(self.__actual_sizings)
         origins, _ = self.__calculate_layout(self.canvas_size, sizings)
         if self.orientation == "horizontal":

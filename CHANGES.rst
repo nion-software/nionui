@@ -5,6 +5,7 @@ Changelog (nionui)
 ------------------
 - Fix some drawing inconsistencies during splitter dragging.
 - Minor improvements to drawing performance.
+- Fix potential crash when closing canvas items with threads.
 - Add window file path support to Window.
 - Add support for directly getting last or current keyboard modifiers.
 - Only change canvas item focus when no key modifiers are enabled.

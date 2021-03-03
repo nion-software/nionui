@@ -1776,6 +1776,14 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def _container_layout_changed(self) -> None:
         self.__layout_render_trait._container_layout_changed()
+        # canvas items that cache their drawing bitmap (layers) need to know as quickly as possible
+        # that their layout has changed to a new size to avoid partially updated situations where
+        # their bitmaps overlap and a newer bitmap gets overwritten by a older overlapping bitmap,
+        # resulting in drawing anomaly. request a repaint for each canvas item at its new size here.
+        # this can also be tested by doing a 1x2 split; then 5x4 on the bottom; adding some images
+        # to the bottom; resizing the 1x2 split; then undo/redo. it helps to run on a slower machine.
+        for canvas_item in self.canvas_items:
+            canvas_item._container_layout_changed()
 
     def _prepare_render(self):
         for canvas_item in self.__canvas_items:
@@ -2230,7 +2238,8 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                     with self.__layer_lock:
                         self.__layer_seed += 1
                         self.__layer_drawing_context = drawing_context
-                    self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
+                    if not self.__cancel:
+                        self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
                 except Exception as e:
                     import traceback
                     logging.debug("CanvasItem Render Error: %s", e)
@@ -2396,8 +2405,9 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.on_splits_will_change = None
         self.on_splits_changed = None
 
-    def __calculate_layout(self, canvas_size, sizings: typing.Sequence[Sizing]):
-        if self.orientation == "horizontal":
+    @classmethod
+    def __calculate_layout(self, orientation: str, canvas_size, sizings: typing.Sequence[Sizing]):
+        if orientation == "horizontal":
             content_origin = 0
             content_size = Geometry.IntSize.make(canvas_size).height
             constraints = [sizing.get_height_constraint(content_size) for sizing in sizings]
@@ -2408,7 +2418,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         return constraint_solve(content_origin, content_size, constraints)
 
     @property
-    def splits(self):
+    def splits(self) -> typing.Optional[typing.List[int]]:
         """ Return the canvas item splits, which represent the relative size of each child. """
         if self.canvas_origin is not None:
             if self.orientation == "horizontal":
@@ -2417,12 +2427,12 @@ class SplitterCanvasItem(CanvasItemComposition):
                 content_size = Geometry.IntSize.make(self.canvas_size).width
             with self.__lock:
                 sizings = copy.deepcopy(self.__sizings)
-            _, sizes = self.__calculate_layout(self.canvas_size, sizings)
+            _, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
             return [float(size) / content_size for size in sizes]
         return None
 
     @splits.setter
-    def splits(self, splits):
+    def splits(self, splits: typing.Optional[typing.List[int]]) -> None:
         with self.__lock:
             sizings = copy.deepcopy(self.__sizings)
         assert len(splits) == len(sizings)
@@ -2462,7 +2472,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             canvas_items = copy.copy(self.canvas_items)
             sizings = copy.deepcopy(self.__sizings)
         assert len(canvas_items) == len(sizings)
-        origins, sizes = self.__calculate_layout(canvas_size, sizings)
+        origins, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
         if self.orientation == "horizontal":
             for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
                 canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
@@ -2489,19 +2499,14 @@ class SplitterCanvasItem(CanvasItemComposition):
         # might not go all the way up the chain if this splitter has no layout. by now, it will
         # have a layout, so force an update.
         self.update()
-        # canvas items that cache their drawing bitmap (layers) need to know as quickly as possible
-        # that their layout has changed to a new size to avoid partially updated situations where
-        # their bitmaps overlap and a newer bitmap gets overwritten by a older overlapping bitmap,
-        # resulting in drawing anomaly. request a repaint for each canvas item at its new size here.
-        for canvas_item in canvas_items:
-            canvas_item._container_layout_changed()
+        self._container_layout_changed()
 
     def canvas_items_at_point(self, x, y):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
             canvas_items = copy.copy(self.__shadow_canvas_items)
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
+        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for origin in origins[1:]:  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -2517,7 +2522,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
+        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         with drawing_context.saver():
             drawing_context.begin_path()
             for origin in origins[1:]:  # don't paint the '0' origin
@@ -2534,7 +2539,7 @@ class SplitterCanvasItem(CanvasItemComposition):
     def __hit_test(self, x, y, modifiers):
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
+        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:
@@ -2549,7 +2554,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = self.__calculate_layout(self.canvas_size, sizings)
+        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         if self.orientation == "horizontal":
             for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:

@@ -600,6 +600,18 @@ class Window:
                 checked = action and action.is_checked(action_context)
                 menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
 
+    def is_action_enabled(self, action_id: str, action_context: ActionContext) -> bool:
+        action = actions.get(action_id)
+        if action and action.is_enabled(action_context):
+            return True
+        return False
+
+    def add_action_to_menu_if_enabled(self, menu: UserInterface.Menu, action_id: str, action_context: ActionContext) -> typing.Optional[Action]:
+        action = actions.get(action_id)
+        if action and action.is_enabled(action_context):
+            self.add_action_to_menu(menu, action_id, action_context)
+        return action
+
     def add_action_to_menu(self, menu: UserInterface.Menu, action_id: str, action_context: ActionContext) -> typing.Optional[Action]:
         action = actions.get(action_id)
         if action:

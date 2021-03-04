@@ -9,6 +9,7 @@ Changelog (nionui)
 - Add window file path support to Window.
 - Add support for directly getting last or current keyboard modifiers.
 - Only change canvas item focus when no key modifiers are enabled.
+- Add menu methods for adding only if enabled and checking if enabled.
 
 0.4.5 (2021-02-02)
 ------------------

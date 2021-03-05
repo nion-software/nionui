@@ -68,7 +68,8 @@ class Report:
         return Report(ReportType(record.levelno), record.getMessage())
 
 
-class ActionProperty: pass
+class ActionProperty:
+    pass
 
 
 class ActionStringProperty(ActionProperty):
@@ -668,7 +669,8 @@ class Window:
             menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
         return action
 
-    def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None, parameters: typing.Optional[typing.List] = None) -> ActionResult:
+    def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None,
+                       parameters: typing.Optional[typing.List] = None) -> ActionResult:
         context = action_context or self._get_action_context()
         if parameters:
             context.parameters.update(parameters)

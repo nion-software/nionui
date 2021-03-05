@@ -33,13 +33,20 @@ class ActionContext:
         self.window = window
         self.focus_widget = focus_widget
         self.event_type_str: typing.Optional[str] = None
+        self.parameters: typing.Dict[str, typing.Any] = dict()
 
 
-class ActionResult(enum.IntEnum):
+class ActionStatus(enum.IntEnum):
     FINISHED = 0
     MODAL = 1
     CANCELLED = 2
     PASS = 3
+
+
+class ActionResult:
+    def __init__(self, status: ActionStatus):
+        self.status = status
+        self.results: typing.Dict[str, typing.Any] = dict()
 
 
 class ReportType(enum.IntEnum):
@@ -61,12 +68,26 @@ class Report:
         return Report(ReportType(record.levelno), record.getMessage())
 
 
+class ActionProperty: pass
+
+
+class ActionStringProperty(ActionProperty):
+    def __init__(self, name: str):
+        self.name = name
+
+
+class ActionIntegerProperty(ActionProperty):
+    def __init__(self, name: str):
+        self.name = name
+
+
 class Action:
     action_id: str = str()
     action_name: str = str()
     action_role: typing.Optional[str] = None
     action_summary: typing.Optional[str] = None
     action_description: typing.Optional[str] = None
+    action_parameters: typing.List[ActionProperty] = list()
 
     def __init__(self):
         self.__reports: typing.List[Report] = list()
@@ -84,7 +105,7 @@ class Action:
 
     def execute(self, context: ActionContext) -> ActionResult:
         """Execute the action with the context. No user interaction allowed. May be called from scripts."""
-        ...
+        raise NotImplementedError()
 
     def invoke(self, context: ActionContext) -> ActionResult:
         """Called to execute the action with the context. User interaction allowed. Typically calls `execute`."""
@@ -104,6 +125,18 @@ class Action:
 
     def log_record(self, record: logging.LogRecord) -> None:
         self.__reports.append(Report.from_log_record(record))
+
+    def get_string_property(self, context: ActionContext, name: str) -> str:
+        return str(context.parameters.get(name, str()))
+
+    def set_string_property(self, context: ActionContext, name: str, value: str) -> None:
+        context.parameters[name] = value
+
+    def get_int_property(self, context: ActionContext, name: str) -> int:
+        return int(context.parameters.get(name, 0))
+
+    def set_int_property(self, context: ActionContext, name: str, value: int) -> None:
+        context.parameters[name] = value
 
 
 actions: typing.Mapping[str, Action] = dict()
@@ -335,10 +368,10 @@ class Window:
                     setattr(action_context, k, v)
             action_result = action.event(action_context)
             # finished or cancelled will remove the action
-            if action_result not in {ActionResult.MODAL, ActionResult.PASS}:
+            if action_result.status not in {ActionStatus.MODAL, ActionStatus.PASS}:
                 self.__modal_actions.remove(action)
             # modal, finished, or cancelled will stop iterating and return True
-            if action_result != ActionResult.PASS:
+            if action_result.status != ActionStatus.PASS:
                 for report in action.reports:
                     self.display_report(report)
                 return True
@@ -635,6 +668,13 @@ class Window:
             menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
         return action
 
+    def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None, parameters: typing.Optional[typing.List] = None) -> ActionResult:
+        context = action_context or self._get_action_context()
+        if parameters:
+            context.parameters.update(parameters)
+        action = actions[action_id]
+        return action.execute(context)
+
     def perform_action(self, action_id: str) -> None:
         self.perform_action_in_context(action_id, self._get_action_context())
 
@@ -642,7 +682,7 @@ class Window:
         action = actions.get(action_id)
         if action and action not in self.__modal_actions:
             action.clear()
-            if action.invoke(action_context) == ActionResult.MODAL:
+            if action.invoke(action_context).status == ActionStatus.MODAL:
                 self.__modal_actions.append(action)
             for report in action.reports:
                 self.display_report(report)
@@ -803,22 +843,25 @@ class AboutBoxAction(Action):
     action_name = _("About...")
     action_role = "about"
 
+    def execute(self, context: ActionContext) -> ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: ActionContext) -> ActionResult:
         show_about_box = getattr(context.window, "show_about_box", None)
         show_about_box = show_about_box or getattr(context.application, "show_about_box", None)
         if callable(show_about_box):
             show_about_box()
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
 
 class BringToFrontAction(Action):
     action_id = "window.bring_to_front"
     action_name = _("Bring to Front")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("bring_to_front")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "bring_to_front")
@@ -828,20 +871,20 @@ class CloseWindowAction(Action):
     action_id = "window.close"
     action_name = _("Close Window")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window.request_close()
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
 
 class CopyAction(Action):
     action_id = "window.copy"
     action_name = _("Copy")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_copy")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_copy")
@@ -851,10 +894,10 @@ class CutAction(Action):
     action_id = "window.cut"
     action_name = _("Cut")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_cut")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_cut")
@@ -864,10 +907,10 @@ class DeleteAction(Action):
     action_id = "window.delete"
     action_name = _("Delete")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_delete")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_delete")
@@ -878,19 +921,19 @@ class ExitAction(Action):
     action_name = _("Exit")
     action_role = "quit"
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         context.application.exit()
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
 
 class MinimizeAction(Action):
     action_id = "window.minimize"
     action_name = _("Minimize")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_minimize")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_minimize")
@@ -900,10 +943,13 @@ class PageSetupAction(Action):
     action_id = "window.page_setup"
     action_name = _("Page Setup")
 
+    def execute(self, context: ActionContext) -> ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_page_setup")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_page_setup")
@@ -913,10 +959,10 @@ class PasteAction(Action):
     action_id = "window.paste"
     action_name = _("Paste")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_paste")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_paste")
@@ -927,22 +973,28 @@ class PreferencesAction(Action):
     action_name = _("Preferences...")
     action_role = "preferences"
 
+    def execute(self, context: ActionContext) -> ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: ActionContext) -> ActionResult:
         open_preferences = getattr(context.window, "open_preferences", None)
         open_preferences = open_preferences or getattr(context.application, "open_preferences", None)
         if callable(open_preferences):
             open_preferences()
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
 
 class PrintAction(Action):
     action_id = "window.print"
     action_name = _("Print...")
 
+    def execute(self, context: ActionContext) -> ActionResult:
+        raise NotImplementedError()
+
     def invoke(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_print")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_print")
@@ -952,10 +1004,10 @@ class RedoAction(Action):
     action_id = "window.redo"
     action_name = _("Redo")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_redo")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_redo")
@@ -965,10 +1017,10 @@ class SelectAllAction(Action):
     action_id = "window.select_all"
     action_name = _("Select All")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_select_all")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         if context.window:
@@ -980,10 +1032,10 @@ class UndoAction(Action):
     action_id = "window.undo"
     action_name = _("Undo")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_undo")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_undo")
@@ -993,10 +1045,10 @@ class ZoomAction(Action):
     action_id = "window.zoom"
     action_name = _("Zoom")
 
-    def invoke(self, context: ActionContext) -> ActionResult:
+    def execute(self, context: ActionContext) -> ActionResult:
         if context.window:
             context.window._dispatch_any_to_focus_widget("handle_zoom")
-        return ActionResult.FINISHED
+        return ActionResult(ActionStatus.FINISHED)
 
     def is_enabled(self, context: ActionContext) -> bool:
         return hasattr(context.window, "handle_zoom")

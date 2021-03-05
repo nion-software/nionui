@@ -2421,15 +2421,21 @@ class SplitterCanvasItem(CanvasItemComposition):
     def splits(self) -> typing.Optional[typing.List[int]]:
         """ Return the canvas item splits, which represent the relative size of each child. """
         if self.canvas_origin is not None:
-            if self.orientation == "horizontal":
-                content_size = Geometry.IntSize.make(self.canvas_size).height
-            else:
-                content_size = Geometry.IntSize.make(self.canvas_size).width
-            with self.__lock:
-                sizings = copy.deepcopy(self.__sizings)
-            _, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
-            return [float(size) / content_size for size in sizes]
-        return None
+            canvas_size = self.canvas_size
+        else:
+            canvas_size = Geometry.IntSize(w=640, h=480)
+
+        if self.orientation == "horizontal":
+            content_size = Geometry.IntSize.make(canvas_size).height
+        else:
+            content_size = Geometry.IntSize.make(canvas_size).width
+
+        with self.__lock:
+            sizings = copy.deepcopy(self.__sizings)
+
+        _, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
+
+        return [float(size) / content_size for size in sizes]
 
     @splits.setter
     def splits(self, splits: typing.Optional[typing.List[int]]) -> None:

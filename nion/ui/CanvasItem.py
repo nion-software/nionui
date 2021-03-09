@@ -2931,15 +2931,16 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
         return True
 
     def __cull_unused_sections(self) -> None:
+        canvas_items = self._canvas_item_composition.get_root_opaque_canvas_items()
         with self.__section_ids_lock:
             section_map = self.__section_map
             self.__section_map = dict()
-            for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
+            for canvas_item in canvas_items:
                 section_id = section_map.pop(canvas_item, None)
                 if section_id:
                     self.__section_map[canvas_item] = section_id
-            for section_id in section_map.values():
-                self._canvas_item_composition.canvas_widget.remove_section(section_id)
+        for section_id in section_map.values():
+            self._canvas_item_composition.canvas_widget.remove_section(section_id)
 
 
 RootLayoutRender = "root"

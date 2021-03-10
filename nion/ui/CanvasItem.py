@@ -1743,7 +1743,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     def __init__(self, layout_render_trait: CompositionLayoutRenderTrait = None):
         super().__init__()
         self.__canvas_items: typing.List[AbstractCanvasItem] = list()
-        self.layout = CanvasItemLayout()
+        self.layout: CanvasItemAbstractLayout = CanvasItemLayout()
         self.__layout_lock = threading.RLock()
         self.__layout_render_trait = layout_render_trait or CompositionLayoutRenderTrait(self)
         self.__container_layout_changed_count = 0

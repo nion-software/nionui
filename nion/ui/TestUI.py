@@ -301,12 +301,12 @@ class Widget:
 
     def __init__(self, widget_type: str):
         self.widget_type = widget_type
-        self.children = list()
-        self.size = None
-        self.on_size_changed = None
+        self.children: typing.List[Widget] = list()
+        self.size: typing.Optional[int] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
 
     def close(self) -> None:
-        self.children = None
+        self.children = typing.cast(typing.List[Widget], None)
 
     def size_changed(self, size) -> None:
         if size != self.size:
@@ -333,7 +333,7 @@ class WidgetBehavior:
         self.enabled = True
         self.size = None
         self.tool_tip = None
-        self.children = list()
+        self.children: typing.List[Widget] = list()
         self.content = None
         self.canvas_item = None
 
@@ -408,8 +408,9 @@ class BoxSpacing(UserInterfaceModule.Widget):
 
 
 def extract_widget(widget: UserInterfaceModule.Widget) -> typing.Optional[Widget]:
-    if hasattr(widget, "content_widget"):
-        return extract_widget(widget.content_widget)
+    content_widget = getattr(widget, "content_widget", None)
+    if content_widget:
+        return extract_widget(content_widget)
     elif hasattr(widget, "_behavior"):
         return widget._behavior.widget
     return None
@@ -435,13 +436,13 @@ class BoxWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
-        self.__widgets = list()
+        self.__widgets: typing.List[WidgetItem] = list()
 
-    def insert(self, child, index, fill, alignment):
+    def insert(self, child: UserInterfaceModule.Widget, index_or_widget: typing.Optional[typing.Union[UserInterfaceModule.Widget, int]], fill: bool = False, alignment: typing.Optional[str] = None) -> None:
         # behavior must handle index of None, meaning insert at end
         child_widget = extract_widget(child)
         assert child_widget is not None
-        index = index if index is not None else len(self.__widgets)
+        index = index_or_widget if isinstance(index_or_widget, int) else len(self.__widgets)
         self.__widgets.insert(index, WidgetItem(WidgetItemType.WIDGET, widget=child_widget, fill=fill, alignment=alignment))
         self.widget.children.insert(index, child_widget)
         child_widget.size_changed(self.widget.size)
@@ -507,10 +508,12 @@ class StackWidgetBehavior(WidgetBehavior):
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
         child_widget = extract_widget(child)
+        assert child_widget
         self.widget.children.append(child_widget)
 
     def remove(self, child: UserInterfaceModule.Widget) -> None:
         child_widget = extract_widget(child)
+        assert child_widget
         self.widget.children.remove(child_widget)
 
 
@@ -535,6 +538,7 @@ class ScrollAreaWidgetBehavior(WidgetBehavior):
     def set_content(self, content: UserInterfaceModule.Widget) -> None:
         assert not self.widget.children
         child_widget = extract_widget(content)
+        assert child_widget
         self.widget.children.append(child_widget)
         child_widget.size_changed(self.widget.size)
 
@@ -557,7 +561,7 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
         super().__init__(widget_type, properties)
         self.on_current_text_changed = None
         self.current_index = 0
-        self.item_strings = list()
+        self.item_strings: typing.List[str] = list()
 
     def close(self):
         self.on_current_text_changed = None
@@ -573,7 +577,7 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
             self.item_strings[self.current_index] = value
 
     def set_item_strings(self, item_strings: typing.Sequence[str]) -> None:
-        self.item_strings = copy.copy(item_strings)
+        self.item_strings = list(item_strings)
 
 
 class PushButtonWidgetBehavior(WidgetBehavior):
@@ -922,7 +926,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def close(self):
         pass
 
-    def request_quit(self):
+    def request_quit(self) -> None:
         pass
 
     def set_application_info(self, name: str, organization: str, domain: str) -> None:
@@ -1058,7 +1062,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def clipboard_mime_data(self) -> MimeData:
         return self.clipboard
 
-    def clipboard_set_mime_data(self, mime_data: MimeData) -> None:
+    def clipboard_set_mime_data(self, mime_data: UserInterfaceModule.MimeData) -> None:
         self.clipboard = mime_data
 
     def clipboard_set_text(self, text):
@@ -1073,9 +1077,8 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_rgba_image(self, drawing_context, width, height):
         return numpy.zeros((height, width), dtype=numpy.uint32)
 
-    def get_font_metrics(self, font_str: str, text: str) -> typing.Tuple[int, int, int, int, int]:
-        FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
-        return FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
+    def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
+        return UserInterfaceModule.FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
 
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterfaceModule.TruncateModeType) -> str:
         return text
@@ -1101,7 +1104,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         return color
 
     def get_keyboard_modifiers(self, query: bool = False) -> UserInterfaceModule.KeyboardModifiers:
-        return CanvasItem.KeyboardModifiers()
+        return typing.cast(UserInterfaceModule.KeyboardModifiers, CanvasItem.KeyboardModifiers())
 
     # testing
 

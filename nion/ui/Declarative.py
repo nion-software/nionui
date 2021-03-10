@@ -130,7 +130,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the column
         """
-        d = {"type": "column"}
+        d: UIDescription = {"type": "column"}
         if name is not None:
             d["name"] = name
         if items:
@@ -173,7 +173,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the row
         """
-        d = {"type": "row"}
+        d: UIDescription = {"type": "row"}
         if name is not None:
             d["name"] = name
         if items:
@@ -243,7 +243,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the tabs
         """
-        d = {"type": "tabs"}
+        d: UIDescription = {"type": "tabs"}
         if len(tabs) > 0:
             d_children = d.setdefault("tabs", list())
             for child in tabs:
@@ -288,7 +288,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the stack
         """
-        d = {"type": "stack"}
+        d: UIDescription = {"type": "stack"}
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
@@ -318,7 +318,7 @@ class DeclarativeUI:
         Returns:
             UI description of the scroll area
         """
-        d = {"type": "scroll_area", "content": content}
+        d: UIDescription = {"type": "scroll_area", "content": content}
         if name is not None:
             d["name"] = name
         self.__process_common_properties(d, **kwargs)
@@ -338,7 +338,7 @@ class DeclarativeUI:
         Returns:
             UI description of the group
         """
-        d = {"type": "group", "content": content}
+        d: UIDescription = {"type": "group", "content": content}
         if name is not None:
             d["name"] = name
         if title is not None:
@@ -359,7 +359,7 @@ class DeclarativeUI:
         Returns:
             UI description of the label
         """
-        d = {"type": "text_label"}
+        d: UIDescription = {"type": "text_label"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -382,7 +382,7 @@ class DeclarativeUI:
         Returns:
             UI description of the push button
         """
-        d = {"type": "image"}
+        d: UIDescription = {"type": "image"}
         if image is not None:
             d["image"] = image
         if name is not None:
@@ -439,7 +439,7 @@ class DeclarativeUI:
         Returns:
             UI description of the line edit
         """
-        d = {"type": "line_edit"}
+        d: UIDescription = {"type": "line_edit"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -498,7 +498,7 @@ class DeclarativeUI:
         Returns:
             UI description of the text edit
         """
-        d = {"type": "text_edit"}
+        d: UIDescription = {"type": "text_edit"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -534,7 +534,7 @@ class DeclarativeUI:
         Returns:
             UI description of the push button
         """
-        d = {"type": "push_button"}
+        d: UIDescription = {"type": "push_button"}
         if text is not None:
             d["text"] = text
         if icon is not None:
@@ -581,7 +581,7 @@ class DeclarativeUI:
         Returns:
             UI description of the check box
         """
-        d = {"type": "check_box"}
+        d: UIDescription = {"type": "check_box"}
         if text is not None:
             d["text"] = text
         if checked is not None:
@@ -622,7 +622,7 @@ class DeclarativeUI:
         Returns:
             UI description of the combo box
         """
-        d = {"type": "combo_box"}
+        d: UIDescription = {"type": "combo_box"}
         if name is not None:
             d["name"] = name
         if items is not None:
@@ -656,7 +656,7 @@ class DeclarativeUI:
         Returns:
             UI description of the radio button
         """
-        d = {"type": "radio_button"}
+        d: UIDescription = {"type": "radio_button"}
         if name is not None:
             d["name"] = name
         if text is not None:
@@ -707,7 +707,7 @@ class DeclarativeUI:
         Returns:
             UI description of the slider
         """
-        d = {"type": "slider"}
+        d: UIDescription = {"type": "slider"}
         if name is not None:
             d["name"] = name
         if value is not None:
@@ -744,7 +744,7 @@ class DeclarativeUI:
         Returns:
             UI description of the progress bar
         """
-        d = {"type": "progress_bar"}
+        d: UIDescription = {"type": "progress_bar"}
         if name is not None:
             d["name"] = name
         if value is not None:
@@ -790,7 +790,7 @@ class DeclarativeUI:
         The items can be either strings or objects which implement a str conversion. The items can also include a
         `tool_tip` property which will be displayed when the user hovers over the item.
         """
-        d = {"type": "list_box"}
+        d: UIDescription = {"type": "list_box"}
         if name is not None:
             d["name"] = name
         if items is not None:
@@ -826,7 +826,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the dialog
         """
-        d = {"type": "modeless_dialog", "content": content}
+        d: UIDescription = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
         if margin is not None:
@@ -849,7 +849,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the window
         """
-        d = {"type": "window", "content": content}
+        d: UIDescription = {"type": "window", "content": content}
         if title is not None:
             d["title"] = title
         if margin is not None:
@@ -861,7 +861,7 @@ class DeclarativeUI:
         return d
 
     def define_component(self, content, *, component_id=None, events=None):
-        d = {"type": "component", "content": content}
+        d: UIDescription = {"type": "component", "content": content}
         if component_id is not None:
             d["component_id"] = component_id
         if events is not None:
@@ -870,7 +870,7 @@ class DeclarativeUI:
 
     def create_component_instance(self, identifier, properties=None, **kwargs):
         properties = properties if properties is not None else dict()
-        d = {"type": "component", "identifier": identifier, "properties": properties}
+        d: UIDescription = {"type": "component", "identifier": identifier, "properties": properties}
         for k, v in kwargs.items():
             d[k] = v
         return d
@@ -1029,16 +1029,17 @@ class WindowHandler(Observable.Observable):
         super().__init__()
         self.window: typing.Optional[Window.Window] = None
         self.__completion_fn = completion_fn
-        self.__on_close = None
+        self.__on_close: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         pass
 
     def close_window(self, widget: typing.Optional[UIWidget] = None) -> None:
+        assert self.window
         self.window.request_close()
 
     def run(self, d, *, app: typing.Optional[Application.BaseApplication] = None,
-            parent_window: Window = None, window_style: typing.Optional[str] = None,
+            parent_window: Window.Window = None, window_style: typing.Optional[str] = None,
             persistent_id: typing.Optional[str] = None) -> None:
         self.window = run_window(d, self, app=app, parent_window=parent_window, window_style=window_style, persistent_id=persistent_id)
         self.__on_close = self.window.on_close
@@ -1053,58 +1054,58 @@ class WindowHandler(Observable.Observable):
 
 
 def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] = None,
-               parent_window: Window = None, window_style: typing.Optional[str] = None,
-               persistent_id: typing.Optional[str] = None) -> typing.Optional[Window.Window]:
+               parent_window: Window.Window = None, window_style: typing.Optional[str] = None,
+               persistent_id: typing.Optional[str] = None) -> Window.Window:
     if app:
         ui = app.ui
     else:
+        assert parent_window
         ui = parent_window.ui
     d_type = d.get("type")
-    if d_type == "window":
-        title = d.get("title", _("Untitled"))
-        margin = d.get("margin")
-        persistent_id = d.get("persistent_id", persistent_id)
-        window_style = d.get("window_style", window_style)
-        content = d.get("content")
-        resources = d.get("resources", dict())
-        for k, v in resources.items():
-            resources[k] = v
-        if not hasattr(handler, "resources"):
-            handler.resources = resources
-        else:
-            handler.resources.update(resources)
-        closer = Closer()
-        finishes = list()
-        window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
-        window.title = title
-        window.on_close = closer.close
-        # make and attach closer for the handler; put handler into container closer
-        handler._closer = Closer()
-        closer.push_closeable(handler)
-        outer_row = ui.create_row_widget()
-        outer_column = ui.create_column_widget()
-        inner_content = construct(ui, window, content, handler, finishes)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        outer_column.add(inner_content)
-        outer_row.add(outer_column)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        window.attach_widget(outer_row)
-        window._create_menus()
-        window.show()
-        for finish in finishes:
-            finish()
-        handler._event_loop = window.event_loop
-        if callable(getattr(handler, "init_handler", None)):
-            handler.init_handler()
-        return window
-    return None
+    assert d_type == "window"
+    title = d.get("title", _("Untitled"))
+    margin = d.get("margin")
+    persistent_id = d.get("persistent_id", persistent_id)
+    window_style = d.get("window_style", window_style)
+    content = d.get("content")
+    resources = d.get("resources", dict())
+    for k, v in resources.items():
+        resources[k] = v
+    if not hasattr(handler, "resources"):
+        handler.resources = resources
+    else:
+        handler.resources.update(resources)
+    closer = Closer()
+    finishes: typing.List[typing.Callable[[], None]] = list()
+    window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
+    window.title = title
+    window.on_close = closer.close
+    # make and attach closer for the handler; put handler into container closer
+    setattr(handler, "_closer", Closer())
+    closer.push_closeable(handler)
+    outer_row = ui.create_row_widget()
+    outer_column = ui.create_column_widget()
+    inner_content = construct(ui, window, content, handler, finishes)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    outer_column.add(inner_content)
+    outer_row.add(outer_column)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    window.attach_widget(outer_row)
+    window._create_menus()
+    window.show()
+    for finish in finishes:
+        finish()
+    setattr(handler, "_event_loop", window.event_loop)
+    if callable(getattr(handler, "init_handler", None)):
+        handler.init_handler()
+    return window
 
 
-def construct_margin(ui, content, margin):
+def construct_margin(ui, content, margin) -> UserInterface.BoxWidget:
     if margin:
         column = ui.create_column_widget()
         column.add_spacing(margin)
@@ -1118,7 +1119,7 @@ def construct_margin(ui, content, margin):
     return content
 
 
-def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes, spacing_h: int = 0, spacing_v: int = 0):
+def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes, spacing_h: typing.Optional[int] = None, spacing_v: typing.Optional[int] = None) -> None:
     assert window is not None
     items_parts = items.split('.')
     container = handler
@@ -1162,7 +1163,7 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             if component_handler:
                 component_handler._closer = Closer()
                 handler._closer.push_closeable(component_handler)
-            item_finishes = list()
+            item_finishes: typing.List[typing.Callable[[], None]] = list()
             # now construct the widget
             item_widget = construct(ui, window, content, component_handler, item_finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
@@ -1199,7 +1200,7 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
 
 
 def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
-    properties = dict()
+    properties: typing.Dict = dict()
     for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
         v = d.get(k, None)
         if v is not None:
@@ -1215,340 +1216,48 @@ class DeclarativeConstructor:
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None): ...
 
 
-def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None):
-    d_type = d.get("type")
+def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]] = None):
+    d_type = typing.cast(str, d.get("type"))
     if d_type == "modeless_dialog":
-        title = d.get("title", _("Untitled"))
-        margin = d.get("margin")
-        persistent_id = d.get("persistent_id")
-        content = d.get("content")
-        resources = d.get("resources", dict())
-        for k, v in resources.items():
-            resources[k] = v
-        if not hasattr(handler, "resources"):
-            handler.resources = resources
-        else:
-            handler.resources.update(resources)
-        closer = Closer()
-        finishes = list()
-        dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
-        dialog.on_close = closer.close
-        dialog._create_menus()
-        # make and attach closer for the handler; put handler into container closer
-        handler._closer = Closer()
-        closer.push_closeable(handler)
-        outer_row = ui.create_row_widget()
-        outer_column = ui.create_column_widget()
-        inner_content = construct(ui, window, content, handler, finishes)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        outer_column.add(inner_content)
-        outer_row.add(outer_column)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        dialog.content.add(outer_row)
-        for finish in finishes:
-            finish()
-        handler._event_loop = window.event_loop
-        if callable(getattr(handler, "init_handler", None)):
-            handler.init_handler()
-        return dialog
+        return construct_modeless_dialog(ui, window, d, handler)
     elif d_type == "column":
         properties = construct_sizing_properties(d)
-        column_widget = ui.create_column_widget(properties=properties)
-        spacing = d.get("spacing")
-        margin = d.get("margin")
-        items = d.get("items")
-        item_component_id = d.get("item_component_id")
-        children = d.get("children", list())
-        assert not items or not children
-        first = True
-        for child in children:
-            if not first and spacing is not None:
-                column_widget.add_spacing(spacing)
-            if child.get("type") == "spacing":
-                column_widget.add_spacing(child.get("size", 0))
-            elif child.get("type") == "stretch":
-                column_widget.add_stretch()
-            else:
-                column_widget.add(construct(ui, window, child, handler, finishes))
-            first = False
-        if items and item_component_id:
-            connect_items(ui, window, column_widget, handler, items, item_component_id, finishes, spacing_v=spacing)
-        if handler:
-            connect_name(column_widget, d, handler)
-            connect_attributes(column_widget, d, handler, finishes)
-        return construct_margin(ui, column_widget, margin)
+        return construct_box(ui, window, ui.create_column_widget(properties=properties), d, handler, finishes)
     elif d_type == "row":
         properties = construct_sizing_properties(d)
-        row_widget = ui.create_row_widget(properties=properties)
-        spacing = d.get("spacing")
-        margin = d.get("margin")
-        items = d.get("items")
-        item_component_id = d.get("item_component_id")
-        children = d.get("children", list())
-        assert not items or not children
-        first = True
-        for child in children:
-            if not first and spacing is not None:
-                row_widget.add_spacing(spacing)
-            if child.get("type") == "spacing":
-                row_widget.add_spacing(child.get("size", 0))
-            elif child.get("type") == "stretch":
-                row_widget.add_stretch()
-            else:
-                row_widget.add(construct(ui, window, child, handler, finishes))
-            first = False
-        if items and item_component_id:
-            connect_items(ui, window, row_widget, handler, items, item_component_id, finishes, spacing_h=spacing)
-        if handler:
-            connect_name(row_widget, d, handler)
-            connect_attributes(row_widget, d, handler, finishes)
-        return construct_margin(ui, row_widget, margin)
+        return construct_box(ui, window, ui.create_row_widget(properties=properties), d, handler, finishes)
     elif d_type == "text_label":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_label_widget(None, properties)
-        if handler:
-            connect_string_value(widget, d, handler, "text", finishes)
-            connect_name(widget, d, handler)
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_text_label(ui, d, handler, finishes)
     elif d_type == "image":
-        properties = construct_sizing_properties(d)
-        widget = Widgets.ImageWidget(ui, properties=properties)
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "image", finishes)
-            connect_event(widget, widget, d, handler, "on_clicked", [])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_image(ui, d, handler, finishes)
     elif d_type == "line_edit":
-        editable = d.get("editable", None)
-        clear_button_enabled = d.get("clear_button_enabled", None)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_line_edit_widget(properties)
-        if editable is not None:
-            widget.editable = editable
-        if clear_button_enabled is not None:
-            widget.clear_button_enabled = clear_button_enabled
-        if handler:
-            connect_name(widget, d, handler)
-            connect_string_value(widget, d, handler, "placeholder_text", finishes)
-            connect_reference_value(widget, d, handler, "text", finishes)
-            connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
-            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
-            connect_event(widget, widget, d, handler, "on_return_pressed", [])
-            connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
-            connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_line_edit(ui, d, finishes, handler)
     elif d_type == "text_edit":
-        editable = d.get("editable", None)
-        clear_button_enabled = d.get("clear_button_enabled", None)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_text_edit_widget(properties)
-        if editable is not None:
-            widget.editable = editable
-        if clear_button_enabled is not None:
-            widget.clear_button_enabled = clear_button_enabled
-        if handler:
-            connect_name(widget, d, handler)
-            connect_string_value(widget, d, handler, "placeholder_text", finishes)
-            connect_reference_value(widget, d, handler, "text", finishes)
-            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
-            connect_event(widget, widget, d, handler, "on_return_pressed", [])
-            connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_text_edit(ui, d, finishes, handler)
     elif d_type == "push_button":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_push_button_widget(properties=properties)
-        if handler:
-            connect_name(widget, d, handler)
-            if d.get("icon", None):
-                connect_reference_value(widget, d, handler, "icon", finishes)
-            if d.get("text", None):
-                connect_string_value(widget, d, handler, "text", finishes)
-            connect_event(widget, widget, d, handler, "on_clicked", [])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_push_button(ui, d, handler, finishes)
     elif d_type == "check_box":
-        # TODO: 'checked' and 'check_state' are bindings, not values
-        tristate = d.get("tristate", None)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_check_box_widget(properties=properties)
-        if tristate is not None:
-            widget.tristate = tristate
-        if handler:
-            connect_name(widget, d, handler)
-            if d.get("text", None):
-                connect_string_value(widget, d, handler, "text", finishes)
-            connect_reference_value(widget, d, handler, "checked", finishes, value_type=bool)
-            connect_reference_value(widget, d, handler, "check_state", finishes, value_type=str)
-            connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
-            connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_check_box(ui, d, handler, finishes)
     elif d_type == "combo_box":
-        items = d.get("items", None)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_combo_box_widget(items=items, properties=properties)
-        if handler:
-            connect_name(widget, d, handler)
-            # note: items_ref connects before current_index so that current_index can be valid
-            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
-            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
-            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_combo_box(ui, d, handler, finishes)
     elif d_type == "radio_button":
-        text = d.get("text", None)
-        value = d.get("value", None)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_radio_button_widget(text, properties)
-        widget.value = value
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "group_value", finishes, value_type=int)
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_radio_button(ui, d, handler, finishes)
     elif d_type == "slider":
-        minimum = d.get("minimum", 0)
-        maximum = d.get("maximum", 100)
-        properties = construct_sizing_properties(d)
-        widget = ui.create_slider_widget(properties)
-        widget.minimum = minimum
-        widget.maximum = maximum
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
-            connect_event(widget, widget, d, handler, "on_value_changed", ["value"])
-            connect_event(widget, widget, d, handler, "on_slider_pressed", [])
-            connect_event(widget, widget, d, handler, "on_slider_released", [])
-            connect_event(widget, widget, d, handler, "on_slider_moved", ["value"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_slider(ui, d, handler, finishes)
     elif d_type == "progress_bar":
-        minimum = d.get("minimum", 0)
-        maximum = d.get("maximum", 100)
-        properties = construct_sizing_properties(d)
-        properties.setdefault("height", 18)
-        properties.setdefault("width", 64)
-        widget = ui.create_progress_bar_widget(properties=properties)
-        widget.minimum = minimum
-        widget.maximum = maximum
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_progress_bar(ui, d, handler, finishes)
     elif d_type == "tabs":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_tab_widget(properties)
-        for tab in d.get("tabs", list()):
-            widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
-            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_tabs(ui, window, d, handler, finishes)
     elif d_type == "stack":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_stack_widget(properties)
-        for child in d.get("children", list()):
-            widget.add(construct(ui, window, child, handler, finishes))
-        items = d.get("items")
-        item_component_id = d.get("item_component_id")
-        if items and item_component_id:
-            connect_items(ui, window, widget, handler, items, item_component_id, finishes)
-        if handler:
-            connect_name(widget, d, handler)
-            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
-            connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_stack(ui, window, d, handler, finishes)
     elif d_type == "scroll_area":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_scroll_area_widget(properties)
-        widget.set_scrollbar_policies("needed", "needed")
-        content = d.get("content")
-        widget.content = construct(ui, window, content, handler, finishes)
-        if handler:
-            connect_name(widget, d, handler)
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_scroll_area(ui, window, d, handler, finishes)
     elif d_type == "group":
-        properties = construct_sizing_properties(d)
-        widget = ui.create_group_widget(properties)
-        margin = d.get("margin")
-        content = d.get("content")
-        outer_row = ui.create_row_widget()
-        outer_column = ui.create_column_widget()
-        inner_content = construct(ui, window, content, handler, finishes)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        outer_column.add(inner_content)
-        outer_row.add(outer_column)
-        if margin is not None:
-            outer_row.add_spacing(margin)
-            outer_column.add_spacing(margin)
-        widget.add(outer_row)
-        if handler:
-            connect_name(widget, d, handler)
-            connect_string_value(widget, d, handler, "title", finishes)
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_group(ui, window, d, handler, finishes)
     elif d_type == "list_box":
-        items = d.get("items", None)
-        properties = construct_sizing_properties(d)
-
-        class ListBoxDelegate(Widgets.StringListCanvasItemDelegate):
-            def __init__(self):
-                super().__init__()
-                self.on_item_handle_context_menu = None
-
-            def item_tool_tip(self, index: int) -> typing.Optional[str]:
-                return getattr(self.items[index], "tool_tip", None)
-
-            def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
-                if callable(self.on_item_handle_context_menu):
-                    self.on_item_handle_context_menu(index=index, x=x, y=y, gx=gx, gy=gy)
-                return False
-
-        list_box_delegate = ListBoxDelegate()
-        widget = Widgets.ListWidget(ui, list_box_delegate, items=items, selection_style=Selection.Style.single_or_none, border_color="#888", properties=properties)
-        widget.on_item_handle_context_menu = None
-
-        def trampoline_handle_context_menu(*args, **kwargs) -> bool:
-            # this will be called from the delegate when the delegate gets a context menu event.
-            # the call is passed on to the widget on_item_handle_context_menu function.
-            if callable(widget.on_item_handle_context_menu):
-                return widget.on_item_handle_context_menu(*args, **kwargs)
-            return False
-
-        list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
-        if handler:
-            connect_name(widget, d, handler)
-            # note: items_ref connects before current_index so that current_index can be valid
-            connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
-            connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
-            connect_event(widget, widget, d, handler, "on_item_changed", ["current_index"])
-            connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
-            connect_event(widget, widget, d, handler, "on_escape_pressed", [])
-            connect_event(widget, widget, d, handler, "on_return_pressed", [])
-            connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
-            connect_attributes(widget, d, handler, finishes)
-        return widget
+        return construct_list_box(ui, d, handler, finishes)
     elif d_type == "component":
-        # a component needs to be registered before it is instantiated.
-        # look up the identifier in the handler resources.
-        widget = ComponentWidget(ui, window, handler, d)
-        connect_string_value(widget, d, handler, "identifier", finishes)
-        return widget
+        return construct_component(ui, window, d, handler, finishes)
     else:
         # if the component is not handled yet, check with registered component handlers.
         constructors = typing.cast(typing.List[DeclarativeConstructor], Registry.get_components_by_type("declarative_constructor"))
@@ -1559,13 +1268,354 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
     return None
 
 
+def construct_component(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    # a component needs to be registered before it is instantiated.
+    # look up the identifier in the handler resources.
+    widget = ComponentWidget(ui, window, handler, d)
+    connect_string_value(widget, d, handler, "identifier", finishes)
+    return widget
+
+
+def construct_list_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    items = d.get("items", None)
+    properties = construct_sizing_properties(d)
+
+    class ListBoxDelegate(Widgets.StringListCanvasItemDelegate):
+        def __init__(self):
+            super().__init__()
+            self.on_item_handle_context_menu = None
+
+        def item_tool_tip(self, index: int) -> typing.Optional[str]:
+            return getattr(self.items[index], "tool_tip", None)
+
+        def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+            if callable(self.on_item_handle_context_menu):
+                self.on_item_handle_context_menu(index=index, x=x, y=y, gx=gx, gy=gy)
+            return False
+
+    list_box_delegate = ListBoxDelegate()
+    widget = Widgets.ListWidget(ui, list_box_delegate, items=items, selection_style=Selection.Style.single_or_none,
+                                border_color="#888", properties=properties)
+    widget.on_item_handle_context_menu = None
+
+    def trampoline_handle_context_menu(*args, **kwargs) -> bool:
+        # this will be called from the delegate when the delegate gets a context menu event.
+        # the call is passed on to the widget on_item_handle_context_menu function.
+        if callable(widget.on_item_handle_context_menu):
+            return widget.on_item_handle_context_menu(*args, **kwargs)
+        return False
+
+    list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
+    if handler:
+        connect_name(widget, d, handler)
+        # note: items_ref connects before current_index so that current_index can be valid
+        connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
+        connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_item_changed", ["current_index"])
+        connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
+        connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+        connect_event(widget, widget, d, handler, "on_return_pressed", [])
+        connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_group_widget(properties)
+    margin = d.get("margin")
+    content = typing.cast(UIDescription, d.get("content"))
+    outer_row = ui.create_row_widget()
+    outer_column = ui.create_column_widget()
+    inner_content = construct(ui, window, content, handler, finishes)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    outer_column.add(inner_content)
+    outer_row.add(outer_column)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    widget.add(outer_row)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_string_value(widget, d, handler, "title", finishes)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_scroll_area_widget(properties)
+    widget.set_scrollbar_policies("needed", "needed")
+    content = typing.cast(UIDescription, d.get("content"))
+    widget.content = construct(ui, window, content, handler, finishes)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_stack_widget(properties)
+    for child in d.get("children", list()):
+        widget.add(construct(ui, window, child, handler, finishes))
+    items = d.get("items")
+    item_component_id = d.get("item_component_id")
+    if items and item_component_id:
+        connect_items(ui, window, widget, handler, items, item_component_id, finishes)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_tabs(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_tab_widget(properties)
+    for tab in d.get("tabs", list()):
+        widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_progress_bar(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    minimum = d.get("minimum", 0)
+    maximum = d.get("maximum", 100)
+    properties = construct_sizing_properties(d)
+    properties.setdefault("height", 18)
+    properties.setdefault("width", 64)
+    widget = ui.create_progress_bar_widget(properties=properties)
+    widget.minimum = minimum
+    widget.maximum = maximum
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_slider(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    minimum = d.get("minimum", 0)
+    maximum = d.get("maximum", 100)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_slider_widget(properties)
+    widget.minimum = minimum
+    widget.maximum = maximum
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_value_changed", ["value"])
+        connect_event(widget, widget, d, handler, "on_slider_pressed", [])
+        connect_event(widget, widget, d, handler, "on_slider_released", [])
+        connect_event(widget, widget, d, handler, "on_slider_moved", ["value"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_radio_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    text = d.get("text", None)
+    value = d.get("value", None)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_radio_button_widget(text, properties)
+    widget.value = value
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "group_value", finishes, value_type=int)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_combo_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    items = d.get("items", None)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_combo_box_widget(items=items, properties=properties)
+    if handler:
+        connect_name(widget, d, handler)
+        # note: items_ref connects before current_index so that current_index can be valid
+        connect_reference_value(widget, d, handler, "items_ref", finishes, binding_name="items", value_type=list)
+        connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_check_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    # TODO: 'checked' and 'check_state' are bindings, not values
+    tristate = d.get("tristate", None)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_check_box_widget(properties=properties)
+    if tristate is not None:
+        widget.tristate = tristate
+    if handler:
+        connect_name(widget, d, handler)
+        if d.get("text", None):
+            connect_string_value(widget, d, handler, "text", finishes)
+        connect_reference_value(widget, d, handler, "checked", finishes, value_type=bool)
+        connect_reference_value(widget, d, handler, "check_state", finishes, value_type=str)
+        connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
+        connect_event(widget, widget, d, handler, "on_check_state_changed", ["check_state"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_push_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_push_button_widget(properties=properties)
+    if handler:
+        connect_name(widget, d, handler)
+        if d.get("icon", None):
+            connect_reference_value(widget, d, handler, "icon", finishes)
+        if d.get("text", None):
+            connect_string_value(widget, d, handler, "text", finishes)
+        connect_event(widget, widget, d, handler, "on_clicked", [])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_text_edit(ui, d, finishes, handler):
+    editable = d.get("editable", None)
+    clear_button_enabled = d.get("clear_button_enabled", None)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_text_edit_widget(properties)
+    if editable is not None:
+        widget.editable = editable
+    if clear_button_enabled is not None:
+        widget.clear_button_enabled = clear_button_enabled
+    if handler:
+        connect_name(widget, d, handler)
+        connect_string_value(widget, d, handler, "placeholder_text", finishes)
+        connect_reference_value(widget, d, handler, "text", finishes)
+        connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+        connect_event(widget, widget, d, handler, "on_return_pressed", [])
+        connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_line_edit(ui, d, finishes, handler):
+    editable = d.get("editable", None)
+    clear_button_enabled = d.get("clear_button_enabled", None)
+    properties = construct_sizing_properties(d)
+    widget = ui.create_line_edit_widget(properties)
+    if editable is not None:
+        widget.editable = editable
+    if clear_button_enabled is not None:
+        widget.clear_button_enabled = clear_button_enabled
+    if handler:
+        connect_name(widget, d, handler)
+        connect_string_value(widget, d, handler, "placeholder_text", finishes)
+        connect_reference_value(widget, d, handler, "text", finishes)
+        connect_event(widget, widget, d, handler, "on_editing_finished", ["text"])
+        connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+        connect_event(widget, widget, d, handler, "on_return_pressed", [])
+        connect_event(widget, widget, d, handler, "on_key_pressed", ["key"])
+        connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_image(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = Widgets.ImageWidget(ui, properties=properties)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "image", finishes)
+        connect_event(widget, widget, d, handler, "on_clicked", [])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_text_label(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    properties = construct_sizing_properties(d)
+    widget = ui.create_label_widget(None, properties)
+    if handler:
+        connect_string_value(widget, d, handler, "text", finishes)
+        connect_name(widget, d, handler)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_widget: UserInterface.BoxWidget, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]] = None) -> UserInterface.BoxWidget:
+    spacing: typing.Optional[int] = d.get("spacing")
+    margin: typing.Optional[int] = d.get("margin")
+    items = d.get("items")
+    item_component_id = d.get("item_component_id")
+    children = d.get("children", list())
+    assert not items or not children
+    first = True
+    for child in children:
+        if not first and spacing is not None:
+            box_widget.add_spacing(spacing)
+        if child.get("type") == "spacing":
+            box_widget.add_spacing(child.get("size", 0))
+        elif child.get("type") == "stretch":
+            box_widget.add_stretch()
+        else:
+            box_widget.add(construct(ui, window, child, handler, finishes))
+        first = False
+    if items and item_component_id:
+        connect_items(ui, window, box_widget, handler, items, item_component_id, finishes, spacing_v=spacing)
+    if handler:
+        connect_name(box_widget, d, handler)
+        connect_attributes(box_widget, d, handler, finishes)
+    return construct_margin(ui, box_widget, margin)
+
+
+def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler) -> Dialog.ActionDialog:
+    title = d.get("title", _("Untitled"))
+    margin = d.get("margin")
+    persistent_id = d.get("persistent_id")
+    content = typing.cast(UIDescription, d.get("content"))
+    resources = d.get("resources", dict())
+    for k, v in resources.items():
+        resources[k] = v
+    if not hasattr(handler, "resources"):
+        handler.resources = resources
+    else:
+        handler.resources.update(resources)
+    closer = Closer()
+    finishes: typing.List[typing.Callable[[], None]] = list()
+    dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
+    dialog.on_close = closer.close
+    dialog._create_menus()
+    # make and attach closer for the handler; put handler into container closer
+    handler._closer = Closer()
+    closer.push_closeable(handler)
+    outer_row = ui.create_row_widget()
+    outer_column = ui.create_column_widget()
+    inner_content = construct(ui, window, content, handler, finishes)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    outer_column.add(inner_content)
+    outer_row.add(outer_column)
+    if margin is not None:
+        outer_row.add_spacing(margin)
+        outer_column.add_spacing(margin)
+    dialog.content.add(outer_row)
+    for finish in finishes:
+        finish()
+    handler._event_loop = window.event_loop
+    if callable(getattr(handler, "init_handler", None)):
+        handler.init_handler()
+    return dialog
+
+
 class ComponentWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui: UserInterface.UserInterface, window, handler, d):
         super().__init__(ui.create_column_widget())
         self.ui = ui
         self.__window = window
         self.__handler = handler
-        self.__identifier = None
+        self.__identifier: typing.Optional[str] = None
         self.__identifier_binding = None
         self.__d = d
         self.__component_handler = None
@@ -1578,11 +1628,11 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         super().close()
 
     @property
-    def identifier(self) -> str:
+    def identifier(self) -> typing.Optional[str]:
         return self.__identifier
 
     @identifier.setter
-    def identifier(self, value: str) -> None:
+    def identifier(self, value: typing.Optional[str]) -> None:
         if self.__identifier != value:
             self.__identifier = value
             if self.__identifier_binding:
@@ -1601,7 +1651,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         d = self.__d
         ui = self.ui
         component = None
-        finishes = list()
+        finishes: typing.List[typing.Callable[[], None]] = list()
         if callable(getattr(handler, "get_resource", None)):
             component = handler.get_resource(identifier)
         component = component or handler.resources.get(identifier)

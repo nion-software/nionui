@@ -931,7 +931,7 @@ svg_color_map = {
 svg_color_reverse_map = {v: k for k, v in svg_color_map.items()}
 
 
-def color_without_alpha(color: str) -> typing.Optional[str]:
+def color_without_alpha(color: typing.Optional[str]) -> typing.Optional[str]:
     if not color:
         return None
     color = color.strip().replace(" ", "")

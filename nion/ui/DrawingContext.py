@@ -950,8 +950,8 @@ def color_without_alpha(color: str) -> typing.Optional[str]:
 
 
 def named_color_without_alpha(color: str) -> typing.Optional[str]:
-    color = color_without_alpha(color)
-    return svg_color_reverse_map.get(color, color)
+    color_with_alpha = color_without_alpha(color)
+    return svg_color_reverse_map.get(color_with_alpha, color_with_alpha) if color_with_alpha else None
 
 
 def hex_color(color: str) -> typing.Optional[str]:

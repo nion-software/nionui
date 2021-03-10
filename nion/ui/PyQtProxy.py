@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import copy
 import logging
@@ -20,8 +22,11 @@ else:
     from PySide2 import QtWidgets
     from PySide2.QtCore import Signal, Slot
 
+if typing.TYPE_CHECKING:
+    from nion.ui import QtUserInterface
 
-app = None
+
+app: PyApplication = typing.cast("PyApplication", None)
 
 lastVisitedDir = str()
 
@@ -237,7 +242,7 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
 
     def __init__(self, title: str, parent_window):
         super().__init__(parent_window)
-        self.object = None
+        self.object: PyDocumentWindow = typing.cast("PyDocumentWindow", None)
         self.__closed = False
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
         self.setDockOptions(QtWidgets.QMainWindow.AllowNestedDocks | QtWidgets.QMainWindow.AllowTabbedDocks)
@@ -910,7 +915,7 @@ class ItemModel(QtCore.QAbstractItemModel):
 
     def __init__(self, parent: QtCore.QObject):
         super().__init__(parent)
-        self.object = None
+        self.object: QtUserInterface.QtItemModelController = typing.cast("QtUserInterface.QtItemModelController", None)
         self.__last_drop_action = QtCore.Qt.IgnoreAction
 
     def supportedDropActions(self) -> QtCore.Qt.DropActions:
@@ -986,7 +991,7 @@ class ItemModel(QtCore.QAbstractItemModel):
         elif role == QtCore.Qt.EditRole:
             role_name = "edit"
         else:
-            role_name = None
+            role_name = str()
 
         if role_name in ["display", "edit"]:
             if index.column() == 0:
@@ -1199,10 +1204,10 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
 
     family_list = list()
     family_str = " ".join(family_parts)
-    quote = 0
+    quote = None
     family = str()
     for current in family_str:
-        if quote == 0:
+        if quote is None:
             if current == ',':
                 family_list.append(family.strip())
                 family = str()
@@ -1281,12 +1286,18 @@ def rescale(data: numpy.ndarray, rect, context_scaling) -> numpy.ndarray:
 
 
 CanvasDrawingCommand = collections.namedtuple("CanvasDrawingCommand", ["command", "args"])
-PaintImageCacheEntry = collections.namedtuple("PaintImageCacheEntry", ["image_id", "used", "image"])
+
+class PaintImageCacheEntry:
+    def __init__(self, image_id, used, image):
+        self.image_id = image_id
+        self.used = used
+        self.image = image
+
 LayerCacheEntry = collections.namedtuple("LayerCacheEntry", ["layer_seed", "layer_image", "layer_rect"])
 
-timer_map = dict()
-times_map = dict()
-count_map = dict()
+timer_map: typing.Dict[str, typing.Any] = dict()
+times_map: typing.Dict[str, typing.Any] = dict()
+count_map: typing.Dict[str, typing.Any] = dict()
 
 
 RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "timestamp", "section_id"])
@@ -1302,7 +1313,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     global g_timer
     global g_timer_offset_ns
 
-    rendered_timestamps = list()
+    rendered_timestamps: typing.List[RenderedTimestamp] = list()
 
     display_scaling = GetDisplayScaling()
 
@@ -1328,7 +1339,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
     context_scaling_x = 1.0
     context_scaling_y = 1.0
 
-    gradients = dict()
+    gradients: typing.Dict[int, QtGui.QLinearGradient] = dict()
 
     painter.fillRect(painter.viewport(), QtGui.QBrush(fill_color))
 
@@ -1340,9 +1351,9 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
     layer_skip = False
     layer_image = None
-    painter_stack = list()
-    layer_image_stack = list()
-    layer_skip_stack = list()
+    painter_stack: typing.List[QtGui.QPainter] = list()
+    layer_image_stack: typing.List[QtGui.QImage] = list()
+    layer_skip_stack: typing.List[bool] = list()
 
     for command in commands:
         args = command.args
@@ -1403,7 +1414,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             if (p1 == p0) or (p1 == p2) or (radius == 0.0) or (triangleArea(p0, p1, p2) == 0.0):
                 # just draw a line
                 path.lineTo(p1.x(), p1.y())
-                return
+                return rendered_timestamps
 
             p1p0 = QtCore.QPointF(p0.x() - p1.x(), p0.y() - p1.y())
             p1p2 = QtCore.QPointF(p2.x() - p1.x(), p2.y() - p1.y())
@@ -1414,14 +1425,14 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             # all points on a line logic
             if cos_phi == -1:
                 path.lineTo(p1.x(), p1.y())
-                return
+                return rendered_timestamps
             if cos_phi == 1:
                 # add infinite far away point
                 max_length = 65535
                 factor_max = max_length / p1p0_length
                 ep = QtCore.QPointF((p0.x() + factor_max * p1p0.x()), (p0.y() + factor_max * p1p0.y()))
                 path.lineTo(ep.x(), ep.y())
-                return
+                return rendered_timestamps
 
             tangent = radius / math.tan(math.acos(cos_phi) / 2)
             factor_p1p0 = tangent / p1p0_length
@@ -1703,7 +1714,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             layer_rect = QtCore.QRect(int(args[3] * display_scaling), int(args[2] * display_scaling), int(args[5] * display_scaling), int(args[4] * display_scaling))
             layer_skip_stack.append(layer_skip)
             if not layer_skip:
-                if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
+                if layer_cache and layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
                     layer_skip = True
                 else:
                     painter_stack.append(painter)
@@ -1720,6 +1731,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             layer_rect = QtCore.QRect(int(args[3] * display_scaling), int(args[2] * display_scaling), int(args[5] * display_scaling), int(args[4] * display_scaling))
             layer_skip = layer_skip_stack.pop()
             if not layer_skip:
+                assert layer_cache is not None
                 if layer_id in layer_cache and layer_seed == layer_cache[layer_id].layer_seed:
                     layer_image_to_draw = layer_cache[layer_id].layer_image
                     layer_rect = layer_cache[layer_id].layer_rect
@@ -2093,13 +2105,13 @@ class PyCanvas(QtWidgets.QWidget):
             self.rect = rect
             self.image_rect = None
             self.image = None
-            self.image_cache = dict()
-            self.layer_cache = dict()
-            self.rendered_timestamps = list()
+            self.image_cache: typing.Dict[int, PaintImageCacheEntry] = dict()
+            self.layer_cache: typing.Dict[int, LayerCacheEntry] = dict()
+            self.rendered_timestamps: typing.List[RenderedTimestamp] = list()
             self.rendering = False
             self.time = 0
             self.latencies_mutex = QtCore.QMutex()
-            self.latencies = list()
+            self.latencies: typing.List[int] = list()
 
     def setCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
         self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())
@@ -2210,7 +2222,7 @@ class PyDrawingContext(QtCore.QObject):
         super().__init__()
         self.object = None
         self.__painter = painter
-        self.__image_cache = dict()
+        self.__image_cache: typing.Dict[int, PaintImageCacheEntry] = dict()
 
     def paintCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
         PaintCommands(self.__painter, commands, self.__image_cache)
@@ -2678,8 +2690,8 @@ class PyQtProxy:
         return font_metrics.elidedText(text, mapping[mode], pixel_width)
 
     def Core_URLToPath(self, url: str) -> str:
-        url = QtCore.QUrl(url)
-        file_path = url.toLocalFile()
+        qurl = QtCore.QUrl(url)
+        file_path = qurl.toLocalFile()
         return file_path
 
     def Core_writeBinaryToImage(self, w: int, h: int, array: numpy.ndarray, filename: str, format: str) -> None:
@@ -2969,7 +2981,7 @@ class PyQtProxy:
     def DrawingContext_paintRGBA(self, commands: list, width: int, height: int) -> typing.Optional[numpy.ndarray]:
         image = QtGui.QImage(width, height, QtGui.QImage.Format_ARGB32)
         image.fill(QtGui.QColor(0,0,0,0))
-        image_cache = dict()
+        image_cache: typing.Dict[int, PaintImageCacheEntry] = dict()
         drawing_commands = list()
         for command in commands:
             drawing_commands.append(CanvasDrawingCommand(command[0], command[1:]))
@@ -3829,7 +3841,8 @@ class PyQtProxy:
         def apply_stylesheet(widget: QtWidgets.QWidget) -> None:
             global g_stylesheet
             if not g_stylesheet:
-                stylesheet = pkgutil.get_data(__name__, "resources/stylesheet.qss").decode('UTF-8', 'ignore')
+                stylesheet_bytes = pkgutil.get_data(__name__, "resources/stylesheet.qss")
+                stylesheet = stylesheet_bytes.decode('UTF-8', 'ignore') if stylesheet_bytes else str()
                 display_scaling = GetDisplayScaling()
                 while True:
                     re = QtCore.QRegularExpression("(\\d+)px")

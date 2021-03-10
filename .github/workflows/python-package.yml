@@ -41,11 +41,7 @@ jobs:
     - name: Test
       run: |
         python -m unittest discover -p '*_test.py'
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent \
-          nion/ui/CanvasItem.py \
-          nion/ui/DrawingContext.py \
-          nion/ui/PyQtProxy.py \
-          nion/ui/Window.py
+        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent nion/ui
         flake8 --max-line-length=160 nion/ui/Window.py
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2

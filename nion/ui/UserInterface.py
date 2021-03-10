@@ -584,12 +584,14 @@ class BoxWidget(Widget):
         assert child in self.children
         return self.children.index(child)
 
-    def insert(self, child, before: typing.Optional[typing.Union[Widget, int]], fill=False, alignment=None):
+    def insert(self, child: Widget, before: typing.Optional[typing.Union[Widget, int]], fill: bool = False, alignment: typing.Optional[str] = None) -> None:
         assert child
         if isinstance(before, numbers.Integral):
             index = before
+        elif isinstance(before, Widget):
+            index = self.index(before)
         else:
-            index = self.index(before) if before is not None else self.child_count
+            index = self.child_count
         if alignment is None:
             alignment = self.alignment
         self.children.insert(index, child)
@@ -600,12 +602,11 @@ class BoxWidget(Widget):
         self.insert(child, None, fill, alignment)
 
     def remove(self, child: typing.Union[Widget, int]) -> None:
-        if isinstance(child, numbers.Integral):
-            child = self.children[int(child)]
-        child._set_root_container(None)
-        self.children.remove(child)
+        child_widget = child if isinstance(child, Widget) else self.children[int(child)]
+        child_widget._set_root_container(None)
+        self.children.remove(child_widget)
         # closing the child should remove it from the layout
-        child.close()
+        child_widget.close()
 
     def remove_all(self) -> None:
         for child in reversed(copy.copy(self.children)):
@@ -787,8 +788,10 @@ class StackWidget(Widget):
     def insert(self, child: Widget, before: typing.Optional[typing.Union[Widget, int]]) -> None:
         if isinstance(before, numbers.Integral):
             index = before
+        elif isinstance(before, Widget):
+            index = self.index(before)
         else:
-            index = self.index(before) if before is not None else self.child_count
+            index = self.child_count
         self._behavior.insert(child, index)
         self.children.insert(index, child)
         child._set_root_container(self.root_container)
@@ -797,12 +800,11 @@ class StackWidget(Widget):
         self.insert(child, None)
 
     def remove(self, child: typing.Union[Widget, int]) -> None:
-        if isinstance(child, numbers.Integral):
-            child = self.children[int(child)]
-        self._behavior.remove(child)
-        child._set_root_container(None)
-        self.children.remove(child)
-        child.close()
+        child_widget = child if isinstance(child, Widget) else self.children[int(child)]
+        self._behavior.remove(child_widget)
+        child_widget._set_root_container(None)
+        self.children.remove(child_widget)
+        child_widget.close()
 
     def remove_all(self):
         while len(self.children) > 0:
@@ -967,11 +969,11 @@ class ComboBoxWidget(Widget):
 
     def __init__(self, widget_behavior, items, item_getter):
         super().__init__(widget_behavior)
-        self.__items : typing.Optional[typing.List] = None
+        self.__items : typing.List = list()
         self.on_items_changed : typing.Optional[typing.Callable[[typing.List], None]] = None
         self.on_current_text_changed : typing.Optional[typing.Callable[[str], None]]= None
         self.on_current_item_changed : typing.Optional[typing.Callable[[typing.Any], None]] = None
-        self.on_current_index_changed : typing.Optional[typing.Callable[[int], None]] = None
+        self.on_current_index_changed : typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.item_getter = item_getter
         self.items = items if items else list()
         self.__current_item_binding = None
@@ -997,7 +999,7 @@ class ComboBoxWidget(Widget):
         self.clear_task("update_items")
         self.clear_task("update_current_index")
         self.item_getter = None
-        self.__items = None
+        self.__items = typing.cast(typing.List, None)
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
@@ -1026,17 +1028,17 @@ class ComboBoxWidget(Widget):
         self.current_text = item_string
 
     @property
-    def current_index(self) -> int:
+    def current_index(self) -> typing.Optional[int]:
         current_item = self.current_item
         return self.items.index(current_item) if current_item in self.items else None
 
     @current_index.setter
-    def current_index(self, value: int) -> None:
+    def current_index(self, value: typing.Optional[int]) -> None:
         self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
 
     @property
     def items(self) -> typing.List:
-        return self.__items if self.__items is not None else list()
+        return self.__items
 
     @items.setter
     def items(self, items: typing.Sequence) -> None:
@@ -1131,11 +1133,11 @@ class PushButtonWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self._behavior.text = text
 
     @property
@@ -1325,11 +1327,11 @@ class CheckBoxWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self._behavior.text = text
 
     @property
@@ -1449,11 +1451,11 @@ class LabelWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self._behavior.text = text
 
     @property
@@ -1693,11 +1695,11 @@ class LineEditWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self.__last_text = notnone(text)
         self._behavior.text = text
 
@@ -2654,7 +2656,7 @@ class DockWidget:
         self.on_size_changed = None
         self.on_focus_changed = None
         self.on_ui_activity = None
-        self.size = None
+        self.size: typing.Optional[Geometry.IntSize] = None
 
     def close(self):
         self.widget.close()
@@ -2671,11 +2673,17 @@ class DockWidget:
 
     @property
     def width(self) -> int:
-        return self.size.width if self.size else 0
+        size = self.size
+        if size is not None:
+            return size.width
+        return 0
 
     @property
     def height(self) -> int:
-        return self.size.height if self.size else 0
+        size = self.size
+        if size is not None:
+            return size.height
+        return 0
 
     def refocus_widget(self, widget):
         self.document_window.refocus_widget(widget)
@@ -2862,7 +2870,7 @@ class Window:
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
         raise NotImplementedError()
 
-    def get_color_dialog(self, title: str, color: str, show_alpha: bool) -> str:
+    def get_color_dialog(self, title: str, color: str, show_alpha: bool) -> typing.Optional[str]:
         raise NotImplementedError()
 
     def get_save_file_path(self, title, directory, filter, selected_filter=None):
@@ -3051,6 +3059,10 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def close(self) -> None:
+        ...
+
+    @abc.abstractmethod
+    def request_quit(self) -> None:
         ...
 
     # data objects

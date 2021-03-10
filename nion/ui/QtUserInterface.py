@@ -636,7 +636,7 @@ class QtBoxWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy, widget_type, properties):
         super().__init__(proxy, widget_type, properties)
 
-    def insert(self, child, index, fill, alignment):
+    def insert(self, child: UserInterface.Widget, index: typing.Optional[typing.Union[UserInterface.Widget, int]], fill: bool = False, alignment: typing.Optional[str] = None) -> None:
         # behavior must handle index of None, meaning insert at end
         child_widget = extract_widget(child)
         assert self.widget is not None
@@ -1993,7 +1993,7 @@ class QtUserInterface(UserInterface.UserInterface):
         self.proxy.Application_close()
         self.proxy = None
 
-    def request_quit(self):
+    def request_quit(self) -> None:
         self.proxy.Application_close()
 
     def set_application_info(self, application_name: str, organization_name: str, organization_domain: str):
@@ -2155,7 +2155,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def clipboard_mime_data(self) -> QtMimeData:
         return QtMimeData(self.proxy, self.proxy.Clipboard_mimeData())
 
-    def clipboard_set_mime_data(self, mime_data: QtMimeData) -> None:
+    def clipboard_set_mime_data(self, mime_data: UserInterface.MimeData) -> None:
+        assert isinstance(mime_data, QtMimeData)
         self.proxy.Clipboard_setMimeData(mime_data.raw_mime_data)
 
     def clipboard_set_text(self, text):
@@ -2207,3 +2208,4 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_keyboard_modifiers(self, query: bool = False) -> UserInterface.KeyboardModifiers:
         if self.proxy.has_method("Application_getKeyboardModifiers"):
             return QtKeyboardModifiers(self.proxy.Application_getKeyboardModifiers(query))
+        return QtKeyboardModifiers(0)

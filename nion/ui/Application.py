@@ -19,6 +19,9 @@ from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Process
 
+if typing.TYPE_CHECKING:
+    from nion.utils import Event
+
 _ = gettext.gettext
 
 
@@ -77,8 +80,8 @@ class BaseApplication:
         logger.addFilter(ContextFilter())
 
         self.__windows : typing.List[Window.Window] = list()
-        self.__window_close_event_listeners = dict()
-        self.__event_loop = None
+        self.__window_close_event_listeners: typing.Dict[Window.Window, Event.EventListener] = dict()
+        self.__event_loop: asyncio.AbstractEventLoop = typing.cast(asyncio.AbstractEventLoop, None)
         self.__dialogs : typing.List[weakref.ReferenceType] = list()
 
     def initialize(self):
@@ -93,7 +96,7 @@ class BaseApplication:
     def deinitialize(self):
         self._close_dialogs()
         Process.close_event_loop(self.__event_loop)
-        self.__event_loop = None
+        self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')
         self.ui.close()
@@ -166,7 +169,7 @@ class BaseApplication:
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:
-            dialog = typing.cast("Window", weak_dialog())
+            dialog = typing.cast(Window.Window, weak_dialog())
             if dialog:
                 try:
                     dialog.request_close()
@@ -180,7 +183,7 @@ class BaseApplication:
                 return True
         return False
 
-    def register_dialog(self, dialog: "Window") -> None:
+    def register_dialog(self, dialog: Window.Window) -> None:
         def close_dialog():
             self.__dialogs.remove(weakref.ref(dialog))
         dialog.on_close = close_dialog

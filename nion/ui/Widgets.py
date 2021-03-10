@@ -22,6 +22,7 @@ from nion.utils import Geometry
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
+    import numpy
     from nion.utils import Binding
 
 
@@ -227,10 +228,11 @@ class ListWidget(CompositeWidgetBase):
         super().__init__(ui.create_column_widget())
         self.property_changed_event = Event.Event()
         items = items or list()
-        self.__items = list()
+        self.__items: typing.List = list()
         self.on_selection_changed = None
         self.on_item_selected = None
         self.on_cancel = None
+        self.on_item_handle_context_menu = None  # used for declarative
         self.__items_binding = None
         self.__current_index_binding = None
         self.__on_current_index_changed = None
@@ -298,7 +300,7 @@ class ListWidget(CompositeWidgetBase):
             self.__current_index_binding = None
         self.__on_current_index_changed = None
         self.clear_task("update_current_index")
-        self.__items = None
+        self.__items = typing.cast(typing.List, None)
         super().close()
 
     @property
@@ -574,7 +576,7 @@ class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
         super().__init__()
         self.cell = TextButtonCell(text)
         self.wants_mouse_events = True
-        self.on_button_clicked = None
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self):
         self.on_button_clicked = None
@@ -602,7 +604,7 @@ class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
 class TextPushButtonWidget(CompositeWidgetBase):
     def __init__(self, ui, text: str):
         super().__init__(ui.create_column_widget())
-        self.on_button_clicked = None
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
         text_button_canvas_item = TextButtonCanvasItem(text)
@@ -623,18 +625,18 @@ class TextPushButtonWidget(CompositeWidgetBase):
 
 
 class ImageWidget(CompositeWidgetBase):
-    def __init__(self, ui, rgba_bitmap_data: typing.Optional = None, properties = None):
+    def __init__(self, ui, rgba_bitmap_data: typing.Optional[numpy.ndarray] = None, properties = None):
         super().__init__(ui.create_column_widget(properties=properties))
         self.ui = ui
         self.on_clicked = None
         self.image = rgba_bitmap_data
 
     @property
-    def image(self) -> typing.Optional:
+    def image(self) -> typing.Optional[numpy.ndarray]:
         return self.__rgba_bitmap_data
 
     @image.setter
-    def image(self, rgba_bitmap_data: typing.Optional) -> None:
+    def image(self, rgba_bitmap_data: typing.Optional[numpy.ndarray]) -> None:
         self.content_widget.remove_all()
 
         if rgba_bitmap_data is not None:
@@ -716,7 +718,7 @@ class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):
         super().__init__()
         self.cell = ColorButtonCell(color)
         self.wants_mouse_events = True
-        self.on_button_clicked = None
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_button_clicked = None
@@ -769,7 +771,7 @@ class ColorPushButtonWidget(CompositeWidgetBase):
 
         self.content_widget.add(color_button_canvas_widget)
 
-        self.__color_binding = None
+        self.__color_binding: typing.Optional[Binding.Binding] = None
 
     def close(self):
         if self.__color_binding:

@@ -105,7 +105,8 @@ class ActionDialog(Window.Window):
             window_style = "tool"
         super().__init__(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
 
-        self.title = title
+        if title is not None:
+            self.title = title
 
         self.content = self.ui.create_column_widget()
 
@@ -170,6 +171,7 @@ class NotificationDialog(Window.Window):
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
         if size is None and position is None:
             parent_window = self.parent_window
+            assert parent_window
             position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - NotificationDialog.width // 2)
         super().show(position=position)
 
@@ -195,7 +197,7 @@ class PopupWindow(Window.Window):
             ui_handler._closer = Declarative.Closer()
             self.__closer.push_closeable(ui_handler)
 
-        finishes = list()
+        finishes: typing.List[typing.Callable[[], None]] = list()
 
         self.widget = Declarative.construct(parent_window.ui, self, ui_widget, ui_handler, finishes)
 
@@ -215,6 +217,7 @@ class PopupWindow(Window.Window):
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:
         if size is None and position is None:
             parent_window = self.parent_window
+            assert parent_window
             position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - 300 // 2,
                                                                                   h=parent_window._document_window.size.height // 2 - 300 // 2)
         super().show(size=size, position=position)
@@ -227,9 +230,8 @@ class PopupWindow(Window.Window):
         super().close()
 
 
-def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Optional[typing.Callable[[typing.Any], None]],
-                            *, window: Window.Window = None,
-                            current_item: int = 0,
+def pose_select_item_pop_up(items: typing.Sequence, completion_fn: typing.Callable[[typing.Any], None],
+                            *, window: Window.Window, current_item: int = 0,
                             item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None,
                             title: str = None) -> None:
 

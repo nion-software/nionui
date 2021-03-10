@@ -131,7 +131,7 @@ class BoxWidgetBehavior(WidgetBehavior):
         else:
             self.canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
 
-    def insert(self, child, index, fill, alignment):
+    def insert(self, child: UserInterface.Widget, index: typing.Optional[typing.Union[UserInterface.Widget, int]], fill: bool = False, alignment: typing.Optional[str] = None) -> None:
         # behavior must handle index of None, meaning insert at end
         child_canvas_item = extract_canvas_item(child)
         assert child_canvas_item is not None
@@ -489,6 +489,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
         self.__document_windows = list()
 
     def close(self):
+        self.__done = True
+
+    def request_quit(self) -> None:
         self.__done = True
 
     def run(self, event_queue):

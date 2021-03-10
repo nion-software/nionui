@@ -42,6 +42,7 @@ jobs:
       run: |
         python -m unittest discover -p '*_test.py'
         mypy --namespace-packages --ignore-missing-imports --follow-imports=silent \
+          nion/ui/CanvasItem.py \
           nion/ui/DrawingContext.py \
           nion/ui/PyQtProxy.py \
           nion/ui/Window.py

@@ -1794,7 +1794,7 @@ class QtWindow(UserInterface.Window):
             return None
         return match_native_widget(self.root_widget)
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
         selected_filter = selected_filter if selected_filter else str()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory
@@ -2090,7 +2090,7 @@ class QtUserInterface(UserInterface.UserInterface):
         existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", notnone(title), notnone(directory), str(), str())
         return existing_directory, directory
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> (typing.List[str], str, str):
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
         selected_filter = selected_filter if selected_filter else str()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory

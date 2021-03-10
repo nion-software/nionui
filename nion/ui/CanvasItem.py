@@ -298,7 +298,7 @@ class Sizing:
     def _preferred_width(self, value: typing.Optional[int]) -> None:
         self.__preferred_width = value
 
-    def with_preferred_width(self, width: typing.Optional[int]) -> "Sizing":
+    def with_preferred_width(self, width: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._preferred_width = width
         return sizing
@@ -311,7 +311,7 @@ class Sizing:
     def _preferred_height(self, value: typing.Optional[int]) -> None:
         self.__preferred_height = value
 
-    def with_preferred_height(self, height: typing.Optional[int]) -> "Sizing":
+    def with_preferred_height(self, height: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._preferred_height = height
         return sizing
@@ -324,7 +324,7 @@ class Sizing:
     def _preferred_aspect_ratio(self, value: typing.Optional[float]) -> None:
         self.__preferred_aspect_ratio = value
 
-    def with_preferred_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+    def with_preferred_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._preferred_aspect_ratio = aspect_ratio
         return sizing
@@ -337,7 +337,7 @@ class Sizing:
     def _minimum_width(self, value: typing.Optional[int]) -> None:
         self.__minimum_width = value
 
-    def with_minimum_width(self, width: typing.Optional[int]) -> "Sizing":
+    def with_minimum_width(self, width: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._minimum_width = width
         return sizing
@@ -350,7 +350,7 @@ class Sizing:
     def _minimum_height(self, value: typing.Optional[int]) -> None:
         self.__minimum_height = value
 
-    def with_minimum_height(self, height: typing.Optional[int]) -> "Sizing":
+    def with_minimum_height(self, height: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._minimum_height = height
         return sizing
@@ -363,7 +363,7 @@ class Sizing:
     def _minimum_aspect_ratio(self, value: typing.Optional[float]) -> None:
         self.__minimum_aspect_ratio = value
 
-    def with_minimum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+    def with_minimum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._minimum_aspect_ratio = aspect_ratio
         return sizing
@@ -376,7 +376,7 @@ class Sizing:
     def _maximum_width(self, value: typing.Optional[int]) -> None:
         self.__maximum_width = value
 
-    def with_maximum_width(self, width: typing.Optional[int]) -> "Sizing":
+    def with_maximum_width(self, width: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._maximum_width = width
         return sizing
@@ -389,7 +389,7 @@ class Sizing:
     def _maximum_height(self, value: typing.Optional[int]) -> None:
         self.__maximum_height = value
 
-    def with_maximum_height(self, height: typing.Optional[int]) -> "Sizing":
+    def with_maximum_height(self, height: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._maximum_height = height
         return sizing
@@ -402,7 +402,7 @@ class Sizing:
     def _maximum_aspect_ratio(self, value: typing.Optional[float]) -> None:
         self.__maximum_aspect_ratio = value
 
-    def with_maximum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> "Sizing":
+    def with_maximum_aspect_ratio(self, aspect_ratio: typing.Optional[float]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._maximum_aspect_ratio = aspect_ratio
         return sizing
@@ -412,15 +412,15 @@ class Sizing:
         return self.__collapsible
 
     @_collapsible.setter
-    def _collapsible(self, value: typing.Optional[int]) -> None:
+    def _collapsible(self, value: bool) -> None:
         self.__collapsible = value
 
-    def with_collapsible(self, collapsible: bool) -> "Sizing":
+    def with_collapsible(self, collapsible: bool) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._collapsible = collapsible
         return sizing
 
-    def _copy_from(self, other: "Sizing") -> None:
+    def _copy_from(self, other: Sizing) -> None:
         self.__preferred_width = other.preferred_width
         self.__preferred_height = other.preferred_height
         self.__preferred_aspect_ratio = other.preferred_aspect_ratio
@@ -437,7 +437,7 @@ class Sizing:
         self.__minimum_height = None
         self.__maximum_height = None
 
-    def with_unconstrained_height(self) -> "Sizing":
+    def with_unconstrained_height(self) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._clear_height_constraint()
         return sizing
@@ -447,7 +447,7 @@ class Sizing:
         self.__minimum_width = None
         self.__maximum_width = None
 
-    def with_unconstrained_width(self) -> "Sizing":
+    def with_unconstrained_width(self) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._clear_width_constraint()
         return sizing
@@ -457,7 +457,7 @@ class Sizing:
         self.__minimum_height = height
         self.__maximum_height = height
 
-    def with_fixed_height(self, height: typing.Optional[int]) -> "Sizing":
+    def with_fixed_height(self, height: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._set_fixed_height(height)
         return sizing
@@ -467,22 +467,22 @@ class Sizing:
         self.__minimum_width = width
         self.__maximum_width = width
 
-    def with_fixed_width(self, width: typing.Optional[int]) -> "Sizing":
+    def with_fixed_width(self, width: typing.Optional[int]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._set_fixed_width(width)
         return sizing
 
     def _set_fixed_size(self, size: typing.Union[Geometry.IntSize, typing.Tuple[int, int]]) -> None:
-        size = Geometry.IntSize.make(size)
-        self._set_fixed_height(size.height)
-        self._set_fixed_width(size.width)
+        size_ = Geometry.IntSize.make(size)
+        self._set_fixed_height(size_.height)
+        self._set_fixed_width(size_.width)
 
-    def with_fixed_size(self, size: typing.Union[Geometry.IntSize, typing.Tuple[int, int]]) -> "Sizing":
+    def with_fixed_size(self, size: typing.Union[Geometry.IntSize, typing.Tuple[int, int]]) -> Sizing:
         sizing = copy.deepcopy(self)
         sizing._set_fixed_size(size)
         return sizing
 
-    def get_width_constraint(self, width: typing.Optional[int]) -> Constraint:
+    def get_width_constraint(self, width: int) -> Constraint:
         """ Create and return a new width Constraint object made from this sizing object. """
         constraint = Constraint()
         if self.minimum_width is not None:
@@ -508,7 +508,7 @@ class Sizing:
             constraint.preferred = None
         return constraint
 
-    def get_height_constraint(self, height: typing.Optional[int]) -> Constraint:
+    def get_height_constraint(self, height: int) -> Constraint:
         """ Create and return a new height Constraint object made from this sizing object. """
         constraint = Constraint()
         if self.minimum_height is not None:
@@ -534,14 +534,14 @@ class Sizing:
             constraint.preferred = None
         return constraint
 
-    def get_unrestrained_width(self, maximum_width: typing.Optional[int]) -> typing.Optional[int]:
+    def get_unrestrained_width(self, maximum_width: int) -> int:
         if self.maximum_width is not None:
             if isinstance(self.maximum_width, float) and self.maximum_width < 1.0:
                 return self.maximum_width * maximum_width
             return min(self.maximum_width, maximum_width)
         return maximum_width
 
-    def get_unrestrained_height(self, maximum_height: typing.Optional[int]) -> typing.Optional[int]:
+    def get_unrestrained_height(self, maximum_height: int) -> int:
         if self.maximum_height is not None:
             if isinstance(self.maximum_height, float) and self.maximum_height < 1.0:
                 return self.maximum_height * maximum_height
@@ -616,7 +616,7 @@ class KeyboardModifiers:
         return self.__keypad
 
 
-def visible_canvas_item(canvas_item: "AbstractCanvasItem") -> "AbstractCanvasItem":
+def visible_canvas_item(canvas_item: AbstractCanvasItem) -> typing.Optional[AbstractCanvasItem]:
     return canvas_item if canvas_item and canvas_item.visible else None
 
 
@@ -764,7 +764,7 @@ class AbstractCanvasItem:
         self.__container = container
 
     @property
-    def layer_container(self) -> "LayerCanvasItem":
+    def layer_container(self) -> CanvasItemComposition:
         """ Return the root container, if any. """
         return self.__container.layer_container if self.__container else None
 
@@ -844,7 +844,7 @@ class AbstractCanvasItem:
             if root_container:
                 root_container._set_focused_item(None)
 
-    def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         root_container = self.root_container
         if root_container:
             self.root_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
@@ -1008,21 +1008,21 @@ class AbstractCanvasItem:
         """
         self._update_with_items()
 
-    def _update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+    def _update_with_items(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> None:
         self._update_count += 1
         self._updated(canvas_items)
 
-    def _updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+    def _updated(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         self.__pending_update = True
         self._update_container(canvas_items)
 
-    def _update_container(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+    def _update_container(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> None:
         # if not in the middle of a nested update, and if this canvas item has
         # a layout, update the container.
         container = self.__container
         if container and self._has_layout:
-            canvas_items = canvas_items or list()
+            canvas_items = list(canvas_items) if canvas_items else list()
             canvas_items.append(self)
             container._update_with_items(canvas_items)
 
@@ -1122,7 +1122,7 @@ class AbstractCanvasItem:
             return [self]
         return []
 
-    def get_root_opaque_canvas_items(self) -> typing.List["AbstractCanvasItem"]:
+    def get_root_opaque_canvas_items(self) -> typing.List[AbstractCanvasItem]:
         return [self] if self.is_root_opaque else list()
 
     def mouse_clicked(self, x, y, modifiers):
@@ -1169,11 +1169,11 @@ class AbstractCanvasItem:
         """ Handle a key released while this canvas item has focus. Return True if handled. """
         return False
 
-    def wants_drag_event(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> bool:
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
         """ Determines if the item should handle certain mime_data at a certain point. Return True if handled."""
         return self.wants_drag_events
 
-    def drag_enter(self, mime_data: "UserInterface.MimeData") -> str:
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         """ Handle a drag event entering this canvas item. Return action if handled. """
         return "ignore"
 
@@ -1181,11 +1181,11 @@ class AbstractCanvasItem:
         """ Handle a drag event leaving this canvas item. Return action if handled. """
         return "ignore"
 
-    def drag_move(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         """ Handle a drag event moving within this canvas item. Return action if handled. """
         return "ignore"
 
-    def drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         """ Handle a drop event in this canvas item. Return action if handled. """
         return "ignore"
 
@@ -1676,12 +1676,12 @@ class CompositionLayoutRenderTrait:
     CanvasItemComposition class directly invoke the methods of this or a subclass of this object.
     """
 
-    def __init__(self, canvas_item_composition: "CanvasItemComposition"):
+    def __init__(self, canvas_item_composition: CanvasItemComposition):
         self._canvas_item_composition = canvas_item_composition
 
     def close(self) -> None:
         self._stop_render_behavior()
-        self._canvas_item_composition = None
+        self._canvas_item_composition = None  # type: ignore
 
     def _stop_render_behavior(self) -> None:
         pass
@@ -1709,10 +1709,10 @@ class CompositionLayoutRenderTrait:
     def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
         return False
 
-    def _try_update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> bool:
+    def _try_update_with_items(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> bool:
         return False
 
-    def _try_updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"]) -> bool:
+    def _try_updated(self) -> bool:
         return False
 
     def _try_repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> bool:
@@ -1742,7 +1742,7 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def __init__(self, layout_render_trait: CompositionLayoutRenderTrait = None):
         super().__init__()
-        self.__canvas_items = []
+        self.__canvas_items: typing.List[AbstractCanvasItem] = list()
         self.layout = CanvasItemLayout()
         self.__layout_lock = threading.RLock()
         self.__layout_render_trait = layout_render_trait or CompositionLayoutRenderTrait(self)
@@ -1770,7 +1770,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self.__layout_render_trait._needs_layout_for_testing
 
     @property
-    def layer_container(self) -> "LayerCanvasItem":
+    def layer_container(self) -> CanvasItemComposition:
         return self if self.__layout_render_trait.is_layer_container else super().layer_container
 
     def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
@@ -1832,14 +1832,14 @@ class CanvasItemComposition(AbstractCanvasItem):
         # useful for tests
         self.__layout_render_trait.layout_immediate(canvas_size, force)
 
-    def _update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+    def _update_with_items(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> None:
         # extra check for behavior during closing
         if self.__layout_render_trait and not self.__layout_render_trait._try_update_with_items(canvas_items):
             super()._update_with_items(canvas_items)
 
-    def _updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> None:
+    def _updated(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> None:
         # extra check for behavior during closing
-        if self.__layout_render_trait and not self.__layout_render_trait._try_updated(canvas_items):
+        if self.__layout_render_trait and not self.__layout_render_trait._try_updated():
             super()._updated(canvas_items)
 
     def _update_layout(self, canvas_origin, canvas_size, *, immediate=False):
@@ -2041,7 +2041,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         """Returns list of canvas items under x, y, ordered from back to front."""
         return self._canvas_items_at_point(self.visible_canvas_items, x, y)
 
-    def get_root_opaque_canvas_items(self) -> typing.List["AbstractCanvasItem"]:
+    def get_root_opaque_canvas_items(self) -> typing.List[AbstractCanvasItem]:
         if self.is_root_opaque:
             return [self]
         canvas_items = list()
@@ -2076,7 +2076,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__cancel = False
         self.__needs_layout = False
         self.__needs_repaint = False
-        self.__prepare_canvas_items = list()
+        self.__prepare_canvas_items: typing.List[AbstractCanvasItem] = list()
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_condition = threading.Condition()
         self.__repaint_one_future: typing.Optional[concurrent.futures.Future] = None
@@ -2149,7 +2149,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
                 self.__repaint_one_future = LayerLayoutRenderTrait._executor.submit(self.__repaint_layer)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)
 
-    def _try_updated(self, canvas_items: typing.Sequence["AbstractCanvasItem"]) -> bool:
+    def _try_updated(self) -> bool:
         with self.__layer_thread_condition:
             self.__needs_repaint = True
             if not self._layer_thread_suppress:
@@ -2427,7 +2427,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         return constraint_solve(content_origin, content_size, constraints)
 
     @property
-    def splits(self) -> typing.Optional[typing.List[int]]:
+    def splits(self) -> typing.List[int]:
         """ Return the canvas item splits, which represent the relative size of each child. """
         if self.canvas_origin is not None:
             canvas_size = self.canvas_size
@@ -2447,7 +2447,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         return [float(size) / content_size for size in sizes]
 
     @splits.setter
-    def splits(self, splits: typing.Optional[typing.List[int]]) -> None:
+    def splits(self, splits: typing.List[int]) -> None:
         with self.__lock:
             sizings = copy.deepcopy(self.__sizings)
         assert len(splits) == len(sizings)
@@ -2906,7 +2906,7 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
         super().__init__(canvas_item_composition)
         self.__needs_repaint = False
         self.__section_ids_lock = threading.RLock()
-        self.__section_map = dict()
+        self.__section_map: typing.Dict[AbstractCanvasItem, int] = dict()
 
     def close(self) -> None:
         with self.__section_ids_lock:
@@ -2934,7 +2934,7 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
                     canvas_item.update()
         return True
 
-    def _try_update_with_items(self, canvas_items: typing.Sequence["AbstractCanvasItem"] = None) -> bool:
+    def _try_update_with_items(self, canvas_items: typing.Sequence[AbstractCanvasItem] = None) -> bool:
         drawing_context = DrawingContext.DrawingContext()
         if self._canvas_item_composition._has_layout and self._canvas_item_composition.canvas_widget and canvas_items:
             for canvas_item in canvas_items:
@@ -2985,7 +2985,7 @@ class RootCanvasItem(CanvasItemComposition):
     root canvas item's hierarchy.
     """
 
-    def __init__(self, canvas_widget, *, layout_render: str = DefaultLayoutRender):
+    def __init__(self, canvas_widget, *, layout_render: typing.Optional[str] = DefaultLayoutRender):
         super().__init__(RootLayoutRenderTrait(self) if layout_render == RootLayoutRender and _threaded_rendering_enabled else LayerLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
@@ -3014,14 +3014,14 @@ class RootCanvasItem(CanvasItemComposition):
         self.__canvas_widget._root_canvas_item = weakref.ref(self)  # for debugging
         self.__drawing_context_updated = False
         self.__interaction_count = 0
-        self.__focused_item = None
-        self.__last_focused_item = None
-        self.__mouse_canvas_item = None  # not None when the mouse is pressed
+        self.__focused_item: typing.Optional[AbstractCanvasItem] = None
+        self.__last_focused_item: typing.Optional[AbstractCanvasItem] = None
+        self.__mouse_canvas_item: typing.Optional[AbstractCanvasItem] = None  # not None when the mouse is pressed
         self.__mouse_tracking = False
-        self.__mouse_tracking_canvas_item = None
+        self.__mouse_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
         self.__drag_tracking = False
-        self.__drag_tracking_canvas_item = None
-        self.__grab_canvas_item = None
+        self.__drag_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
+        self.__grab_canvas_item: typing.Optional[AbstractCanvasItem] = None
         self._set_canvas_origin(Geometry.IntPoint())
 
     def close(self):
@@ -3117,7 +3117,7 @@ class RootCanvasItem(CanvasItemComposition):
             self.refresh_layout()
 
     @property
-    def focused_item(self):
+    def focused_item(self) -> typing.Optional[AbstractCanvasItem]:
         """
             Return the canvas focused item. May return None.
 
@@ -3137,10 +3137,10 @@ class RootCanvasItem(CanvasItemComposition):
                     self.__focused_item._set_focused(True)
             if self.__focused_item:
                 self.__last_focused_item = self.__focused_item
-        else:
-            focused_item.adjust_secondary_focus(p, modifiers)
+        elif focused_item:
+            focused_item.adjust_secondary_focus(p or Geometry.IntPoint(), modifiers)
 
-    def __focus_changed(self, focused):
+    def __focus_changed(self, focused: bool) -> None:
         """ Called when widget focus changes. """
         if focused and not self.focused_item:
             self._set_focused_item(self.__last_focused_item)
@@ -3350,7 +3350,7 @@ class RootCanvasItem(CanvasItemComposition):
         self._adjust_ui_interaction(-1)
         return result
 
-    def __drag_enter(self, mime_data: "UserInterface.MimeData") -> str:
+    def __drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__drag_tracking = True
         return "accept"
 
@@ -3361,14 +3361,14 @@ class RootCanvasItem(CanvasItemComposition):
         self.__drag_tracking_canvas_item = None
         return "accept"
 
-    def __drag_canvas_item_at_point(self, x: int, y: int, mime_data: "UserInterface.MimeData") -> typing.Optional["CanvasItem"]:
+    def __drag_canvas_item_at_point(self, x: int, y: int, mime_data: UserInterface.MimeData) -> typing.Optional[AbstractCanvasItem]:
         canvas_items = self.canvas_items_at_point(x, y)
         for canvas_item in canvas_items:
             if canvas_item.wants_drag_event(mime_data, x, y):
                 return canvas_item
         return None
 
-    def __drag_move(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
+    def __drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         response = "ignore"
         if self.__drag_tracking and not self.__drag_tracking_canvas_item:
             self.__drag_tracking_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
@@ -3386,7 +3386,7 @@ class RootCanvasItem(CanvasItemComposition):
             response = self.__drag_tracking_canvas_item.drag_move(mime_data, canvas_item_point.x, canvas_item_point.y)
         return response
 
-    def __drop(self, mime_data: "UserInterface.MimeData", x: int, y: int) -> str:
+    def __drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         with self._ui_interaction():
             response = "ignore"
             if self.__drag_tracking_canvas_item:
@@ -3395,7 +3395,7 @@ class RootCanvasItem(CanvasItemComposition):
             self.__drag_leave()
             return response
 
-    def drag(self, mime_data: "UserInterface.MimeData", thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail=None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
         self.__canvas_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def grab_gesture(self, gesture_type):
@@ -4306,8 +4306,7 @@ class TimestampCanvasItem(AbstractCanvasItem):
         super()._repaint(drawing_context)
 
 
-def load_rgba_data_from_bytes(b: typing.ByteString, format: str = None) -> numpy.ndarray:
-    old_level = logging.getLogger().level
+def load_rgba_data_from_bytes(b: typing.ByteString, format: str = None) -> typing.Optional[numpy.ndarray]:
     image_rgba = None
     image_argb = imageio.imread(b, format)
     if image_argb is not None:

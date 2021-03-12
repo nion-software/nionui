@@ -317,71 +317,23 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                     self.__delegate.on_delete_pressed()
                 return True
             if key.is_up_arrow:
-                new_index = None
-                indexes = self.__selection.indexes
-                if len(indexes) > 0:
-                    if self.direction == Direction.Row:
-                        new_index = max(min(indexes) - items_per_row, 0)
-                    else:
-                        new_index = max(min(indexes) - 1, 0)
-                elif self.__delegate.item_count > 0:
-                    new_index = self.__delegate.item_count - 1
-                if new_index is not None:
-                    if key.modifiers.shift:
-                        self.__selection.extend(new_index)
-                    else:
-                        self.__selection.set(new_index)
+                amount = items_per_row if self.direction == Direction.Row else 1
+                self.__selection.select_backward(self.__delegate.item_count, False, amount)
                 self.__make_selection_visible(top=True)
                 return True
             if key.is_down_arrow:
-                new_index = None
-                indexes = self.__selection.indexes
-                if len(indexes) > 0:
-                    if self.direction == Direction.Row:
-                        new_index = min(max(indexes) + items_per_row, self.__delegate.item_count - 1)
-                    else:
-                        new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
-                elif self.__delegate.item_count > 0:
-                    new_index = 0
-                if new_index is not None:
-                    if key.modifiers.shift:
-                        self.__selection.extend(new_index)
-                    else:
-                        self.__selection.set(new_index)
+                amount = items_per_row if self.direction == Direction.Row else 1
+                self.__selection.select_forward(self.__delegate.item_count, False, amount)
                 self.__make_selection_visible(top=False)
                 return True
             if key.is_left_arrow:
-                new_index = None
-                indexes = self.__selection.indexes
-                if len(indexes) > 0:
-                    if self.direction == Direction.Row:
-                        new_index = max(min(indexes) - 1, 0)
-                    else:
-                        new_index = max(min(indexes) - items_per_column, 0)
-                elif self.__delegate.item_count > 0:
-                    new_index = self.__delegate.item_count - 1
-                if new_index is not None:
-                    if key.modifiers.shift:
-                        self.__selection.extend(new_index)
-                    else:
-                        self.__selection.set(new_index)
+                amount = 1 if self.direction == Direction.Row else items_per_column
+                self.__selection.select_backward(self.__delegate.item_count, False, amount)
                 self.__make_selection_visible(top=True)
                 return True
             if key.is_right_arrow:
-                new_index = None
-                indexes = self.__selection.indexes
-                if len(indexes) > 0:
-                    if self.direction == Direction.Row:
-                        new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
-                    else:
-                        new_index = min(max(indexes) + items_per_column, self.__delegate.item_count - 1)
-                elif self.__delegate.item_count > 0:
-                    new_index = 0
-                if new_index is not None:
-                    if key.modifiers.shift:
-                        self.__selection.extend(new_index)
-                    else:
-                        self.__selection.set(new_index)
+                amount = 1 if self.direction == Direction.Row else items_per_column
+                self.__selection.select_forward(self.__delegate.item_count, False, amount)
                 self.__make_selection_visible(top=False)
                 return True
         return super().key_pressed(key)

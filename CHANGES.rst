@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.4.6 (UNRELEASED)
+0.5.0 (2021-03-12)
 ------------------
 - Fix some drawing inconsistencies during splitter dragging.
 - Minor improvements to drawing performance.
@@ -11,6 +11,7 @@ Changelog (nionui)
 - Only change canvas item focus when no key modifiers are enabled.
 - Add menu methods for adding only if enabled and checking if enabled.
 - Expand action architecture to support parameters and results.
+- Require sizing to be set by the canvas item (backwards incompatible).
 
 0.4.5 (2021-02-02)
 ------------------

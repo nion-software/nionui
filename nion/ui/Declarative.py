@@ -812,7 +812,7 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
+    def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None, include_menus: bool=True) -> UIDescription:
         """Create a modeless dialog UI description with content, title, resources, and margin.
 
         Args:
@@ -833,6 +833,7 @@ class DeclarativeUI:
             d["margin"] = margin
         if resources is not None:
             d["resources"] = resources
+        d["include_menus"] = include_menus
         return d
 
     def create_window(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None, window_style: str=None) -> UIDescription:
@@ -1585,7 +1586,8 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     finishes: typing.List[typing.Callable[[], None]] = list()
     dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
     dialog.on_close = closer.close
-    dialog._create_menus()
+    if d.get("include_menus", True):
+        dialog._create_menus()
     # make and attach closer for the handler; put handler into container closer
     handler._closer = Closer()
     closer.push_closeable(handler)

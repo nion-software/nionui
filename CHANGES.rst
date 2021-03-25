@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.5.1 (UNRELEASED)
+------------------
+- Default SVG now uses fastest compression rather than best (see nionswift-642).
+
 0.5.0 (2021-03-12)
 ------------------
 - Fix some drawing inconsistencies during splitter dragging.

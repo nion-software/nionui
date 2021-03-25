@@ -335,7 +335,9 @@ class DrawingContext:
                 w, h, image, image_id, a, b, c, d = command_args
                 png_file = io.BytesIO()
                 rgba_data = get_rgba_view_from_rgba_data(image)
-                imageio.imwrite(png_file, rgba_data[..., (2,1,0,3)], "png")
+                # image compression is time consuming. pass parameters to make this step as fast as possible.
+                # see nionswift-642.
+                imageio.imwrite(png_file, rgba_data[..., (2,1,0,3)], "png", optimize=False, compress_level=1)
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
@@ -363,7 +365,9 @@ class DrawingContext:
                     get_blue_view(image)[:] = clipped_array
                     get_alpha_view(image)[:] = 255
                 png_file = io.BytesIO()
-                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), "png")
+                # image compression is time consuming. pass parameters to make this step as fast as possible.
+                # see nionswift-642.
+                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), "png", optimize=False, compress_level=1)
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"

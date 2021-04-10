@@ -1027,7 +1027,7 @@ class WindowHandler(Observable.Observable):
 
     def __init__(self, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None):
         super().__init__()
-        self.window: typing.Optional[Window.Window] = None
+        self.window = typing.cast(Window.Window, None)
         self.__completion_fn = completion_fn
         self.__on_close: typing.Optional[typing.Callable[[], None]] = None
 

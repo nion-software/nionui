@@ -899,7 +899,7 @@ class ScrollAreaWidget(Widget):
     def __init__(self, widget_behavior):
         super().__init__(widget_behavior)
         self.__content = None
-        self.on_size_changed = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_viewport_changed = None
         self.viewport = ((0, 0), (0, 0))
         self.width = 0
@@ -2039,7 +2039,7 @@ class CanvasWidget(Widget):
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_key_released = None
-        self.on_size_changed = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_drag_enter = None
         self.on_drag_leave = None
         self.on_drag_move = None
@@ -2653,7 +2653,7 @@ class DockWidget:
         self.title = title
         self.positions = positions
         self.position = position
-        self.on_size_changed = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_focus_changed = None
         self.on_ui_activity = None
         self.size: typing.Optional[Geometry.IntSize] = None
@@ -2760,7 +2760,7 @@ class Window:
         self.on_key_pressed = None
         self.on_key_released = None
         self.on_activation_changed = None
-        self.on_size_changed = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_position_changed = None
         self.on_refocus_widget = None
         self.on_ui_activity = None

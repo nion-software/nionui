@@ -36,8 +36,8 @@ class OkCancelDialog(Window.Window):
                  parent_window: Window.Window = None):
         super().__init__(ui, app=app, parent_window=parent_window, window_style="dialog", persistent_id=persistent_id)
 
-        self.on_reject = None
-        self.on_accept = None
+        self.on_reject: typing.Optional[typing.Callable[[], None]] = None
+        self.on_accept: typing.Optional[typing.Callable[[], None]] = None
 
         self.content = self.ui.create_column_widget()
 

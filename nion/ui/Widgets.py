@@ -229,9 +229,9 @@ class ListWidget(CompositeWidgetBase):
         self.property_changed_event = Event.Event()
         items = items or list()
         self.__items: typing.List = list()
-        self.on_selection_changed = None
-        self.on_item_selected = None
-        self.on_cancel = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[typing.AbstractSet[int]], None]] = None
+        self.on_item_selected: typing.Optional[typing.Callable[[int], bool]] = None
+        self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
         self.on_item_handle_context_menu = None  # used for declarative
         self.__items_binding = None
         self.__current_index_binding = None

@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.5.1 (UNRELEASED)
+0.5.1 (2021-04-12)
 ------------------
 - Default SVG now uses fastest compression rather than best (see nionswift-642).
 

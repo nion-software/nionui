@@ -5,13 +5,11 @@ Preference dialog.
 # standard libraries
 import gettext
 
-# types
-from typing import AbstractSet
-
 # third party libraries
 # None
 
 # local libraries
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Event
@@ -37,7 +35,7 @@ class PreferencesManager(metaclass=Singleton):
         self.preference_pane_delegates_changed_event = Event.Event()
 
     def register_preference_pane(self, preference_pane_delegate):
-        assert not preference_pane_delegate in self.preference_pane_delegates
+        assert preference_pane_delegate not in self.preference_pane_delegates
         self.preference_pane_delegates.append(preference_pane_delegate)
         self.preference_pane_delegates_changed_event.fire()
 
@@ -45,6 +43,24 @@ class PreferencesManager(metaclass=Singleton):
         assert preference_pane_delegate in self.preference_pane_delegates
         self.preference_pane_delegates.remove(preference_pane_delegate)
         self.preference_pane_delegates_changed_event.fire()
+
+
+class EmptyPreferencePanel:
+    def __init__(self):
+        self.identifier = "empty_preferences"
+        self.label = _("Preferences")
+
+    def build(self, ui, event_loop=None, **kwargs):
+        u = Declarative.DeclarativeUI()
+
+        class Handler:
+            def __init__(self, ui_view):
+                self.ui_view = ui_view
+
+        no_content_row = u.create_row(u.create_stretch(), u.create_label(text=_("No Preferences Available")),
+                                      u.create_stretch())
+        content = u.create_column(no_content_row)
+        return Declarative.DeclarativeWidget(ui, event_loop, Handler(content))
 
 
 class PreferencesDialog(Dialog.ActionDialog):
@@ -97,7 +113,10 @@ class PreferencesDialog(Dialog.ActionDialog):
             preference_pane_delegate_id = preference_pane_delegate_id_ref[0]
             items = list()
             selected_index = 0
-            for index, preference_pane_delegate in enumerate(PreferencesManager().preference_pane_delegates):
+            delegates = PreferencesManager().preference_pane_delegates
+            if not delegates:
+                delegates.append(EmptyPreferencePanel())
+            for index, preference_pane_delegate in enumerate(delegates):
                 preference_pane_delegates.append(preference_pane_delegate)
                 content_column_widget = ui.create_column_widget()
                 content_column_widget.add_spacing(12)

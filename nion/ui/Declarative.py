@@ -1719,11 +1719,11 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         # create a top level closer. for each object added to a closer, the closer will
         # call close (if it exists) and then close the object's _closer (if it exists).
         self.__closer = Closer()
-        if ui_handler:
-            # create a _closer and attach it to the ui_handler. this may be used for sub-components.
-            # then add the ui_handler to itself to be closed by the top level closer.
-            ui_handler._closer = Closer()
-            self.__closer.push_closeable(ui_handler)
+
+        # create a _closer and attach it to the ui_handler. this may be used for sub-components.
+        # then add the ui_handler to itself to be closed by the top level closer.
+        ui_handler._closer = Closer()
+        self.__closer.push_closeable(ui_handler)
 
         class Window:
             # dummy Window to supply event loop

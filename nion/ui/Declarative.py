@@ -1095,7 +1095,7 @@ def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] 
         outer_row.add_spacing(margin)
         outer_column.add_spacing(margin)
     window.attach_widget(outer_row)
-    window._create_menus()
+    # window._create_menus()  # not needed; see pr#39.
     window.show()
     for finish in finishes:
         finish()
@@ -1585,7 +1585,7 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     finishes: typing.List[typing.Callable[[], None]] = list()
     dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
     dialog.on_close = closer.close
-    dialog._create_menus()
+    # dialog._create_menus()  # not needed; see pr#39.
     # make and attach closer for the handler; put handler into container closer
     handler._closer = Closer()
     closer.push_closeable(handler)

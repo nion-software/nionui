@@ -70,8 +70,6 @@ class PreferencesDialog(Dialog.ActionDialog):
         self.ui = ui
         self.document_controller = self
 
-        self._create_menus()
-
         properties = dict()
         properties["min-height"] = 400
         properties["min-width"] = 800

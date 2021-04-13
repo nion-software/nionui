@@ -210,8 +210,6 @@ class PopupWindow(Window.Window):
         if ui_handler and hasattr(ui_handler, "init_popup"):
             ui_handler.init_popup(request_close)
 
-        self._create_menus()
-
         self.__ui_handler = ui_handler
 
     def show(self, *, size: Geometry.IntSize=None, position: Geometry.IntPoint=None) -> None:

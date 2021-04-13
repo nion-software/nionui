@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.5.2 (UNRELEASED)
 ------------------
+- Remove menus from utility windows (affects Windows and Linux).
 - Fix case of preference dialog when no preference panels are registered.
 
 0.5.1 (2021-04-12)

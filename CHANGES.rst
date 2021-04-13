@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.5.2 (UNRELEASED)
+------------------
+- Fix case of preference dialog when no preference panels are registered.
+
 0.5.1 (2021-04-12)
 ------------------
 - Default SVG now uses fastest compression rather than best (see nionswift-642).

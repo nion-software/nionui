@@ -265,7 +265,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                         pass  # do nothing. maybe a use case will pop up where this should do something?
 
     def make_selection_visible(self):
-        self.__make_selection_visible(0)
+        self.__make_selection_visible(-1)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if self.__delegate:

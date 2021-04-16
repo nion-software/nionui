@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.5.2 (UNRELEASED)
 ------------------
+- Fix issue with lists making the selection visible.
 - Remove menus from utility windows (affects Windows and Linux).
 - Fix case of preference dialog when no preference panels are registered.
 

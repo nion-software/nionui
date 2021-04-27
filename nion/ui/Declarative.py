@@ -888,6 +888,15 @@ def connect_name(widget, d, handler):
         setattr(handler, name, widget)
 
 
+def parse_property_path(property_path: str, base: typing.Any) -> typing.Tuple[typing.Any, str, typing.Any]:
+    handler_property_path = property_path.split('.')
+    source = base
+    for p in handler_property_path[:-1]:
+        source = getattr(source, p.strip())
+    last_property_path_component = handler_property_path[-1].strip()
+    return source, last_property_path_component, getattr(source, last_property_path_component, None)
+
+
 def connect_string_value(widget, d, handler, property, finishes):
     """Connects a value in the property, but also allows binding.
 
@@ -900,10 +909,7 @@ def connect_string_value(widget, d, handler, property, finishes):
         b = m.group(1)
         parts = [p.strip() for p in b.split(',')]
         def finish_binding():
-            handler_property_path = parts[0].split('.')
-            source = handler
-            for p in handler_property_path[:-1]:
-                source = getattr(source, p.strip())
+            source, last_property_path_component, value = parse_property_path(parts[0], handler)
             converter = None
             for part in parts:
                 if part.startswith("converter="):
@@ -912,11 +918,11 @@ def connect_string_value(widget, d, handler, property, finishes):
                 binding = None
                 get_binding = getattr(handler, "get_binding", None)
                 if callable(get_binding):
-                    binding = get_binding(source, handler_property_path[-1].strip(), converter=converter)
-                binding = binding or Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                    binding = get_binding(source, last_property_path_component, converter=converter)
+                binding = binding or Binding.PropertyBinding(source, last_property_path_component, converter=converter)
                 getattr(widget, "bind_" + property)(binding)
             else:
-                setattr(widget, property, str(getattr(source, handler_property_path[-1].strip())))
+                setattr(widget, property, str(value))
         finishes.append(finish_binding)
     else:
         setattr(widget, property, v)
@@ -967,10 +973,7 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
 
         # finish binding is called after the window has been constructed using the 'finishes' list.
         def finish_binding():
-            handler_property_path = parts[0].split('.')
-            source = handler
-            for p in handler_property_path[:-1]:
-                source = getattr(source, p.strip())
+            source, last_property_path_component, value = parse_property_path(parts[0], handler)
             converter = None
             # check if any of the parts has a converter.
             for part in parts:
@@ -985,12 +988,12 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
                 binding = None
                 get_binding = getattr(handler, "get_binding", None)
                 if callable(get_binding):
-                    binding = get_binding(source, handler_property_path[-1].strip(), converter=converter)
-                binding = binding or Binding.PropertyBinding(source, handler_property_path[-1].strip(), converter=converter)
+                    binding = get_binding(source, last_property_path_component, converter=converter)
+                binding = binding or Binding.PropertyBinding(source, last_property_path_component, converter=converter)
                 getattr(widget, "bind_" + binding_name)(binding)
             # otherwise just set the value.
             else:
-                setattr(widget, binding_name, getattr(source, handler_property_path[-1].strip()))
+                setattr(widget, binding_name, value)
 
         finishes.append(finish_binding)
     elif v is not None:

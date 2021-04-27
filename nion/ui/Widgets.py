@@ -10,7 +10,7 @@ import gettext
 import typing
 
 # third party libraries
-# None
+import numpy
 
 # local libraries
 from nion.ui import CanvasItem
@@ -22,7 +22,6 @@ from nion.utils import Geometry
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
-    import numpy
     from nion.utils import Binding
 
 
@@ -810,3 +809,126 @@ class ColorPushButtonWidget(CompositeWidgetBase):
         if self.__color_binding:
             self.__color_binding.close()
             self.__color_binding = None
+
+
+class IconRadioButtonWidget(CompositeWidgetBase):
+
+    def __init__(self, ui: UserInterface.UserInterface, properties: typing.Dict = None):
+        super().__init__(ui.create_column_widget(properties=properties))
+        self.ui = ui
+        self.on_clicked = None
+        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(None, border_color="#CCC")
+        self.__bitmap_canvas_item.on_button_clicked = self.__handle_clicked
+        self.__value = None
+        self.__group_value = None
+        self.__on_group_value_changed = None
+        self.__group_value_binding = None
+        self.__icon_binding = None
+        self.__enabled = True
+        self.__checked = False
+        bitmap_canvas_widget = self.ui.create_canvas_widget()
+        bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
+        self.content_widget.add(bitmap_canvas_widget)
+
+    def close(self):
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.clear_task("update_icon")
+        self.clear_task("update_group_value")
+        super().close()
+
+    def __handle_clicked(self) -> None:
+        if self.__value is not None:
+            self.group_value = self.__value
+        if callable(self.on_clicked):
+            self.on_clicked()
+
+    @property
+    def enabled(self) -> bool:
+        return self.__bitmap_canvas_item.enabled
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        print(f"set enabled {self.__value} {self.__group_value}")
+        self.__bitmap_canvas_item.enabled = value
+
+    @property
+    def checked(self) -> bool:
+        return self.__bitmap_canvas_item.checked
+
+    @checked.setter
+    def checked(self, value: bool) -> None:
+        self.__bitmap_canvas_item.checked = value
+
+    @property
+    def icon(self) -> typing.Optional[numpy.ndarray]:
+        return self.__bitmap_canvas_item.rgba_bitmap_data
+
+    @icon.setter
+    def icon(self, rgba_bitmap_data: typing.Optional[numpy.ndarray]) -> None:
+        self.__bitmap_canvas_item.rgba_bitmap_data = rgba_bitmap_data
+
+    @property
+    def value(self):
+        return self.__value
+
+    @value.setter
+    def value(self, value):
+        self.__value = value
+        self.checked = self.__group_value == self.__value
+
+    @property
+    def group_value(self):
+        return self.__group_value
+
+    @group_value.setter
+    def group_value(self, group_value):
+        self.__group_value = group_value
+        self.checked = self.__group_value == self.__value
+        if callable(self.__on_group_value_changed):
+            self.__on_group_value_changed(group_value)
+
+    # bind to value. takes ownership of binding.
+    def bind_group_value(self, binding):
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
+            self.__on_group_value_changed = None
+        self.group_value = binding.get_target_value()
+        self.__group_value_binding = binding
+        def update_group_value(group_value):
+            def update_group_value_():
+                self.group_value = group_value
+            self.add_task("update_group_value", update_group_value_)
+        self.__group_value_binding.target_setter = update_group_value
+        self.__on_group_value_changed = lambda group_value: self.__group_value_binding.update_source(group_value)
+
+    def unbind_group_value(self):
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
+        self.__on_group_value_changed = None
+
+    def bind_icon(self, binding):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.icon = binding.get_target_value()
+        self.__icon_binding = binding
+
+        def update_icon(icon):
+            def update_icon_():
+                self.icon = icon
+
+            self.add_task("update_icon", update_icon_)
+
+        self.__icon_binding.target_setter = update_icon
+
+    def unbind_icon(self):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None

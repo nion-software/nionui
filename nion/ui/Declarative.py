@@ -548,6 +548,7 @@ class DeclarativeUI:
 
     def create_check_box(self, *,
                          text: UILabel=None,
+                         icon: UIIdentifier=None,
                          name: UIIdentifier=None,
                          checked: str=None,
                          check_state: str=None,
@@ -584,6 +585,8 @@ class DeclarativeUI:
         d: UIDescription = {"type": "check_box"}
         if text is not None:
             d["text"] = text
+        if icon is not None:
+            d["icon"] = icon
         if checked is not None:
             d["checked"] = checked
         if check_state is not None:
@@ -639,6 +642,7 @@ class DeclarativeUI:
     def create_radio_button(self, *,
                             name: UIIdentifier=None,
                             text: UILabel=None,
+                            icon: UIIdentifier = None,
                             value: typing.Any=None,
                             group_value: UIIdentifier=None,
                             **kwargs) -> UIDescription:
@@ -661,6 +665,8 @@ class DeclarativeUI:
             d["name"] = name
         if text is not None:
             d["text"] = text
+        if icon is not None:
+            d["icon"] = icon
         if value is not None:
             d["value"] = value
         if group_value is not None:
@@ -1421,11 +1427,19 @@ def construct_slider(ui: UserInterface.UserInterface, d: typing.Mapping, handler
 
 
 def construct_radio_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
-    text = d.get("text", None)
-    value = d.get("value", None)
     properties = construct_sizing_properties(d)
-    widget = ui.create_radio_button_widget(text, properties)
-    widget.value = value
+    widget: typing.Optional[UserInterface.Widget] = None
+    if d.get("text", None):
+        widget = ui.create_radio_button_widget(properties=properties)
+        widget.value = d.get("value", None)
+        if handler and d.get("text", None):
+            connect_string_value(widget, d, handler, "text", finishes)
+    if d.get("icon", None):
+        widget = Widgets.IconRadioButtonWidget(ui, properties=properties)
+        widget.value = d.get("value", None)
+        if handler and d.get("icon", None):
+            connect_reference_value(widget, d, handler, "icon", finishes)
+    assert widget
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "group_value", finishes, value_type=int)
@@ -1458,6 +1472,8 @@ def construct_check_box(ui: UserInterface.UserInterface, d: typing.Mapping, hand
         connect_name(widget, d, handler)
         if d.get("text", None):
             connect_string_value(widget, d, handler, "text", finishes)
+        if d.get("icon", None):
+            connect_reference_value(widget, d, handler, "icon", finishes)
         connect_reference_value(widget, d, handler, "checked", finishes, value_type=bool)
         connect_reference_value(widget, d, handler, "check_state", finishes, value_type=str)
         connect_event(widget, widget, d, handler, "on_checked_changed", ["checked"])
@@ -1471,10 +1487,10 @@ def construct_push_button(ui: UserInterface.UserInterface, d: typing.Mapping, ha
     widget = ui.create_push_button_widget(properties=properties)
     if handler:
         connect_name(widget, d, handler)
-        if d.get("icon", None):
-            connect_reference_value(widget, d, handler, "icon", finishes)
         if d.get("text", None):
             connect_string_value(widget, d, handler, "text", finishes)
+        if d.get("icon", None):
+            connect_reference_value(widget, d, handler, "icon", finishes)
         connect_event(widget, widget, d, handler, "on_clicked", [])
         connect_attributes(widget, d, handler, finishes)
     return widget

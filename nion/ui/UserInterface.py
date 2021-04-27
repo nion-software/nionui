@@ -1211,7 +1211,9 @@ class RadioButtonWidget(Widget):
         self.__value = None
         self.__group_value = None
         self.__on_group_value_changed = None
-        self.__binding = None
+        self.__group_value_binding = None
+        self.__text_binding = None
+        self.__icon_binding = None
 
         def handle_clicked():
             if self.__value is not None:
@@ -1222,10 +1224,18 @@ class RadioButtonWidget(Widget):
         self._behavior.on_clicked = handle_clicked
 
     def close(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_checked")
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.clear_task("update_text")
+        self.clear_task("update_icon")
+        self.clear_task("update_group_value")
         super().close()
 
     @property
@@ -1274,25 +1284,77 @@ class RadioButtonWidget(Widget):
 
     # bind to value. takes ownership of binding.
     def bind_group_value(self, binding):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
             self.__on_group_value_changed = None
         self.group_value = binding.get_target_value()
-        self.__binding = binding
-        def update_checked(group_value):
-            def update_checked_():
+        self.__group_value_binding = binding
+        def update_group_value(group_value):
+            def update_group_value_():
                 if self._behavior:
                     self.group_value = group_value
-            self.add_task("update_checked", update_checked_)
-        self.__binding.target_setter = update_checked
-        self.__on_group_value_changed = lambda group_value: self.__binding.update_source(group_value)
+            self.add_task("update_group_value", update_group_value_)
+        self.__group_value_binding.target_setter = update_group_value
+        self.__on_group_value_changed = lambda group_value: self.__group_value_binding.update_source(group_value)
 
     def unbind_group_value(self):
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__group_value_binding:
+            self.__group_value_binding.close()
+            self.__group_value_binding = None
         self.__on_group_value_changed = None
+
+    # bind to text. takes ownership of binding.
+    def bind_text(self, binding):
+        # close the old binding
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text = text
+
+        # save the binding and configure the the target setter
+        # which will set the text when the binding changes
+        self.__text_binding = binding
+
+        def update_value(value) -> None:
+            def update_value_inner() -> None:
+                if self._behavior:
+                    # use str method to convert value to text.
+                    text = str(value) if value is not None else str()
+                    self.text = text
+            self.add_task("update_text", update_value_inner)
+
+        self.__text_binding.target_setter = update_value
+
+    def unbind_text(self):
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
+    def bind_icon(self, binding):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
+        self.icon = binding.get_target_value()
+        self.__icon_binding = binding
+
+        def update_icon(icon):
+            def update_icon_():
+                if self._behavior:
+                    self.icon = icon
+
+            self.add_task("update_icon", update_icon_)
+
+        self.__icon_binding.target_setter = update_icon
+
+    def unbind_icon(self):
+        if self.__icon_binding:
+            self.__icon_binding.close()
+            self.__icon_binding = None
 
 
 class CheckBoxWidget(Widget):

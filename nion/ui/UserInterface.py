@@ -2121,6 +2121,10 @@ class CanvasWidget(Widget):
         def handle_mouse_exited():
             if callable(self.on_mouse_exited):
                 self.on_mouse_exited()
+                # when the mouse exits, position info may still be pending
+                # since it is serviced during periodic. clear it here so
+                # nothing else gets processed. the mouse has already exited.
+                self.position_info = None
 
         self._behavior.on_mouse_exited = handle_mouse_exited
 

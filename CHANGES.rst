@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.5.2 (UNRELEASED)
 ------------------
+- Add additional border color support for declarative images.
 - Add icon based declarative radio buttons.
 - Fix issue with lists making the selection visible.
 - Remove menus from utility windows (affects Windows and Linux).

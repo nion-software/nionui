@@ -3069,6 +3069,7 @@ class PyQtProxy:
         assert label is not None
         palette = label.palette()
         palette.setColor(QtGui.QPalette.Text, QtGui.QColor(r, g, b))
+        palette.setColor(label.foregroundRole(), QtGui.QColor(r, g, b))
         label.setPalette(palette)
 
     def Label_setTextFont(self, label: QtWidgets.QLabel, font_str: str) -> None:

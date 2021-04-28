@@ -3797,11 +3797,11 @@ class BitmapCanvasItem(CellCanvasItem):
 
     @property
     def border_color(self):
-        return self.cell.border_cell
+        return self.cell.border_color
 
     @border_color.setter
     def border_color(self, border_color):
-        self.cell.border_cell = border_color
+        self.cell.border_color = border_color
 
 
 class BitmapButtonCanvasItem(BitmapCanvasItem):

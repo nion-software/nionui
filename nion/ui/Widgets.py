@@ -628,6 +628,17 @@ class ImageWidget(CompositeWidgetBase):
         super().__init__(ui.create_column_widget(properties=properties))
         self.ui = ui
         self.on_clicked = None
+
+        def button_clicked():
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(rgba_bitmap_data)
+        self.__bitmap_canvas_item.on_button_clicked = button_clicked
+        bitmap_canvas_widget = self.ui.create_canvas_widget()
+        bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
+        self.content_widget.add(bitmap_canvas_widget)
+
         self.image = rgba_bitmap_data
 
     @property
@@ -636,26 +647,24 @@ class ImageWidget(CompositeWidgetBase):
 
     @image.setter
     def image(self, rgba_bitmap_data: typing.Optional[numpy.ndarray]) -> None:
-        self.content_widget.remove_all()
-
-        if rgba_bitmap_data is not None:
-            height, width = rgba_bitmap_data.shape
-
-            bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(rgba_bitmap_data)
-            # bitmap_canvas_item.update_sizing(bitmap_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=height, width=width)))
-
-            def button_clicked():
-                if callable(self.on_clicked):
-                    self.on_clicked()
-
-            bitmap_canvas_item.on_button_clicked = button_clicked
-
-            bitmap_canvas_widget = self.ui.create_canvas_widget()
-            bitmap_canvas_widget.canvas_item.add_canvas_item(bitmap_canvas_item)
-
-            self.content_widget.add(bitmap_canvas_widget)
-
+        self.__bitmap_canvas_item.rgba_bitmap_data = rgba_bitmap_data
         self.__rgba_bitmap_data = rgba_bitmap_data
+
+    @property
+    def background_color(self) -> typing.Optional[str]:
+        return self.__bitmap_canvas_item.background_color
+
+    @background_color.setter
+    def background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__bitmap_canvas_item.background_color = background_color
+
+    @property
+    def border_color(self) -> typing.Optional[str]:
+        return self.__bitmap_canvas_item.border_color
+
+    @border_color.setter
+    def border_color(self, border_color: typing.Optional[str]) -> None:
+        self.__bitmap_canvas_item.border_color = border_color
 
 
 class ColorButtonCell:

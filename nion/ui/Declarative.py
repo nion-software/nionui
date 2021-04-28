@@ -99,7 +99,9 @@ class DeclarativeUI:
             "max_height",
             "size_policy_horizontal",
             "size_policy_vertical",
-            "tool_tip"
+            "tool_tip",
+            "background_color",
+            "border_color"
         )
         for k in common_properties:
             if k in kwargs and kwargs[k] is not None:
@@ -1026,6 +1028,8 @@ def connect_attributes(widget, d, handler, finishes):
     connect_reference_value(widget, d, handler, "enabled", finishes, value_type=bool)
     connect_reference_value(widget, d, handler, "visible", finishes, value_type=bool)
     connect_string_value(widget, d, handler, "tool_tip", finishes)
+    connect_reference_value(widget, d, handler, "background_color", finishes, value_type=str)
+    connect_reference_value(widget, d, handler, "border_color", finishes, value_type=str)
 
 
 class WindowHandler(Observable.Observable):

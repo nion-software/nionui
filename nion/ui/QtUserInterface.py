@@ -27,22 +27,13 @@ def notnone(s: typing.Any) -> str:
 
 
 def parse_color(color: str) -> typing.Tuple[int, int, int, int]:
-    if color == "red":
-        return 255, 0, 0, 255
-    elif color == "green":
-        return 0, 255, 0, 255
-    elif color == "blue":
-        return 0, 0, 255, 255
-    elif color == "orange":
-        return 255, 128, 0, 255
-    elif color == "purple":
-        return 128, 0, 128, 255
-    elif color == "brown":
-        return 150, 75, 0, 255
-    elif color == "gray":
-        return 128, 128, 128, 255
-    elif color == "black":
-        return 0, 0, 0, 255
+    hex_color = DrawingContext.hex_color(color)
+    if hex_color and len(hex_color) == 7:
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5))
+        return rgb[0], rgb[1], rgb[2], 255
+    elif hex_color and len(hex_color) == 9:
+        rgba = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5, 7))
+        return rgba[0], rgba[1], rgba[2], rgba[3]
     else:
         return 255, 255, 255, 255
 

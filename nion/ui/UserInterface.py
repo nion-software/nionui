@@ -214,6 +214,75 @@ class Key(abc.ABC):
     def is_page_down(self) -> bool:
         ...
 
+    @property
+    def key_sequence_str(self) -> str:
+        # the composite key strokes are not allowed to have modifiers.
+        # these are move_to_start_of_line, move_to_end_of_line, delete_to_end_of_line
+        # also, they take precedence and are checked first.
+        if self.is_move_to_start_of_line:
+            return "move_to_start_of_line"
+        elif self.is_move_to_end_of_line:
+            return "move_to_end_of_line"
+        elif self.is_delete_to_end_of_line:
+            return "delete_to_end_of_line"
+
+        # check the named keys
+        if self.is_delete:
+            ks = "delete"
+        elif self.is_enter_or_return:
+            ks = "enter"
+        elif self.is_escape:
+            ks = "esc"
+        elif self.is_tab:
+            ks = "tab"
+        elif self.is_insert:
+            ks = "insert"
+        elif self.is_home:
+            ks = "home"
+        elif self.is_end:
+            ks = "end"
+        elif self.is_left_arrow:
+            ks = "left_arrow"
+        elif self.is_up_arrow:
+            ks = "up_arrow"
+        elif self.is_right_arrow:
+            ks = "right_arrow"
+        elif self.is_down_arrow:
+            ks = "down_arrow"
+        elif self.is_page_up:
+            ks = "page_up"
+        elif self.is_page_down:
+            ks = "page_down"
+        else:
+            ks = self.text if self.text else "none"
+
+        # add the modifiers. order is Ctrl+Alt+Shift+<key>
+        if self.modifiers.shift:
+            ks = "Shift+" + ks
+        if self.modifiers.alt:
+            ks = "Alt+" + ks
+        if self.modifiers.control:
+            ks = "Ctrl+" + ks
+
+        return ks
+
+
+class KeySequenceMatch(enum.Enum):
+    NONE = 0
+    PARTIAL = 1
+    EXACT = 2
+
+
+class KeySequence:
+    def __init__(self, key_sequence_str: str):
+        self.key_sequence_str = key_sequence_str
+
+    def matches(self, key: Key) -> KeySequenceMatch:
+        if key.key_sequence_str == self.key_sequence_str:
+            return KeySequenceMatch.EXACT
+        else:
+            return KeySequenceMatch.NONE
+
 
 class MimeData(abc.ABC):
 

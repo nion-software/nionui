@@ -161,11 +161,24 @@ def register_action_shortcuts(action_shortcuts: typing.Mapping) -> None:
             add_action_shortcut(action_id, action_context, key_sequence)
 
 
-def get_action_id_for_key(context: str, key) -> typing.Optional[str]:
-    for action_id, action_shortcut_d in action_shortcuts.items():
-        for action_context, key_sequence in action_shortcut_d.items():
-            if action_context == context and key.text == key_sequence:  # TODO: match the actual key sequence
-                return action_id
+def get_action_id_for_key(context: str, key: UserInterface.Key) -> typing.Optional[str]:
+    # deprecated as of 0.5.2. use get_action_for_key instead.
+    action = get_action_for_key([context], key)
+    return action.action_id if action else None
+
+
+def get_action_for_key(action_contexts: typing.Sequence[str], key: UserInterface.Key) -> typing.Optional[Action]:
+    for action_context in reversed(action_contexts):
+        for action_id, action_shortcut_d in action_shortcuts.items():
+            for key_action_context, key_sequence_str in action_shortcut_d.items():
+                if action_context == key_action_context:
+                    if isinstance(key_sequence_str, list):
+                        key_sequences = [UserInterface.KeySequence(kss) for kss in key_sequence_str]
+                    else:
+                        key_sequences = [UserInterface.KeySequence(key_sequence_str)]
+                    for key_sequence in key_sequences:
+                        if key_sequence.matches(key) == UserInterface.KeySequenceMatch.EXACT:
+                            return actions[action_id]
     return None
 
 
@@ -677,11 +690,15 @@ class Window:
         action = actions[action_id]
         return action.execute(context)
 
-    def perform_action(self, action_id: str) -> None:
-        self.perform_action_in_context(action_id, self._get_action_context())
+    def perform_action(self, action: typing.Union[Action, str]) -> None:
+        self.perform_action_in_context(action, self._get_action_context())
 
-    def perform_action_in_context(self, action_id: str, action_context: ActionContext) -> None:
-        action = actions.get(action_id)
+    def perform_action_in_context(self, action_or_action_id: typing.Union[Action, str], action_context: ActionContext) -> None:
+        action: typing.Optional[Action]
+        if isinstance(action_or_action_id, Action):
+            action = action_or_action_id
+        else:
+            action = actions.get(str(action_or_action_id))
         if action and action not in self.__modal_actions:
             action.clear()
             if action.invoke(action_context).status == ActionStatus.MODAL:

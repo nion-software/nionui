@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.5.2 (UNRELEASED)
 ------------------
+- Add a window.activate method.
 - Expand action capabilities and be able to match key sequences.
 - Add additional border color support for declarative images.
 - Add icon based declarative radio buttons.

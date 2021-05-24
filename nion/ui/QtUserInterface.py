@@ -1831,6 +1831,10 @@ class QtWindow(UserInterface.Window):
             self.window_style = self.window_style or "tool"
         self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
 
+    def activate(self):
+        if self.proxy.has_method("DocumentWindow_activate"):
+            self.proxy.DocumentWindow_activate(self.native_document_window)
+
     def fill_screen(self):
         screen_size = self.screen_size
         self.proxy.DocumentWindow_setPosition(self.native_document_window, 0, 0)

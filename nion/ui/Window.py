@@ -536,6 +536,9 @@ class Window:
     def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
         self.__document_window.show(size=size, position=position)
 
+    def activate(self) -> None:
+        self.__document_window.activate()
+
     def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
         return self.__document_window.add_menu(title, menu_id)
 

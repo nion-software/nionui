@@ -3049,6 +3049,9 @@ class Window:
     def show(self, size=None, position=None):
         raise NotImplementedError()
 
+    def activate(self) -> None:
+        raise NotImplementedError()
+
     def fill_screen(self):
         raise NotImplementedError()
 

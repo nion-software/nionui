@@ -3848,6 +3848,8 @@ class PyQtProxy:
             if not g_stylesheet:
                 stylesheet_bytes = pkgutil.get_data(__name__, "resources/stylesheet.qss")
                 stylesheet = stylesheet_bytes.decode('UTF-8', 'ignore') if stylesheet_bytes else str()
+                if sys.platform == "win32":
+                    stylesheet = "QWidget { font-size: 11px }\n" + stylesheet
                 display_scaling = GetDisplayScaling()
                 while True:
                     re = QtCore.QRegularExpression("(\\d+)px")
@@ -3866,12 +3868,14 @@ class PyQtProxy:
             row_layout = QtWidgets.QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(0)
+            apply_stylesheet(row)
             return row
         elif intrinsic_id == "column":
             column = QtWidgets.QWidget()
             column_layout = QtWidgets.QVBoxLayout(column)
             column_layout.setContentsMargins(0, 0, 0, 0)
             column_layout.setSpacing(0)
+            apply_stylesheet(column)
             return column
         elif intrinsic_id == "tab":
             group = PyTabWidget()

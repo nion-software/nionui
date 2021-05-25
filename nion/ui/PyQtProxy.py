@@ -3861,6 +3861,7 @@ class PyQtProxy:
                         break
                 stylesheet = stylesheet.replace("QZ", "px")
                 g_stylesheet = stylesheet
+                app.setStyleSheet(g_stylesheet)  # required for Win Qt 5.9 (conda), panel headers, after resolution change.
             widget.setStyleSheet(g_stylesheet)
 
         if intrinsic_id == "row":

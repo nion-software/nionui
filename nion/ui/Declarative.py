@@ -1436,12 +1436,12 @@ def construct_slider(ui: UserInterface.UserInterface, d: typing.Mapping, handler
 def construct_radio_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
     properties = construct_sizing_properties(d)
     widget: typing.Optional[UserInterface.Widget] = None
-    if d.get("text", None):
+    if d.get("text", None) or d.get("icon", None) is None:
         widget = ui.create_radio_button_widget(properties=properties)
         widget.value = d.get("value", None)
         if handler and d.get("text", None):
             connect_string_value(widget, d, handler, "text", finishes)
-    if d.get("icon", None):
+    if d.get("icon", None) is not None:
         widget = Widgets.IconRadioButtonWidget(ui, properties=properties)
         widget.value = d.get("value", None)
         if handler and d.get("icon", None):

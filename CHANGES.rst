@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.5.2 (UNRELEASED)
 ------------------
+- Fix radio button grouping issue.
 - Improve font scaling behavior on Windows when running PyQt or PySide.
 - Add a window.activate method.
 - Expand action capabilities and be able to match key sequences.

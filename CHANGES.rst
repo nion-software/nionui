@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.5.2 (UNRELEASED)
+0.5.2 (2021-05-26)
 ------------------
 - Fix radio button grouping issue.
 - Improve font scaling behavior on Windows when running PyQt or PySide.

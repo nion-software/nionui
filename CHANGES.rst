@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+NEXT (UNRELEASED)
+------------------
+- Add canvas item slider.
+
 0.5.2 (2021-05-26)
 ------------------
 - Fix radio button grouping issue.

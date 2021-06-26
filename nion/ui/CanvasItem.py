@@ -26,6 +26,7 @@ import numpy
 from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Observable
 
 if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
@@ -662,6 +663,7 @@ class AbstractCanvasItem:
     """
 
     def __init__(self):
+        super().__init__()
         self.__container = None
         self.__canvas_size = None
         self.__canvas_origin = None
@@ -2685,6 +2687,95 @@ class SplitterCanvasItem(CanvasItemComposition):
             else:
                 self.cursor_shape = None
             return super().mouse_position_changed(x, y, modifiers)
+
+
+class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
+    """Slider."""
+    thumb_width = 8
+    thumb_height = 16
+    bar_offset = 1
+    bar_height = 4
+
+    def __init__(self):
+        super().__init__()
+        self.wants_mouse_events = True
+        self.__tracking = False
+        self.update_sizing(self.sizing.with_fixed_height(20))
+        self.__value = 0.0
+
+    @property
+    def value(self) -> float:
+        return self.__value
+
+    @value.setter
+    def value(self, value: float) -> None:
+        if self.__value != value:
+            self.__value = max(0.0, min(1.0, value))
+            self.update()
+            self.notify_property_changed("value")
+
+    def _repaint(self, drawing_context):
+        thumb_rect = self.__get_thumb_rect()
+        bar_rect = self.__get_bar_rect()
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(bar_rect.left, bar_rect.top, bar_rect.width, bar_rect.height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.stroke_style = "#888"
+            drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.rect(thumb_rect.left, thumb_rect.top, thumb_rect.width, thumb_rect.height)
+            drawing_context.fill_style = "#007AD8"
+            drawing_context.fill()
+
+    def __get_bar_rect(self) -> Geometry.FloatRect:
+        canvas_size = self.canvas_size
+        thumb_width = self.thumb_width
+        bar_offset = self.bar_offset
+        bar_width = canvas_size.width - thumb_width - bar_offset * 2
+        bar_height = self.bar_height
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - bar_height / 2, bar_offset + thumb_width / 2, bar_height, bar_width)
+
+    def __get_thumb_rect(self) -> Geometry.FloatRect:
+        canvas_size = self.canvas_size
+        thumb_width = self.thumb_width
+        thumb_height = self.thumb_height
+        bar_offset = self.bar_offset
+        bar_width = canvas_size.width - thumb_width - bar_offset * 2
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, self.__value * bar_width + bar_offset, thumb_height, thumb_width)
+
+    def mouse_pressed(self, x, y, modifiers):
+        thumb_rect = self.__get_thumb_rect()
+        pos = Geometry.FloatPoint(x=x, y=y)
+        if thumb_rect.inset(-2, -2).contains_point(pos):
+            self.__tracking = True
+            self.__tracking_start = pos
+            self.update()
+            return True
+        elif x < thumb_rect.left:
+            self.__adjust_thumb(-1)
+            return True
+        elif x > thumb_rect.right:
+            self.__adjust_thumb(1)
+            return True
+        return super().mouse_pressed(x, y, modifiers)
+
+    def mouse_released(self, x, y, modifiers):
+        self.__tracking = False
+        self.update()
+        return super().mouse_released(x, y, modifiers)
+
+    def mouse_position_changed(self, x, y, modifiers):
+        if self.__tracking:
+            pos = Geometry.FloatPoint(x=x, y=y)
+            bar_rect = self.__get_bar_rect()
+            value = (pos.x - bar_rect.left) / bar_rect.width
+            self.value = value
+        return super().mouse_position_changed(x, y, modifiers)
+
+    def __adjust_thumb(self, amount):
+        self.value = max(0.0, min(1.0, self.__value + amount * 0.1))
 
 
 PositionLength = collections.namedtuple("PositionLength", ["position", "length"])

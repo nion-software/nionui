@@ -2,6 +2,7 @@
 import collections
 import copy
 import enum
+import json
 import pathlib
 import typing
 
@@ -16,6 +17,135 @@ from nion.utils import Geometry
 
 
 focused_widget = None  # simulate focus handling at the widget level
+
+
+class TestFontMetrics:
+    def __init__(self,
+                 display_scaling: float,
+                 font_metrics_height: float,
+                 font_metrics_ascent: float,
+                 font_metrics_descent: float,
+                 font_metrics_leading: float,
+                 font_width_and_chars: typing.Iterable[typing.Tuple[float, str]],
+                 default_char_width: float):
+        """
+        :param font_width_and_chars: iterator over `(width, chars)` where `chars` is the string consisting
+            of characters whose width is `width` for the font.
+        :param default_char_width:
+        """
+        font_chars_by_width = dict(font_width_and_chars)
+
+        font_width_by_char = dict()
+        for width, chars in font_chars_by_width.items():
+            font_width_by_char.update((char, width) for char in chars)
+
+        self._display_scaling = display_scaling
+        self._font_metrics_height = font_metrics_height
+        self._font_metrics_ascent = font_metrics_ascent
+        self._font_metrics_descent = font_metrics_descent
+        self._font_metrics_leading = font_metrics_leading
+        self._font_width_by_char = font_width_by_char
+        self._default_char_width = default_char_width
+
+    def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
+        def get_char_width(c):
+            return self._font_width_by_char.get(c, self._default_char_width)
+
+        var_text_width = int(round(sum(map(get_char_width, text))))
+        return UserInterfaceModule.FontMetrics(width=var_text_width / self._display_scaling,
+                                               height=self._font_metrics_height / self._display_scaling,
+                                               ascent=self._font_metrics_ascent / self._display_scaling,
+                                               descent=self._font_metrics_descent / self._display_scaling,
+                                               leading=self._font_metrics_leading / self._display_scaling)
+
+
+def calculate_font_metric_info_for_tests(font_str: str, display_scaling: str) -> str:
+    """
+    For now, this is hardcoded to use Qt for the font metrics
+
+    This is only used to make the :py:class:nion.ui.TestUI.UserInterface.get_font_metrics
+    slightly more realistic in calculating text with for a var width font, so the details
+    should not matter. Tests should not make assumptions about the exact text sizes returned.
+
+    :return: a string containing the Python code to construct a :py:class:TestFontMetrics instance
+        approximating the Qt font metrics for the font described by the arguments. The code
+        is indented 4 spaces, so it can be copied to the body of a top-level function.
+    """
+    # Use local imports so Qt is not required for module to load
+    from nion.ui.PyQtProxy import ParseFontString, QtGui
+    display_scaling = 1.0
+    font_str = "normal 11px serif"
+    font = ParseFontString(font_str, display_scaling)
+
+    font_metrics = QtGui.QFontMetrics(font)
+
+    font_chars_by_width = collections.defaultdict(list)
+
+    font_metrics_height = float(font_metrics.height())
+    font_metrics_ascent = float(font_metrics.ascent())
+    font_metrics_descent = float(font_metrics.descent())
+    font_metrics_leading = float(font_metrics.leading())
+
+    default_char_width = float(font_metrics.width('M'))
+
+    for char_ord in range(ord(' '), ord('~')+ 1):
+        char = chr(char_ord)
+        width = float(font_metrics.width(char))
+        font_chars_by_width[width].append(char)
+
+    # Sort by numbers of characters at a given width, descending
+    font_chars_by_width = dict(
+        (k, ''.join(v)) for k, v in sorted(font_chars_by_width.items(),
+                                           key=lambda _: (-len(_[1]), _[0])))
+
+    font_chars_by_width_dict_entries = "\n".join(
+        "            {}: {},".format(width, json.dumps(chars))
+        for width, chars in font_chars_by_width.items()
+    )
+
+    test_font_metrics_str = f"""
+    TestFontMetrics(
+        display_scaling={display_scaling},
+        font_metrics_height={font_metrics_height},
+        font_metrics_ascent={font_metrics_ascent},
+        font_metrics_descent={font_metrics_descent},
+        font_metrics_leading={font_metrics_leading},
+        font_width_and_chars={{\n{font_chars_by_width_dict_entries}
+        }},
+        default_char_width={default_char_width}
+    )
+    """.strip('\n')
+
+    return test_font_metrics_str
+
+
+def make_font_metrics_for_tests():
+    """
+    The body came from running the following in a NionSwift console on a Mac:
+
+        from nion.ui.TestUI import calculate_font_metric_info_for_tests
+        print(calculate_font_metric_info_for_tests(font_str="normal 11px serif", display_scaling=1.0))
+
+    """
+    return TestFontMetrics(
+        display_scaling=1.0,
+        font_metrics_height=13.0,
+        font_metrics_ascent=11.0,
+        font_metrics_descent=2.0,
+        font_metrics_leading=0.0,
+        font_width_and_chars={
+            7.0: "#$+02345689<=>ABEKPRSTVYZ^bdghopq~",
+            6.0: "7?FJL_`aceknsuvxyz",
+            3.0: " !',./:;I\\ijl|",
+            4.0: "()[]frt{}",
+            8.0: "&CDGHNUX",
+            5.0: "\"*-1",
+            10.0: "%@Mm",
+            9.0: "OQw",
+            11.0: "W",
+        },
+        default_char_width=10.0
+    )
 
 
 class MimeData(UserInterfaceModule.MimeData):
@@ -922,6 +1052,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         self.clipboard = MimeData()
         self.popup = None
         self.popup_pos = None
+        self._font_metrics = make_font_metrics_for_tests()
 
     def close(self):
         pass
@@ -1078,7 +1209,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         return numpy.zeros((height, width), dtype=numpy.uint32)
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
-        return UserInterfaceModule.FontMetrics(width=(len(text) * 12), height=12, ascent=10, descent=2, leading=0)
+        return self._font_metrics.get_font_metrics(font_str, text)
 
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterfaceModule.TruncateModeType) -> str:
         return text

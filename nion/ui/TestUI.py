@@ -35,7 +35,7 @@ class TestFontMetrics:
         """
         font_chars_by_width = dict(font_width_and_chars)
 
-        font_width_by_char = dict()
+        font_width_by_char: typing.Dict[str, int] = dict()
         for width, chars in font_chars_by_width.items():
             font_width_by_char.update((char, width) for char in chars)
 

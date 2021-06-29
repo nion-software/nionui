@@ -21,13 +21,13 @@ focused_widget = None  # simulate focus handling at the widget level
 
 class TestFontMetrics:
     def __init__(self,
-                 display_scaling: float,
-                 font_metrics_height: float,
-                 font_metrics_ascent: float,
-                 font_metrics_descent: float,
-                 font_metrics_leading: float,
-                 font_width_and_chars: typing.Iterable[typing.Tuple[float, str]],
-                 default_char_width: float):
+                 display_scaling: int,
+                 font_metrics_height: int,
+                 font_metrics_ascent: int,
+                 font_metrics_descent: int,
+                 font_metrics_leading: int,
+                 font_width_and_chars: typing.Iterable[typing.Tuple[int, str]],
+                 default_char_width: int):
         """
         :param font_width_and_chars: iterator over `(width, chars)` where `chars` is the string consisting
             of characters whose width is `width` for the font.
@@ -59,7 +59,7 @@ class TestFontMetrics:
                                                leading=self._font_metrics_leading / self._display_scaling)
 
 
-def calculate_font_metric_info_for_tests(font_str: str, display_scaling: str) -> str:
+def calculate_font_metric_info_for_tests(font_str: str, display_scaling: float) -> str:
     """
     For now, this is hardcoded to use Qt for the font metrics
 
@@ -73,34 +73,32 @@ def calculate_font_metric_info_for_tests(font_str: str, display_scaling: str) ->
     """
     # Use local imports so Qt is not required for module to load
     from nion.ui.PyQtProxy import ParseFontString, QtGui
-    display_scaling = 1.0
-    font_str = "normal 11px serif"
     font = ParseFontString(font_str, display_scaling)
 
     font_metrics = QtGui.QFontMetrics(font)
 
-    font_chars_by_width = collections.defaultdict(list)
+    font_metrics_height = font_metrics.height()
+    font_metrics_ascent = font_metrics.ascent()
+    font_metrics_descent = font_metrics.descent()
+    font_metrics_leading = font_metrics.leading()
 
-    font_metrics_height = float(font_metrics.height())
-    font_metrics_ascent = float(font_metrics.ascent())
-    font_metrics_descent = float(font_metrics.descent())
-    font_metrics_leading = float(font_metrics.leading())
+    default_char_width = font_metrics.width('M')
 
-    default_char_width = float(font_metrics.width('M'))
+    font_chars_arr_by_width = collections.defaultdict(list)
 
     for char_ord in range(ord(' '), ord('~')+ 1):
         char = chr(char_ord)
-        width = float(font_metrics.width(char))
-        font_chars_by_width[width].append(char)
+        width = font_metrics.width(char)
+        font_chars_arr_by_width[width].append(char)
 
     # Sort by numbers of characters at a given width, descending
-    font_chars_by_width = dict(
-        (k, ''.join(v)) for k, v in sorted(font_chars_by_width.items(),
+    font_chars_str_by_width = dict(
+        (k, ''.join(v)) for k, v in sorted(font_chars_arr_by_width.items(),
                                            key=lambda _: (-len(_[1]), _[0])))
 
     font_chars_by_width_dict_entries = "\n".join(
         "            {}: {},".format(width, json.dumps(chars))
-        for width, chars in font_chars_by_width.items()
+        for width, chars in font_chars_str_by_width.items()
     )
 
     test_font_metrics_str = f"""
@@ -129,22 +127,22 @@ def make_font_metrics_for_tests():
     """
     return TestFontMetrics(
         display_scaling=1.0,
-        font_metrics_height=13.0,
-        font_metrics_ascent=11.0,
-        font_metrics_descent=2.0,
-        font_metrics_leading=0.0,
+        font_metrics_height=13,
+        font_metrics_ascent=11,
+        font_metrics_descent=2,
+        font_metrics_leading=0,
         font_width_and_chars={
-            7.0: "#$+02345689<=>ABEKPRSTVYZ^bdghopq~",
-            6.0: "7?FJL_`aceknsuvxyz",
-            3.0: " !',./:;I\\ijl|",
-            4.0: "()[]frt{}",
-            8.0: "&CDGHNUX",
-            5.0: "\"*-1",
-            10.0: "%@Mm",
-            9.0: "OQw",
-            11.0: "W",
+            7: "#$+02345689<=>ABEKPRSTVYZ^bdghopq~",
+            6: "7?FJL_`aceknsuvxyz",
+            3: " !',./:;I\\ijl|",
+            4: "()[]frt{}",
+            8: "&CDGHNUX",
+            5: "\"*-1",
+            10: "%@Mm",
+            9: "OQw",
+            11: "W",
         },
-        default_char_width=10.0
+        default_char_width=10
     )
 
 

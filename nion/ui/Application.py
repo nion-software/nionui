@@ -86,16 +86,12 @@ class BaseApplication:
 
     def initialize(self):
         """Initialize. Separate from __init__ so that overridden methods can be called."""
-        # configure the event loop, which can be used for non-window clients.
-        logger = logging.getLogger()
-        old_level = logger.level
-        logger.setLevel(logging.INFO)
-        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
-        logger.setLevel(old_level)
+        # configure the event loop, which can be used for non-window clients. for backwards compatibility only.
+        self.__event_loop = asyncio.get_event_loop()
 
     def deinitialize(self):
         self._close_dialogs()
-        Process.close_event_loop(self.__event_loop)
+        Process.sync_event_loop(self.__event_loop)
         self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')

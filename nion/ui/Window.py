@@ -239,12 +239,8 @@ class Window:
         self._zoom_action = None
         self._bring_to_front_action = None
 
-        # configure the event loop object
-        logger = logging.getLogger()
-        old_level = logger.level
-        logger.setLevel(logging.INFO)
-        self.__event_loop = asyncio.new_event_loop()  # outputs a debugger message!
-        logger.setLevel(old_level)
+        # configure the event loop object. for backwards compatibility only.
+        self.__event_loop = asyncio.get_event_loop()
 
         if app:
             app._window_created(self)
@@ -256,7 +252,6 @@ class Window:
         self._window_close_event.fire(self)
         self._window_close_event = typing.cast(Event.Event, None)
         self.on_close = None
-        Process.close_event_loop(self.__event_loop)
         self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         self.ui.destroy_document_window(self.__document_window)  # close the ui window
         self.__document_window = typing.cast(UserInterface.Window, None)

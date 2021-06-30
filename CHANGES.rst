@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Standardize to use a single event loop managed by Application.
 - Add canvas item slider.
 
 0.5.2 (2021-05-26)

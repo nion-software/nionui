@@ -27,6 +27,7 @@ from nion.ui import DrawingContext
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
@@ -688,7 +689,7 @@ class AbstractCanvasItem:
         self._repaint_count = 0
         self.is_root_opaque = False
 
-    def close(self):
+    def close(self) -> None:
         """ Close the canvas object. """
         if threading.current_thread() != self.__thread:
             warnings.warn('CanvasItem closed on different thread')
@@ -2701,16 +2702,24 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         self.wants_mouse_events = True
         self.__tracking = False
         self.update_sizing(self.sizing.with_fixed_height(20))
-        self.__value = 0.0
+        self.value_stream = Stream.ValueStream[float]().add_ref()
+        self.value_change_stream = Stream.ValueChangeStream(self.value_stream).add_ref()
+
+    def close(self) -> None:
+        self.value_change_stream.remove_ref()
+        self.value_change_stream = None
+        self.value_stream.remove_ref()
+        self.value_stream = None
+        super().close()
 
     @property
     def value(self) -> float:
-        return self.__value
+        return self.value_stream.value
 
     @value.setter
     def value(self, value: float) -> None:
-        if self.__value != value:
-            self.__value = max(0.0, min(1.0, value))
+        if self.value != value:
+            self.value_stream.value = max(0.0, min(1.0, value))
             self.update()
             self.notify_property_changed("value")
 
@@ -2743,7 +2752,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         thumb_height = self.thumb_height
         bar_offset = self.bar_offset
         bar_width = canvas_size.width - thumb_width - bar_offset * 2
-        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, self.__value * bar_width + bar_offset, thumb_height, thumb_width)
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, self.value * bar_width + bar_offset, thumb_height, thumb_width)
 
     def mouse_pressed(self, x, y, modifiers):
         thumb_rect = self.__get_thumb_rect()
@@ -2751,6 +2760,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         if thumb_rect.inset(-2, -2).contains_point(pos):
             self.__tracking = True
             self.__tracking_start = pos
+            self.value_change_stream.begin()
             self.update()
             return True
         elif x < thumb_rect.left:
@@ -2762,8 +2772,11 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x, y, modifiers):
-        self.__tracking = False
-        self.update()
+        if self.__tracking:
+            self.__tracking = False
+            self.value_change_stream.end()
+            self.update()
+            return True
         return super().mouse_released(x, y, modifiers)
 
     def mouse_position_changed(self, x, y, modifiers):
@@ -2775,7 +2788,9 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         return super().mouse_position_changed(x, y, modifiers)
 
     def __adjust_thumb(self, amount):
-        self.value = max(0.0, min(1.0, self.__value + amount * 0.1))
+        self.value_change_stream.begin()
+        self.value = max(0.0, min(1.0, self.value + amount * 0.1))
+        self.value_change_stream.end()
 
 
 PositionLength = collections.namedtuple("PositionLength", ["position", "length"])

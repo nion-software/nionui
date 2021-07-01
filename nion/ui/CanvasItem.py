@@ -2701,6 +2701,8 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         super().__init__()
         self.wants_mouse_events = True
         self.__tracking = False
+        self.__tracking_start = Geometry.IntPoint()
+        self.__tracking_value = 0.0
         self.update_sizing(self.sizing.with_fixed_height(20))
         self.value_stream = Stream.ValueStream[float]().add_ref()
         self.value_change_stream = Stream.ValueChangeStream(self.value_stream).add_ref()
@@ -2752,7 +2754,9 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         thumb_height = self.thumb_height
         bar_offset = self.bar_offset
         bar_width = canvas_size.width - thumb_width - bar_offset * 2
-        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, self.value * bar_width + bar_offset, thumb_height, thumb_width)
+        # use tracking value to avoid thumb jumping around while dragging, which occurs when value gets integerized and set.
+        value = self.value if not self.__tracking else self.__tracking_value
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, value * bar_width + bar_offset, thumb_height, thumb_width)
 
     def mouse_pressed(self, x, y, modifiers):
         thumb_rect = self.__get_thumb_rect()
@@ -2760,6 +2764,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         if thumb_rect.inset(-2, -2).contains_point(pos):
             self.__tracking = True
             self.__tracking_start = pos
+            self.__tracking_value = self.value
             self.value_change_stream.begin()
             self.update()
             return True
@@ -2784,6 +2789,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             pos = Geometry.FloatPoint(x=x, y=y)
             bar_rect = self.__get_bar_rect()
             value = (pos.x - bar_rect.left) / bar_rect.width
+            self.__tracking_value = value
             self.value = value
         return super().mouse_position_changed(x, y, modifiers)
 

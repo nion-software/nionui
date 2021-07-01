@@ -2789,7 +2789,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             pos = Geometry.FloatPoint(x=x, y=y)
             bar_rect = self.__get_bar_rect()
             value = (pos.x - bar_rect.left) / bar_rect.width
-            self.__tracking_value = value
+            self.__tracking_value = max(0.0, min(1.0, value))
             self.value = value
         return super().mouse_position_changed(x, y, modifiers)
 

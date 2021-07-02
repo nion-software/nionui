@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Add divider and draw canvas items and declarative divider.
 - Standardize to use a single event loop managed by Application.
 - Add canvas item slider.
 

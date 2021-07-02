@@ -6,6 +6,7 @@ import re
 import typing
 
 # local libraries
+from nion.ui import CanvasItem
 from nion.ui import Dialog
 from nion.ui import UserInterface
 from nion.ui import Window
@@ -48,6 +49,7 @@ class DeclarativeUI:
     # ----: tool tips
     # TODO: expander
     # TODO: border
+    # TODO: divider
     # ----: push button
     # ----: check box
     # ----: combo box
@@ -735,6 +737,24 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
+    def create_divider(self, *,
+                       name: UIIdentifier = None,
+                       orientation: str = None,
+                       **kwargs) -> UIDescription:
+        """Create a divider description with name and orientation.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            orientation: "horizontal" or "vertical" (default)
+        """
+        d: UIDescription = {"type": "divider"}
+        if name is not None:
+            d["name"] = name
+        if orientation is not None:
+            d["orientation"] = orientation
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_progress_bar(self, *,
                             name: UIIdentifier = None,
                             value: UIIdentifier = None,
@@ -1257,6 +1277,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
         return construct_radio_button(ui, d, handler, finishes)
     elif d_type == "slider":
         return construct_slider(ui, d, handler, finishes)
+    if d_type == "divider":
+        return construct_divider(ui, d, handler, finishes)
     elif d_type == "progress_bar":
         return construct_progress_bar(ui, d, handler, finishes)
     elif d_type == "tabs":
@@ -1411,6 +1433,21 @@ def construct_progress_bar(ui: UserInterface.UserInterface, d: typing.Mapping, h
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_divider(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+    orientation = d.get("orientation", "vertical")
+    properties = construct_sizing_properties(d)
+    if orientation == "vertical":
+        properties.setdefault("width", 2)
+    else:
+        properties.setdefault("height", 2)
+    widget = ui.create_canvas_widget(properties=properties)
+    widget.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation=orientation, color=d.get("border_color", None)))
+    if handler:
+        connect_name(widget, d, handler)
         connect_attributes(widget, d, handler, finishes)
     return widget
 

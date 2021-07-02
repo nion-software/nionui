@@ -4336,6 +4336,42 @@ class RadioButtonGroup:
             button.checked = index == self.__current_index
 
 
+class DrawCanvasItem(AbstractCanvasItem):
+    def __init__(self, drawing_fn: typing.Callable):
+        super().__init__()
+        self.__drawing_fn = drawing_fn
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        self.__drawing_fn(drawing_context, self.canvas_size)
+        super()._repaint(drawing_context)
+
+
+class DividerCanvasItem(AbstractCanvasItem):
+    def __init__(self, *, orientation: typing.Optional[str] = None, color: typing.Optional[str] = None):
+        super().__init__()
+        self.__orientation = orientation or "vertical"
+        if orientation == "vertical":
+            self.update_sizing(self.sizing.with_fixed_width(2))
+        else:
+            self.update_sizing(self.sizing.with_fixed_height(2))
+        self.__color = color or "#CCC"
+
+    def _repaint(self, drawing_context):
+        canvas_size = self.canvas_size
+
+        with drawing_context.saver():
+            if self.__orientation == "vertical":
+                drawing_context.move_to(1, 0)
+                drawing_context.line_to(1, canvas_size.height)
+            else:
+                drawing_context.move_to(0, 1)
+                drawing_context.line_to(canvas_size.width, 1)
+            drawing_context.stroke_style = self.__color
+            drawing_context.stroke()
+
+        super()._repaint(drawing_context)
+
+
 class ProgressBarCanvasItem(AbstractCanvasItem):
     def __init__(self):
         super().__init__()

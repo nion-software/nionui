@@ -1153,6 +1153,28 @@ def construct_margin(ui, content, margin) -> UserInterface.BoxWidget:
 
 
 def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes, spacing_h: typing.Optional[int] = None, spacing_v: typing.Optional[int] = None) -> None:
+    """Connect list of item components to container widget.
+
+    Several declarative elements (columns, rows, stacks) take a list of item components. This method connects the item
+    components to the element.
+
+    When an item gets inserted, this method tries a few techniques to construct the content and handler.
+
+    First it checks whether the current handler responds to `get_resource` and calls it with the `item_component_id` to
+    establish a component. If not successful, it checks whether the `resources` map is defined on the current handler
+    and looks up the `item_component_id`. If either of those succeed, it establishes the `component_id` and
+    `component_content` from established component. Otherwise it uses the `item_component_id` as the `component_id`
+    and continues.
+
+    Next, it calls `create_handler` with the established `component_id` and `item`. If the handler defines a `ui_view`,
+    that is used as the `component_content`; otherwise the `component_content` established earlier is used.
+
+    The preferred technique for dynamic content is to define `create_handler` to return a handler for the given
+    `item_component_id` and associated `item` with a defined `ui_view` and do not define `get_resource` or `resources`
+    to respond to the `item_component_id`.
+
+    NOTE: it does not currently support removing items.
+    """
     assert window is not None
     items_parts = items.split('.')
     container = handler
@@ -1178,16 +1200,21 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
 
     def insert_item(index, item) -> None:
         item_widget = None
+        component_id: typing.Optional[str]
+        component_content: typing.Optional[typing.Mapping] = None
         component = None
         if callable(getattr(handler, "get_resource", None)):
             component = handler.get_resource(item_component_id, item=item, container=container)
-        component = component or handler.resources.get(item_component_id)
+        component = component or getattr(handler, "resources", dict()).get(item_component_id)
         if component:
             assert component.get("type") == "component"
             # the component will have a content portion, which is a widget description. component events are
             # ignored in this case.
-            content = component.get("content")
             component_id = component.get("component_id", item_component_id)
+            component_content = component.get("content")
+        else:
+            component_id = item_component_id
+        if component_id:
             assert component_id == item_component_id
             assert callable(getattr(handler, "create_handler", None))
             # create the handler first, but don't initialize it.
@@ -1196,9 +1223,11 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             if component_handler:
                 component_handler._closer = Closer()
                 handler._closer.push_closeable(component_handler)
+                component_content = getattr(component_handler, "ui_view", component_content)
+            assert component_content
             item_finishes: typing.List[typing.Callable[[], None]] = list()
             # now construct the widget
-            item_widget = construct(ui, window, content, component_handler, item_finishes)
+            item_widget = construct(ui, window, component_content, component_handler, item_finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
             item_widget.handler = component_handler
             for finish in item_finishes:
@@ -1700,6 +1729,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             self.__update_identifier()
 
     def __update_identifier(self) -> None:
+        # see notes in connect_items
         self.clear_task("update_identifier")
         if self.__component_handler:
             self.__handler._closer.pop_closeable(self.__component_handler)
@@ -1710,30 +1740,38 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         identifier = self.__identifier
         d = self.__d
         ui = self.ui
+        component_id: typing.Optional[str]
+        component_content: typing.Optional[typing.Mapping] = None
+        events = list()
         component = None
         finishes: typing.List[typing.Callable[[], None]] = list()
         if callable(getattr(handler, "get_resource", None)):
             component = handler.get_resource(identifier)
-        component = component or handler.resources.get(identifier)
+        component = component or getattr(handler, "resources", dict()).get(identifier)
         if component:
             assert component.get("type") == "component"
             # the component will have a content portion, which is a widget description, and a list of events.
-            content = component.get("content")
             component_id = component.get("component_id", identifier)
+            component_content = component.get("content")
             events = component.get("events", list())
+        else:
+            component_id = identifier
+        if component_id:
             # create the handler first, but don't initialize it.
             component_handler = handler.create_handler(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
             if component_handler:
                 # make and attach closer for the component handler and link it to the container handler.
                 component_handler._closer = Closer()
                 handler._closer.push_closeable(component_handler)
+                component_content = getattr(component_handler, "ui_view", component_content)
                 # set properties in the component from the properties dict
                 for k, v in d.get("properties", dict()).items():
                     # print(f"setting property {k} to {v}")
                     setattr(component_handler, k, v)
                 self.__component_handler = component_handler
+            assert component_content
             # now construct the widget
-            widget = construct(ui, window, content, component_handler, finishes)
+            widget = construct(ui, window, component_content, component_handler, finishes)
             # connect the name to the handler if desired
             connect_name(widget, d, handler)
             # since the handler is custom to the widget, make a way to retrieve it from the widget

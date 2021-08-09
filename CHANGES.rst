@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Extend declarative components to make it easier to implement all-in-one handler+view.
 - Improve handling of focus in dock widgets.
 - Add divider and draw canvas items and declarative divider.
 - Standardize to use a single event loop managed by Application.

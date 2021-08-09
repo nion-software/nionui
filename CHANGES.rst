@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Improve handling of focus in dock widgets.
 - Add divider and draw canvas items and declarative divider.
 - Standardize to use a single event loop managed by Application.
 - Add canvas item slider.

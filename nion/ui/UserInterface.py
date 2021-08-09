@@ -2821,7 +2821,12 @@ class DockWidget:
         return 0
 
     def refocus_widget(self, widget):
-        self.document_window.refocus_widget(widget)
+        # if the widget is one that retains focus, refocus it. this ensures that pressing return
+        # on a line edit widget in a dock widget selects all for a nice user experience.
+        if widget.does_retain_focus:
+            widget.refocus()
+        else:
+            self.document_window.refocus_widget(widget)
 
     @property
     def focus_widget(self):

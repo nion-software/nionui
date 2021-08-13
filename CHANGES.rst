@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Fix issue with declarative label width.
 - Extend declarative components to make it easier to implement all-in-one handler+view.
 - Improve handling of focus in dock widgets.
 - Add divider and draw canvas items and declarative divider.

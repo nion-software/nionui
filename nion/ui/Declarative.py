@@ -352,7 +352,7 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, width: int=None, min_width: int=None, **kwargs) -> UIDescription:
+    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, **kwargs) -> UIDescription:
         """Create a label UI description with text and an optional name.
 
         Keyword Args:

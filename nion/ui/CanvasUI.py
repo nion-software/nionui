@@ -660,6 +660,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def get_temporary_location(self):
         raise NotImplementedError()
 
+    def set_persistence_handler(self, handler: UserInterface.PersistenceHandler) -> None:
+        raise NotImplementedError()
+
     def get_persistent_string(self, key, default_value=None):
         raise NotImplementedError()
 

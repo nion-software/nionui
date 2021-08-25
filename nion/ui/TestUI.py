@@ -1168,6 +1168,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_configuration_location(self):
         return str()
 
+    def set_persistence_handler(self, handler) -> None:
+        pass
+
     def get_persistent_string(self, key, default_value=None):
         return default_value
 

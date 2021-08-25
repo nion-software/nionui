@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Allow subclasses to override persistent value behavior.
 - Configure stack widgets to expand/contract as content changes.
 - Fix issue with declarative label width.
 - Extend declarative components to make it easier to implement all-in-one handler+view.

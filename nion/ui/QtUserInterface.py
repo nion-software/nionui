@@ -1991,6 +1991,7 @@ class QtUserInterface(UserInterface.UserInterface):
     def __init__(self, proxy):
         self.proxy = proxy
         self.persistence_root = "0"
+        self.persistence_handler: typing.Optional[UserInterface.PersistenceHandler] = None
         self.proxy.Core_syncLatencyTimer(time.perf_counter())
 
     def close(self):
@@ -2123,32 +2124,45 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_configuration_location(self):
         return self.proxy.Core_getLocation("configuration")
 
-    def get_persistent_string(self, key, default_value=None):
+    def set_persistence_handler(self, handler: UserInterface.PersistenceHandler) -> None:
+        self.persistence_handler = handler
+
+    def get_persistent_string(self, key: str, default_value: typing.Optional[str] = None) -> str:
         key = "/".join([self.persistence_root, key])
+        if self.persistence_handler:
+            handled, value = self.persistence_handler.get_string(key)
+            if handled:
+                return value
         value = self.proxy.Settings_getString(key)
         return value if value else default_value
 
-    def set_persistent_string(self, key, value):
+    def set_persistent_string(self, key: str, value: str) -> None:
         if value is not None:
             key = "/".join([self.persistence_root, key])
+            if self.persistence_handler:
+                if self.persistence_handler.set_string(key, value):
+                    return
             self.proxy.Settings_setString(key, value)
         else:
             self.remove_persistent_key(key)
 
-    def get_persistent_object(self, key, default_value=None):
+    def get_persistent_object(self, key: str, default_value: typing.Optional[typing.Any] = None) -> typing.Any:
         key = "/".join([self.persistence_root, key])
         value = self.get_persistent_string(key)
         return pickle.loads(binascii.unhexlify(value.encode("utf-8"))) if value else default_value
 
-    def set_persistent_object(self, key, value):
+    def set_persistent_object(self, key: str, value: typing.Optional[typing.Any]) -> None:
         if value is not None:
             key = "/".join([self.persistence_root, key])
             self.set_persistent_string(key, binascii.hexlify(pickle.dumps(value, 0)).decode("utf-8"))
         else:
             self.remove_persistent_key(key)
 
-    def remove_persistent_key(self, key):
+    def remove_persistent_key(self, key: str) -> None:
         key = "/".join([self.persistence_root, key])
+        if self.persistence_handler:
+            if self.persistence_handler.remove_key(key):
+                return
         self.proxy.Settings_remove(key)
 
     # clipboard

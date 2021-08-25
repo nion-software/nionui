@@ -3198,6 +3198,19 @@ class TruncateModeType(enum.IntEnum):
     NONE = 3
 
 
+class PersistenceHandler(abc.ABC):
+    # interface for handling backwards compatibility of persistent values from a UserInterface object
+
+    @abc.abstractmethod
+    def get_string(self, key: str) -> typing.Tuple[bool, str]: ...
+
+    @abc.abstractmethod
+    def set_string(self, key: str, value: str) -> bool: ...
+
+    @abc.abstractmethod
+    def remove_key(self, key: str) -> bool: ...
+
+
 class UserInterface(abc.ABC):
 
     @abc.abstractmethod
@@ -3347,6 +3360,10 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def set_persistence_handler(self, handler: PersistenceHandler) -> None:
+        ...
+
+    @abc.abstractmethod
     def get_persistent_string(self, key: str, default_value: str=None) -> str:
         ...
 
@@ -3389,6 +3406,10 @@ class UserInterface(abc.ABC):
         ...
 
     # misc
+
+    @abc.abstractmethod
+    def set_application_info(self, application_name: str, organization_name: str, organization_domain: str) -> None:
+        ...
 
     @abc.abstractmethod
     def create_rgba_image(self, drawing_context, width, height):

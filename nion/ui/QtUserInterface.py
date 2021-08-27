@@ -2134,7 +2134,7 @@ class QtUserInterface(UserInterface.UserInterface):
             if handled:
                 return value
         value = self.proxy.Settings_getString(key)
-        return value if value else default_value
+        return value if value else (default_value or str())
 
     def set_persistent_string(self, key: str, value: str) -> None:
         if value is not None:

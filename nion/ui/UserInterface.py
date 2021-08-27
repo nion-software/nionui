@@ -3360,6 +3360,10 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def get_configuration_location(self) -> str:
+        ...
+
+    @abc.abstractmethod
     def set_persistence_handler(self, handler: PersistenceHandler) -> None:
         ...
 

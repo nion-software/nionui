@@ -2008,8 +2008,9 @@ class CanvasItemComposition(AbstractCanvasItem):
             self._repaint(drawing_context)
 
     def _repaint_if_needed(self, drawing_context, *, immediate=False) -> None:
-        if not self.__layout_render_trait._try_repaint_if_needed(drawing_context, immediate=immediate):
-            super()._repaint_if_needed(drawing_context, immediate=immediate)
+        if self.__layout_render_trait:
+            if not self.__layout_render_trait._try_repaint_if_needed(drawing_context, immediate=immediate):
+                super()._repaint_if_needed(drawing_context, immediate=immediate)
 
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         if not self.__layout_render_trait._try_repaint_immediate(drawing_context, canvas_size):

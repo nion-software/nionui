@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Add methods to create persistent value models.
 - Allow subclasses to override persistent value behavior.
 - Configure stack widgets to expand/contract as content changes.
 - Fix issue with declarative label width.

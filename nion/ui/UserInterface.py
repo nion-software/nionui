@@ -1,6 +1,7 @@
 """
 Provides a user interface object that can render to an Qt host.
 """
+from __future__ import annotations
 
 # standard libraries
 import abc
@@ -18,7 +19,9 @@ import numpy
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.utils import Converter
 from nion.utils import Geometry
+from nion.utils import Model
 
 
 def notnone(s: typing.Any) -> str:
@@ -3211,6 +3214,36 @@ class PersistenceHandler(abc.ABC):
     def remove_key(self, key: str) -> bool: ...
 
 
+class StringPersistentModel(Model.PropertyModel[str]):
+    def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[str] = None):
+        self.__storage_key = storage_key
+        self.__ui = ui
+        super().__init__(self.__ui.get_persistent_string(self.__storage_key, value))
+
+    def _set_value(self, value: typing.Optional[str]) -> None:
+        super()._set_value(value)
+        if value is not None:
+            self.__ui.set_persistent_string(self.__storage_key, str(value))
+        else:
+            self.__ui.remove_persistent_key(self.__storage_key)
+
+
+class FloatPersistentModel(Model.PropertyModel[float]):
+    def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[float] = None):
+        self.__storage_key = storage_key
+        self.__ui = ui
+        value_str = self.__ui.get_persistent_string(self.__storage_key, None)
+        value = Converter.FloatToStringConverter(pass_none=True).convert_back(value_str)
+        super().__init__(value)
+
+    def _set_value(self, value: typing.Optional[float]) -> None:
+        super()._set_value(value)
+        if value is not None:
+            self.__ui.set_persistent_string(self.__storage_key, str(value))
+        else:
+            self.__ui.remove_persistent_key(self.__storage_key)
+
+
 class UserInterface(abc.ABC):
 
     @abc.abstractmethod
@@ -3368,7 +3401,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_persistent_string(self, key: str, default_value: str=None) -> str:
+    def get_persistent_string(self, key: str, default_value: typing.Optional[str] = None) -> str:
         ...
 
     @abc.abstractmethod
@@ -3386,6 +3419,12 @@ class UserInterface(abc.ABC):
     @abc.abstractmethod
     def remove_persistent_key(self, key: str) -> None:
         ...
+
+    def create_persistent_string_model(self, key: str, default_value: typing.Optional[str] = None) -> Model.PropertyModel[str]:
+        return StringPersistentModel(self, key, default_value)
+
+    def create_persistent_float_model(self, key: str, default_value: typing.Optional[float] = None) -> Model.PropertyModel[float]:
+        return FloatPersistentModel(self, key, default_value)
 
     # clipboard
 

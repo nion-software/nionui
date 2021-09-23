@@ -3,6 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
+- Drop support for Python 3.7.
 - Add methods to create persistent value models.
 - Allow subclasses to override persistent value behavior.
 - Configure stack widgets to expand/contract as content changes.

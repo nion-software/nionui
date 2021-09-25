@@ -18,6 +18,7 @@ import typing
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
+from nion.utils import Event
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -64,7 +65,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def close(self) -> None:
         self.__selection_changed_listener.close()
-        self.__selection_changed_listener = None
+        self.__selection_changed_listener = typing.cast(Event.EventListener, None)
         super().close()
 
     def detach_delegate(self) -> None:

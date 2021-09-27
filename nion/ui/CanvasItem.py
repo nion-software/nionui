@@ -2431,7 +2431,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         return constraint_solve(content_origin, content_size, constraints)
 
     @property
-    def splits(self) -> typing.List[int]:
+    def splits(self) -> typing.List[float]:
         """ Return the canvas item splits, which represent the relative size of each child. """
         if self.canvas_origin is not None:
             canvas_size = self.canvas_size
@@ -2451,7 +2451,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         return [float(size) / content_size for size in sizes]
 
     @splits.setter
-    def splits(self, splits: typing.List[int]) -> None:
+    def splits(self, splits: typing.List[float]) -> None:
         with self.__lock:
             sizings = copy.deepcopy(self.__sizings)
         assert len(splits) == len(sizings)

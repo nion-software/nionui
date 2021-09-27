@@ -93,7 +93,7 @@ def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: 
     tracking_canvas_item.on_close = functools.partial(handle_close, document_window)
 
     # configure canvas widget, attach to document window
-    mousegrab_window_pos = global_pos - Geometry.IntPoint(x=size.width, y=size.height / 2)
+    mousegrab_window_pos = global_pos - Geometry.IntPoint(x=size.width, y=size.height // 2)
     document_window.show(size=size, position=mousegrab_window_pos)
     if sys.platform == "win32":
         relative_pos = Geometry.IntPoint()

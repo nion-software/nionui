@@ -72,7 +72,7 @@ def calculate_font_metric_info_for_tests(font_str: str, display_scaling: float) 
         is indented 4 spaces, so it can be copied to the body of a top-level function.
     """
     # Use local imports so Qt is not required for module to load
-    from nion.ui.PyQtProxy import ParseFontString, QtGui
+    from nion.ui.PyQtProxy import ParseFontString, QtGui  # type: ignore
     font = ParseFontString(font_str, display_scaling)
 
     font_metrics = QtGui.QFontMetrics(font)

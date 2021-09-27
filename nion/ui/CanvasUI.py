@@ -481,12 +481,12 @@ class Window(UserInterface.Window):
 
 class CanvasUserInterface(UserInterface.UserInterface):
 
-    def __init__(self, draw_fn, get_font_metrics_fn):
+    def __init__(self, draw_fn: typing.Any, get_font_metrics_fn: typing.Any) -> None:
         self.persistence_root = "0"
         self.__draw_fn = draw_fn
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__done = False
-        self.__document_windows = list()
+        self.__document_windows = list()  # type: ignore
 
     def close(self):
         self.__done = True

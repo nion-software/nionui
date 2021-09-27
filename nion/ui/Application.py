@@ -5,11 +5,13 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import contextlib
 import copy
 import gettext
 import logging
 import os
 import sys
+import types
 import typing
 import weakref
 
@@ -20,6 +22,7 @@ from nion.ui import Window
 from nion.utils import Process
 
 if typing.TYPE_CHECKING:
+    from nion.ui import Dialog
     from nion.utils import Event
 
 _ = gettext.gettext
@@ -27,18 +30,18 @@ _ = gettext.gettext
 
 class LoggingHandler(logging.StreamHandler):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.__records = list()
+        self.__records: typing.List[logging.LogRecord] = list()
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         super().emit(record)
         if self.__records is not None:
             self.__records.append(record)
 
-    def take_records(self):
+    def take_records(self) -> typing.List[logging.LogRecord]:
         records = self.__records
-        self.__records = None
+        self.__records = list()
         return records
 
 
@@ -54,7 +57,8 @@ class BaseApplication:
     Pass the desired user interface to the init method. Then call initialize and start.
     """
 
-    def __init__(self, ui: UserInterface.UserInterface, *, on_start=None):
+    def __init__(self, ui: UserInterface.UserInterface, *,
+                 on_start: typing.Optional[typing.Callable[[], bool]] = None) -> None:
         self.ui = ui
 
         # handle last window closing in Python; but use this variable so tool can continue to
@@ -70,7 +74,7 @@ class BaseApplication:
         logger.addHandler(logging_handler)
 
         class ContextFilter(logging.Filter):
-            def filter(self, record):
+            def filter(self, record: logging.LogRecord) -> bool:
                 if record.exc_info and record.exc_info[0] == ConnectionResetError:
                     return False
                 return True
@@ -82,14 +86,15 @@ class BaseApplication:
         self.__windows : typing.List[Window.Window] = list()
         self.__window_close_event_listeners: typing.Dict[Window.Window, Event.EventListener] = dict()
         self.__event_loop: asyncio.AbstractEventLoop = typing.cast(asyncio.AbstractEventLoop, None)
-        self.__dialogs : typing.List[weakref.ReferenceType] = list()
+        # Python 3.9+: typing.List[weakref.ReferenceType[Dialog]]
+        self.__dialogs : typing.List[typing.Any] = list()
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Initialize. Separate from __init__ so that overridden methods can be called."""
         # configure the event loop, which can be used for non-window clients. for backwards compatibility only.
         self.__event_loop = asyncio.get_event_loop()
 
-    def deinitialize(self):
+    def deinitialize(self) -> None:
         self._close_dialogs()
         Process.sync_event_loop(self.__event_loop)
         self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
@@ -97,16 +102,17 @@ class BaseApplication:
             f.write(sys.prefix + '\n')
         self.ui.close()
 
-    def run(self):
+    def run(self) -> None:
         """Run the application. Called from PyQt."""
         self.ui.run(self)
 
-    def start(self):
+    def start(self) -> bool:
         """The start method should create a window that will be the focus of the UI."""
         if callable(self.__on_start):
             return self.__on_start()
+        return True
 
-    def stop(self):
+    def stop(self) -> None:
         # program is really stopping, clean up.
         self.deinitialize()
 
@@ -126,20 +132,21 @@ class BaseApplication:
         with self.prevent_close():
             pass  # trigger close if all windows closed.
 
-    def prevent_close(self):
+    class _PreventCloseContext:
+        def __init__(self, application: BaseApplication) -> None:
+            self.__application = application
 
-        class Context:
-            def __init__(self, application: BaseApplication):
-                self.__application = application
+        def __enter__(self) -> BaseApplication._PreventCloseContext:
+            self.__application._enter_prevent_close_state()
+            return self
 
-            def __enter__(self):
-                self.__application._enter_prevent_close_state()
-                return self
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]],
+                     value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            self.__application._exit_prevent_close_state()
+            return None
 
-            def __exit__(self, type, value, traceback):
-                self.__application._exit_prevent_close_state()
-
-        return Context(self)
+    def prevent_close(self) -> contextlib.AbstractContextManager[BaseApplication._PreventCloseContext]:
+        return BaseApplication._PreventCloseContext(self)
 
     def _enter_prevent_close_state(self) -> None:
         self.__prevent_close_count += 1
@@ -149,7 +156,7 @@ class BaseApplication:
         if not self.__prevent_close_count and not self.__windows and not self.__dialogs:
             self.ui.request_quit()
 
-    def exit(self):
+    def exit(self) -> None:
         """The exit method should request to close or close the window."""
         for window in copy.copy(self.__windows):
             # closing the window will trigger the about_to_close event to be called which
@@ -157,7 +164,7 @@ class BaseApplication:
             # remove the window from the list of window in _window_did_close.
             window.request_close()
 
-    def periodic(self):
+    def periodic(self) -> None:
         """The periodic method can be overridden to implement periodic behavior."""
         if self.__event_loop:  # special for shutdown
             self.__event_loop.stop()
@@ -173,15 +180,16 @@ class BaseApplication:
                     pass
         self.__dialogs = list()
 
-    def is_dialog_type_open(self, dialog_class) -> bool:
+    def is_dialog_type_open(self, dialog_class: typing.Type[Dialog.ActionDialog]) -> bool:
         for dialog_weakref in self.__dialogs:
             if isinstance(dialog_weakref(), dialog_class):
                 return True
         return False
 
     def register_dialog(self, dialog: Window.Window) -> None:
-        def close_dialog():
+        def close_dialog() -> None:
             self.__dialogs.remove(weakref.ref(dialog))
+
         dialog.on_close = close_dialog
         self.__dialogs.append(weakref.ref(dialog))
 
@@ -200,7 +208,9 @@ class BaseApplication:
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
         Declarative.WindowHandler(completion_fn=completion_fn).run(window, app=self)
 
-    def show_ok_cancel_dialog(self, title: str, message: str, *, ok_text: str = None, cancel_text: str = None, completion_fn: typing.Optional[typing.Callable[[bool], None]] = None) -> None:
+    def show_ok_cancel_dialog(self, title: str, message: str, *, ok_text: typing.Optional[str] = None,
+                              cancel_text: typing.Optional[str] = None,
+                              completion_fn: typing.Optional[typing.Callable[[bool], None]] = None) -> None:
         u = Declarative.DeclarativeUI()
         error_message = u.create_label(text=message)
         button_row = u.create_row(u.create_stretch(),
@@ -211,7 +221,7 @@ class BaseApplication:
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
 
         class OkCancelHandler(Declarative.WindowHandler):
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__(completion_fn=self.handle_close)
                 self.__result = False
 
@@ -230,7 +240,7 @@ class BaseApplication:
         OkCancelHandler().run(window, app=self)
 
 
-def make_ui(bootstrap_args):
+def make_ui(bootstrap_args: typing.Mapping[str, typing.Any]) -> UserInterface.UserInterface:
     if "proxy" in bootstrap_args:
         from nion.ui import QtUserInterface
         proxy = bootstrap_args["proxy"]
@@ -239,18 +249,17 @@ def make_ui(bootstrap_args):
         from nion.ui import QtUserInterface
         from nion.ui import PyQtProxy
         return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())
-    elif "server" in bootstrap_args:
-        from nion.ui import CanvasUI
-        server = bootstrap_args["server"]
-        return CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
-    else:
-        return None
+    # elif "server" in bootstrap_args:
+    #     from nion.ui import CanvasUI
+    #     server = bootstrap_args["server"]
+    #     return CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
+    raise Exception("Unable to create user interface object.")
 
 
-def run_window(args, bootstrap_args, d, handler) -> BaseApplication:
+def run_window(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, typing.Any], d: Declarative.UIDescription, handler: Declarative.HandlerLike) -> BaseApplication:
     """Make base application and run it with the declarative d and handler."""
 
-    def start():
+    def start() -> bool:
         Declarative.run_window(d, handler, app=app)
         return True
 

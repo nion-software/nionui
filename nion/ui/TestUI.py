@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 # standard libraries
 import collections
-import copy
 import enum
 import json
 import pathlib
@@ -14,6 +15,9 @@ from . import CanvasItem
 from . import DrawingContext
 from . import UserInterface as UserInterfaceModule
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    from . import Application
 
 
 focused_widget = None  # simulate focus handling at the widget level
@@ -1053,6 +1057,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
         self._font_metrics = make_font_metrics_for_tests()
 
     def close(self):
+        pass
+
+    def run(self, app: Application.BaseApplication) -> None:
         pass
 
     def request_quit(self) -> None:

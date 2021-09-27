@@ -23,6 +23,9 @@ from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
+
 
 def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
@@ -3248,6 +3251,10 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def close(self) -> None:
+        ...
+
+    @abc.abstractmethod
+    def run(self, app: Application.BaseApplication) -> None:
         ...
 
     @abc.abstractmethod

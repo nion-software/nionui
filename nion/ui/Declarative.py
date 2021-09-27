@@ -20,7 +20,7 @@ if typing.TYPE_CHECKING:
     from nion.ui import Application
 
 
-UIDescription = typing.Dict  # when napolean works: typing.NewType("UIDescription", typing.Dict)
+UIDescription = typing.Dict[str, typing.Any]  # when napolean works: typing.NewType("UIDescription", typing.Dict)
 UIResources = typing.Dict  # when napolean works: typing.NewType("UIResources", typing.Dict)
 UIPoints = int  # when napolean works: typing.NewType("UIPoints", int)
 UILabel = str
@@ -86,7 +86,7 @@ class DeclarativeUI:
     # ----: placeholder text should be bindable
     # TODO: text color, font, etc. bindable
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def __process_common_properties(self, d: typing.MutableMapping, **kwargs) -> None:
@@ -902,6 +902,10 @@ class DeclarativeUI:
         for k, v in kwargs.items():
             d[k] = v
         return d
+
+
+class HandlerLike(typing.Protocol):
+    pass
 
 
 def connect_name(widget, d, handler):

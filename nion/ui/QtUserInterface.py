@@ -2,6 +2,8 @@
 Provides a user interface object that can render to an Qt host.
 """
 
+from __future__ import annotations
+
 # standard libraries
 import binascii
 import copy
@@ -20,6 +22,9 @@ import weakref
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Geometry
+
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
 
 
 def notnone(s: typing.Any) -> str:
@@ -1988,7 +1993,7 @@ class QtDockWidget(UserInterface.DockWidget):
 
 class QtUserInterface(UserInterface.UserInterface):
 
-    def __init__(self, proxy):
+    def __init__(self, proxy: typing.Any) -> None:
         self.proxy = proxy
         self.persistence_root = "0"
         self.persistence_handler: typing.Optional[UserInterface.PersistenceHandler] = None
@@ -2004,8 +2009,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def set_application_info(self, application_name: str, organization_name: str, organization_domain: str):
         self.proxy.Core_setApplicationInfo(application_name, organization_name, organization_domain)
 
-    def run(self, start_fn):
-        self.proxy.run(start_fn)
+    def run(self, app: Application.BaseApplication) -> None:
+        self.proxy.run(app)
 
     # data objects
 

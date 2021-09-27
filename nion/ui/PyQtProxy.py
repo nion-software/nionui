@@ -1,5 +1,3 @@
-# type: ignore
-
 from __future__ import annotations
 
 import collections
@@ -2233,7 +2231,7 @@ class PyDrawingContext(QtCore.QObject):
 
 class PyQtProxy:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__timer = QtCore.QElapsedTimer()
         self.__timer_offset_ns = 0
 
@@ -2252,7 +2250,7 @@ class PyQtProxy:
             def flush(self):
                 pass
 
-        sys.stdout = StdoutCatcher()
+        sys.stdout = StdoutCatcher()  # type: ignore
         sys.stderr = sys.stdout
 
     def has_method(self, name: str) -> bool:

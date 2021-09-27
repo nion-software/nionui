@@ -132,17 +132,19 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_size = self.canvas_size
-        item_size = self.__calculate_item_size(canvas_size)
-        item_count = self.__delegate.item_count if self.__delegate else 0
-        items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
-        items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
-        if self.direction == Direction.Row:
-            row = index // items_per_row
-            column = index - row * items_per_row
-        else:
-            column = index // items_per_column
-            row = index - column * items_per_column
-        return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width), size=Geometry.IntSize(width=item_size.width, height=item_size.height))
+        if canvas_size:
+            item_size = self.__calculate_item_size(canvas_size)
+            item_count = self.__delegate.item_count if self.__delegate else 0
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
+            if self.direction == Direction.Row:
+                row = index // items_per_row
+                column = index - row * items_per_row
+            else:
+                column = index // items_per_column
+                row = index - column * items_per_column
+            return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width), size=Geometry.IntSize(width=item_size.width, height=item_size.height))
+        return Geometry.IntRect.empty_rect()
 
     def _repaint_visible(self, drawing_context, visible_rect):
         canvas_size = self.canvas_size

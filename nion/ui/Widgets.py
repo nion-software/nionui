@@ -181,7 +181,8 @@ class SectionWidget(CompositeWidgetBase):
     @expanded.setter
     def expanded(self, value: bool) -> None:
         if value != self.expanded:
-            self.__twist_down_canvas_item.on_button_clicked()
+            if callable(self.__twist_down_canvas_item.on_button_clicked):
+                self.__twist_down_canvas_item.on_button_clicked()
 
 
 class ListCanvasItemDelegate:
@@ -529,10 +530,15 @@ class TableWidget(CompositeWidgetBase):
             self.__binding = None
 
 
-class TextButtonCell:
+class CellLike(typing.Protocol):
+    update_event: Event.Event
+
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None: ...
+
+
+class TextButtonCell(CellLike):
 
     def __init__(self, text: str):
-        super().__init__()
         self.update_event = Event.Event()
         self.__text = text
 
@@ -618,7 +624,9 @@ class TextPushButtonWidget(CompositeWidgetBase):
         text_button_canvas_widget = ui.create_canvas_widget(properties={"height": 20, "width": 20})
         text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
         # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
-        text_button_canvas_widget.on_mouse_exited = text_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+        root_container = text_button_canvas_item.root_container
+        if root_container:
+            text_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
         self.content_widget.add(text_button_canvas_widget)
 
@@ -667,10 +675,9 @@ class ImageWidget(CompositeWidgetBase):
         self.__bitmap_canvas_item.border_color = border_color
 
 
-class ColorButtonCell:
+class ColorButtonCell(CellLike):
 
     def __init__(self, color: typing.Optional[str]):
-        super().__init__()
         self.update_event = Event.Event()
         self.__color = color
 
@@ -682,7 +689,7 @@ class ColorButtonCell:
     def color(self, value: typing.Optional[str]) -> None:
         self.__color = value
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: str) -> None:
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
         # style: "disabled" (default is enabled)
 
         margin_rect = rect.inset(4, 4)
@@ -724,7 +731,8 @@ class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):
 
     def __init__(self, color: typing.Optional[str]):
         super().__init__()
-        self.cell = ColorButtonCell(color)
+        self.color_button_cell = ColorButtonCell(color)
+        self.cell = self.color_button_cell
         self.wants_mouse_events = True
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
@@ -732,17 +740,21 @@ class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):
         self.on_button_clicked = None
         super().close()
 
-    def mouse_entered(self) -> None:
+    def mouse_entered(self) -> bool:
         self._mouse_inside = True
+        return True
 
-    def mouse_exited(self) -> None:
+    def mouse_exited(self) -> bool:
         self._mouse_inside = False
+        return True
 
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self._mouse_pressed = True
+        return True
 
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self._mouse_pressed = False
+        return True
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.enabled:
@@ -773,7 +785,9 @@ class ColorPushButtonWidget(CompositeWidgetBase):
         color_button_canvas_widget = ui.create_canvas_widget(properties={"height": 30, "width": 44})
         color_button_canvas_widget.canvas_item.add_canvas_item(color_button_canvas_item)
         # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
-        color_button_canvas_widget.on_mouse_exited = color_button_canvas_item.root_container.canvas_widget.on_mouse_exited
+        root_container = color_button_canvas_item.root_container
+        if root_container:
+            color_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
         self.__color_button_canvas_item = color_button_canvas_item
 
@@ -790,12 +804,12 @@ class ColorPushButtonWidget(CompositeWidgetBase):
 
     @property
     def color(self) -> typing.Optional[str]:
-        return self.__color_button_canvas_item.cell.color
+        return self.__color_button_canvas_item.color_button_cell.color
 
     @color.setter
     def color(self, color: typing.Optional[str]) -> None:
         if color != self.color:
-            self.__color_button_canvas_item.cell.color = color
+            self.__color_button_canvas_item.color_button_cell.color = color
             self.__color_button_canvas_item.update()
 
     def bind_color(self, binding: Binding.Binding) -> None:

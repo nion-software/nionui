@@ -582,7 +582,7 @@ class DrawingContext:
         self.images[str(image_id)] = img
         self.binary_commands.extend(struct.pack("4siiiffff", b"imag", img.shape[1], img.shape[0], int(image_id), float(x), float(y), float(width), float(height)))
 
-    def draw_data(self, img: GrayscaleF32Type, x: float, y: float, width: float, height: float, low: float, high: float, color_map_data: RGBA32Type) -> None:
+    def draw_data(self, img: GrayscaleF32Type, x: float, y: float, width: float, height: float, low: float, high: float, color_map_data: typing.Optional[RGBA32Type]) -> None:
         # img should be float
         assert img.dtype == numpy.float32  # type: ignore
         with DrawingContext.__image_id_lock:
@@ -636,11 +636,11 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4si{}sfff".format(len(text_encoded)), b"text", len(text_encoded), text_encoded, float(x), float(y), float(max_width) if max_width else 0))
 
     @property
-    def fill_style(self) -> typing.Optional[str]:
+    def fill_style(self) -> typing.Optional[typing.Union[str, LinearGradient]]:
         raise NotImplementedError()
 
     @fill_style.setter
-    def fill_style(self, a: typing.Optional[str]) -> None:
+    def fill_style(self, a: typing.Optional[typing.Union[str, LinearGradient]]) -> None:
         a = a or "rgba(0, 0, 0, 0.0)"
         if isinstance(a, DrawingContext.LinearGradient):
             self.commands.extend(a.commands)
@@ -714,20 +714,20 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"stst", len(a_encoded), a_encoded))
 
     @property
-    def line_width(self) -> int:
+    def line_width(self) -> float:
         raise NotImplementedError()
 
     @line_width.setter
-    def line_width(self, a: int) -> None:
+    def line_width(self, a: float) -> None:
         self.commands.append(("lineWidth", float(a)))
         self.binary_commands.extend(struct.pack("4sf", b"linw", float(a)))
 
     @property
-    def line_dash(self) -> typing.Optional[int]:
+    def line_dash(self) -> typing.Optional[float]:
         raise NotImplementedError()
 
     @line_dash.setter
-    def line_dash(self, a: typing.Optional[int]) -> None:
+    def line_dash(self, a: typing.Optional[float]) -> None:
         """Set the line dash. Takes a single value with the length of the dash."""
         assert a is not None
         self.commands.append(("lineDash", float(a)))

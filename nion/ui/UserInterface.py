@@ -335,8 +335,8 @@ class Widget:
         self.__root_container = None  # the document window
         self.__pending_keyed_tasks = list()
         self.__pending_queued_tasks = list()
-        self.on_context_menu_event = None
-        self.on_focus_changed = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.widget_id = None
 
         def handle_context_menu_event(x, y, gx, gy):
@@ -531,11 +531,11 @@ class Widget:
         self._behavior.size = size
 
     @property
-    def tool_tip(self) -> str:
+    def tool_tip(self) -> typing.Optional[str]:
         return self._behavior.tool_tip
 
     @tool_tip.setter
-    def tool_tip(self, tool_tip: str) -> None:
+    def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         if self._behavior.tool_tip != tool_tip:
             self._behavior.tool_tip = tool_tip
             if self.__tool_tip_binding:
@@ -2162,27 +2162,27 @@ class CanvasWidget(Widget):
     def __init__(self, widget_behavior, *, layout_render: str = None):
         super().__init__(widget_behavior)
         self.on_periodic = None
-        self.on_dispatch_any = None
-        self.on_can_dispatch_any = None
-        self.on_get_menu_item_state = None
-        self.on_mouse_entered = None
-        self.on_mouse_exited = None
-        self.on_mouse_clicked = None
-        self.on_mouse_double_clicked = None
-        self.on_mouse_pressed = None
-        self.on_mouse_released = None
-        self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
-        self.on_wheel_changed = None
-        self.on_key_pressed = None
-        self.on_key_released = None
+        self.on_dispatch_any: typing.Optional[typing.Callable[..., typing.Any]] = None
+        self.on_can_dispatch_any: typing.Optional[typing.Callable[[str], bool]] = None
+        self.on_get_menu_item_state: typing.Optional[typing.Callable[[str], typing.Optional[MenuItemState]]] = None
+        self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
+        self.on_mouse_double_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
+        self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
+        self.on_mouse_released: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
+        self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]] = None
+        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]] = None
+        self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[Key], bool]] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_tool_tip = None
-        self.on_pan_gesture = None
+        self.on_drag_enter: typing.Optional[typing.Callable[[MimeData], str]] = None
+        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
+        self.on_drag_move: typing.Optional[typing.Callable[[MimeData, int, int], str]] = None
+        self.on_drop: typing.Optional[typing.Callable[[MimeData, int, int], str]] = None
+        self.on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
         self.width = 0
         self.height = 0
         self.position_info = None
@@ -2379,7 +2379,7 @@ class CanvasWidget(Widget):
     def remove_section(self, section_id: int) -> None:
         self._behavior.remove_section(section_id)
 
-    def set_cursor_shape(self, cursor_shape: str) -> None:
+    def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         self._behavior.set_cursor_shape(cursor_shape)
 
     def simulate_mouse_click(self, x, y, modifiers):
@@ -2390,16 +2390,16 @@ class CanvasWidget(Widget):
         if self.on_mouse_clicked:
             self.on_mouse_clicked(x, y, modifiers)
 
-    def grab_gesture(self, gesture_type):
+    def grab_gesture(self, gesture_type: str) -> None:
         self._behavior.grab_gesture(gesture_type)
 
-    def release_gesture(self, gesture_type):
+    def release_gesture(self, gesture_type: str) -> None:
         self._behavior.release_gesture(gesture_type)
 
-    def grab_mouse(self, gx, gy):
+    def grab_mouse(self, gx: int, gy: int) -> None:
         self._behavior.grab_mouse(gx, gy)
 
-    def release_mouse(self):
+    def release_mouse(self) -> None:
         self._behavior.release_mouse()
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:

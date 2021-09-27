@@ -4,6 +4,7 @@ import sys
 import typing
 
 from nion.ui import CanvasItem
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 
@@ -55,7 +56,7 @@ class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
     def release_mouse(self):
         self.root_container.release_mouse()
 
-    def grabbed_mouse_position_changed(self, dx, dy, modifiers):
+    def grabbed_mouse_position_changed(self, dx: int, dy: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if not self.__discard_first:
             self.on_mouse_position_changed_by(Geometry.IntPoint(x=dx, y=dy))
         self.__discard_first = False

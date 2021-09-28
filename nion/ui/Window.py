@@ -468,7 +468,9 @@ class Window:
         return False
 
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: numpy.ndarray, hot_spot_x: int, hot_spot_y: int) -> None:
-        self.__document_window.root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
+        root_widget = self.__document_window.root_widget
+        if root_widget:
+            root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
 
     @property
     def title(self) -> str:

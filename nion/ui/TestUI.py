@@ -18,6 +18,7 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from . import Application
+    from . import Window
 
 
 focused_widget = None  # simulate focus handling at the widget level
@@ -455,16 +456,16 @@ class WidgetBehavior:
         self.widget = Widget(widget_type)
         self.widget.on_size_changed = self._size_changed
         self.does_retain_focus = False
-        self.on_ui_activity = None
-        self.on_context_menu_event = None
-        self.on_focus_changed = None
-        self.on_size_changed = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self._no_focus = "no_focus"
         self.__focused = False
         self.visible = True
         self.enabled = True
-        self.size = None
-        self.tool_tip = None
+        self.size: Geometry.IntSize = Geometry.IntSize()
+        self.tool_tip: typing.Optional[str] = None
         self.children: typing.List[Widget] = list()
         self.content = None
         self.canvas_item = None
@@ -511,18 +512,40 @@ class WidgetBehavior:
     def map_to_global(self, p):
         return p
 
+    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
+        pass
+
 
 class NullBehavior:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.focused = False
-        self.enabled = True
+        self.does_retain_focus = False
         self.visible = True
+        self.enabled = True
+        self.size = Geometry.IntSize()
+        self.tool_tip: typing.Optional[str] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
 
-    def close(self):
+    def close(self) -> None:
         pass
 
-    def _set_root_container(self, root_container):
+    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+        pass
+
+    def set_property(self, key: str, value: typing.Any) -> None:
+        pass
+
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        return Geometry.IntPoint()
+
+    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
 
 
@@ -544,7 +567,7 @@ def extract_widget(widget: UserInterfaceModule.Widget) -> typing.Optional[Widget
     if content_widget:
         return extract_widget(content_widget)
     elif hasattr(widget, "_behavior"):
-        return widget._behavior.widget
+        return getattr(widget._behavior, "widget")
     return None
 
 
@@ -753,24 +776,23 @@ class CanvasWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Mapping):
         super().__init__(widget_type, properties)
-        self.on_mouse_entered = None
-        self.on_mouse_exited = None
-        self.on_mouse_clicked = None
-        self.on_mouse_double_clicked = None
-        self.on_mouse_pressed = None
-        self.on_mouse_released = None
-        self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
-        self.on_wheel_changed = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_size_changed = None
-        self.on_drag_enter = None
-        self.on_drag_leave = None
-        self.on_drag_move = None
-        self.on_drop = None
-        self.on_tool_tip = None
-        self.on_pan_gesture = None
+        self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_clicked: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
+        self.on_mouse_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
+        self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
+        self.on_mouse_released: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
+        self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], None]] = None
+        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], None]] = None
+        self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
+        self.on_drag_enter: typing.Optional[typing.Callable[[UserInterfaceModule.MimeData], str]] = None
+        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
+        self.on_drag_move: typing.Optional[typing.Callable[[UserInterfaceModule.MimeData, int, int], str]] = None
+        self.on_drop: typing.Optional[typing.Callable[[UserInterfaceModule.MimeData, int, int], str]] = None
+        self.on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
         self.__focusable = False
 
     def close(self):
@@ -960,7 +982,7 @@ class DocumentWindowX(UserInterfaceModule.Window):
     def __init__(self, size: typing.Optional[Geometry.IntSize] = None):
         super().__init__(None, "title")
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
-        self.__title = None
+        self.__title: typing.Optional[str] = None
 
     def request_close(self):
         if self.on_about_to_close:
@@ -1073,7 +1095,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_mime_data(self) -> MimeData:
         return MimeData()
 
-    def create_item_model_controller(self, keys):
+    def create_item_model_controller(self):
         return ItemModelController()
 
     def create_button_group(self):
@@ -1093,7 +1115,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_column_widget(self, alignment=None, properties=None):
         return UserInterfaceModule.BoxWidget(BoxWidgetBehavior("column", properties), alignment)
 
-    def create_splitter_widget(self, orientation="vertical", properties=None):
+    def create_splitter_widget(self, orientation=None, properties=None):
         return UserInterfaceModule.SplitterWidget(SplitterWidgetBehavior("splitter", properties), orientation)
 
     def create_tab_widget(self, properties=None):

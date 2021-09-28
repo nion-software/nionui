@@ -19,12 +19,14 @@ import numpy
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.utils import Binding
 from nion.utils import Converter
 from nion.utils import Geometry
 from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
+    from nion.ui import Window as WindowModule
 
 
 def notnone(s: typing.Any) -> str:
@@ -38,7 +40,7 @@ MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "ch
 
 class KeyboardModifiers(abc.ABC):
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "shift:{} control:{} alt:{} option:{} meta:{}".format(self.shift, self.control, self.alt, self.option, self.meta)
 
     @property
@@ -305,7 +307,7 @@ class MimeData(abc.ABC):
         return "text/uri-list" in self.formats
 
     @property
-    def has_file_paths(self):
+    def has_file_paths(self) -> bool:
         return "text/uri-list" in self.formats
 
     @property
@@ -327,36 +329,54 @@ class MimeData(abc.ABC):
         ...
 
 
+class WidgetBehavior(typing.Protocol):
+    focused: bool
+    does_retain_focus: bool
+    visible: bool
+    enabled: bool
+    size: Geometry.IntSize
+    tool_tip: typing.Optional[str]
+    on_ui_activity: typing.Optional[typing.Callable[[], None]]
+    on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]]
+    on_focus_changed: typing.Optional[typing.Callable[[bool], None]]
+
+    def close(self) -> None: ...
+    def _set_root_container(self, window: typing.Optional[WindowModule.Window]) -> None: ...
+    def set_property(self, key: str, value: typing.Any) -> None: ...
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint: ...
+    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None: ...
+
+
 class Widget:
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: WidgetBehavior) -> None:
         self.__behavior = widget_behavior
         self.__behavior.on_ui_activity = self._register_ui_activity
-        self.__root_container = None  # the document window
-        self.__pending_keyed_tasks = list()
-        self.__pending_queued_tasks = list()
+        self.__root_container: typing.Optional[WindowModule.Window] = None  # the document window
+        self.__pending_keyed_tasks: typing.List[typing.Tuple[str, typing.Callable[[], None]]] = list()
+        self.__pending_queued_tasks: typing.List[typing.Callable[[], None]] = list()
         self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
-        self.widget_id = None
+        self.widget_id: typing.Optional[str] = None
 
-        def handle_context_menu_event(x, y, gx, gy):
+        def handle_context_menu_event(x: int, y: int, gx: int, gy: int) -> None:
             if callable(self.on_context_menu_event):
                 self.on_context_menu_event(x, y, gx, gy)
 
-        def handle_focus_changed(focused):
+        def handle_focus_changed(focused: bool) -> None:
             if callable(self.on_focus_changed):
                 self.on_focus_changed(focused)
 
         self._behavior.on_context_menu_event = handle_context_menu_event
         self._behavior.on_focus_changed = handle_focus_changed
 
-        self.__enabled_binding = None
-        self.__visible_binding = None
-        self.__tool_tip_binding = None
+        self.__enabled_binding: typing.Optional[Binding.Binding] = None
+        self.__visible_binding: typing.Optional[Binding.Binding] = None
+        self.__tool_tip_binding: typing.Optional[Binding.Binding] = None
 
-        self.widget_id = None
-
-    def close(self):
+    def close(self) -> None:
         if self.__enabled_binding:
             self.__enabled_binding.close()
             self.__enabled_binding = None
@@ -370,20 +390,20 @@ class Widget:
         self.clear_task("update_visible")
         self.clear_task("update_tool_tip")
         self.__behavior.close()
-        self.__behavior = None
+        self.__behavior = typing.cast(typing.Any, None)
         self.on_context_menu_event = None
         self.on_focus_changed = None
         self.__root_container = None
 
     @property
-    def _behavior(self):
+    def _behavior(self) -> WidgetBehavior:
         return self.__behavior
 
     @property
-    def root_container(self):
+    def root_container(self) -> typing.Optional[WindowModule.Window]:
         return self.__root_container
 
-    def _set_root_container(self, root_container):
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         self.__root_container = root_container
         self._behavior._set_root_container(root_container)
         if self.__root_container:
@@ -396,15 +416,15 @@ class Widget:
             for task in pending_queued_tasks:
                 self.queue_task(task)
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         if self.__root_container:
             self.__root_container._register_ui_activity()
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return list()
 
-    def find_widget_by_id(self, widget_id: str):
+    def find_widget_by_id(self, widget_id: str) -> typing.Optional[Widget]:
         if self.widget_id == widget_id:
             return self
         for contained_widget in self._contained_widgets:
@@ -414,10 +434,10 @@ class Widget:
         return None
 
     # not thread safe
-    def periodic(self):
+    def periodic(self) -> None:
         pass
 
-    def run_pending_keyed_tasks(self):
+    def run_pending_keyed_tasks(self) -> None:
         # used for testing
         pending_keyed_tasks = copy.copy(self.__pending_keyed_tasks)
         self.__pending_keyed_tasks.clear()
@@ -426,12 +446,12 @@ class Widget:
                 task()
 
     @property
-    def pending_keyed_tasks(self):
+    def pending_keyed_tasks(self) -> typing.List[typing.Tuple[str, typing.Callable[[], None]]]:
         # used for testing
         return copy.copy(self.__pending_keyed_tasks)
 
     @property
-    def pending_queued_tasks(self):
+    def pending_queued_tasks(self) -> typing.List[typing.Callable[[], None]]:
         # used for testing
         return copy.copy(self.__pending_queued_tasks)
 
@@ -442,7 +462,7 @@ class Widget:
     # mitigated in several ways: 1) clear the task if possible; 2) do not queue
     # the task if widget is already closed; 3) check during task to make sure
     # widget was not already closed.
-    def add_task(self, key, task):
+    def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
         root_container = self.root_container
         if root_container:
             root_container.add_task(key + str(id(self)), task)
@@ -450,7 +470,7 @@ class Widget:
             self.__pending_keyed_tasks.append((key, task))
 
     # thread safe
-    def clear_task(self, key):
+    def clear_task(self, key: str) -> None:
         root_container = self.root_container
         if root_container:
             root_container.clear_task(key + str(id(self)))
@@ -462,7 +482,7 @@ class Widget:
                     self.__pending_keyed_tasks.append((pending_key, task))
 
     # thread safe
-    def queue_task(self, task):
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
         root_container = self.root_container
         if root_container:
             root_container.queue_task(task)
@@ -541,18 +561,20 @@ class Widget:
             if self.__tool_tip_binding:
                 self.__tool_tip_binding.update_source(tool_tip)
 
-    def set_property(self, key: str, value) -> None:
+    def set_property(self, key: str, value: typing.Any) -> None:
         self._behavior.set_property(key, value)
 
-    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[numpy.ndarray] = None, hot_spot_x=None, hot_spot_y=None, drag_finished_fn=None) -> None:
+    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
-    def map_to_global(self, p) -> Geometry.IntPoint:
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return self._behavior.map_to_global(p)
 
-    def _dispatch_any(self, method: str, *args, **kwargs) -> bool:
+    def _dispatch_any(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
         if hasattr(self, method):
-            return getattr(self, method)(*args, **kwargs)
+            return typing.cast(bool, getattr(self, method)(*args, **kwargs))
         return False
 
     def _can_dispatch_any(self, method: str) -> bool:
@@ -562,91 +584,111 @@ class Widget:
         handle_method = "handle_" + command_id
         menu_item_state_method = "get_" + command_id + "_menu_item_state"
         if hasattr(self, menu_item_state_method):
-            menu_item_state = getattr(self, menu_item_state_method)()
+            menu_item_state = typing.cast(typing.Optional[MenuItemState], getattr(self, menu_item_state_method)())
             if menu_item_state:
                 return menu_item_state
         if hasattr(self, handle_method):
             return MenuItemState(title=None, enabled=True, checked=False)
         return None
 
-    def bind_enabled(self, binding):
+    def bind_enabled(self, binding: Binding.Binding) -> None:
         if self.__enabled_binding:
             self.__enabled_binding.close()
             self.__enabled_binding = None
-        self.enabled = binding.get_target_value()
+        self.enabled = typing.cast(bool, binding.get_target_value())
         self.__enabled_binding = binding
-        def update_enabled(enabled):
-            def update_enabled_():
+
+        def update_enabled(enabled: bool) -> None:
+            def update_enabled_() -> None:
                 if self._behavior:
                     self.enabled = enabled
+
             self.add_task("update_enabled", update_enabled_)
+
         self.__enabled_binding.target_setter = update_enabled
 
-    def unbind_enabled(self):
+    def unbind_enabled(self) -> None:
         if self.__enabled_binding:
             self.__enabled_binding.close()
             self.__enabled_binding = None
 
-    def bind_visible(self, binding):
+    def bind_visible(self, binding: Binding.Binding) -> None:
         if self.__visible_binding:
             self.__visible_binding.close()
             self.__visible_binding = None
-        self.visible = binding.get_target_value()
+        self.visible = typing.cast(bool, binding.get_target_value())
         self.__visible_binding = binding
-        def update_visible(visible):
-            def update_visible_():
+
+        def update_visible(visible: bool) -> None:
+            def update_visible_() -> None:
                 if self._behavior:
                     self.visible = visible
+
             self.add_task("update_visible", update_visible_)
+
         self.__visible_binding.target_setter = update_visible
 
-    def unbind_visible(self):
+    def unbind_visible(self) -> None:
         if self.__visible_binding:
             self.__visible_binding.close()
             self.__visible_binding = None
 
-    def bind_tool_tip(self, binding):
+    def bind_tool_tip(self, binding: Binding.Binding) -> None:
         if self.__tool_tip_binding:
-            self._tool_tipd_binding.close()
+            self.__tool_tip_binding.close()
             self.__tool_tip_binding = None
-        self.tool_tip = binding.get_target_value()
+        self.tool_tip = typing.cast(typing.Optional[str], binding.get_target_value())
         self.__tool_tip_binding = binding
-        def update_tool_tip(tool_tip):
-            def update_tool_tip_():
+
+        def update_tool_tip(tool_tip: typing.Optional[str]) -> None:
+            def update_tool_tip_() -> None:
                 if self._behavior:
                     self.tool_tip = tool_tip
+
             self.add_task("update_tool_tip", update_tool_tip_)
+
         self.__tool_tip_binding.target_setter = update_tool_tip
 
-    def unbind_tool_tip(self):
+    def unbind_tool_tip(self) -> None:
         if self.__tool_tip_binding:
             self.__tool_tip_binding.close()
             self.__tool_tip_binding = None
 
 
+class BoxWidgetBehavior(WidgetBehavior, typing.Protocol):
+    def insert(self, child: Widget, before: int, fill: bool, alignment: typing.Optional[str]) -> None: ...
+    def remove_all(self) -> None: ...
+    def add_stretch(self) -> Widget: ...
+    def add_spacing(self, spacing: int) -> Widget: ...
+
+
 class BoxWidget(Widget):
 
-    def __init__(self, widget_behavior, alignment):
+    def __init__(self, widget_behavior: BoxWidgetBehavior, alignment: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
         self.alignment = alignment
-        self.children = []
+        self.children: typing.List[Widget] = []
 
-    def close(self):
+    def close(self) -> None:
         for child in self.children:
             child.close()
-        self.children = None
+        self.children = typing.cast(typing.Any, None)
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> BoxWidgetBehavior:
+        return typing.cast(BoxWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return copy.copy(self.children)
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         for child in self.children:
             child.periodic()
@@ -673,7 +715,7 @@ class BoxWidget(Widget):
         child._set_root_container(self.root_container)
         self._behavior.insert(child, index, fill, alignment)
 
-    def add(self, child, fill=False, alignment=None):
+    def add(self, child: Widget, fill: bool = False, alignment: typing.Optional[str] = None) -> None:
         self.insert(child, None, fill, alignment)
 
     def remove(self, child: typing.Union[Widget, int]) -> None:
@@ -697,39 +739,51 @@ class BoxWidget(Widget):
         self.children.append(child)
 
 
+class SplitterWidgetBehavior(WidgetBehavior, typing.Protocol):
+    orientation: typing.Optional[str]
+    def add(self, child: Widget) -> None: ...
+    def restore_state(self, tag: str) -> None: ...
+    def save_state(self, tag: str) -> None: ...
+    def set_sizes(self, sizes: typing.Sequence[int]) -> None: ...
+
+
 class SplitterWidget(Widget):
 
-    def __init__(self, widget_behavior, orientation):
+    def __init__(self, widget_behavior: WidgetBehavior, orientation: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
-        self.children = []
+        self.children: typing.List[Widget] = []
         self.orientation = orientation
 
-    def close(self):
+    def close(self) -> None:
         for child in self.children:
             child.close()
-        self.children = None
+        self.children = typing.cast(typing.Any, None)
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> SplitterWidgetBehavior:
+        return typing.cast(SplitterWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return copy.copy(self.children)
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         for child in self.children:
             child.periodic()
 
     @property
-    def orientation(self):
+    def orientation(self) -> typing.Optional[str]:
         return self._behavior.orientation
 
     @orientation.setter
-    def orientation(self, value):
+    def orientation(self, value: typing.Optional[str]) -> None:
         self._behavior.orientation = value
 
     def add(self, child: Widget) -> None:
@@ -747,37 +801,50 @@ class SplitterWidget(Widget):
         self._behavior.set_sizes(sizes)
 
 
+class TabWidgetBehavior(WidgetBehavior, typing.Protocol):
+    current_index: int
+    on_current_index_changed: typing.Optional[typing.Callable[[int], None]]
+
+    def add(self, child: Widget, label: str) -> None: ...
+    def restore_state(self, tag: str) -> None: ...
+    def save_state(self, tag: str) -> None: ...
+
+
 class TabWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: TabWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.children = []
-        self.__current_index_binding = None
-        self.on_current_index_changed = None
+        self.children: typing.List[Widget] = []
+        self.__current_index_binding: typing.Optional[Binding.Binding] = None
+        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
 
-        def handle_current_index_changed(index):
+        def handle_current_index_changed(index: int) -> None:
             if callable(self.on_current_index_changed):
                 self.on_current_index_changed(index)
 
         self._behavior.on_current_index_changed = handle_current_index_changed
 
-    def close(self):
+    def close(self) -> None:
         for child in self.children:
             child.close()
-        self.children = None
+        self.children = typing.cast(typing.Any, None)
         self.on_current_index_changed = None
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> TabWidgetBehavior:
+        return typing.cast(TabWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return copy.copy(self.children)
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         for child in self.children:
             child.periodic()
@@ -794,14 +861,14 @@ class TabWidget(Widget):
         self._behavior.save_state(tag)
 
     @property
-    def current_index(self):
+    def current_index(self) -> int:
         return self._behavior.current_index
 
     @current_index.setter
-    def current_index(self, index):
+    def current_index(self, index: int) -> None:
         self._behavior.current_index = index
 
-    def bind_current_index(self, binding):
+    def bind_current_index(self, binding: Binding.Binding) -> None:
         if self.__current_index_binding:
             self.__current_index_binding.close()
             self.__current_index_binding = None
@@ -809,45 +876,65 @@ class TabWidget(Widget):
         if current_index is not None and 0 <= current_index < len(self.children):
             self.current_index = current_index
         self.__current_index_binding = binding
-        def update_current_index(current_index):
+
+        def update_current_index(current_index: int) -> None:
             if current_index is not None and 0 <= current_index < len(self.children):
-                def update_current_index_():
+                def update_current_index_() -> None:
                     if self._behavior:
                         self.current_index = current_index
-                self.add_task("update_current_index", update_current_index_)
-        self.__current_index_binding.target_setter = update_current_index
-        self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
 
-    def unbind_current_index(self):
+                self.add_task("update_current_index", update_current_index_)
+
+        self.__current_index_binding.target_setter = update_current_index
+
+        def handle_current_index_changed(index: int) -> None:
+            if self.__current_index_binding:
+                self.__current_index_binding.update_source(index)
+
+        self.on_current_index_changed = handle_current_index_changed
+
+    def unbind_current_index(self) -> None:
         if self.__current_index_binding:
             self.__current_index_binding.close()
             self.__current_index_binding = None
         self.on_current_index_changed = None
 
 
+class StackWidgetBehavior(WidgetBehavior, typing.Protocol):
+    current_index: int
+
+    def insert(self, child: Widget, before: int) -> None: ...
+    def remove(self, child: Widget) -> None: ...
+
+
 class StackWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: StackWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.children = []
-        self.__current_index_binding = None
+        self.children: typing.List[Widget] = []
+        self.__current_index_binding: typing.Optional[Binding.Binding] = None
+        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
 
-    def close(self):
+    def close(self) -> None:
         for child in self.children:
             child.close()
-        self.children = None
+        self.children = typing.cast(typing.Any, None)
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> StackWidgetBehavior:
+        return typing.cast(StackWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return copy.copy(self.children)
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         for child in self.children:
             child.periodic()
@@ -881,19 +968,19 @@ class StackWidget(Widget):
         self.children.remove(child_widget)
         child_widget.close()
 
-    def remove_all(self):
+    def remove_all(self) -> None:
         while len(self.children) > 0:
             self.remove(self.children[-1])
 
     @property
-    def current_index(self):
+    def current_index(self) -> int:
         return self._behavior.current_index
 
     @current_index.setter
-    def current_index(self, index):
+    def current_index(self, index: int) -> None:
         self._behavior.current_index = index
 
-    def bind_current_index(self, binding):
+    def bind_current_index(self, binding: Binding.Binding) -> None:
         if self.__current_index_binding:
             self.__current_index_binding.close()
             self.__current_index_binding = None
@@ -901,45 +988,64 @@ class StackWidget(Widget):
         if current_index is not None and 0 <= current_index < len(self.children):
             self.current_index = current_index
         self.__current_index_binding = binding
-        def update_current_index(current_index):
+
+        def update_current_index(current_index: int) -> None:
             if current_index is not None and 0 <= current_index < len(self.children):
-                def update_current_index_():
+                def update_current_index_() -> None:
                     if self._behavior:
                         self.current_index = current_index
-                self.add_task("update_current_index", update_current_index_)
-        self.__current_index_binding.target_setter = update_current_index
-        self.on_current_index_changed = lambda index: self.__current_index_binding.update_source(index)
 
-    def unbind_current_index(self):
+                self.add_task("update_current_index", update_current_index_)
+
+        self.__current_index_binding.target_setter = update_current_index
+
+        def handle_current_index_changed(index: int) -> None:
+            if self.__current_index_binding:
+                self.__current_index_binding.update_source(index)
+
+        self.on_current_index_changed = handle_current_index_changed
+
+    def unbind_current_index(self) -> None:
         if self.__current_index_binding:
             self.__current_index_binding.close()
             self.__current_index_binding = None
         self.on_current_index_changed = None
 
 
+class GroupWidgetBehavior(WidgetBehavior, typing.Protocol):
+    title: typing.Optional[str]
+
+    def add(self, child: Widget) -> None: ...
+    def remove(self, child: Widget) -> None: ...
+
+
 class GroupWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: GroupWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.children = []
-        self.__title = None
+        self.children: typing.List[Widget] = []
+        self.__title: typing.Optional[str] = None
 
-    def close(self):
+    def close(self) -> None:
         for child in self.children:
             child.close()
-        self.children = None
+        self.children = typing.cast(typing.Any, None)
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> GroupWidgetBehavior:
+        return typing.cast(GroupWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return copy.copy(self.children)
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
         for child in self.children:
             child.periodic()
@@ -955,32 +1061,42 @@ class GroupWidget(Widget):
         self.children.remove(child)
         child.close()
 
-    def remove_all(self):
+    def remove_all(self) -> None:
         while len(self.children) > 0:
             self.remove(self.children[-1])
 
     @property
-    def title(self) -> str:
+    def title(self) -> typing.Optional[str]:
         return self.__title
 
     @title.setter
-    def title(self, value: str) -> None:
+    def title(self, value: typing.Optional[str]) -> None:
         self.__title = value
         self._behavior.title = value
 
 
+class ScrollAreaWidgetBehavior(WidgetBehavior, typing.Protocol):
+    on_size_changed: typing.Optional[typing.Callable[[int, int], None]]
+    on_viewport_changed: typing.Optional[typing.Callable[[Geometry.RectIntTuple], None]]
+
+    def set_content(self, content: typing.Optional[Widget]) -> None: ...
+    def scroll_to(self, x: int, y: int) -> None: ...
+    def set_scrollbar_policies(self, horizontal_policy: str, vertical_policy: str) -> None: ...
+    def info(self) -> None: ...
+
+
 class ScrollAreaWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: ScrollAreaWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.__content = None
+        self.__content: typing.Optional[Widget] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
-        self.on_viewport_changed = None
-        self.viewport = ((0, 0), (0, 0))
+        self.on_viewport_changed: typing.Optional[typing.Callable[[Geometry.IntRect], None]] = None
+        self.viewport: Geometry.IntRect = Geometry.IntRect.empty_rect()
         self.width = 0
         self.height = 0
 
-        def handle_size_changed(width, height):
+        def handle_size_changed(width: int, height: int) -> None:
             self.width = width
             self.height = height
             if callable(self.on_size_changed):
@@ -988,71 +1104,87 @@ class ScrollAreaWidget(Widget):
 
         self._behavior.on_size_changed = handle_size_changed
 
-        def handle_viewport_changed(viewport):
-            self.viewport = viewport
+        def handle_viewport_changed(viewport: Geometry.RectIntTuple) -> None:
+            self.viewport = Geometry.IntRect.make(viewport)
             if callable(self.on_viewport_changed):
-                self.on_viewport_changed(viewport)
+                self.on_viewport_changed(self.viewport)
 
         self._behavior.on_viewport_changed = handle_viewport_changed
 
-    def close(self):
-        self.__content.close()
-        self.__content = None
+    def close(self) -> None:
+        if self.__content:
+            self.__content.close()
+            self.__content = None
         self.on_size_changed = None
         self.on_viewport_changed = None
         super().close()
 
-    def _set_root_container(self, root_container):
+    @property
+    def _behavior(self) -> ScrollAreaWidgetBehavior:
+        return typing.cast(ScrollAreaWidgetBehavior, super()._behavior)
+
+    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
         super()._set_root_container(root_container)
-        self.__content._set_root_container(root_container)
+        if self.__content:
+            self.__content._set_root_container(root_container)
 
     @property
-    def _contained_widgets(self):
+    def _contained_widgets(self) -> typing.List[Widget]:
         return [self.__content] if self.__content else list()
 
-    def periodic(self):
+    def periodic(self) -> None:
         super().periodic()
-        self.__content.periodic()
+        if self.__content:
+            self.__content.periodic()
 
     @property
-    def content(self) -> Widget:
+    def content(self) -> typing.Optional[Widget]:
         return self.__content
 
     @content.setter
-    def content(self, content: Widget) -> None:
+    def content(self, content: typing.Optional[Widget]) -> None:
         self._behavior.set_content(content)
         self.__content = content
-        content._set_root_container(self.root_container)
+        if self.__content:
+            self.__content._set_root_container(self.root_container)
 
-    def restore_state(self, tag):
+    def restore_state(self, tag: str) -> None:
         pass
 
-    def save_state(self, tag):
+    def save_state(self, tag: str) -> None:
         pass
 
-    def scroll_to(self, x, y):
+    def scroll_to(self, x: int, y: int) -> None:
         self._behavior.scroll_to(x, y)
 
-    def set_scrollbar_policies(self, horizontal_policy, vertical_policy):
+    def set_scrollbar_policies(self, horizontal_policy: str, vertical_policy: str) -> None:
         self._behavior.set_scrollbar_policies(horizontal_policy, vertical_policy)
 
-    def info(self):
+    def info(self) -> None:
         self._behavior.info()
+
+
+class ComboBoxWidgetBehavior(WidgetBehavior, typing.Protocol):
+    current_text: str
+    on_current_text_changed: typing.Optional[typing.Callable[[str], None]]
+
+    def set_item_strings(self, strings: typing.Sequence[str]) -> None: ...
+
 
 
 class ComboBoxWidget(Widget):
 
-    def __init__(self, widget_behavior, items, item_getter):
+    def __init__(self, widget_behavior: ComboBoxWidgetBehavior, items: typing.List[typing.Any], item_getter: typing.Callable[[typing.Any], str]) -> None:
         super().__init__(widget_behavior)
-        self.__items : typing.List = list()
-        self.on_items_changed : typing.Optional[typing.Callable[[typing.List], None]] = None
+        self.__items : typing.List[typing.Any] = list()
+        self.on_items_changed : typing.Optional[typing.Callable[[typing.Sequence[typing.Any]], None]] = None
         self.on_current_text_changed : typing.Optional[typing.Callable[[str], None]]= None
         self.on_current_item_changed : typing.Optional[typing.Callable[[typing.Any], None]] = None
         self.on_current_index_changed : typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.item_getter = item_getter
         self.items = items if items else list()
-        self.__current_item_binding = None
-        self.__items_binding = None
+        self.__current_item_binding: typing.Optional[Binding.Binding] = None
+        self.__items_binding: typing.Optional[Binding.Binding] = None
 
         def handle_current_text_changed(text: str) -> None:
             if callable(self.on_current_text_changed):
@@ -1073,13 +1205,17 @@ class ComboBoxWidget(Widget):
             self.__items_binding = None
         self.clear_task("update_items")
         self.clear_task("update_current_index")
-        self.item_getter = None
-        self.__items = typing.cast(typing.List, None)
+        self.item_getter = typing.cast(typing.Any, None)
+        self.__items = typing.cast(typing.Any, None)
         self.on_items_changed = None
         self.on_current_text_changed = None
         self.on_current_item_changed = None
         self.on_current_index_changed = None
         super().close()
+
+    @property
+    def _behavior(self) -> ComboBoxWidgetBehavior:
+        return typing.cast(ComboBoxWidgetBehavior, super()._behavior)
 
     @property
     def current_text(self) -> str:
@@ -1112,11 +1248,11 @@ class ComboBoxWidget(Widget):
         self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
 
     @property
-    def items(self) -> typing.List:
+    def items(self) -> typing.List[typing.Any]:
         return self.__items
 
     @items.setter
-    def items(self, items: typing.Sequence) -> None:
+    def items(self, items: typing.Sequence[typing.Any]) -> None:
         current_index = self.current_index
         item_strings = list()
         self.__items = list()
@@ -1130,20 +1266,28 @@ class ComboBoxWidget(Widget):
         if current_index != self.current_index:
             self.current_index = current_index
 
-    def bind_items(self, binding) -> None:
+    def bind_items(self, binding: Binding.Binding) -> None:
         if self.__items_binding:
             self.__items_binding.close()
             self.__items_binding = None
             self.on_items_changed = None
-        self.items = binding.get_target_value()
+        self.items = list(typing.cast(typing.Sequence[typing.Any], binding.get_target_value()))
         self.__items_binding = binding
-        def update_items(items):
-            def update_items_():
+
+        def update_items(items: typing.Sequence[typing.Any]) -> None:
+            def update_items_() -> None:
                 if self._behavior:
-                    self.items = items
+                    self.items = list(items)
+
             self.add_task("update_items", update_items_)
+
         self.__items_binding.target_setter = update_items
-        self.on_items_changed = lambda items: self.__items_binding.update_source(items)
+
+        def handle_items_changed(items: typing.Sequence[typing.Any]) -> None:
+            if self.__items_binding:
+                self.__items_binding.update_source(items)
+
+        self.on_items_changed = handle_items_changed
 
     def unbind_items(self) -> None:
         if self.__items_binding:
@@ -1151,25 +1295,34 @@ class ComboBoxWidget(Widget):
             self.__items_binding = None
         self.on_items_changed = None
 
-    def bind_current_index(self, binding) -> None:
+    def bind_current_index(self, binding: Binding.Binding) -> None:
         if self.__current_item_binding:
             self.__current_item_binding.close()
             self.__current_item_binding = None
             self.on_current_index_changed = None
-        current_index = binding.get_target_value()
+        current_index = typing.cast(typing.Optional[int], binding.get_target_value())
         if current_index is not None and 0 <= current_index < len(self.__items):
             self.current_item = self.__items[current_index]
         self.__current_item_binding = binding
+
         def update_current_index(current_index: int) -> None:
             if current_index is not None and 0 <= current_index < len(self.__items):
                 item = self.__items[current_index]
-                def update_current_item_():
+
+                def update_current_item_() -> None:
                     if self._behavior:
                         self.current_item = item
+
                 self.add_task("update_current_index", update_current_item_)
                 self.request_refocus()
+
         self.__current_item_binding.target_setter = update_current_index
-        self.on_current_index_changed = lambda index: self.__current_item_binding.update_source(index)
+
+        def handle_current_index_changed(index: typing.Optional[int]) -> None:
+            if self.__current_item_binding:
+                self.__current_item_binding.update_source(index)
+
+        self.on_current_index_changed = handle_current_index_changed
 
     def unbind_current_index(self) -> None:
         if self.__current_item_binding:
@@ -1178,24 +1331,30 @@ class ComboBoxWidget(Widget):
         self.on_current_index_changed = None
 
 
+class PushButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    icon: typing.Optional[DrawingContext.RGBA32Type]
+    on_clicked: typing.Optional[typing.Callable[[], None]]
+
+
 class PushButtonWidget(Widget):
 
-    def __init__(self, widget_behavior, text):
+    def __init__(self, widget_behavior: PushButtonWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
-        self.on_clicked = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.text = text
         self.icon = None
 
-        def handle_clicked():
+        def handle_clicked() -> None:
             if callable(self.on_clicked):
                 self.on_clicked()
 
         self._behavior.on_clicked = handle_clicked
 
-        self.__text_binding = None
-        self.__icon_binding = None
+        self.__text_binding: typing.Optional[Binding.Binding] = None
+        self.__icon_binding: typing.Optional[Binding.Binding] = None
 
-    def close(self):
+    def close(self) -> None:
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
@@ -1208,6 +1367,10 @@ class PushButtonWidget(Widget):
         super().close()
 
     @property
+    def _behavior(self) -> PushButtonWidgetBehavior:
+        return typing.cast(PushButtonWidgetBehavior, super()._behavior)
+
+    @property
     def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
@@ -1216,22 +1379,22 @@ class PushButtonWidget(Widget):
         self._behavior.text = text
 
     @property
-    def icon(self):
+    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
         return self._behavior.icon
 
     @icon.setter
-    def icon(self, rgba_image) -> None:
+    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self._behavior.icon = rgba_image
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
 
         # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
+        value = typing.cast(typing.Optional[str], binding.get_target_value())
         text = str(value) if value is not None else None
         self.text = text
 
@@ -1239,30 +1402,31 @@ class PushButtonWidget(Widget):
         # which will set the text when the binding changes
         self.__text_binding = binding
 
-        def update_value(value) -> None:
+        def update_value(value: str) -> None:
             def update_value_inner() -> None:
                 if self._behavior:
                     # use str method to convert value to text.
                     text = str(value) if value is not None else None
                     self.text = text
+
             self.add_task("update_text", update_value_inner)
 
         self.__text_binding.target_setter = update_value
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
 
-    def bind_icon(self, binding):
+    def bind_icon(self, binding: Binding.Binding) -> None:
         if self.__icon_binding:
             self.__icon_binding.close()
             self.__icon_binding = None
-        self.icon = binding.get_target_value()
+        self.icon = typing.cast(typing.Optional[DrawingContext.RGBA32Type], binding.get_target_value())
         self.__icon_binding = binding
 
-        def update_icon(icon):
-            def update_icon_():
+        def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            def update_icon_() -> None:
                 if self._behavior:
                     self.icon = icon
 
@@ -1270,27 +1434,34 @@ class PushButtonWidget(Widget):
 
         self.__icon_binding.target_setter = update_icon
 
-    def unbind_icon(self):
+    def unbind_icon(self) -> None:
         if self.__icon_binding:
             self.__icon_binding.close()
             self.__icon_binding = None
 
 
+class RadioButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    icon: typing.Optional[DrawingContext.RGBA32Type]
+    checked: bool
+    on_clicked: typing.Optional[typing.Callable[[], None]]
+
+
 class RadioButtonWidget(Widget):
 
-    def __init__(self, widget_behavior, text):
+    def __init__(self, widget_behavior: RadioButtonWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
-        self.on_clicked = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.text = text
         self.icon = None
-        self.__value = None
-        self.__group_value = None
-        self.__on_group_value_changed = None
-        self.__group_value_binding = None
-        self.__text_binding = None
-        self.__icon_binding = None
+        self.__value: typing.Optional[int] = None
+        self.__group_value: typing.Optional[int] = None
+        self.__on_group_value_changed: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
+        self.__group_value_binding: typing.Optional[Binding.Binding] = None
+        self.__text_binding: typing.Optional[Binding.Binding] = None
+        self.__icon_binding: typing.Optional[Binding.Binding] = None
 
-        def handle_clicked():
+        def handle_clicked() -> None:
             if self.__value is not None:
                 self.group_value = self.__value
             if callable(self.on_clicked):
@@ -1298,7 +1469,7 @@ class RadioButtonWidget(Widget):
 
         self._behavior.on_clicked = handle_clicked
 
-    def close(self):
+    def close(self) -> None:
         if self.__group_value_binding:
             self.__group_value_binding.close()
             self.__group_value_binding = None
@@ -1314,73 +1485,85 @@ class RadioButtonWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def _behavior(self) -> RadioButtonWidgetBehavior:
+        return typing.cast(RadioButtonWidgetBehavior, super()._behavior)
+
+    @property
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self._behavior.text = text
 
     @property
-    def icon(self):
+    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
         return self._behavior.icon
 
     @icon.setter
-    def icon(self, rgba_image) -> None:
+    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self._behavior.icon = rgba_image
 
     @property
-    def checked(self):
+    def checked(self) -> bool:
         return self._behavior.checked
 
     @checked.setter
-    def checked(self, value):
+    def checked(self, value: bool) -> None:
         self._behavior.checked = value
 
     @property
-    def value(self):
+    def value(self) -> typing.Optional[int]:
         return self.__value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: typing.Optional[int]) -> None:
         self.__value = value
         self.checked = self.__group_value == self.__value
 
     @property
-    def group_value(self):
+    def group_value(self) -> typing.Optional[int]:
         return self.__group_value
 
     @group_value.setter
-    def group_value(self, group_value):
+    def group_value(self, group_value: typing.Optional[int]) -> None:
         self.__group_value = group_value
         self.checked = self.__group_value == self.__value
         if callable(self.__on_group_value_changed):
             self.__on_group_value_changed(group_value)
 
     # bind to value. takes ownership of binding.
-    def bind_group_value(self, binding):
+    def bind_group_value(self, binding: Binding.Binding) -> None:
         if self.__group_value_binding:
             self.__group_value_binding.close()
             self.__group_value_binding = None
             self.__on_group_value_changed = None
         self.group_value = binding.get_target_value()
         self.__group_value_binding = binding
-        def update_group_value(group_value):
-            def update_group_value_():
+
+        def update_group_value(group_value: typing.Optional[int]) -> None:
+            def update_group_value_() -> None:
                 if self._behavior:
                     self.group_value = group_value
-            self.add_task("update_group_value", update_group_value_)
-        self.__group_value_binding.target_setter = update_group_value
-        self.__on_group_value_changed = lambda group_value: self.__group_value_binding.update_source(group_value)
 
-    def unbind_group_value(self):
+            self.add_task("update_group_value", update_group_value_)
+
+        self.__group_value_binding.target_setter = update_group_value
+
+        def handle_group_value_changed(group_value: typing.Optional[int]) -> None:
+            if self.__group_value_binding:
+                self.__group_value_binding.update_source(group_value)
+
+        self.__on_group_value_changed = handle_group_value_changed
+
+    def unbind_group_value(self) -> None:
         if self.__group_value_binding:
             self.__group_value_binding.close()
             self.__group_value_binding = None
         self.__on_group_value_changed = None
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding
         if self.__text_binding:
             self.__text_binding.close()
@@ -1395,30 +1578,31 @@ class RadioButtonWidget(Widget):
         # which will set the text when the binding changes
         self.__text_binding = binding
 
-        def update_value(value) -> None:
+        def update_value(value: typing.Optional[str]) -> None:
             def update_value_inner() -> None:
                 if self._behavior:
                     # use str method to convert value to text.
                     text = str(value) if value is not None else str()
                     self.text = text
+
             self.add_task("update_text", update_value_inner)
 
         self.__text_binding.target_setter = update_value
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
 
-    def bind_icon(self, binding):
+    def bind_icon(self, binding: Binding.Binding) -> None:
         if self.__icon_binding:
             self.__icon_binding.close()
             self.__icon_binding = None
         self.icon = binding.get_target_value()
         self.__icon_binding = binding
 
-        def update_icon(icon):
-            def update_icon_():
+        def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            def update_icon_() -> None:
                 if self._behavior:
                     self.icon = icon
 
@@ -1426,23 +1610,30 @@ class RadioButtonWidget(Widget):
 
         self.__icon_binding.target_setter = update_icon
 
-    def unbind_icon(self):
+    def unbind_icon(self) -> None:
         if self.__icon_binding:
             self.__icon_binding.close()
             self.__icon_binding = None
 
 
+class CheckBoxWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    check_state: str
+    tristate: bool
+    on_check_state_changed: typing.Optional[typing.Callable[[str], None]]
+
+
 class CheckBoxWidget(Widget):
 
-    def __init__(self, widget_behavior, text):
+    def __init__(self, widget_behavior: CheckBoxWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
-        self.on_checked_changed = None
-        self.on_check_state_changed = None
+        self.on_checked_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.text = text
-        self.__check_binding = None
-        self.__text_binding = None
+        self.__check_binding: typing.Optional[Binding.Binding] = None
+        self.__text_binding: typing.Optional[Binding.Binding] = None
 
-        def handle_check_state_changed(check_state):
+        def handle_check_state_changed(check_state: str) -> None:
             if callable(self.on_checked_changed):
                 self.on_checked_changed(check_state == "checked")
             if callable(self.on_check_state_changed):
@@ -1450,7 +1641,7 @@ class CheckBoxWidget(Widget):
 
         self._behavior.on_check_state_changed = handle_check_state_changed
 
-    def close(self):
+    def close(self) -> None:
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
@@ -1464,6 +1655,10 @@ class CheckBoxWidget(Widget):
         super().close()
 
     @property
+    def _behavior(self) -> CheckBoxWidgetBehavior:
+        return typing.cast(CheckBoxWidgetBehavior, super()._behavior)
+
+    @property
     def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
@@ -1472,31 +1667,31 @@ class CheckBoxWidget(Widget):
         self._behavior.text = text
 
     @property
-    def checked(self):
+    def checked(self) -> bool:
         return self.check_state == "checked"
 
     @checked.setter
-    def checked(self, value):
+    def checked(self, value: bool) -> None:
         self.check_state = "checked" if value else "unchecked"
 
     @property
-    def tristate(self):
+    def tristate(self) -> bool:
         return self._behavior.tristate
 
     @tristate.setter
-    def tristate(self, value):
+    def tristate(self, value: bool) -> None:
         self._behavior.tristate = value
 
     @property
-    def check_state(self):
+    def check_state(self) -> str:
         return self._behavior.check_state
 
     @check_state.setter
-    def check_state(self, value):
+    def check_state(self, value: str) -> None:
         self._behavior.check_state = value
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding
         if self.__text_binding:
             self.__text_binding.close()
@@ -1511,81 +1706,109 @@ class CheckBoxWidget(Widget):
         # which will set the text when the binding changes
         self.__text_binding = binding
 
-        def update_value(value) -> None:
+        def update_value(value: typing.Optional[str]) -> None:
             def update_value_inner() -> None:
                 if self._behavior:
                     # use str method to convert value to text.
                     text = str(value) if value is not None else None
                     self.text = text
+
             self.add_task("update_text", update_value_inner)
 
         self.__text_binding.target_setter = update_value
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__text_binding:
             self.__text_binding.close()
             self.__text_binding = None
 
     # bind to state. takes ownership of binding.
-    def bind_checked(self, binding):
+    def bind_checked(self, binding: Binding.Binding) -> None:
         if self.__check_binding:
             self.__check_binding.close()
             self.__check_binding = None
             self.on_checked_changed = None
-        self.checked = binding.get_target_value()
+        self.checked = typing.cast(bool, binding.get_target_value())
         self.__check_binding = binding
-        def update_checked(checked):
-            def update_checked_():
+
+        def update_checked(checked: bool) -> None:
+            def update_checked_() -> None:
                 if self._behavior:
                     self.checked = checked
-            self.add_task("update_checked", update_checked_)
-        self.__check_binding.target_setter = update_checked
-        self.on_checked_changed = lambda checked: self.__check_binding.update_source(checked)
 
-    def unbind_checked(self):
+            self.add_task("update_checked", update_checked_)
+
+        self.__check_binding.target_setter = update_checked
+
+        def handle_checked_changed(checked: bool) -> None:
+            if self.__check_binding:
+                self.__check_binding.update_source(checked)
+
+        self.on_checked_changed = handle_checked_changed
+
+    def unbind_checked(self) -> None:
         if self.__check_binding:
             self.__check_binding.close()
             self.__check_binding = None
         self.on_checked_changed = None
 
     # bind to state. takes ownership of binding.
-    def bind_check_state(self, binding):
+    def bind_check_state(self, binding: Binding.Binding) -> None:
         if self.__check_binding:
             self.__check_binding.close()
             self.__check_binding = None
             self.on_check_state_changed = None
-        self.check_state = binding.get_target_value()
+        self.check_state = typing.cast(str, binding.get_target_value())
         self.__check_binding = binding
-        def update_check_state(check_state):
-            def update_check_state_():
+
+        def update_check_state(check_state: str) -> None:
+            def update_check_state_() -> None:
                 if self._behavior:
                     self.check_state = check_state
-            self.add_task("update_check_state", update_check_state_)
-        self.__check_binding.target_setter = update_check_state
-        self.on_check_state_changed = lambda check_state: self.__check_binding.update_source(check_state)
 
-    def unbind_check_state(self):
+            self.add_task("update_check_state", update_check_state_)
+
+        self.__check_binding.target_setter = update_check_state
+
+        def handle_check_state_changed(check_state: str) -> None:
+            if self.__check_binding:
+                self.__check_binding.update_source(check_state)
+
+        self.on_check_state_changed = handle_check_state_changed
+
+    def unbind_check_state(self) -> None:
         if self.__check_binding:
             self.__check_binding.close()
             self.__check_binding = None
         self.on_check_state_changed = None
 
 
+class LabelWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    word_wrap: bool
+    def set_text_color(self, value: typing.Optional[str]) -> None: ...
+    def set_text_font(self, value: typing.Optional[str]) -> None: ...
+
+
 class LabelWidget(Widget):
 
-    def __init__(self, widget_behavior, text):
+    def __init__(self, widget_behavior: LabelWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
         self.text = text
-        self.__text_font = None
-        self.__text_color = None
-        self.__binding = None
+        self.__text_font: typing.Optional[str] = None
+        self.__text_color: typing.Optional[str] = None
+        self.__binding: typing.Optional[Binding.Binding] = None
 
-    def close(self):
+    def close(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
         self.clear_task("update_text")
         super().close()
+
+    @property
+    def _behavior(self) -> LabelWidgetBehavior:
+        return typing.cast(LabelWidgetBehavior, super()._behavior)
 
     @property
     def text(self) -> typing.Optional[str]:
@@ -1596,33 +1819,33 @@ class LabelWidget(Widget):
         self._behavior.text = text
 
     @property
-    def text_color(self) -> str:
+    def text_color(self) -> typing.Optional[str]:
         return self.__text_color
 
     @text_color.setter
-    def text_color(self, value: str) -> None:
+    def text_color(self, value: typing.Optional[str]) -> None:
         self.__text_color = value
         self._behavior.set_text_color(value)
 
     @property
-    def text_font(self) -> str:
+    def text_font(self) -> typing.Optional[str]:
         return self.__text_font
 
     @text_font.setter
-    def text_font(self, value: str) -> None:
+    def text_font(self, value: typing.Optional[str]) -> None:
         self.__text_font = value
         self._behavior.set_text_font(value)
 
     @property
-    def word_wrap(self):
+    def word_wrap(self) -> bool:
         return self._behavior.word_wrap
 
     @word_wrap.setter
-    def word_wrap(self, value):
+    def word_wrap(self, value: bool) -> None:
         self._behavior.word_wrap = value
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding
         if self.__binding:
             self.__binding.close()
@@ -1637,20 +1860,32 @@ class LabelWidget(Widget):
         # which will set the text when the binding changes
         self.__binding = binding
 
-        def update_value(value) -> None:
+        def update_value(value: typing.Optional[str]) -> None:
             def update_value_inner() -> None:
                 if self._behavior:
                     # use str method to convert value to text.
                     text = str(value) if value is not None else None
                     self.text = text
+
             self.add_task("update_text", update_value_inner)
 
         self.__binding.target_setter = update_value
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
+
+
+class SliderWidgetBehavior(WidgetBehavior, typing.Protocol):
+    value: int
+    minimum: int
+    maximum: int
+    pressed: bool
+    on_value_changed: typing.Optional[typing.Callable[[int], None]]
+    on_slider_pressed: typing.Optional[typing.Callable[[], None]]
+    on_slider_released: typing.Optional[typing.Callable[[], None]]
+    on_slider_moved: typing.Optional[typing.Callable[[int], None]]
 
 
 class SliderWidget(Widget):
@@ -1658,41 +1893,41 @@ class SliderWidget(Widget):
     # see https://bugreports.qt.io/browse/QTBUG-77368
     # ensure different sliders by setting different min/max. argh.
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: SliderWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.on_value_changed = None
-        self.on_slider_pressed = None
-        self.on_slider_released = None
-        self.on_slider_moved = None
+        self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_slider_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_released: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_moved: typing.Optional[typing.Callable[[int], None]] = None
         self.minimum = 0
         self.maximum = 0
-        self.__binding = None
+        self.__binding: typing.Optional[Binding.Binding] = None
 
-        def handle_value_changed(value):
+        def handle_value_changed(value: int) -> None:
             if callable(self.on_value_changed):
                 self.on_value_changed(value)
 
         self._behavior.on_value_changed = handle_value_changed
 
-        def handle_slider_pressed():
+        def handle_slider_pressed() -> None:
             if callable(self.on_slider_pressed):
                 self.on_slider_pressed()
 
         self._behavior.on_slider_pressed = handle_slider_pressed
 
-        def handle_slider_released():
+        def handle_slider_released() -> None:
             if callable(self.on_slider_released):
                 self.on_slider_released()
 
         self._behavior.on_slider_released = handle_slider_released
 
-        def handle_slider_moved(value):
+        def handle_slider_moved(value: int) -> None:
             if callable(self.on_slider_moved):
                 self.on_slider_moved(value)
 
         self._behavior.on_slider_moved = handle_slider_moved
 
-    def close(self):
+    def close(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -1704,45 +1939,49 @@ class SliderWidget(Widget):
         super().close()
 
     @property
-    def value(self):
+    def _behavior(self) -> SliderWidgetBehavior:
+        return typing.cast(SliderWidgetBehavior, super()._behavior)
+
+    @property
+    def value(self) -> int:
         return self._behavior.value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: int) -> None:
         if value != self.value:
             self._behavior.value = value
 
     @property
-    def minimum(self):
+    def minimum(self) -> int:
         return self._behavior.minimum
 
     @minimum.setter
-    def minimum(self, minimum):
+    def minimum(self, minimum: int) -> None:
         self._behavior.minimum = minimum
 
     @property
-    def maximum(self):
+    def maximum(self) -> int:
         return self._behavior.maximum
 
     @maximum.setter
-    def maximum(self, maximum):
+    def maximum(self, maximum: int) -> None:
         self._behavior.maximum = maximum
 
     @property
-    def pressed(self):
+    def pressed(self) -> bool:
         return self._behavior.pressed
 
     # bind to value. takes ownership of binding.
-    def bind_value(self, binding):
+    def bind_value(self, binding: Binding.Binding) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
             self.on_value_changed = None
-        self.value = binding.get_target_value()
+        self.value = typing.cast(int, binding.get_target_value())
         self.__binding = binding
 
-        def update_value(value):
-            def update_value_():
+        def update_value(value: int) -> None:
+            def update_value_() -> None:
                 if self._behavior:
                     # ensure that setting the value does not loop around with another value changed
                     old_value_changed = self.on_value_changed
@@ -1756,34 +1995,54 @@ class SliderWidget(Widget):
 
         self.__binding.target_setter = update_value
 
-        def update_source(value):
+        def update_source(value: int) -> None:
             # ensure that responding to a changing slider value does not loop around with another value
-            old_target_setter = self.__binding.target_setter
-            self.__binding.target_setter = None
-            try:
-                self.__binding.update_source(value)
-            finally:
-                self.__binding.target_setter = old_target_setter
+            if self.__binding:
+                old_target_setter = self.__binding.target_setter
+                self.__binding.target_setter = None
+                try:
+                    self.__binding.update_source(value)
+                finally:
+                    self.__binding.target_setter = old_target_setter
 
         self.on_value_changed = update_source
 
-    def unbind_value(self):
+    def unbind_value(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
         self.on_value_changed = None
 
 
+class LineEditWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    placeholder_text: typing.Optional[str]
+    editable: bool
+    clear_button_enabled: bool
+    on_editing_finished: typing.Optional[typing.Callable[[str], None]]
+    on_escape_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_return_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_key_pressed: typing.Optional[typing.Callable[[Key], bool]]
+    on_text_edited: typing.Optional[typing.Callable[[str], None]]
+
+    def editing_finished(self, text: str) -> None: ...
+
+    @property
+    def selected_text(self) -> typing.Optional[str]: raise NotImplementedError()
+
+    def select_all(self) -> None: ...
+
+
 class LineEditWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: LineEditWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.on_editing_finished : typing.Optional[typing.Callable[[str], None]] = None
         self.on_escape_pressed : typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed : typing.Optional[typing.Callable[[], bool]] = None
         self.on_key_pressed : typing.Optional[typing.Callable[[Key], bool]] = None
         self.on_text_edited : typing.Optional[typing.Callable[[str], None]] = None
-        self.__binding = None
+        self.__binding: typing.Optional[Binding.Binding] = None
         self.__last_text = None
 
         def handle_editing_finished(text: str) -> None:
@@ -1832,6 +2091,10 @@ class LineEditWidget(Widget):
         super().close()
 
     @property
+    def _behavior(self) -> LineEditWidgetBehavior:
+        return typing.cast(LineEditWidgetBehavior, super()._behavior)
+
+    @property
     def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
@@ -1841,15 +2104,15 @@ class LineEditWidget(Widget):
         self._behavior.text = text
 
     @property
-    def placeholder_text(self) -> str:
+    def placeholder_text(self) -> typing.Optional[str]:
         return self._behavior.placeholder_text
 
     @placeholder_text.setter
-    def placeholder_text(self, text: str) -> None:
+    def placeholder_text(self, text: typing.Optional[str]) -> None:
         self._behavior.placeholder_text = text
 
     @property
-    def selected_text(self):
+    def selected_text(self) -> typing.Optional[str]:
         return self._behavior.selected_text
 
     @property
@@ -1879,7 +2142,7 @@ class LineEditWidget(Widget):
         self.select_all()
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding) -> None:
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding and clear other listener methods
         if self.__binding:
             self.__binding.close()
@@ -1896,7 +2159,7 @@ class LineEditWidget(Widget):
         # save the binding
         self.__binding = binding
 
-        def update_value_(value) -> None:
+        def update_value_(value: typing.Optional[str]) -> None:
             if self._behavior:
                 text = str(value) if value is not None else None
                 if self.text != text and (not self.focused or self.selected_text == self.text):
@@ -1904,14 +2167,14 @@ class LineEditWidget(Widget):
                     if self.focused:
                         self.select_all()
 
-        def update_value(value) -> None:
+        def update_value(value: typing.Optional[str]) -> None:
             self.add_task("update_text", lambda: update_value_(value))
 
         # configure the the target setter which will set the text when the binding changes
         self.__binding.target_setter = update_value
 
         def editing_finished(text: str) -> None:
-            if text != self.__last_text:
+            if text != self.__last_text and self.__binding:
                 self.__binding.update_source(text)
 
         # when editing is finished, update the binding value. the binding value will always
@@ -1920,13 +2183,15 @@ class LineEditWidget(Widget):
 
         def return_pressed() -> bool:
             text = self.text
-            self.__binding.update_source(text)
+            if self.__binding:
+                self.__binding.update_source(text)
             self.request_refocus()
             return True
 
         def escape_pressed() -> bool:
             text = self.__last_text
-            self.__binding.update_source(text)
+            if self.__binding:
+                self.__binding.update_source(text)
             self.request_refocus()
             return True
 
@@ -1952,34 +2217,70 @@ Selection = collections.namedtuple("Selection", ["start", "end"])
 CursorPosition = collections.namedtuple("CursorPosition", ["position", "block_number", "column_number"])
 
 
+class TextEditWidgetBehavior(WidgetBehavior, typing.Protocol):
+    text: typing.Optional[str]
+    placeholder: typing.Optional[str]
+    editable: bool
+    word_wrap_mode: str
+
+    on_cursor_position_changed: typing.Optional[typing.Callable[[CursorPosition], None]]
+    on_selection_changed: typing.Optional[typing.Callable[[Selection], None]]
+    on_text_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]]
+    on_text_edited: typing.Optional[typing.Callable[[typing.Optional[str]], None]]
+    on_escape_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_return_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_key_pressed: typing.Optional[typing.Callable[[Key], bool]]
+    on_insert_mime_data: typing.Optional[typing.Callable[[MimeData], None]]
+
+    @property
+    def selected_text(self) -> typing.Optional[str]:  raise NotImplementedError()
+
+    @property
+    def cursor_position(self) -> CursorPosition: raise NotImplementedError()
+
+    @property
+    def selection(self) -> Selection: raise NotImplementedError()
+
+    def append_text(self, value: str) -> None: ...
+    def insert_text(self, value: str) -> None: ...
+    def clear_selection(self) -> None: ...
+    def remove_selected_text(self) -> None: ...
+    def select_all(self) -> None: ...
+    def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None: ...
+    def set_line_height_proportional(self, proportional_line_height: float) -> None: ...
+    def set_text_background_color(self, color: typing.Optional[str]) -> None: ...
+    def set_text_color(self, color: typing.Optional[str]) -> None: ...
+    def set_text_font(self, font_str: typing.Optional[str]) -> None: ...
+
+
 class TextEditWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: TextEditWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.on_cursor_position_changed = None
-        self.on_selection_changed = None
-        self.on_text_changed = None  # backwards compatibility
-        self.on_text_edited = None
-        self.on_escape_pressed = None
-        self.on_return_pressed = None
-        self.on_key_pressed = None
-        self.on_insert_mime_data = None
-        self.__binding = None
+        self.on_cursor_position_changed: typing.Optional[typing.Callable[[CursorPosition], None]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[Selection], None]] = None
+        self.on_text_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None  # backwards compatibility
+        self.on_text_edited: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_insert_mime_data: typing.Optional[typing.Callable[[MimeData], None]] = None
+        self.__binding: typing.Optional[Binding.Binding] = None
         self.__in_update = False
 
-        def handle_cursor_position_changed(cursor_position):
+        def handle_cursor_position_changed(cursor_position: CursorPosition) -> None:
             if callable(self.on_cursor_position_changed):
                 self.on_cursor_position_changed(cursor_position)
 
         self._behavior.on_cursor_position_changed = handle_cursor_position_changed
 
-        def handle_selection_changed(selection):
+        def handle_selection_changed(selection: Selection) -> None:
             if callable(self.on_selection_changed):
                 self.on_selection_changed(selection)
 
         self._behavior.on_selection_changed = handle_selection_changed
 
-        def handle_text_changed(text):
+        def handle_text_changed(text: typing.Optional[str]) -> None:
             if callable(self.on_text_changed):
                 self.on_text_changed(text)
             if callable(self.on_text_edited):
@@ -1987,14 +2288,14 @@ class TextEditWidget(Widget):
 
         self._behavior.on_text_changed = handle_text_changed
 
-        def handle_escape_pressed():
+        def handle_escape_pressed() -> bool:
             if callable(self.on_escape_pressed):
                 return self.on_escape_pressed()
             return False
 
         self._behavior.on_escape_pressed = handle_escape_pressed
 
-        def handle_return_pressed():
+        def handle_return_pressed() -> bool:
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()
             return False
@@ -2017,7 +2318,7 @@ class TextEditWidget(Widget):
 
         self._behavior.on_insert_mime_data = handle_insert_mime_data
 
-    def close(self):
+    def close(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -2033,19 +2334,23 @@ class TextEditWidget(Widget):
         super().close()
 
     @property
-    def text(self) -> str:
+    def _behavior(self) -> TextEditWidgetBehavior:
+        return typing.cast(TextEditWidgetBehavior, super()._behavior)
+
+    @property
+    def text(self) -> typing.Optional[str]:
         return self._behavior.text
 
     @text.setter
-    def text(self, text: str) -> None:
+    def text(self, text: typing.Optional[str]) -> None:
         self._behavior.text = text
 
     @property
-    def placeholder(self) -> str:
+    def placeholder(self) -> typing.Optional[str]:
         return self._behavior.placeholder
 
     @placeholder.setter
-    def placeholder(self, text: str) -> None:
+    def placeholder(self, text: typing.Optional[str]) -> None:
         self._behavior.placeholder = text
 
     @property
@@ -2057,56 +2362,55 @@ class TextEditWidget(Widget):
         self._behavior.editable = value
 
     @property
-    def selected_text(self) -> str:
+    def selected_text(self) -> typing.Optional[str]:
         return self._behavior.selected_text
 
     @property
-    def cursor_position(self):
+    def cursor_position(self) -> CursorPosition:
         return self._behavior.cursor_position
 
     @property
-    def selection(self):
+    def selection(self) -> Selection:
         return self._behavior.selection
 
-    def append_text(self, value):
+    def append_text(self, value: str) -> None:
         self._behavior.append_text(value)
 
-    def insert_text(self, value):
+    def insert_text(self, value: str) -> None:
         self._behavior.insert_text(value)
 
-    def clear_selection(self):
+    def clear_selection(self) -> None:
         self._behavior.clear_selection()
 
-    def remove_selected_text(self):
+    def remove_selected_text(self) -> None:
         self._behavior.remove_selected_text()
 
-    def select_all(self):
+    def select_all(self) -> None:
         self._behavior.select_all()
 
-    def refocus(self):
+    def refocus(self) -> None:
         self.select_all()
 
-    def move_cursor_position(self, operation, mode=None, n=1):
+    def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
         self._behavior.move_cursor_position(operation, mode, n)
 
-    def handle_select_all(self):
+    def handle_select_all(self) -> None:
         self.select_all()
-        return True
 
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
         self._behavior.set_line_height_proportional(proportional_line_height)
 
-    def set_text_background_color(self, color: str) -> None:
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
         self._behavior.set_text_background_color(color)
 
-    def set_text_color(self, color):
+    def set_text_color(self, color: typing.Optional[str]) -> None:
         self._behavior.set_text_color(color)
 
-    def set_text_font(self, font_str: str) -> None:
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
         self._behavior.set_text_font(font_str)
 
     @property
-    def word_wrap_mode(self):
+    def word_wrap_mode(self) -> str:
         return self._behavior.word_wrap_mode
 
     @word_wrap_mode.setter
@@ -2114,7 +2418,7 @@ class TextEditWidget(Widget):
         self._behavior.word_wrap_mode = value
 
     # bind to text. takes ownership of binding.
-    def bind_text(self, binding):
+    def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding and clear other listener methods
         if self.__binding:
             self.__binding.close()
@@ -2130,26 +2434,28 @@ class TextEditWidget(Widget):
         # save the binding
         self.__binding = binding
 
-        def update_value(value):
-            def update_value_():
+        def update_value(value: typing.Optional[str]) -> None:
+            def update_value_() -> None:
                 if self._behavior:
                     text = str(value) if value is not None else None
                     self.text = text
+
             if not self.__in_update:
                 self.add_task("update_text", update_value_)
 
         # configure the the target setter which will set the text when the binding changes
         self.__binding.target_setter = update_value
 
-        def on_text_edited(text):
+        def on_text_edited(text: typing.Optional[str]) -> None:
             self.__in_update = True
-            self.__binding.update_source(text)
+            if self.__binding:
+                self.__binding.update_source(text)
             self.__in_update = False
 
         # when text is edited, update the binding value (always a string).
         self.on_text_edited = on_text_edited
 
-    def unbind_text(self):
+    def unbind_text(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -2157,11 +2463,45 @@ class TextEditWidget(Widget):
         self.on_text_edited = None
 
 
+class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
+    focusable: bool
+    on_mouse_entered: typing.Optional[typing.Callable[[], None]]
+    on_mouse_exited: typing.Optional[typing.Callable[[], None]]
+    on_mouse_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
+    on_mouse_double_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
+    on_mouse_pressed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
+    on_mouse_released: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
+    on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]]
+    on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]]
+    on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]]
+    on_size_changed: typing.Optional[typing.Callable[[int, int], None]]
+    on_key_pressed: typing.Optional[typing.Callable[[Key], bool]]
+    on_key_released: typing.Optional[typing.Callable[[Key], bool]]
+    on_drag_enter: typing.Optional[typing.Callable[[MimeData], str]]
+    on_drag_leave: typing.Optional[typing.Callable[[], str]]
+    on_drag_move: typing.Optional[typing.Callable[[MimeData, int, int], str]]
+    on_drop: typing.Optional[typing.Callable[[MimeData, int, int], str]]
+    on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]]
+    on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]]
+
+    def periodic(self) -> None: ...
+    def draw(self, drawing_context: DrawingContext.DrawingContext) -> None: ...
+    def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None: ...
+    def remove_section(self, section_id: int) -> None: ...
+    def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None: ...
+    def grab_gesture(self, gesture_type: str) -> None: ...
+    def release_gesture(self, gesture_type: str) -> None: ...
+    def grab_mouse(self, gx: int, gy: int) -> None: ...
+    def release_mouse(self) -> None: ...
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None: ...
+    def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None: ...
+
+
 class CanvasWidget(Widget):
 
-    def __init__(self, widget_behavior, *, layout_render: str = None):
+    def __init__(self, widget_behavior: CanvasWidgetBehavior, *, layout_render: typing.Optional[str] = None) -> None:
         super().__init__(widget_behavior)
-        self.on_periodic = None
+        self.on_periodic: typing.Optional[typing.Callable[[], None]] = None
         self.on_dispatch_any: typing.Optional[typing.Callable[..., typing.Any]] = None
         self.on_can_dispatch_any: typing.Optional[typing.Callable[[str], bool]] = None
         self.on_get_menu_item_state: typing.Optional[typing.Callable[[str], typing.Optional[MenuItemState]]] = None
@@ -2187,13 +2527,13 @@ class CanvasWidget(Widget):
         self.height = 0
         self.position_info = None
 
-        def handle_mouse_entered():
+        def handle_mouse_entered() -> None:
             if callable(self.on_mouse_entered):
                 self.on_mouse_entered()
 
         self._behavior.on_mouse_entered = handle_mouse_entered
 
-        def handle_mouse_exited():
+        def handle_mouse_exited() -> None:
             if callable(self.on_mouse_exited):
                 self.on_mouse_exited()
                 # when the mouse exits, position info may still be pending
@@ -2203,31 +2543,35 @@ class CanvasWidget(Widget):
 
         self._behavior.on_mouse_exited = handle_mouse_exited
 
-        def handle_mouse_clicked(x, y, modifiers):
+        def handle_mouse_clicked(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_clicked):
-                self.on_mouse_clicked(x, y, modifiers)
+                return self.on_mouse_clicked(x, y, modifiers)
+            return False
 
         self._behavior.on_mouse_clicked = handle_mouse_clicked
 
-        def handle_mouse_double_clicked(x, y, modifiers):
+        def handle_mouse_double_clicked(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_double_clicked):
-                self.on_mouse_double_clicked(x, y, modifiers)
+                return self.on_mouse_double_clicked(x, y, modifiers)
+            return False
 
         self._behavior.on_mouse_double_clicked = handle_mouse_double_clicked
 
-        def handle_mouse_pressed(x, y, modifiers):
+        def handle_mouse_pressed(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_pressed):
-                self.on_mouse_pressed(x, y, modifiers)
+                return self.on_mouse_pressed(x, y, modifiers)
+            return False
 
         self._behavior.on_mouse_pressed = handle_mouse_pressed
 
-        def handle_mouse_released(x, y, modifiers):
+        def handle_mouse_released(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_released):
-                self.on_mouse_released(x, y, modifiers)
+                return self.on_mouse_released(x, y, modifiers)
+            return False
 
         self._behavior.on_mouse_released = handle_mouse_released
 
-        def handle_mouse_position_changed(x, y, modifiers):
+        def handle_mouse_position_changed(x: int, y: int, modifiers: KeyboardModifiers) -> None:
             # mouse tracking takes priority over timer events in newer
             # versions of Qt, so during mouse tracking, make sure periodic
             # gets called regularly.
@@ -2235,19 +2579,20 @@ class CanvasWidget(Widget):
 
         self._behavior.on_mouse_position_changed = handle_mouse_position_changed
 
-        def handle_grabbed_mouse_position_changed(dx, dy, modifiers):
+        def handle_grabbed_mouse_position_changed(dx: int, dy: int, modifiers: KeyboardModifiers) -> None:
             if callable(self.on_grabbed_mouse_position_changed):
                 self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
 
         self._behavior.on_grabbed_mouse_position_changed = handle_grabbed_mouse_position_changed
 
-        def handle_wheel_changed(x, y, dx, dy, is_horizontal):
+        def handle_wheel_changed(x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
             if callable(self.on_wheel_changed):
-                self.on_wheel_changed(x, y, dx, dy, is_horizontal)
+                return self.on_wheel_changed(x, y, dx, dy, is_horizontal)
+            return False
 
         self._behavior.on_wheel_changed = handle_wheel_changed
 
-        def handle_size_changed(width, height):
+        def handle_size_changed(width: int, height: int) -> None:
             self.width = width
             self.height = height
             if callable(self.on_size_changed):
@@ -2276,7 +2621,7 @@ class CanvasWidget(Widget):
 
         self._behavior.on_drag_enter = handle_drag_enter
 
-        def handle_drag_leave():
+        def handle_drag_leave() -> str:
             if callable(self.on_drag_leave):
                 return self.on_drag_leave()
             return "ignore"
@@ -2304,7 +2649,7 @@ class CanvasWidget(Widget):
 
         self._behavior.on_tool_tip = handle_tool_tip
 
-        def handle_pan_gesture(delta_x, delta_y) -> bool:
+        def handle_pan_gesture(delta_x: int, delta_y: int) -> bool:
             if callable(self.on_pan_gesture):
                 return self.on_pan_gesture(delta_x, delta_y)
             return False
@@ -2314,10 +2659,10 @@ class CanvasWidget(Widget):
         self.__canvas_item = CanvasItem.RootCanvasItem(self, layout_render=layout_render)
         self._behavior._set_canvas_item(self.__canvas_item)
 
-    def close(self):
+    def close(self) -> None:
         if self.__canvas_item:
             self.__canvas_item.close()
-            self.__canvas_item = None
+            self.__canvas_item = typing.cast(typing.Any, None)
         # messages generated from this class
         self.on_periodic = None
         self.on_dispatch_any = None
@@ -2344,7 +2689,11 @@ class CanvasWidget(Widget):
         self.on_pan_gesture = None
         super().close()
 
-    def periodic(self):
+    @property
+    def _behavior(self) -> CanvasWidgetBehavior:
+        return typing.cast(CanvasWidgetBehavior, super()._behavior)
+
+    def periodic(self) -> None:
         super().periodic()
         self._behavior.periodic()
         if self.on_periodic:
@@ -2355,12 +2704,12 @@ class CanvasWidget(Widget):
             self.position_info = None
 
     @property
-    def canvas_item(self):
+    def canvas_item(self) -> CanvasItem.RootCanvasItem:
         return self.__canvas_item
 
     @property
-    def canvas_size(self):
-        return (self.height, self.width)
+    def canvas_size(self) -> Geometry.IntSize:
+        return Geometry.IntSize(h=self.height, w=self.width)
 
     @property
     def focusable(self) -> bool:
@@ -2382,7 +2731,7 @@ class CanvasWidget(Widget):
     def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         self._behavior.set_cursor_shape(cursor_shape)
 
-    def simulate_mouse_click(self, x, y, modifiers):
+    def simulate_mouse_click(self, x: int, y: int, modifiers: KeyboardModifiers) -> None:
         if self.on_mouse_pressed:
             self.on_mouse_pressed(x, y, modifiers)
         if self.on_mouse_released:
@@ -2405,9 +2754,9 @@ class CanvasWidget(Widget):
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self._behavior.show_tool_tip_text(text, gx, gy)
 
-    def _dispatch_any(self, method: str, *args, **kwargs):
+    def _dispatch_any(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
         if callable(self.on_dispatch_any):
-            return self.on_dispatch_any(method, *args, **kwargs)
+            return typing.cast(bool, self.on_dispatch_any(method, *args, **kwargs))
         return False
 
     def _can_dispatch_any(self, method: str) -> bool:
@@ -2423,21 +2772,25 @@ class CanvasWidget(Widget):
         return None
 
 
+class ProgressBarWidgetBehavior(CanvasWidgetBehavior, typing.Protocol):
+    pass
+
+
 class ProgressBarWidget(CanvasWidget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: ProgressBarWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.__value = 0
         self.__minimum = 0
         self.__maximum = 0
-        self.on_value_changed = None
-        self.__binding = None
+        self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.__binding: typing.Optional[Binding.Binding] = None
 
         self.__progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
         self.__progress_bar_canvas_item.update_sizing(self.__progress_bar_canvas_item.sizing.with_fixed_size(Geometry.IntSize(w=500, h=20)))
         self.canvas_item.add_canvas_item(self.__progress_bar_canvas_item)
 
-    def close(self):
+    def close(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
@@ -2446,11 +2799,15 @@ class ProgressBarWidget(CanvasWidget):
         super().close()
 
     @property
-    def value(self):
+    def _behavior(self) -> ProgressBarWidgetBehavior:
+        return typing.cast(ProgressBarWidgetBehavior, super()._behavior)
+
+    @property
+    def value(self) -> int:
         return self.__value
 
     @value.setter
-    def value(self, value):
+    def value(self, value: int) -> None:
         if value != self.__value:
             self.__value = value
             self.__progress_bar_canvas_item.progress = (value - self.__minimum) / (self.__maximum - self.__minimum) if self.__maximum != self.__minimum else 0.0
@@ -2458,96 +2815,118 @@ class ProgressBarWidget(CanvasWidget):
                 self.on_value_changed(value)
 
     @property
-    def minimum(self):
+    def minimum(self) -> int:
         return self.__minimum
 
     @minimum.setter
-    def minimum(self, minimum):
+    def minimum(self, minimum: int) -> None:
         self.__minimum = minimum
 
     @property
-    def maximum(self):
+    def maximum(self) -> int:
         return self.__maximum
 
     @maximum.setter
-    def maximum(self, maximum):
+    def maximum(self, maximum: int) -> None:
         self.__maximum = maximum
 
     # bind to value. takes ownership of binding.
-    def bind_value(self, binding):
+    def bind_value(self, binding: Binding.Binding) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
             self.on_value_changed = None
-        self.value = binding.get_target_value()
+        self.value = typing.cast(int, binding.get_target_value())
         self.__binding = binding
-        def update_value(value):
-            def update_value_():
+
+        def update_value(value: int) -> None:
+            def update_value_() -> None:
                 if self._behavior:
                     self.value = value
-            self.add_task("update_value", update_value_)
-        self.__binding.target_setter = update_value
-        self.on_value_changed = lambda value: self.__binding.update_source(value)
 
-    def unbind_value(self):
+            self.add_task("update_value", update_value_)
+
+        self.__binding.target_setter = update_value
+
+        def handle_value_changed(value: int) -> None:
+            if self.__binding:
+                self.__binding.update_source(value)
+
+        self.on_value_changed = handle_value_changed
+
+    def unbind_value(self) -> None:
         if self.__binding:
             self.__binding.close()
             self.__binding = None
         self.on_value_changed = None
 
 
+class TreeWidgetBehavior(WidgetBehavior, typing.Protocol):
+    selection_mode: str
+    item_model_controller: typing.Any
+    on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], Key], bool]]
+    on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]]
+    on_tree_item_changed: typing.Optional[typing.Callable[[int, int, int], None]]
+    on_tree_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]]
+    on_tree_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]]
+    on_tree_item_key_pressed: typing.Optional[typing.Callable[[int, int, int, Key], bool]]
+    def set_current_row(self, index: int, parent_row: int, parent_id: int) -> None: ...
+    def clear_current_row(self) -> None: ...
+    def size_to_content(self) -> None: ...
+
+
 class TreeWidget(Widget):
 
-    def __init__(self, widget_behavior):
+    def __init__(self, widget_behavior: TreeWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.on_key_pressed = None
-        self.on_selection_changed = None
-        self.on_current_item_changed = None
-        self.on_item_clicked = None
-        self.on_item_double_clicked = None
-        self.on_item_key_pressed = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], Key], bool]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]] = None
+        self.on_current_item_changed: typing.Optional[typing.Callable[[int, int, int], None]] = None
+        self.on_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
+        self.on_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
+        self.on_item_key_pressed: typing.Optional[typing.Callable[[int, int, int, Key], bool]] = None
 
-        def handle_key_pressed(indexes, key: Key) -> bool:
+        def handle_key_pressed(indexes: typing.Sequence[int], key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(indexes, key)
             return False
 
         self._behavior.on_key_pressed = handle_key_pressed
 
-        def handle_tree_item_changed(index, parent_row, parent_id):
+        def handle_tree_item_changed(index: int, parent_row: int, parent_id: int) -> None:
             if callable(self.on_current_item_changed):
                 self.on_current_item_changed(index, parent_row, parent_id)
 
         self._behavior.on_tree_item_changed = handle_tree_item_changed
 
-        def handle_tree_selection_changed(selected_indexes):
+        def handle_tree_selection_changed(selected_indexes: typing.Sequence[int]) -> None:
             if callable(self.on_selection_changed):
                 self.on_selection_changed(selected_indexes)
 
         self._behavior.on_tree_selection_changed = handle_tree_selection_changed
 
-        def handle_tree_item_key_pressed(index, parent_row, parent_id, key: Key) -> bool:
+        def handle_tree_item_key_pressed(index: int, parent_row: int, parent_id: int, key: Key) -> bool:
             if callable(self.on_item_key_pressed):
                 return self.on_item_key_pressed(index, parent_row, parent_id, key)
             return False
 
         self._behavior.on_tree_item_key_pressed = handle_tree_item_key_pressed
 
-        def handle_tree_item_clicked(index, parent_row, parent_id):
+        def handle_tree_item_clicked(index: int, parent_row: int, parent_id: int) -> bool:
             if callable(self.on_item_clicked):
                 return self.on_item_clicked(index, parent_row, parent_id)
             return False
 
         self._behavior.on_tree_item_clicked = handle_tree_item_clicked
 
-        def handle_tree_item_double_clicked(index, parent_row, parent_id):
+        def handle_tree_item_double_clicked(index: int, parent_row: int, parent_id: int) -> bool:
             if callable(self.on_item_double_clicked):
                 return self.on_item_double_clicked(index, parent_row, parent_id)
             return False
 
         self._behavior.on_tree_item_double_clicked = handle_tree_item_double_clicked
 
-    def close(self):
+    def close(self) -> None:
         self.__item_model_controller = None
         self.on_key_pressed = None
         self.on_selection_changed = None
@@ -2558,43 +2937,47 @@ class TreeWidget(Widget):
         super().close()
 
     @property
-    def selection_mode(self):
+    def _behavior(self) -> TreeWidgetBehavior:
+        return typing.cast(TreeWidgetBehavior, super()._behavior)
+
+    @property
+    def selection_mode(self) -> str:
         return self._behavior.selection_mode
 
     @selection_mode.setter
-    def selection_mode(self, value):
+    def selection_mode(self, value: str) -> None:
         self._behavior.selection_mode = value
 
     @property
-    def item_model_controller(self):
+    def item_model_controller(self) -> typing.Any:
         return self._behavior.item_model_controller
 
     @item_model_controller.setter
-    def item_model_controller(self, value):
+    def item_model_controller(self, value: typing.Any) -> None:
         self._behavior.item_model_controller = value
 
-    def set_current_row(self, index, parent_row, parent_id):
+    def set_current_row(self, index: int, parent_row: int, parent_id: int) -> None:
         self._behavior.set_current_row(index, parent_row, parent_id)
 
-    def clear_current_row(self):
+    def clear_current_row(self) -> None:
         self._behavior.clear_current_row()
 
-    def size_to_content(self):
+    def size_to_content(self) -> None:
         self._behavior.size_to_content()
 
 
 class MenuAction:
 
-    def __init__(self, action_id: str = None):
+    def __init__(self, action_id: typing.Optional[str] = None) -> None:
         self.action_id = action_id
-        self.on_triggered = None
-        self.on_ui_activity = None
+        self.on_triggered: typing.Optional[typing.Callable[[], None]] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_triggered = None
         self.on_ui_activity = None
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
             self.on_ui_activity()
 
@@ -2623,8 +3006,11 @@ class MenuAction:
         raise NotImplementedError()
 
     def trigger(self) -> None:
-        if self.on_triggered:
+        if callable(self.on_triggered):
             self.on_triggered()
+
+    def create(self, document_window: Window, title: str, key_sequence: typing.Optional[str], role: typing.Optional[str]) -> None:
+        raise NotImplementedError()
 
     def apply_state(self, menu_item_state: MenuItemState) -> None:
         if menu_item_state and menu_item_state.title is not None:
@@ -2643,7 +3029,8 @@ class MenuAction:
 
 class MenuItem:
 
-    def __init__(self, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None):
+    def __init__(self, *, action: typing.Optional[MenuAction] = None, is_separator: bool = False,
+                 sub_menu: typing.Optional[Menu] = None) -> None:
         self.action = action
         self.is_separator = is_separator
         self.sub_menu = sub_menu
@@ -2657,7 +3044,7 @@ class MenuItem:
         self.sub_menu = None
 
     @property
-    def title(self):
+    def title(self) -> str:
         # NOTE: for backwards compatibility only (tests 0.14)
         if self.action:
             return self.action.title
@@ -2669,11 +3056,11 @@ class MenuItem:
             return "item"
 
     @property
-    def callback(self):
+    def callback(self) -> typing.Optional[typing.Callable[[], None]]:
         # NOTE: for backwards compatibility only (tests 0.14)
-        return getattr(self.action, "callback", None)
+        return typing.cast(typing.Optional[typing.Callable[[], None]], getattr(self.action, "callback", None))
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.action:
             return f"action {self.action.title}"
         elif self.is_separator:
@@ -2686,23 +3073,23 @@ class MenuItem:
 
 class Menu:
 
-    def __init__(self, document_window, title, menu_id):
+    def __init__(self, document_window: Window, title: str, menu_id: str) -> None:
         self.document_window = document_window
         self.title = title
         self.menu_id = menu_id
-        self.on_about_to_show = None
-        self.on_about_to_hide = None
-        self.__items = list()
+        self.on_about_to_show: typing.Optional[typing.Callable[[], None]] = None
+        self.on_about_to_hide: typing.Optional[typing.Callable[[], None]] = None
+        self.__items: typing.List[MenuItem] = list()
 
-    def close(self):
+    def close(self) -> None:
         for item in self.__items:
             item.close()
-        self.__items = None
-        self.document_window = None
+        self.__items = typing.cast(typing.Any, None)
+        self.document_window = typing.cast(typing.Any, None)
         self.on_about_to_show = None
         self.on_about_to_hide = None
 
-    def destroy(self):
+    def destroy(self) -> None:
         # for backwards compatibility
         if self.__items:
             self.close()
@@ -2714,39 +3101,44 @@ class Menu:
     def get_menu_actions(self) -> typing.Sequence[MenuAction]:
         return [item.action for item in self.__items if item.action]
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         self.document_window._register_ui_activity()
 
-    def about_to_show(self):
+    def about_to_show(self) -> None:
         self._register_ui_activity()
-        if self.on_about_to_show:
+        if callable(self.on_about_to_show):
             self.on_about_to_show()
 
-    def about_to_hide(self):
+    def about_to_hide(self) -> None:
         self._register_ui_activity()
-        if self.on_about_to_hide:
+        if callable(self.on_about_to_hide):
             self.on_about_to_hide()
 
-    def _prepare_action(self, action, title, action_id, callback, key_sequence=None, role=None):
+    def _prepare_action(self, action: MenuAction, title: str, action_id: typing.Optional[str],
+                        callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None,
+                        role: typing.Optional[str] = None) -> None:
         # subclasses should call this to prepare a newly created action
         action.create(self.document_window, title, key_sequence, role)
         action.action_id = action_id
         action.on_triggered = callback
         action.on_ui_activity = self._register_ui_activity
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> MenuAction:
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None,
+                      role: typing.Optional[str] = None, action_id: typing.Optional[str] = None) -> MenuAction:
         raise NotImplementedError()
 
-    def add_action(self, action) -> None:
+    def add_action(self, action: MenuAction) -> None:
         raise NotImplementedError()
 
-    def add_sub_menu(self, title, menu) -> None:
+    def add_sub_menu(self, title: str, menu: Menu) -> None:
         raise NotImplementedError()
 
     def add_separator(self) -> None:
         raise NotImplementedError()
 
-    def insert_menu_item(self, title, before_action: MenuAction, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> None:
+    def insert_menu_item(self, title: str, before_action: MenuAction, callback: typing.Callable[[], None],
+                         key_sequence: typing.Optional[str] = None, role: typing.Optional[str] = None,
+                         action_id: typing.Optional[str] = None) -> None:
         raise NotImplementedError()
 
     def insert_separator(self, before_action: MenuAction) -> None:
@@ -2755,13 +3147,15 @@ class Menu:
     def remove_action(self, action: MenuAction) -> None:
         raise NotImplementedError()
 
-    def _item_added(self, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+    def _item_added(self, *, action: typing.Optional[MenuAction] = None, is_separator: bool = False,
+                    sub_menu: typing.Optional[Menu] = None) -> None:
         # subclasses should call this when adding a menu item
         item = MenuItem(action=action, is_separator=is_separator, sub_menu=sub_menu)
         self.__items.append(item)
         self.document_window._menu_item_added(item)
 
-    def _item_inserted(self, before_action: MenuAction, *, action: MenuAction = None, is_separator: bool =False, sub_menu: "Menu" = None) -> None:
+    def _item_inserted(self, before_action: MenuAction, *, action: typing.Optional[MenuAction] = None,
+                       is_separator: bool = False, sub_menu: typing.Optional[Menu] = None) -> None:
         # subclasses should call this when adding a menu item
         index = 0
         for index, item in enumerate(self.__items):
@@ -2779,36 +3173,36 @@ class Menu:
                 self.document_window._menu_item_removed(self.__items.pop(index))
                 break
 
-    def popup(self, gx, gy):
+    def popup(self, gx: int, gy: int) -> None:
         raise NotImplementedError()
 
 
 class DockWidget:
 
-    def __init__(self, document_window: "Window", widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str):
+    def __init__(self, document_window: Window, widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> None:
         self.document_window = document_window
         self.document_window.register_dock_widget(self)
         self.widget = widget
-        self.widget._set_root_container(self)
+        self.widget._set_root_container(typing.cast("WindowModule.Window", self))
         self.panel_id = panel_id
         self.title = title
         self.positions = positions
         self.position = position
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
-        self.on_focus_changed = None
-        self.on_ui_activity = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
         self.size: typing.Optional[Geometry.IntSize] = None
 
-    def close(self):
+    def close(self) -> None:
         self.widget.close()
-        self.widget = None
+        self.widget = typing.cast(typing.Any, None)
         self.document_window.unregister_dock_widget(self)
-        self.document_window = None
+        self.document_window = typing.cast(typing.Any, None)
         self.on_size_changed = None
         self.on_focus_changed = None
         self.on_ui_activity = None
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
             self.on_ui_activity()
 
@@ -2826,7 +3220,7 @@ class DockWidget:
             return size.height
         return 0
 
-    def refocus_widget(self, widget):
+    def refocus_widget(self, widget: Widget) -> None:
         # if the widget is one that retains focus, refocus it. this ensures that pressing return
         # on a line edit widget in a dock widget selects all for a nice user experience.
         if widget.does_retain_focus:
@@ -2835,8 +3229,8 @@ class DockWidget:
             self.document_window.refocus_widget(widget)
 
     @property
-    def focus_widget(self):
-        def match_native_widget(widget):
+    def focus_widget(self) -> typing.Optional[Widget]:
+        def match_native_widget(widget: Widget) -> typing.Optional[Widget]:
             if widget.focused:
                 return widget
             for child_widget in widget._contained_widgets:
@@ -2844,31 +3238,32 @@ class DockWidget:
                 if matched_widget:
                     return matched_widget
             return None
+
         return match_native_widget(self.widget)
 
-    def queue_task(self, task):
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
         self.document_window.queue_task(task)
 
-    def clear_queued_tasks(self):
+    def clear_queued_tasks(self) -> None:
         self.document_window.clear_queued_tasks()
 
-    def add_task(self, key, task):
+    def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
         self.document_window.add_task(key + str(id(self)), task)
 
-    def clear_task(self, key):
+    def clear_task(self, key: str) -> None:
         self.document_window.clear_task(key + str(id(self)))
 
-    def periodic(self):
+    def periodic(self) -> None:
         self.widget.periodic()
 
     @property
     def toggle_action(self) -> MenuAction:
         raise NotImplementedError()
 
-    def show(self):
+    def show(self) -> None:
         self._register_ui_activity()
 
-    def hide(self):
+    def hide(self) -> None:
         self._register_ui_activity()
 
     def _handle_size_changed(self, size: Geometry.IntSize) -> None:
@@ -2890,37 +3285,38 @@ class DockWidget:
 
 class Window:
 
-    def __init__(self, parent_window, title):
+    def __init__(self, parent_window: typing.Optional[Window], title: str) -> None:
         self.parent_window = parent_window
-        self.root_widget = None
+        self.root_widget: typing.Optional[Widget] = None
         self.has_event_loop = True
         self.window_style = "window"
-        self.__dock_widget_weak_refs = list()
-        self.on_periodic = None
-        self.on_queue_task = None
-        self.on_clear_queued_tasks = None
-        self.on_add_task = None
-        self.on_clear_task = None
-        self.on_about_to_show = None
-        self.on_about_to_close = None
-        self.on_key_pressed = None
-        self.on_key_released = None
-        self.on_activation_changed = None
+        # Python 3.9+: weakref.ReferenceType[DockWidget]
+        self.__dock_widget_weak_refs: typing.List[typing.Any] = list()
+        self.on_periodic: typing.Optional[typing.Callable[[], None]] = None
+        self.on_queue_task: typing.Optional[typing.Callable[[typing.Callable[[], None]], None]] = None
+        self.on_clear_queued_tasks: typing.Optional[typing.Callable[[], None]] = None
+        self.on_add_task: typing.Optional[typing.Callable[[str, typing.Callable[[], None]], None]] = None
+        self.on_clear_task: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_about_to_show: typing.Optional[typing.Callable[[], None]] = None
+        self.on_about_to_close: typing.Optional[typing.Callable[[str, str], None]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_activation_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
-        self.on_position_changed = None
-        self.on_refocus_widget = None
-        self.on_ui_activity = None
-        self.pos_x = None
-        self.pos_y = None
-        self.width = None
-        self.height = None
+        self.on_position_changed: typing.Optional[typing.Callable[[int, int], None]] = None
+        self.on_refocus_widget: typing.Optional[typing.Callable[[Widget], None]] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.pos_x: typing.Optional[int] = None
+        self.pos_y: typing.Optional[int] = None
+        self.width: typing.Optional[int] = None
+        self.height: typing.Optional[int] = None
         self.__title = title if title is not None else str()
         self.__window_file_path: typing.Optional[pathlib.Path] = None
-        self.__menus = list()
-        self.__menu_map = dict()
-        self.__menu_actions = dict()
+        self.__menus: typing.List[Menu] = list()
+        self.__menu_map: typing.Dict[str, Menu] = dict()
+        self.__menu_actions: typing.Dict[str, MenuAction] = dict()
 
-    def close(self):
+    def close(self) -> None:
         # this is a callback and should not be invoked directly from Python;
         # call request_close instead.
         self.parent_window = None
@@ -2933,9 +3329,9 @@ class Window:
             self.root_widget = None
         for menu in reversed(self.__menus):
             menu.close()
-        self.__menus = None
-        self.__menu_map = None
-        self.__menu_actions = None
+        self.__menus = typing.cast(typing.Any, None)
+        self.__menu_map = typing.cast(typing.Any, None)
+        self.__menu_actions = typing.cast(typing.Any, None)
         self.on_periodic = None
         self.on_queue_task = None
         self.on_clear_queued_tasks = None
@@ -2951,119 +3347,119 @@ class Window:
         self.on_refocus_widget = None
         self.on_ui_activity = None
 
-    def request_close(self):
+    def request_close(self) -> None:
         raise NotImplementedError()
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
             self.on_ui_activity()
 
     # attach the root widget to this window
     # the root widget must respond to _set_root_container
-    def attach(self, root_widget):
+    def attach(self, root_widget: Widget) -> None:
         self.root_widget = root_widget
-        self.root_widget._set_root_container(self)
+        self.root_widget._set_root_container(typing.cast("WindowModule.Window", self))
         self._attach_root_widget(root_widget)
 
-    def _attach_root_widget(self, root_widget):
+    def _attach_root_widget(self, root_widget: typing.Optional[Widget]) -> None:
         raise NotImplementedError()
 
-    def detach(self):
+    def detach(self) -> None:
         assert self.root_widget is not None
         self.root_widget.close()
         self.root_widget = None
 
     @property
-    def dock_widgets(self):
+    def dock_widgets(self) -> typing.List[DockWidget]:
         return [dock_widget_weak_ref() for dock_widget_weak_ref in self.__dock_widget_weak_refs]
 
-    def register_dock_widget(self, dock_widget):
+    def register_dock_widget(self, dock_widget: DockWidget) -> None:
         self.__dock_widget_weak_refs.append(weakref.ref(dock_widget))
 
-    def unregister_dock_widget(self, dock_widget):
+    def unregister_dock_widget(self, dock_widget: DockWidget) -> None:
         self.__dock_widget_weak_refs.remove(weakref.ref(dock_widget))
 
-    def queue_task(self, task):
+    def queue_task(self, task: typing.Callable[[], None]) -> None:
         if self.on_queue_task:
             self.on_queue_task(task)
 
-    def clear_queued_tasks(self):
+    def clear_queued_tasks(self) -> None:
         if self.on_clear_queued_tasks:
             self.on_clear_queued_tasks()
 
-    def add_task(self, key, task):
+    def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
         if self.on_add_task:
             self.on_add_task(key + str(id(self)), task)
 
-    def clear_task(self, key):
+    def clear_task(self, key: str) -> None:
         if self.on_clear_task:
             self.on_clear_task(key + str(id(self)))
 
     @property
-    def focus_widget(self):
+    def focus_widget(self) -> typing.Optional[Widget]:
         return self._get_focus_widget()
 
-    def _get_focus_widget(self):
+    def _get_focus_widget(self) -> typing.Optional[Widget]:
         raise NotImplementedError()
 
-    def refocus_widget(self, widget):
+    def refocus_widget(self, widget: Widget) -> None:
         if callable(self.on_refocus_widget):
             self.on_refocus_widget(widget)
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
-    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
     def get_color_dialog(self, title: str, color: str, show_alpha: bool) -> typing.Optional[str]:
         raise NotImplementedError()
 
-    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         raise NotImplementedError()
 
     def create_dock_widget(self, widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> DockWidget:
         raise NotImplementedError()
 
-    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+    def tabify_dock_widgets(self, dock_widget1: DockWidget, dock_widget2: DockWidget) -> None:
         raise NotImplementedError()
 
     @property
     def screen_size(self) -> Geometry.IntSize:
         return self._get_screen_size()
 
-    def _get_screen_size(self):
+    def _get_screen_size(self) -> Geometry.IntSize:
         raise NotImplementedError()
 
     @property
     def screen_logical_dpi(self) -> float:
         return self._get_screen_logical_dpi()
 
-    def _get_screen_logical_dpi(self):
+    def _get_screen_logical_dpi(self) -> float:
         raise NotImplementedError()
 
     @property
     def screen_physical_dpi(self) -> float:
         return self._get_screen_physical_dpi()
 
-    def _get_screen_physical_dpi(self):
+    def _get_screen_physical_dpi(self) -> float:
         raise NotImplementedError()
 
     @property
     def display_scaling(self) -> float:
         return self._get_display_scaling()
 
-    def _get_display_scaling(self):
+    def _get_display_scaling(self) -> float:
         raise NotImplementedError()
 
     # call show to display the window.
-    def show(self, size=None, position=None):
+    def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         raise NotImplementedError()
 
     def activate(self) -> None:
         raise NotImplementedError()
 
-    def fill_screen(self):
+    def fill_screen(self) -> None:
         raise NotImplementedError()
 
     @property
@@ -3099,38 +3495,38 @@ class Window:
     def set_attributes(self, attributes: typing.Sequence[str]) -> None:
         raise NotImplementedError()
 
-    def _handle_periodic(self):
+    def _handle_periodic(self) -> None:
         if self.root_widget:
             self.root_widget.periodic()
         if self.on_periodic:
             self.on_periodic()
 
-    def _handle_about_to_show(self):
+    def _handle_about_to_show(self) -> None:
         if self.on_about_to_show:
             self.on_about_to_show()
 
-    def _handle_activation_changed(self, activated):
+    def _handle_activation_changed(self, activated: bool) -> None:
         if self.on_activation_changed:
             self.on_activation_changed(activated)
 
-    def _handle_about_to_close(self, geometry, state):
+    def _handle_about_to_close(self, geometry: str, state: str) -> None:
         if self.on_about_to_close:
             self.on_about_to_close(geometry, state)
 
-    def _handle_key_pressed(self, key) -> bool:
+    def _handle_key_pressed(self, key: Key) -> bool:
         if callable(self.on_key_pressed):
             return self.on_key_pressed(key)
         return False
 
-    def _handle_key_released(self, key) -> bool:
+    def _handle_key_released(self, key: Key) -> bool:
         if callable(self.on_key_released):
             return self.on_key_released(key)
         return False
 
-    def add_menu(self, title: str, menu_id: str = None) -> Menu:
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> Menu:
         raise NotImplementedError()
 
-    def insert_menu(self, title: str, before_menu: Menu, menu_id: str = None) -> Menu:
+    def insert_menu(self, title: str, before_menu: Menu, menu_id: typing.Optional[str] = None) -> Menu:
         raise NotImplementedError()
 
     def _menu_added(self, menu: Menu) -> None:
@@ -3154,10 +3550,10 @@ class Window:
             self.__menu_actions.pop(item.action.action_id)
 
     def get_menu_action(self, action_id: str) -> MenuAction:
-        return self.__menu_actions.get(action_id)
+        return self.__menu_actions.get(action_id, MenuAction())
 
     def get_menu_actions(self) -> typing.Sequence[MenuAction]:
-        return self.__menu_actions.values()
+        return list(self.__menu_actions.values())
 
     @property
     def menus(self) -> typing.List[Menu]:
@@ -3169,16 +3565,16 @@ class Window:
     def save(self) -> typing.Tuple[str, str]:
         raise NotImplementedError()
 
-    def restore(self, geometry, state):
+    def restore(self, geometry: str, state: str) -> None:
         raise NotImplementedError()
 
-    def _handle_size_changed(self, width, height):
+    def _handle_size_changed(self, width: int, height: int) -> None:
         self.width = width
         self.height = height
         if callable(self.on_size_changed):
             self.on_size_changed(self.width, self.height)
 
-    def _handle_position_changed(self, x, y):
+    def _handle_position_changed(self, x: int, y: int) -> None:
         self.pos_x = x
         self.pos_y = y
         if callable(self.on_position_changed):
@@ -3247,6 +3643,14 @@ class FloatPersistentModel(Model.PropertyModel[float]):
             self.__ui.remove_persistent_key(self.__storage_key)
 
 
+class ButtonGroup(typing.Protocol):
+    on_button_clicked: typing.Optional[typing.Callable[[str], None]]
+    def close(self) -> None: ...
+    def add_button(self, radio_button: RadioButtonWidget, button_id: str) -> None: ...
+    def remove_button(self, radio_button: RadioButtonWidget) -> None: ...
+    def clicked(self, button_id: str) -> None: ...
+
+
 class UserInterface(abc.ABC):
 
     @abc.abstractmethod
@@ -3268,17 +3672,17 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_item_model_controller(self, keys):
+    def create_item_model_controller(self) -> None:
         ...
 
     @abc.abstractmethod
-    def create_button_group(self):
+    def create_button_group(self) -> ButtonGroup:
         ...
 
     # window elements
 
     @abc.abstractmethod
-    def create_document_window(self, title=None, parent_window: Window=None) -> Window:
+    def create_document_window(self, title: typing.Optional[str] = None, parent_window: typing.Optional[Window] = None) -> Window:
         ...
 
     @abc.abstractmethod
@@ -3288,85 +3692,85 @@ class UserInterface(abc.ABC):
     # user interface elements
 
     @abc.abstractmethod
-    def create_row_widget(self, alignment=None, properties=None) -> BoxWidget:
+    def create_row_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> BoxWidget:
         ...
 
     @abc.abstractmethod
-    def create_column_widget(self, alignment=None, properties=None) -> BoxWidget:
+    def create_column_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> BoxWidget:
         ...
 
     @abc.abstractmethod
-    def create_splitter_widget(self, orientation="vertical", properties=None) -> SplitterWidget:
+    def create_splitter_widget(self, orientation: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> SplitterWidget:
         ...
 
     @abc.abstractmethod
-    def create_tab_widget(self, properties=None) -> TabWidget:
+    def create_tab_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> TabWidget:
         ...
 
     @abc.abstractmethod
-    def create_stack_widget(self, properties=None) -> StackWidget:
+    def create_stack_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> StackWidget:
         ...
 
     @abc.abstractmethod
-    def create_group_widget(self, properties=None) -> GroupWidget:
+    def create_group_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> GroupWidget:
         ...
 
     @abc.abstractmethod
-    def create_scroll_area_widget(self, properties=None) -> ScrollAreaWidget:
+    def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> ScrollAreaWidget:
         ...
 
     @abc.abstractmethod
-    def create_combo_box_widget(self, items=None, item_getter=None, properties=None) -> ComboBoxWidget:
+    def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> ComboBoxWidget:
         ...
 
     @abc.abstractmethod
-    def create_push_button_widget(self, text: str=None, properties=None) -> PushButtonWidget:
+    def create_push_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> PushButtonWidget:
         ...
 
     @abc.abstractmethod
-    def create_radio_button_widget(self, text: str=None, properties=None) -> RadioButtonWidget:
+    def create_radio_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> RadioButtonWidget:
         ...
 
     @abc.abstractmethod
-    def create_check_box_widget(self, text=None, properties=None) -> CheckBoxWidget:
+    def create_check_box_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> CheckBoxWidget:
         ...
 
     @abc.abstractmethod
-    def create_label_widget(self, text: str=None, properties=None) -> LabelWidget:
+    def create_label_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> LabelWidget:
         ...
 
     @abc.abstractmethod
-    def create_slider_widget(self, properties=None) -> SliderWidget:
+    def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> SliderWidget:
         ...
 
     @abc.abstractmethod
-    def create_progress_bar_widget(self, properties=None) -> ProgressBarWidget:
+    def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> ProgressBarWidget:
         ...
 
     @abc.abstractmethod
-    def create_line_edit_widget(self, properties=None) -> LineEditWidget:
+    def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> LineEditWidget:
         ...
 
     @abc.abstractmethod
-    def create_text_edit_widget(self, properties=None) -> TextEditWidget:
+    def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> TextEditWidget:
         ...
 
     @abc.abstractmethod
-    def create_canvas_widget(self, properties=None, *, layout_render: str = None) -> CanvasWidget:
+    def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> CanvasWidget:
         ...
 
     @abc.abstractmethod
-    def create_tree_widget(self, properties=None) -> TreeWidget:
+    def create_tree_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> TreeWidget:
         ...
 
     # file i/o
 
     @abc.abstractmethod
-    def load_rgba_data_from_file(self, filename):
+    def load_rgba_data_from_file(self, filename: str) -> typing.Optional[DrawingContext.RGBA32Type]:
         ...
 
     @abc.abstractmethod
-    def save_rgba_data_to_file(self, data, filename, format):
+    def save_rgba_data_to_file(self, data: DrawingContext.RGBA32Type, filename: str, format: typing.Optional[str]) -> None:
         ...
 
     @abc.abstractmethod
@@ -3374,15 +3778,15 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         ...
 
     @abc.abstractmethod
-    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         ...
 
     @abc.abstractmethod
-    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         ...
 
     # persistence (associated with application)
@@ -3462,7 +3866,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_rgba_image(self, drawing_context, width, height):
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         ...
 
     @abc.abstractmethod
@@ -3486,7 +3890,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_sub_menu(self, document_window: Window, title: str = None, menu_id: str = None) -> Menu:
+    def create_sub_menu(self, document_window: Window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> Menu:
         ...
 
     @abc.abstractmethod

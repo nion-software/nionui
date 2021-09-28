@@ -1,3 +1,5 @@
+# type: ignore
+
 """
 Provides a user interface object that can render to an HTML canvas.
 """
@@ -557,7 +559,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def create_mime_data(self) -> UserInterface.MimeData:
         raise NotImplementedError()
 
-    def create_item_model_controller(self, keys):
+    def create_item_model_controller(self):
         raise NotImplementedError()
 
     def create_button_group(self):
@@ -583,7 +585,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def create_column_widget(self, alignment=None, properties=None):
         return UserInterface.BoxWidget(BoxWidgetBehavior("column", properties), alignment)
 
-    def create_splitter_widget(self, orientation="vertical", properties=None):
+    def create_splitter_widget(self, orientation=None, properties=None):
         raise NotImplementedError()
 
     def create_tab_widget(self, properties=None):

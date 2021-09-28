@@ -25,6 +25,7 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
+    from nion.ui import Window
 
 
 def notnone(s: typing.Any) -> str:
@@ -279,7 +280,7 @@ class QtItemModelController:
         def parent(self, parent):
             self.weak_parent = weakref.ref(parent) if parent else None
 
-    def __init__(self, proxy, keys):
+    def __init__(self, proxy):
         self.proxy = proxy
         self.py_item_model = self.proxy.ItemModel_create()
         self.proxy.ItemModel_connect(self.py_item_model, self)
@@ -563,7 +564,9 @@ class QtWidgetBehavior:
             self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
-    def drag(self, mime_data: QtMimeData, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         self._register_ui_activity()
         def drag_finished(action):
             self._register_ui_activity()
@@ -593,16 +596,32 @@ class QtWidgetBehavior:
 
 
 class QtNullBehavior:
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.focused = False
-        self.enabled = True
+        self.does_retain_focus = False
         self.visible = True
+        self.enabled = True
+        self.size = Geometry.IntSize()
+        self.tool_tip: typing.Optional[str] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
 
-    def close(self):
+    def close(self) -> None:
         pass
 
-    def _set_root_container(self, root_container):
+    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+        pass
+
+    def set_property(self, key: str, value: typing.Any) -> None:
+        pass
+
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        return Geometry.IntPoint()
+
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
 
 
@@ -1727,7 +1746,8 @@ class QtMenu(UserInterface.Menu):
     def aboutToHide(self):
         self.about_to_hide()
 
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> UserInterface.MenuAction:
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None,
+                      role: typing.Optional[str] = None, action_id: typing.Optional[str] = None) -> UserInterface.MenuAction:
         action = QtAction(self.proxy)
         self._prepare_action(action, title, action_id, callback, key_sequence, role)
         self.proxy.Menu_addAction(self.native_menu, action.native_action)
@@ -1785,7 +1805,7 @@ class QtWindow(UserInterface.Window):
     def request_close(self):
         self.proxy.DocumentWindow_close(self.native_document_window)
 
-    def _attach_root_widget(self, root_widget: UserInterface.Widget) -> None:
+    def _attach_root_widget(self, root_widget: typing.Optional[UserInterface.Widget]) -> None:
         self.proxy.DocumentWindow_setCentralWidget(self.native_document_window, extract_widget(root_widget))
 
     def _get_focus_widget(self):
@@ -2017,8 +2037,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_mime_data(self) -> QtMimeData:
         return QtMimeData(self.proxy)
 
-    def create_item_model_controller(self, keys):
-        return QtItemModelController(self.proxy, keys)
+    def create_item_model_controller(self):
+        return QtItemModelController(self.proxy)
 
     def create_button_group(self):
         return QtButtonGroup(self.proxy)
@@ -2039,7 +2059,7 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_column_widget(self, alignment=None, properties=None):
         return UserInterface.BoxWidget(QtBoxWidgetBehavior(self.proxy, "column", properties), alignment)
 
-    def create_splitter_widget(self, orientation="vertical", properties=None):
+    def create_splitter_widget(self, orientation=None, properties=None):
         return UserInterface.SplitterWidget(QtSplitterWidgetBehavior(self.proxy, properties), orientation)
 
     def create_tab_widget(self, properties=None):
@@ -2081,7 +2101,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_text_edit_widget(self, properties=None):
         return UserInterface.TextEditWidget(QtTextEditWidgetBehavior(self.proxy, properties))
 
-    def create_canvas_widget(self, properties=None, *, layout_render: str = None):
+    def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *,
+                             layout_render: typing.Optional[str] = None) -> UserInterface.CanvasWidget:
         return UserInterface.CanvasWidget(QtCanvasWidgetBehavior(self.proxy, properties), layout_render=layout_render)
 
     def create_tree_widget(self, properties=None):

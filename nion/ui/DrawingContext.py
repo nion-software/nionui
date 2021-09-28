@@ -25,7 +25,6 @@ import xml.sax.saxutils
 # third party libraries
 import imageio
 import numpy
-import numpy.typing
 
 # local libraries
 from nion.utils import Geometry
@@ -34,10 +33,11 @@ from nion.utils import Geometry
 # pylint: disable=star-args
 
 
-RGBA32Type = numpy.typing.NDArray[typing.Any]
-RGBA8Type = numpy.typing.NDArray[typing.Any]
-GrayscaleF32Type = numpy.typing.NDArray[typing.Any]
-C8Type = numpy.typing.NDArray[typing.Any]
+RGBA32Type = typing.Any
+RGBA8Type = typing.Any
+GrayscaleF32Type = typing.Any
+C8Type = typing.Any
+
 ByteOrderType = typing.Optional[typing.Union[typing.Literal["little"], typing.Literal["big"]]]
 
 
@@ -573,7 +573,7 @@ class DrawingContext:
 
     def draw_image(self, img: RGBA32Type, x: float, y: float, width: float, height: float) -> None:
         # img should be rgba pack, uint32
-        assert img.dtype == numpy.uint32  # type: ignore
+        assert img.dtype == numpy.uint32
         with DrawingContext.__image_id_lock:
             DrawingContext.__image_id += 1
             image_id = DrawingContext.__image_id
@@ -584,7 +584,7 @@ class DrawingContext:
 
     def draw_data(self, img: GrayscaleF32Type, x: float, y: float, width: float, height: float, low: float, high: float, color_map_data: typing.Optional[RGBA32Type]) -> None:
         # img should be float
-        assert img.dtype == numpy.float32  # type: ignore
+        assert img.dtype == numpy.float32
         with DrawingContext.__image_id_lock:
             DrawingContext.__image_id += 1
             image_id = DrawingContext.__image_id

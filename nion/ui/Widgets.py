@@ -34,6 +34,7 @@ class CompositeWidgetBehavior:
         self.content_widget = content_widget
         self.on_context_menu_event = None
         self.on_focus_changed = None
+        self.on_ui_activity = None
 
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
@@ -92,16 +93,21 @@ class CompositeWidgetBehavior:
     def tool_tip(self, tool_tip):
         self.content_widget.tool_tip = tool_tip
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn) -> None:
-        self.content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
+            self.content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p):
         return self.content_widget.map_to_global(p)
 
+    def set_property(self, key: str, value: typing.Any) -> None:
+        pass
+
 
 class CompositeWidgetBase(UserInterface.Widget):
 
-    def __init__(self, content_widget):
+    def __init__(self, content_widget: UserInterface.Widget) -> None:
         assert content_widget is not None
         super().__init__(CompositeWidgetBehavior(content_widget))
 

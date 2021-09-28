@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # standard libraries
+import asyncio
 import gettext
 import re
 import typing
@@ -20,14 +21,17 @@ if typing.TYPE_CHECKING:
     from nion.ui import Application
 
 
-UIDescription = typing.Dict[str, typing.Any]  # when napolean works: typing.NewType("UIDescription", typing.Dict)
-UIResources = typing.Dict  # when napolean works: typing.NewType("UIResources", typing.Dict)
+UIDescription = typing.Mapping[str, typing.Any]  # when napolean works: typing.NewType("UIDescription", typing.Dict)
+UIDescriptionResult = typing.Dict[str, typing.Any]  # when napolean works: typing.NewType("UIDescription", typing.Dict)
+UIResources = typing.Mapping[str, typing.Any]  # when napolean works: typing.NewType("UIResources", typing.Dict)
 UIPoints = int  # when napolean works: typing.NewType("UIPoints", int)
 UILabel = str
 UIIdentifier = str  # typing.NewType("UIIndentifier", str)
 UICallableIdentifier = str  # typing.NewType("UICallableIdentifier", str)
 UIWidget = UserInterface.Widget
 UIKey = UserInterface.Key
+
+_FinishesListType = typing.List[typing.Callable[[], None]]
 
 _ = gettext.gettext
 
@@ -89,7 +93,7 @@ class DeclarativeUI:
     def __init__(self) -> None:
         pass
 
-    def __process_common_properties(self, d: typing.MutableMapping, **kwargs) -> None:
+    def __process_common_properties(self, d: typing.MutableMapping[str, typing.Any], **kwargs: typing.Any) -> None:
         common_properties = (
             "enabled",
             "visible",
@@ -109,7 +113,10 @@ class DeclarativeUI:
             if k in kwargs and kwargs[k] is not None:
                 d[k] = kwargs[k]
 
-    def create_column(self, *children: UIDescription, name: UIIdentifier=None, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
+    def create_column(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                      items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
+                      spacing: typing.Optional[UIPoints] = None, margin: typing.Optional[UIPoints] = None,
+                      **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a column UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -134,7 +141,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the column
         """
-        d: UIDescription = {"type": "column"}
+        d: UIDescriptionResult = {"type": "column"}
         if name is not None:
             d["name"] = name
         if items:
@@ -152,7 +159,10 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_row(self, *children: UIDescription, name: UIIdentifier=None, items: UIIdentifier=None, item_component_id: str=None, spacing: UIPoints=None, margin: UIPoints=None, **kwargs) -> UIDescription:
+    def create_row(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                   items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
+                   spacing: typing.Optional[UIPoints] = None, margin: typing.Optional[UIPoints] = None,
+                   **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a row UI description with children or dynamic items, spacing, and margin.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -177,7 +187,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the row
         """
-        d: UIDescription = {"type": "row"}
+        d: UIDescriptionResult = {"type": "row"}
         if name is not None:
             d["name"] = name
         if items:
@@ -195,7 +205,7 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_spacing(self, size: UIPoints) -> UIDescription:
+    def create_spacing(self, size: UIPoints) -> UIDescriptionResult:
         """Create a spacing UI description for a row or column.
 
         Keyword Args:
@@ -206,7 +216,7 @@ class DeclarativeUI:
         """
         return {"type": "spacing", "size": size}
 
-    def create_stretch(self) -> UIDescription:
+    def create_stretch(self) -> UIDescriptionResult:
         """Create a stretch UI description for a row or column.
 
         Returns:
@@ -214,7 +224,7 @@ class DeclarativeUI:
         """
         return {"type": "stretch"}
 
-    def create_tab(self, label: UILabel, content: UIDescription) -> UIDescription:
+    def create_tab(self, label: UILabel, content: UIDescription) -> UIDescriptionResult:
         """Create a tab UI description with a label and content.
 
         Args:
@@ -226,7 +236,10 @@ class DeclarativeUI:
         """
         return {"type": "tab", "label": label, "content": content}
 
-    def create_tabs(self, *tabs: UIDescription, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None, **kwargs) -> UIDescription:
+    def create_tabs(self, *tabs: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                    current_index: typing.Optional[UIIdentifier] = None,
+                    on_current_index_changed: typing.Optional[UICallableIdentifier] = None,
+                    **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a tabs UI description with children, the current index and optional changed event.
 
         The children must be tabs created by :py:meth:`create_tab`.
@@ -247,7 +260,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the tabs
         """
-        d: UIDescription = {"type": "tabs"}
+        d: UIDescriptionResult = {"type": "tabs"}
         if len(tabs) > 0:
             d_children = d.setdefault("tabs", list())
             for child in tabs:
@@ -261,7 +274,11 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_stack(self, *children: UIDescription, items: UIIdentifier=None, item_component_id: str=None, name: UIIdentifier=None, current_index: UIIdentifier=None, on_current_index_changed: UICallableIdentifier=None, **kwargs) -> UIDescription:
+    def create_stack(self, *children: UIDescription, items: typing.Optional[UIIdentifier] = None,
+                     item_component_id: typing.Optional[str] = None, name: typing.Optional[UIIdentifier] = None,
+                     current_index: typing.Optional[UIIdentifier] = None,
+                     on_current_index_changed: typing.Optional[UICallableIdentifier] = None,
+                     **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a stack UI description with children or dynamic items, the current index and optional changed event.
 
         The children can be passed as parameters or constructed from an observable list specified by `items` and
@@ -292,7 +309,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the stack
         """
-        d: UIDescription = {"type": "stack"}
+        d: UIDescriptionResult = {"type": "stack"}
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
@@ -310,7 +327,8 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_scroll_area(self, content: UIDescription, name: UIIdentifier=None, **kwargs) -> UIDescription:
+    def create_scroll_area(self, content: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                           **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a scroll area UI description with content and a name.
 
         Args:
@@ -322,13 +340,15 @@ class DeclarativeUI:
         Returns:
             UI description of the scroll area
         """
-        d: UIDescription = {"type": "scroll_area", "content": content}
+        d: UIDescriptionResult = {"type": "scroll_area", "content": content}
         if name is not None:
             d["name"] = name
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_group(self, content: UIDescription, name: UIIdentifier=None, title: UILabel=None, margin: UIPoints=None, **kwargs) -> UIDescription:
+    def create_group(self, content: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                     title: typing.Optional[UILabel] = None, margin: typing.Optional[UIPoints] = None,
+                     **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a group UI description with content, a name, a title, and a margin.
 
         Args:
@@ -342,7 +362,7 @@ class DeclarativeUI:
         Returns:
             UI description of the group
         """
-        d: UIDescription = {"type": "group", "content": content}
+        d: UIDescriptionResult = {"type": "group", "content": content}
         if name is not None:
             d["name"] = name
         if title is not None:
@@ -352,7 +372,8 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_label(self, *, text: UILabel=None, name: UIIdentifier=None, **kwargs) -> UIDescription:
+    def create_label(self, *, text: typing.Optional[UILabel] = None, name: typing.Optional[UIIdentifier] = None,
+                     **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a label UI description with text and an optional name.
 
         Keyword Args:
@@ -363,7 +384,7 @@ class DeclarativeUI:
         Returns:
             UI description of the label
         """
-        d: UIDescription = {"type": "text_label"}
+        d: UIDescriptionResult = {"type": "text_label"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -371,7 +392,9 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_image(self, *, image: UIIdentifier=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
+    def create_image(self, *, image: typing.Optional[UIIdentifier] = None, name: typing.Optional[UIIdentifier] = None,
+                     on_clicked: typing.Optional[UICallableIdentifier] = None,
+                     **kwargs: typing.Any) -> UIDescriptionResult:
         """Create an image UI description with image, name, an event.
 
         The ``on_clicked`` callback is invoked when the user clicks the image. The widget is passed to the callback.
@@ -386,7 +409,7 @@ class DeclarativeUI:
         Returns:
             UI description of the push button
         """
-        d: UIDescription = {"type": "image"}
+        d: UIDescriptionResult = {"type": "image"}
         if image is not None:
             d["image"] = image
         if name is not None:
@@ -397,17 +420,17 @@ class DeclarativeUI:
         return d
 
     def create_line_edit(self, *,
-                         text: UIIdentifier=None,
-                         name: UIIdentifier=None,
-                         editable: bool=None,
-                         placeholder_text: UILabel=None,
-                         clear_button_enabled: bool=None,
-                         on_editing_finished: UICallableIdentifier=None,
-                         on_escape_pressed: UICallableIdentifier=None,
-                         on_return_pressed: UICallableIdentifier=None,
-                         on_key_pressed: UICallableIdentifier=None,
-                         on_text_edited: UICallableIdentifier=None,
-                         **kwargs) -> UIDescription:
+                         text: typing.Optional[UIIdentifier] = None,
+                         name: typing.Optional[UIIdentifier] = None,
+                         editable: typing.Optional[bool] = None,
+                         placeholder_text: typing.Optional[UILabel] = None,
+                         clear_button_enabled: typing.Optional[bool] = None,
+                         on_editing_finished: typing.Optional[UICallableIdentifier] = None,
+                         on_escape_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_return_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_key_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_text_edited: typing.Optional[UICallableIdentifier] = None,
+                         **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a line edit UI description with text, name, placeholder, options, and events.
 
         The ``on_editing_finished`` callback is invoked when the user presses return or escape or when they change
@@ -443,7 +466,7 @@ class DeclarativeUI:
         Returns:
             UI description of the line edit
         """
-        d: UIDescription = {"type": "line_edit"}
+        d: UIDescriptionResult = {"type": "line_edit"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -468,15 +491,15 @@ class DeclarativeUI:
         return d
 
     def create_text_edit(self, *,
-                         text: UIIdentifier=None,
-                         name: UIIdentifier=None,
-                         editable: bool=None,
-                         placeholder_text: UILabel=None,
-                         clear_button_enabled: bool=None,
-                         on_escape_pressed: UICallableIdentifier=None,
-                         on_return_pressed: UICallableIdentifier=None,
-                         on_text_edited: UICallableIdentifier=None,
-                         **kwargs) -> UIDescription:
+                         text: typing.Optional[UIIdentifier] = None,
+                         name: typing.Optional[UIIdentifier] = None,
+                         editable: typing.Optional[bool] = None,
+                         placeholder_text: typing.Optional[UILabel] = None,
+                         clear_button_enabled: typing.Optional[bool] = None,
+                         on_escape_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_return_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_text_edited: typing.Optional[UICallableIdentifier] = None,
+                         **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a multi-line text edit UI description with text, name, placeholder, options, and events.
 
         The ``on_escape_pressed`` and ``on_return_pressed`` callbacks are invoked when the user presses escape or
@@ -502,7 +525,7 @@ class DeclarativeUI:
         Returns:
             UI description of the text edit
         """
-        d: UIDescription = {"type": "text_edit"}
+        d: UIDescriptionResult = {"type": "text_edit"}
         if text is not None:
             d["text"] = text
         if name is not None:
@@ -522,7 +545,10 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_push_button(self, *, text: UILabel=None, icon: UIIdentifier=None, name: UIIdentifier=None, on_clicked: UICallableIdentifier=None, **kwargs) -> UIDescription:
+    def create_push_button(self, *, text: typing.Optional[UILabel] = None, icon: typing.Optional[UIIdentifier] = None,
+                           name: typing.Optional[UIIdentifier] = None,
+                           on_clicked: typing.Optional[UICallableIdentifier] = None,
+                           **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a push button UI description with text, name, an event.
 
         The ``on_clicked`` callback is invoked when the user clicks the button. The widget is passed to the callback.
@@ -538,7 +564,7 @@ class DeclarativeUI:
         Returns:
             UI description of the push button
         """
-        d: UIDescription = {"type": "push_button"}
+        d: UIDescriptionResult = {"type": "push_button"}
         if text is not None:
             d["text"] = text
         if icon is not None:
@@ -551,15 +577,15 @@ class DeclarativeUI:
         return d
 
     def create_check_box(self, *,
-                         text: UILabel=None,
-                         icon: UIIdentifier=None,
-                         name: UIIdentifier=None,
-                         checked: str=None,
-                         check_state: str=None,
-                         tristate: bool=None,
-                         on_checked_changed: UICallableIdentifier=None,
-                         on_check_state_changed: UICallableIdentifier=None,
-                         **kwargs) -> UIDescription:
+                         text: typing.Optional[UILabel] = None,
+                         icon: typing.Optional[UIIdentifier] = None,
+                         name: typing.Optional[UIIdentifier] = None,
+                         checked: typing.Optional[str] = None,
+                         check_state: typing.Optional[str] = None,
+                         tristate: typing.Optional[bool] = None,
+                         on_checked_changed: typing.Optional[UICallableIdentifier] = None,
+                         on_check_state_changed: typing.Optional[UICallableIdentifier] = None,
+                         **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a check box UI description with text, name, state information, and events.
 
         The ``checked`` and ``check_state`` both refer to the check state. Some callers may choose to use the simpler
@@ -586,7 +612,7 @@ class DeclarativeUI:
         Returns:
             UI description of the check box
         """
-        d: UIDescription = {"type": "check_box"}
+        d: UIDescriptionResult = {"type": "check_box"}
         if text is not None:
             d["text"] = text
         if icon is not None:
@@ -607,12 +633,12 @@ class DeclarativeUI:
         return d
 
     def create_combo_box(self, *,
-                         name: UIIdentifier=None,
-                         items: typing.List[UILabel]=None,
-                         items_ref: UIIdentifier=None,
-                         current_index: UIIdentifier=None,
-                         on_current_index_changed: UICallableIdentifier=None,
-                         **kwargs):
+                         name: typing.Optional[UIIdentifier] = None,
+                         items: typing.Optional[typing.Sequence[UILabel]] = None,
+                         items_ref: typing.Optional[UIIdentifier] = None,
+                         current_index: typing.Optional[UIIdentifier] = None,
+                         on_current_index_changed: typing.Optional[UICallableIdentifier] = None,
+                         **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a combo box UI description with name, items, current index, and events.
 
         The ``on_current_index_changed`` callback is invoked when the user changes the selected item in the combo box.
@@ -629,11 +655,11 @@ class DeclarativeUI:
         Returns:
             UI description of the combo box
         """
-        d: UIDescription = {"type": "combo_box"}
+        d: UIDescriptionResult = {"type": "combo_box"}
         if name is not None:
             d["name"] = name
         if items is not None:
-            d["items"] = items
+            d["items"] = list(items)
         if items_ref is not None:
             d["items_ref"] = items_ref
         if current_index is not None:
@@ -644,12 +670,12 @@ class DeclarativeUI:
         return d
 
     def create_radio_button(self, *,
-                            name: UIIdentifier=None,
-                            text: UILabel=None,
-                            icon: UIIdentifier = None,
-                            value: typing.Any=None,
-                            group_value: UIIdentifier=None,
-                            **kwargs) -> UIDescription:
+                            name: typing.Optional[UIIdentifier] = None,
+                            text: typing.Optional[UILabel] = None,
+                            icon: typing.Optional[UIIdentifier] = None,
+                            value: typing.Any = None,
+                            group_value: typing.Optional[UIIdentifier] = None,
+                            **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a radio button UI description with text, name, value, and group value.
 
         A set of radio buttons should be created such that each has a different ``value`` but shares a common
@@ -664,7 +690,7 @@ class DeclarativeUI:
         Returns:
             UI description of the radio button
         """
-        d: UIDescription = {"type": "radio_button"}
+        d: UIDescriptionResult = {"type": "radio_button"}
         if name is not None:
             d["name"] = name
         if text is not None:
@@ -679,15 +705,15 @@ class DeclarativeUI:
         return d
 
     def create_slider(self, *,
-                      name: UIIdentifier=None,
-                      value: UIIdentifier=None,
-                      minimum: int=None,
-                      maximum: int=None,
-                      on_value_changed: UICallableIdentifier=None,
-                      on_slider_pressed: UICallableIdentifier=None,
-                      on_slider_released: UICallableIdentifier=None,
-                      on_slider_moved: UICallableIdentifier=None,
-                      **kwargs) -> UIDescription:
+                      name: typing.Optional[UIIdentifier] = None,
+                      value: typing.Optional[UIIdentifier] = None,
+                      minimum: typing.Optional[int] = None,
+                      maximum: typing.Optional[int] = None,
+                      on_value_changed: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_pressed: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_released: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_moved: typing.Optional[UICallableIdentifier] = None,
+                      **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a slider UI description with name, value, limits, and events.
 
         The ``on_value_changed`` callback is invoked whenever the slider value changes, including if set
@@ -717,7 +743,7 @@ class DeclarativeUI:
         Returns:
             UI description of the slider
         """
-        d: UIDescription = {"type": "slider"}
+        d: UIDescriptionResult = {"type": "slider"}
         if name is not None:
             d["name"] = name
         if value is not None:
@@ -738,16 +764,16 @@ class DeclarativeUI:
         return d
 
     def create_divider(self, *,
-                       name: UIIdentifier = None,
-                       orientation: str = None,
-                       **kwargs) -> UIDescription:
+                       name: typing.Optional[UIIdentifier] = None,
+                       orientation: typing.Optional[str] = None,
+                       **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a divider description with name and orientation.
 
         Keyword Args:
             name: handler property in which to store widget (optional)
             orientation: "horizontal" or "vertical" (default)
         """
-        d: UIDescription = {"type": "divider"}
+        d: UIDescriptionResult = {"type": "divider"}
         if name is not None:
             d["name"] = name
         if orientation is not None:
@@ -756,11 +782,11 @@ class DeclarativeUI:
         return d
 
     def create_progress_bar(self, *,
-                            name: UIIdentifier = None,
-                            value: UIIdentifier = None,
-                            minimum: int = None,
-                            maximum: int = None,
-                            **kwargs) -> UIDescription:
+                            name: typing.Optional[UIIdentifier] = None,
+                            value: typing.Optional[UIIdentifier] = None,
+                            minimum: typing.Optional[int] = None,
+                            maximum: typing.Optional[int] = None,
+                            **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a progress bar UI description with name, value, and limits.
 
         Keyword Args:
@@ -772,7 +798,7 @@ class DeclarativeUI:
         Returns:
             UI description of the progress bar
         """
-        d: UIDescription = {"type": "progress_bar"}
+        d: UIDescriptionResult = {"type": "progress_bar"}
         if name is not None:
             d["name"] = name
         if value is not None:
@@ -785,16 +811,16 @@ class DeclarativeUI:
         return d
 
     def create_list_box(self, *,
-                        name: UIIdentifier = None,
-                        items: typing.List[typing.Union[UILabel, typing.Any]] = None,
-                        items_ref: UIIdentifier = None,
-                        current_index: UIIdentifier = None,
-                        on_item_changed: UICallableIdentifier = None,
-                        on_item_selected: UICallableIdentifier = None,
-                        on_escape_pressed: UICallableIdentifier = None,
-                        on_return_pressed: UICallableIdentifier = None,
-                        on_item_handle_context_menu: UICallableIdentifier = None,
-                        **kwargs) -> UIDescription:
+                        name: typing.Optional[UIIdentifier] = None,
+                        items: typing.Optional[typing.Sequence[typing.Union[UILabel, typing.Any]]] = None,
+                        items_ref: typing.Optional[UIIdentifier] = None,
+                        current_index: typing.Optional[UIIdentifier] = None,
+                        on_item_changed: typing.Optional[UICallableIdentifier] = None,
+                        on_item_selected: typing.Optional[UICallableIdentifier] = None,
+                        on_escape_pressed: typing.Optional[UICallableIdentifier] = None,
+                        on_return_pressed: typing.Optional[UICallableIdentifier] = None,
+                        on_item_handle_context_menu: typing.Optional[UICallableIdentifier] = None,
+                        **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a list box UI description with name, items, current index, and events.
 
         Keyword Args:
@@ -818,11 +844,11 @@ class DeclarativeUI:
         The items can be either strings or objects which implement a str conversion. The items can also include a
         `tool_tip` property which will be displayed when the user hovers over the item.
         """
-        d: UIDescription = {"type": "list_box"}
+        d: UIDescriptionResult = {"type": "list_box"}
         if name is not None:
             d["name"] = name
         if items is not None:
-            d["items"] = items
+            d["items"] = list(items)
         if items_ref is not None:
             d["items_ref"] = items_ref
         if current_index is not None:
@@ -840,7 +866,9 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
-    def create_modeless_dialog(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None) -> UIDescription:
+    def create_modeless_dialog(self, content: UIDescription, *, title: typing.Optional[str] = None,
+                               resources: typing.Optional[UIResources] = None,
+                               margin: typing.Optional[UIPoints] = None) -> UIDescriptionResult:
         """Create a modeless dialog UI description with content, title, resources, and margin.
 
         Args:
@@ -854,7 +882,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the dialog
         """
-        d: UIDescription = {"type": "modeless_dialog", "content": content}
+        d: UIDescriptionResult = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
         if margin is not None:
@@ -863,7 +891,9 @@ class DeclarativeUI:
             d["resources"] = resources
         return d
 
-    def create_window(self, content: UIDescription, *, title: str=None, resources: UIResources=None, margin: UIPoints=None, window_style: str=None) -> UIDescription:
+    def create_window(self, content: UIDescription, *, title: typing.Optional[str] = None,
+                      resources: typing.Optional[UIResources] = None, margin: typing.Optional[UIPoints] = None,
+                      window_style: typing.Optional[str] = None) -> UIDescriptionResult:
         """Create a window UI description with content, title, resources, and margin.
 
         Args:
@@ -877,7 +907,7 @@ class DeclarativeUI:
         Returns:
             a UI description of the window
         """
-        d: UIDescription = {"type": "window", "content": content}
+        d: UIDescriptionResult = {"type": "window", "content": content}
         if title is not None:
             d["title"] = title
         if margin is not None:
@@ -888,27 +918,30 @@ class DeclarativeUI:
             d["window_style"] = window_style
         return d
 
-    def define_component(self, content, *, component_id=None, events=None):
-        d: UIDescription = {"type": "component", "content": content}
+    def define_component(self, content: UIDescription, *, component_id: typing.Optional[str] = None,
+                         events: typing.Optional[typing.Sequence[typing.Mapping[str, typing.Any]]] = None) -> UIDescriptionResult:
+        d: UIDescriptionResult = {"type": "component", "content": content}
         if component_id is not None:
             d["component_id"] = component_id
         if events is not None:
             d["events"] = events
         return d
 
-    def create_component_instance(self, identifier, properties=None, **kwargs):
+    def create_component_instance(self, identifier: str,
+                                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None,
+                                  **kwargs: typing.Any) -> UIDescriptionResult:
         properties = properties if properties is not None else dict()
-        d: UIDescription = {"type": "component", "identifier": identifier, "properties": properties}
+        d: UIDescriptionResult = {"type": "component", "identifier": identifier, "properties": properties}
         for k, v in kwargs.items():
             d[k] = v
         return d
 
 
 class HandlerLike(typing.Protocol):
-    pass
+    def close(self) -> None: ...
 
 
-def connect_name(widget, d, handler):
+def connect_name(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike) -> None:
     name = d.get("name", None)
     if name:
         setattr(handler, name, widget)
@@ -923,7 +956,8 @@ def parse_property_path(property_path: str, base: typing.Any) -> typing.Tuple[ty
     return source, last_property_path_component, getattr(source, last_property_path_component, None)
 
 
-def connect_string_value(widget, d, handler, property, finishes):
+def connect_string_value(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike, property: str,
+                         finishes: _FinishesListType) -> None:
     """Connects a value in the property, but also allows binding.
 
     A value means the value for the property is directly contained in the string.
@@ -934,7 +968,7 @@ def connect_string_value(widget, d, handler, property, finishes):
     if m:
         b = m.group(1)
         parts = [p.strip() for p in b.split(',')]
-        def finish_binding():
+        def finish_binding() -> None:
             source, last_property_path_component, value = parse_property_path(parts[0], handler)
             converter = None
             for part in parts:
@@ -960,36 +994,38 @@ class Closer:
     A closer is attached to each handler and used to close the handler, extra closeable items that the engine may
     created, and child component handlers.
     """
-    def __init__(self):
-        self.__handlers = set()
+    def __init__(self) -> None:
+        self.__handlers: typing.Set[HandlerLike] = set()
 
-    def push_closeable(self, handler):
+    def push_closeable(self, handler: HandlerLike) -> None:
         assert handler not in self.__handlers
         self.__handlers.add(handler)
 
-    def pop_closeable(self, handler):
+    def pop_closeable(self, handler: HandlerLike) -> None:
         assert handler in self.__handlers
         if callable(getattr(handler, "close", None)):
             handler.close()
         if hasattr(handler, "_closer"):
-            handler._closer.close()
+            getattr(handler, "_closer").close()
         self.__handlers.remove(handler)
 
-    def close(self):
+    def close(self) -> None:
         for handler in self.__handlers:
             if callable(getattr(handler, "close", None)):
                 handler.close()
             if hasattr(handler, "_closer"):
-                handler._closer.close()
-        self.__handlers = None
+                getattr(handler, "_closer").close()
+        self.__handlers = typing.cast(typing.Any, None)
 
 
-def connect_reference_value(widget, d, handler, property, finishes, binding_name=None, value_type=None):
+def connect_reference_value(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike, property: str,
+                            finishes: typing.List[typing.Callable[[], None]], binding_name: typing.Optional[str] = None,
+                            value_type: typing.Optional[typing.Any] = None) -> None:
     """Connects a reference to the property, but also allows binding.
 
     A reference means the property specifies a property in the handler.
     """
-    binding_name = binding_name if binding_name else property
+    binding_name_ = binding_name if binding_name else property
     v = d.get(property)
     m = re.match("^@binding\((.+)\)$", v if v else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
@@ -998,7 +1034,7 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
         parts = [p.strip() for p in b.split(',')]
 
         # finish binding is called after the window has been constructed using the 'finishes' list.
-        def finish_binding():
+        def finish_binding() -> None:
             source, last_property_path_component, value = parse_property_path(parts[0], handler)
             converter = None
             # check if any of the parts has a converter.
@@ -1008,36 +1044,37 @@ def connect_reference_value(widget, d, handler, property, finishes, binding_name
             # give the handler a chance to make object conversions. this is useful if the objects
             # in the handler are stored in a proxy format or something similar.
             if getattr(handler, "get_object_converter", None):
-                converter = handler.get_object_converter(converter)
+                converter = getattr(handler, "get_object_converter")(converter)
             # configure the binding if the source and widget meet the criteria.
-            if hasattr(source, "property_changed_event") and hasattr(widget, "bind_" + binding_name):
+            if hasattr(source, "property_changed_event") and hasattr(widget, "bind_" + binding_name_):
                 binding = None
                 get_binding = getattr(handler, "get_binding", None)
                 if callable(get_binding):
                     binding = get_binding(source, last_property_path_component, converter=converter)
                 binding = binding or Binding.PropertyBinding(source, last_property_path_component, converter=converter)
-                getattr(widget, "bind_" + binding_name)(binding)
+                getattr(widget, "bind_" + binding_name_)(binding)
             # otherwise just set the value.
             else:
-                setattr(widget, binding_name, value)
+                setattr(widget, binding_name_, value)
 
         finishes.append(finish_binding)
     elif v is not None:
         if value_type == str and hasattr(handler, v):
             # backwards compatible binding
-            setattr(widget, binding_name, getattr(handler, v))
+            setattr(widget, binding_name_, getattr(handler, v))
         elif value_type and isinstance(v, value_type):
-            setattr(widget, binding_name, v)
+            setattr(widget, binding_name_, v)
         else:
-            setattr(widget, binding_name, getattr(handler, v))
+            setattr(widget, binding_name_, getattr(handler, v))
 
 
-def connect_event(widget, source, d, handler, event_str, arg_names):
+def connect_event(widget: UserInterface.Widget, source: typing.Any, d: UIDescription, handler: HandlerLike,
+                  event_str: str, arg_names: typing.Sequence[str]) -> None:
     event_method_name = d.get(event_str, None)
     if event_method_name:
         event_fn = getattr(handler, event_method_name)
         if event_fn:
-            def trampoline(*args, **kwargs):
+            def trampoline(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
                 combined_args = dict()
                 for arg_name, arg in zip(arg_names, args):
                     combined_args[arg_name] = arg
@@ -1048,7 +1085,8 @@ def connect_event(widget, source, d, handler, event_str, arg_names):
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
 
 
-def connect_attributes(widget, d, handler, finishes):
+def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike,
+                       finishes: typing.List[typing.Callable[[], None]]) -> None:
     connect_reference_value(widget, d, handler, "enabled", finishes, value_type=bool)
     connect_reference_value(widget, d, handler, "visible", finishes, value_type=bool)
     connect_string_value(widget, d, handler, "tool_tip", finishes)
@@ -1075,8 +1113,8 @@ class WindowHandler(Observable.Observable):
         assert self.window
         self.window.request_close()
 
-    def run(self, d, *, app: typing.Optional[Application.BaseApplication] = None,
-            parent_window: Window.Window = None, window_style: typing.Optional[str] = None,
+    def run(self, d: UIDescription, *, app: typing.Optional[Application.BaseApplication] = None,
+            parent_window: typing.Optional[Window.Window] = None, window_style: typing.Optional[str] = None,
             persistent_id: typing.Optional[str] = None) -> None:
         self.window = run_window(d, self, app=app, parent_window=parent_window, window_style=window_style, persistent_id=persistent_id)
         self.__on_close = self.window.on_close
@@ -1090,8 +1128,8 @@ class WindowHandler(Observable.Observable):
         self.window.on_close = handle_close
 
 
-def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] = None,
-               parent_window: Window.Window = None, window_style: typing.Optional[str] = None,
+def run_window(d: UIDescription, handler: HandlerLike, *, app: typing.Optional[Application.BaseApplication] = None,
+               parent_window: typing.Optional[Window.Window] = None, window_style: typing.Optional[str] = None,
                persistent_id: typing.Optional[str] = None) -> Window.Window:
     if app:
         ui = app.ui
@@ -1104,14 +1142,14 @@ def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] 
     margin = d.get("margin")
     persistent_id = d.get("persistent_id", persistent_id)
     window_style = d.get("window_style", window_style)
-    content = d.get("content")
+    content = typing.cast(UIDescription, d.get("content"))
     resources = d.get("resources", dict())
     for k, v in resources.items():
         resources[k] = v
     if not hasattr(handler, "resources"):
-        handler.resources = resources
+        setattr(handler, "resources", resources)
     else:
-        handler.resources.update(resources)
+        getattr(handler, "resources").update(resources)
     closer = Closer()
     finishes: typing.List[typing.Callable[[], None]] = list()
     window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
@@ -1138,11 +1176,11 @@ def run_window(d, handler, *, app: typing.Optional[Application.BaseApplication] 
         finish()
     setattr(handler, "_event_loop", window.event_loop)
     if callable(getattr(handler, "init_handler", None)):
-        handler.init_handler()
+        getattr(handler, "init_handler")()
     return window
 
 
-def construct_margin(ui, content, margin) -> UserInterface.BoxWidget:
+def construct_margin(ui: UserInterface.UserInterface, content: UserInterface.BoxWidget, margin: typing.Optional[int]) -> UserInterface.BoxWidget:
     if margin:
         column = ui.create_column_widget()
         column.add_spacing(margin)
@@ -1156,7 +1194,10 @@ def construct_margin(ui, content, margin) -> UserInterface.BoxWidget:
     return content
 
 
-def connect_items(ui, window, container_widget, handler, items, item_component_id, finishes, spacing_h: typing.Optional[int] = None, spacing_v: typing.Optional[int] = None) -> None:
+# to properly type the container widget needs more work. substitute typing.Any for now.
+def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: typing.Any,
+                  handler: HandlerLike, items: str, item_component_id: str, spacing_h: typing.Optional[int] = None,
+                  spacing_v: typing.Optional[int] = None) -> None:
     """Connect list of item components to container widget.
 
     Several declarative elements (columns, rows, stacks) take a list of item components. This method connects the item
@@ -1181,16 +1222,16 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
     """
     assert window is not None
     items_parts = items.split('.')
-    container = handler
+    container: typing.Any = handler
     for items_part in items_parts[:-1]:
         container = getattr(container, items_part.strip())
     items_key = items_parts[-1]
 
     # the _closer should have been set on the handler, even if no close method is present. insert_item makes this
     # assumption so that sub-components have a path by which to get closed.
-    assert handler._closer
+    assert getattr(handler, "_closer")
 
-    def adjust_spacing():
+    def adjust_spacing() -> None:
         spacing = max(spacing_h or 0, spacing_v or 0)
         if spacing and container_widget.children:
             last_child = container_widget.children[-1]
@@ -1202,13 +1243,13 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
                     if len(spacing_widget.children) == 2:
                         spacing_widget.remove(spacing_widget.children[-1])
 
-    def insert_item(index, item) -> None:
+    def insert_item(index: int, item: typing.Any) -> None:
         item_widget = None
         component_id: typing.Optional[str]
-        component_content: typing.Optional[typing.Mapping] = None
+        component_content: typing.Optional[UIDescription] = None
         component = None
         if callable(getattr(handler, "get_resource", None)):
-            component = handler.get_resource(item_component_id, item=item, container=container)
+            component = getattr(handler, "get_resource")(item_component_id, item=item, container=container)
         component = component or getattr(handler, "resources", dict()).get(item_component_id)
         if component:
             assert component.get("type") == "component"
@@ -1222,18 +1263,18 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             assert component_id == item_component_id
             assert callable(getattr(handler, "create_handler", None))
             # create the handler first, but don't initialize it.
-            component_handler = handler.create_handler(component_id=component_id, item=item, container=container)
+            component_handler = getattr(handler, "create_handler")(component_id=component_id, item=item, container=container)
             # make and attach closer for the component handler and link it to the container handler.
             if component_handler:
                 component_handler._closer = Closer()
-                handler._closer.push_closeable(component_handler)
+                getattr(handler, "_closer").push_closeable(component_handler)
                 component_content = getattr(component_handler, "ui_view", component_content)
             assert component_content
             item_finishes: typing.List[typing.Callable[[], None]] = list()
             # now construct the widget
             item_widget = construct(ui, window, component_content, component_handler, item_finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
-            item_widget.handler = component_handler
+            setattr(item_widget, "handler", component_handler)
             for finish in item_finishes:
                 finish()
             component_handler._event_loop = window.event_loop
@@ -1243,30 +1284,31 @@ def connect_items(ui, window, container_widget, handler, items, item_component_i
             spacing_widget = ui.create_row_widget()
         else:
             spacing_widget = ui.create_column_widget()
-        spacing_widget.add(item_widget)
+        if item_widget:
+            spacing_widget.add(item_widget)
         container_widget.insert(spacing_widget, index)
         adjust_spacing()
 
-    def row_item_inserted(key, value, before_index):
+    def row_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
         if key == items_key:
             insert_item(before_index, value)
 
-    def row_item_removed(key, value, before_index):
+    def row_item_removed(key: str, value: typing.Any, before_index: int) -> None:
          if key == items_key:
             item_widget = container_widget.children[before_index]
-            handler._closer.pop_closeable(item_widget.children[0].handler)
+            getattr(handler, "_closer").pop_closeable(item_widget.children[0].handler)
             container_widget.remove(item_widget)
             adjust_spacing()
 
     for item in getattr(container, items_key):
         insert_item(len(container_widget.children), item)
 
-    handler._closer.push_closeable(container.item_inserted_event.listen(row_item_inserted))
-    handler._closer.push_closeable(container.item_removed_event.listen(row_item_removed))
+    getattr(handler, "_closer").push_closeable(container.item_inserted_event.listen(row_item_inserted))
+    getattr(handler, "_closer").push_closeable(container.item_removed_event.listen(row_item_removed))
 
 
-def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
-    properties: typing.Dict = dict()
+def construct_sizing_properties(d: UIDescription) -> UIDescriptionResult:
+    properties: UIDescriptionResult = dict()
     for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
         v = d.get(k, None)
         if v is not None:
@@ -1278,14 +1320,19 @@ def construct_sizing_properties(d: typing.Mapping) -> typing.Dict:
     return properties
 
 
-class DeclarativeConstructor:
-    def construct(self, d_type: str, ui: UserInterface.UserInterface, window, d: typing.Mapping, handler, finishes: typing.Sequence[typing.Callable[[], None]] = None): ...
+class DeclarativeConstructor(typing.Protocol):
+    def construct(self, d_type: str, ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
+                  handler: HandlerLike, finishes: typing.Optional[_FinishesListType] = None) -> UserInterface.Widget:
+        ...
 
 
-def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]] = None):
+def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike, finishes: typing.Optional[_FinishesListType] = None) -> UserInterface.Widget:
+    finishes = finishes if finishes is not None else list()
+    assert finishes is not None
     d_type = typing.cast(str, d.get("type"))
     if d_type == "modeless_dialog":
-        return construct_modeless_dialog(ui, window, d, handler)
+        # this seems like a type error. is this used anywhere?
+        return typing.cast(UserInterface.Widget, construct_modeless_dialog(ui, window, d, handler))
     elif d_type == "column":
         properties = construct_sizing_properties(d)
         return construct_box(ui, window, ui.create_column_widget(properties=properties), d, handler, finishes)
@@ -1333,28 +1380,30 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: typing.
             widget = constructor.construct(d_type, ui, window, d, handler, finishes)
             if widget:
                 return widget
-    return None
+    raise Exception(f"Widget type {d_type} cannot be constructed.")
 
 
-def construct_component(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_component(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                        finishes: _FinishesListType) -> ComponentWidget:
     # a component needs to be registered before it is instantiated.
     # look up the identifier in the handler resources.
-    widget = ComponentWidget(ui, window, handler, d)
+    widget = ComponentWidget(ui, window, d, handler)
     connect_string_value(widget, d, handler, "identifier", finishes)
     return widget
 
 
-def construct_list_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                       finishes: _FinishesListType) -> Widgets.ListWidget:
     items = d.get("items", None)
     properties = construct_sizing_properties(d)
 
     class ListBoxDelegate(Widgets.StringListCanvasItemDelegate):
-        def __init__(self):
+        def __init__(self) -> None:
             super().__init__()
-            self.on_item_handle_context_menu = None
+            self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None
 
         def item_tool_tip(self, index: int) -> typing.Optional[str]:
-            return getattr(self.items[index], "tool_tip", None)
+            return typing.cast(typing.Optional[str], getattr(self.items[index], "tool_tip", None))
 
         def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
             if callable(self.on_item_handle_context_menu):
@@ -1366,11 +1415,11 @@ def construct_list_box(ui: UserInterface.UserInterface, d: typing.Mapping, handl
                                 border_color="#888", properties=properties)
     widget.on_item_handle_context_menu = None
 
-    def trampoline_handle_context_menu(*args, **kwargs) -> bool:
+    def trampoline_handle_context_menu(*args: typing.Any, **kwargs: typing.Any) -> bool:
         # this will be called from the delegate when the delegate gets a context menu event.
         # the call is passed on to the widget on_item_handle_context_menu function.
         if callable(widget.on_item_handle_context_menu):
-            return widget.on_item_handle_context_menu(*args, **kwargs)
+            return typing.cast(bool, widget.on_item_handle_context_menu(*args, **kwargs))
         return False
 
     list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
@@ -1388,7 +1437,8 @@ def construct_list_box(ui: UserInterface.UserInterface, d: typing.Mapping, handl
     return widget
 
 
-def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                    finishes: _FinishesListType) -> UserInterface.Widget:
     properties = construct_sizing_properties(d)
     widget = ui.create_group_widget(properties)
     margin = d.get("margin")
@@ -1412,7 +1462,8 @@ def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: t
     return widget
 
 
-def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
+                          handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.ScrollAreaWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_scroll_area_widget(properties)
     widget.set_scrollbar_policies("needed", "needed")
@@ -1424,7 +1475,8 @@ def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window
     return widget
 
 
-def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                    finishes: _FinishesListType) -> UserInterface.StackWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_stack_widget(properties)
     for child in d.get("children", list()):
@@ -1432,7 +1484,7 @@ def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: t
     items = d.get("items")
     item_component_id = d.get("item_component_id")
     if items and item_component_id:
-        connect_items(ui, window, widget, handler, items, item_component_id, finishes)
+        connect_items(ui, window, widget, handler, items, item_component_id)
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
@@ -1441,7 +1493,8 @@ def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: t
     return widget
 
 
-def construct_tabs(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_tabs(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                   finishes: _FinishesListType) -> UserInterface.TabWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_tab_widget(properties)
     for tab in d.get("tabs", list()):
@@ -1454,7 +1507,8 @@ def construct_tabs(ui: UserInterface.UserInterface, window: Window.Window, d: ty
     return widget
 
 
-def construct_progress_bar(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_progress_bar(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                           finishes: _FinishesListType) -> UserInterface.ProgressBarWidget:
     minimum = d.get("minimum", 0)
     maximum = d.get("maximum", 100)
     properties = construct_sizing_properties(d)
@@ -1470,7 +1524,8 @@ def construct_progress_bar(ui: UserInterface.UserInterface, d: typing.Mapping, h
     return widget
 
 
-def construct_divider(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_divider(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                      finishes: _FinishesListType) -> UserInterface.CanvasWidget:
     orientation = d.get("orientation", "vertical")
     properties = construct_sizing_properties(d)
     if orientation == "vertical":
@@ -1485,7 +1540,8 @@ def construct_divider(ui: UserInterface.UserInterface, d: typing.Mapping, handle
     return widget
 
 
-def construct_slider(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_slider(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                     finishes: _FinishesListType) -> UserInterface.SliderWidget:
     minimum = d.get("minimum", 0)
     maximum = d.get("maximum", 100)
     properties = construct_sizing_properties(d)
@@ -1503,7 +1559,8 @@ def construct_slider(ui: UserInterface.UserInterface, d: typing.Mapping, handler
     return widget
 
 
-def construct_radio_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_radio_button(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                           finishes: _FinishesListType) -> UserInterface.Widget:
     properties = construct_sizing_properties(d)
     widget: typing.Optional[UserInterface.Widget] = None
     if d.get("text", None) or d.get("icon", None) is None:
@@ -1524,7 +1581,8 @@ def construct_radio_button(ui: UserInterface.UserInterface, d: typing.Mapping, h
     return widget
 
 
-def construct_combo_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_combo_box(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                        finishes: _FinishesListType) -> UserInterface.ComboBoxWidget:
     items = d.get("items", None)
     properties = construct_sizing_properties(d)
     widget = ui.create_combo_box_widget(items=items, properties=properties)
@@ -1538,7 +1596,8 @@ def construct_combo_box(ui: UserInterface.UserInterface, d: typing.Mapping, hand
     return widget
 
 
-def construct_check_box(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_check_box(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                        finishes: _FinishesListType) -> UserInterface.CheckBoxWidget:
     # TODO: 'checked' and 'check_state' are bindings, not values
     tristate = d.get("tristate", None)
     properties = construct_sizing_properties(d)
@@ -1559,7 +1618,8 @@ def construct_check_box(ui: UserInterface.UserInterface, d: typing.Mapping, hand
     return widget
 
 
-def construct_push_button(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_push_button(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                          finishes: _FinishesListType) -> UserInterface.PushButtonWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_push_button_widget(properties=properties)
     if handler:
@@ -1573,15 +1633,13 @@ def construct_push_button(ui: UserInterface.UserInterface, d: typing.Mapping, ha
     return widget
 
 
-def construct_text_edit(ui, d, finishes, handler):
+def construct_text_edit(ui: UserInterface.UserInterface, d: UIDescription, finishes: _FinishesListType,
+                        handler: HandlerLike) -> UserInterface.TextEditWidget:
     editable = d.get("editable", None)
-    clear_button_enabled = d.get("clear_button_enabled", None)
     properties = construct_sizing_properties(d)
     widget = ui.create_text_edit_widget(properties)
     if editable is not None:
         widget.editable = editable
-    if clear_button_enabled is not None:
-        widget.clear_button_enabled = clear_button_enabled
     if handler:
         connect_name(widget, d, handler)
         connect_string_value(widget, d, handler, "placeholder_text", finishes)
@@ -1593,7 +1651,8 @@ def construct_text_edit(ui, d, finishes, handler):
     return widget
 
 
-def construct_line_edit(ui, d, finishes, handler):
+def construct_line_edit(ui: UserInterface.UserInterface, d: UIDescription, finishes: _FinishesListType,
+                        handler: HandlerLike) -> UserInterface.LineEditWidget:
     editable = d.get("editable", None)
     clear_button_enabled = d.get("clear_button_enabled", None)
     properties = construct_sizing_properties(d)
@@ -1615,7 +1674,8 @@ def construct_line_edit(ui, d, finishes, handler):
     return widget
 
 
-def construct_image(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_image(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                    finishes: _FinishesListType) -> Widgets.ImageWidget:
     properties = construct_sizing_properties(d)
     widget = Widgets.ImageWidget(ui, properties=properties)
     if handler:
@@ -1626,7 +1686,8 @@ def construct_image(ui: UserInterface.UserInterface, d: typing.Mapping, handler,
     return widget
 
 
-def construct_text_label(ui: UserInterface.UserInterface, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]]):
+def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                         finishes: _FinishesListType) -> UserInterface.LabelWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_label_widget(None, properties)
     if handler:
@@ -1636,7 +1697,8 @@ def construct_text_label(ui: UserInterface.UserInterface, d: typing.Mapping, han
     return widget
 
 
-def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_widget: UserInterface.BoxWidget, d: typing.Mapping, handler, finishes: typing.Optional[typing.Sequence[typing.Callable[[], None]]] = None) -> UserInterface.BoxWidget:
+def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_widget: UserInterface.BoxWidget,
+                  d: UIDescription, handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.BoxWidget:
     spacing: typing.Optional[int] = d.get("spacing")
     margin: typing.Optional[int] = d.get("margin")
     items = d.get("items")
@@ -1655,14 +1717,14 @@ def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_wi
             box_widget.add(construct(ui, window, child, handler, finishes))
         first = False
     if items and item_component_id:
-        connect_items(ui, window, box_widget, handler, items, item_component_id, finishes, spacing_v=spacing)
+        connect_items(ui, window, box_widget, handler, items, item_component_id, spacing_v=spacing)
     if handler:
         connect_name(box_widget, d, handler)
         connect_attributes(box_widget, d, handler, finishes)
     return construct_margin(ui, box_widget, margin)
 
 
-def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Window, d: typing.Mapping, handler) -> Dialog.ActionDialog:
+def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike) -> Dialog.ActionDialog:
     title = d.get("title", _("Untitled"))
     margin = d.get("margin")
     persistent_id = d.get("persistent_id")
@@ -1671,16 +1733,16 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     for k, v in resources.items():
         resources[k] = v
     if not hasattr(handler, "resources"):
-        handler.resources = resources
+        setattr(handler, "resources", resources)
     else:
-        handler.resources.update(resources)
+        getattr(handler, "resources").update(resources)
     closer = Closer()
     finishes: typing.List[typing.Callable[[], None]] = list()
     dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
     dialog.on_close = closer.close
     # dialog._create_menus()  # not needed; see pr#39.
     # make and attach closer for the handler; put handler into container closer
-    handler._closer = Closer()
+    setattr(handler, "_closer", Closer())
     closer.push_closeable(handler)
     outer_row = ui.create_row_widget()
     outer_column = ui.create_column_widget()
@@ -1696,20 +1758,20 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     dialog.content.add(outer_row)
     for finish in finishes:
         finish()
-    handler._event_loop = window.event_loop
+    setattr(handler, "_event_loop", window.event_loop)
     if callable(getattr(handler, "init_handler", None)):
-        handler.init_handler()
+        getattr(handler, "init_handler")()
     return dialog
 
 
 class ComponentWidget(Widgets.CompositeWidgetBase):
-    def __init__(self, ui: UserInterface.UserInterface, window, handler, d):
+    def __init__(self, ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike) -> None:
         super().__init__(ui.create_column_widget())
         self.ui = ui
         self.__window = window
         self.__handler = handler
         self.__identifier: typing.Optional[str] = None
-        self.__identifier_binding = None
+        self.__identifier_binding: typing.Optional[Binding.Binding] = None
         self.__d = d
         self.__component_handler = None
 
@@ -1736,7 +1798,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         # see notes in connect_items
         self.clear_task("update_identifier")
         if self.__component_handler:
-            self.__handler._closer.pop_closeable(self.__component_handler)
+            self.__getattr(handler, "_closer").pop_closeable(self.__component_handler)
         self.__component_handler = None
         self.content_widget.remove_all()
         window = self.__window
@@ -1745,12 +1807,12 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         d = self.__d
         ui = self.ui
         component_id: typing.Optional[str]
-        component_content: typing.Optional[typing.Mapping] = None
+        component_content: typing.Optional[UIDescription] = None
         events = list()
         component = None
         finishes: typing.List[typing.Callable[[], None]] = list()
         if callable(getattr(handler, "get_resource", None)):
-            component = handler.get_resource(identifier)
+            component = getattr(handler, "get_resource")(identifier)
         component = component or getattr(handler, "resources", dict()).get(identifier)
         if component:
             assert component.get("type") == "component"
@@ -1762,11 +1824,11 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             component_id = identifier
         if component_id:
             # create the handler first, but don't initialize it.
-            component_handler = handler.create_handler(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
+            component_handler = getattr(handler, "create_handler")(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
             if component_handler:
                 # make and attach closer for the component handler and link it to the container handler.
                 component_handler._closer = Closer()
-                handler._closer.push_closeable(component_handler)
+                getattr(handler, "_closer").push_closeable(component_handler)
                 component_content = getattr(component_handler, "ui_view", component_content)
                 # set properties in the component from the properties dict
                 for k, v in d.get("properties", dict()).items():
@@ -1779,7 +1841,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             # connect the name to the handler if desired
             connect_name(widget, d, handler)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
-            widget.handler = component_handler
+            setattr(widget, "handler", component_handler)
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()
@@ -1793,19 +1855,22 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         for finish in finishes:
             finish()
 
-    def bind_identifier(self, binding):
+    def bind_identifier(self, binding: Binding.Binding) -> None:
         if self.__identifier_binding:
             self.__identifier_binding.close()
             self.__identifier_binding = None
         self.identifier = binding.get_target_value()
         self.__identifier_binding = binding
-        def update_identifier(identifier):
-            def update_identifier_():
+
+        def update_identifier(identifier: str) -> None:
+            def update_identifier_() -> None:
                 self.identifier = identifier
+
             self.add_task("update_identifier", update_identifier_)
+
         self.__identifier_binding.target_setter = update_identifier
 
-    def unbind_identifier(self):
+    def unbind_identifier(self) -> None:
         self.clear_task("update_identifier")
         if self.__identifier_binding:
             self.__identifier_binding.close()
@@ -1815,7 +1880,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
 class DeclarativeWidget(Widgets.CompositeWidgetBase):
     """A widget containing a declarative ui handler."""
 
-    def __init__(self, ui, event_loop, ui_handler):
+    def __init__(self, ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop, ui_handler: HandlerLike) -> None:
         super().__init__(ui.create_stack_widget())
 
         # create a top level closer. for each object added to a closer, the closer will
@@ -1824,23 +1889,23 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
 
         # create a _closer and attach it to the ui_handler. this may be used for sub-components.
         # then add the ui_handler to itself to be closed by the top level closer.
-        ui_handler._closer = Closer()
+        setattr(ui_handler, "_closer", Closer())
         self.__closer.push_closeable(ui_handler)
 
-        class Window:
+        class DummyWindow:
             # dummy Window to supply event loop
-            def __init__(self):
+            def __init__(self) -> None:
                 self.event_loop = event_loop
 
-        finishes = list()
-        widget = construct(ui, Window(), ui_handler.ui_view, ui_handler, finishes)
+        finishes: _FinishesListType = list()
+        widget = construct(ui, typing.cast(Window.Window, DummyWindow()), getattr(ui_handler, "ui_view"), ui_handler, finishes)
         self.content_widget.add(widget)
         for finish in finishes:
             finish()
-        ui_handler._event_loop = event_loop
+        setattr(ui_handler, "_event_loop", event_loop)
         if callable(getattr(ui_handler, "init_handler", None)):
-            ui_handler.init_handler()
+            getattr(ui_handler, "init_handler")()
 
-    def close(self):
+    def close(self) -> None:
         self.__closer.close()
         super().close()

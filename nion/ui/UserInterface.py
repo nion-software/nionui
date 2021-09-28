@@ -1422,7 +1422,7 @@ class PushButtonWidget(Widget):
         if self.__icon_binding:
             self.__icon_binding.close()
             self.__icon_binding = None
-        self.icon = typing.cast(typing.Optional[DrawingContext.RGBA32Type], binding.get_target_value())
+        self.icon = binding.get_target_value()
         self.__icon_binding = binding
 
         def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:

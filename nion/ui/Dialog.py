@@ -99,8 +99,10 @@ class ActionDialog(Window.Window):
         Present a modeless dialog with Ok and Cancel buttons.
     """
 
-    def __init__(self, ui: UserInterface.UserInterface, title: str = None, app: Application.BaseApplication = None,
-                 parent_window: Window.Window = None, persistent_id: str = None, window_style: str = None):
+    def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None,
+                 app: typing.Optional[Application.BaseApplication] = None,
+                 parent_window: typing.Optional[Window.Window] = None, persistent_id: typing.Optional[str] = None,
+                 window_style: typing.Optional[str] = None):
         if window_style is None:
             window_style = "tool"
         super().__init__(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)

@@ -186,7 +186,7 @@ class Window:
     count = 0  # useful for detecting leaks in tests
 
     def __init__(self, ui: UserInterface.UserInterface, app: typing.Optional[Application.BaseApplication] = None,
-                 parent_window: Window = None, window_style: typing.Optional[str] = None,
+                 parent_window: typing.Optional[Window] = None, window_style: typing.Optional[str] = None,
                  persistent_id: typing.Optional[str] = None):
         Window.count += 1
         self.ui = ui

@@ -189,7 +189,7 @@ class SectionWidget(CompositeWidgetBase):
                 self.__twist_down_canvas_item.on_button_clicked()
 
 
-class ListCanvasItemDelegate:
+class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
 
     def __init__(self) -> None:
         self.__items: typing.List[typing.Any] = list()

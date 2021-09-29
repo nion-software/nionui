@@ -11,7 +11,7 @@ from nion.utils import Geometry
 from nion.utils import Selection
 
 
-class ListCanvasItemDelegate:
+class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
 
     @property
     def item_count(self):
@@ -33,7 +33,7 @@ class TestListCanvasItemClass(unittest.TestCase):
         selection = Selection.IndexedSelection()
         delegate = ListCanvasItemDelegate()
         canvas_item = ListCanvasItem.ListCanvasItem(delegate, selection)
-        canvas_item.update_layout((0, 0), (320, 100))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((320, 100)))
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_click(Geometry.IntPoint(y=120, x=50))
         self.assertEqual(selection.indexes, {1})
@@ -45,7 +45,7 @@ class TestListCanvasItemClass(unittest.TestCase):
         selection = Selection.IndexedSelection()
         delegate = ListCanvasItemDelegate()
         canvas_item = ListCanvasItem.ListCanvasItem(delegate, selection)
-        canvas_item.update_layout((0, 0), (320, 100))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((320, 100)))
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_drag(Geometry.IntPoint(y=120, x=50), Geometry.IntPoint(y=120, x=500))
         self.assertEqual(selection.indexes, set())

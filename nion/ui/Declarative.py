@@ -1405,7 +1405,7 @@ def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handle
         def item_tool_tip(self, index: int) -> typing.Optional[str]:
             return typing.cast(typing.Optional[str], getattr(self.items[index], "tool_tip", None))
 
-        def context_menu_event(self, index: int, x: int, y: int, gx: int, gy: int) -> bool:
+        def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
             if callable(self.on_item_handle_context_menu):
                 self.on_item_handle_context_menu(index=index, x=x, y=y, gx=gx, gy=gy)
             return False

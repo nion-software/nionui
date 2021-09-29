@@ -11,7 +11,7 @@ from nion.utils import Geometry
 from nion.utils import Selection
 
 
-class GridCanvasItemDelegate:
+class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
     def __init__(self, item_count=None):
         self.__item_count = item_count if item_count is not None else 4
 
@@ -35,7 +35,7 @@ class TestGridCanvasItemClass(unittest.TestCase):
         selection = Selection.IndexedSelection()
         delegate = GridCanvasItemDelegate()
         canvas_item = GridCanvasItem.GridCanvasItem(delegate, selection)
-        canvas_item.update_layout((0, 0), (320, 100))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((320, 100)))
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_click(Geometry.IntPoint(y=120, x=50))
         self.assertEqual(selection.indexes, {1})
@@ -47,7 +47,7 @@ class TestGridCanvasItemClass(unittest.TestCase):
         selection = Selection.IndexedSelection()
         delegate = GridCanvasItemDelegate()
         canvas_item = GridCanvasItem.GridCanvasItem(delegate, selection)
-        canvas_item.update_layout((0, 0), (320, 100))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((320, 100)))
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_drag(Geometry.IntPoint(y=120, x=50), Geometry.IntPoint(y=120, x=500))
         self.assertEqual(selection.indexes, set())
@@ -56,5 +56,5 @@ class TestGridCanvasItemClass(unittest.TestCase):
         selection = Selection.IndexedSelection()
         delegate = GridCanvasItemDelegate(0)
         canvas_item = GridCanvasItem.GridCanvasItem(delegate, selection, wrap=False)
-        canvas_item.update_layout((0, 0), (40, 500))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((40, 500)))
         self.assertEqual(canvas_item.canvas_bounds.height, 40)

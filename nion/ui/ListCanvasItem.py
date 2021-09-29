@@ -27,15 +27,47 @@ if typing.TYPE_CHECKING:
 
 
 class ListCanvasItemDelegate(typing.Protocol):
-    items: typing.Sequence[typing.Any]
     on_item_selected: typing.Optional[typing.Callable[[int], None]]
     on_cancel: typing.Optional[typing.Callable[[], None]]
+
+    # items: see https://github.com/python/mypy/issues/4125
+    # items: typing.Sequence[typing.Any]
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        raise NotImplementedError()
+
+    @items.setter
+    def items(self, value: typing.Sequence[typing.Any]) -> None:
+        raise NotImplementedError()
 
     @property
     def item_count(self) -> int: raise NotImplementedError()
 
-    def key_pressed(self, key: UserInterface.Key) -> bool: ...
-    def item_selected(self, index: int) -> bool: ...
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        return False
+
+    def item_selected(self, index: int) -> bool:
+        return False
+
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        return None
+
+    def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+        return False
+
+    def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return False
+
+    def item_can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> bool:
+        return False
+
+    def item_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> str:
+        pass
+
+    def delete_pressed(self) -> None:
+        pass
+
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None: ...
 
 
@@ -69,12 +101,12 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         # internal variables
         self.__mouse_pressed = False
         self.__mouse_pressed_for_dragging = False
-        self.__mouse_index = None
-        self.__mouse_position = None
+        self.__mouse_index: typing.Optional[int] = None
+        self.__mouse_position: typing.Optional[Geometry.IntPoint] = None
         self.__mouse_dragging = False
         self.__dropping = True
-        self.__drop_before_index = None
-        self.__drop_index = None
+        self.__drop_before_index: typing.Optional[int] = None
+        self.__drop_index: typing.Optional[int] = None
         self.__item_height = item_height
 
     def close(self) -> None:
@@ -85,34 +117,37 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def detach_delegate(self) -> None:
         self.__delegate = typing.cast(typing.Any, None)
 
-    def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
+                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         """Override from abstract canvas item.
 
         Adjust the canvas height based on the constraints.
         """
-        canvas_size = Geometry.IntSize.make(canvas_size)
-        canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(), width=canvas_size.width)
-        super().update_layout(canvas_origin, canvas_size, immediate=immediate)
+        if canvas_size:
+            canvas_size = Geometry.IntSize(height=self.__calculate_layout_height(), width=canvas_size.width)
+            super().update_layout(canvas_origin, canvas_size, immediate=immediate)
 
-    def wheel_changed(self, x, y, dx, dy, is_horizontal):
-        dy = dy if not is_horizontal else 0.0
-        new_canvas_origin = Geometry.IntPoint.make(self.canvas_origin) + Geometry.IntPoint(x=0, y=dy)
-        self.update_layout(new_canvas_origin, self.canvas_size)
-        self.update()
+    def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
+        dy = dy if not is_horizontal else 0
+        canvas_rect = self.canvas_rect
+        if canvas_rect:
+            new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=0, y=dy)
+            self.update_layout(new_canvas_origin, canvas_rect.size)
+            self.update()
         return True
 
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
         max_index = self.__delegate.item_count
         mouse_index = y // self.__item_height
         if mouse_index >= 0 and mouse_index < max_index:
-            if self.__delegate and hasattr(self.__delegate, "item_tool_tip"):
-                text = getattr(self.__delegate, "item_tool_tip")(mouse_index)
+            if self.__delegate:
+                text = self.__delegate.item_tool_tip(mouse_index)
                 if text:
                     self.show_tool_tip_text(text, gx, gy)
                     return True
         return super().handle_tool_tip(x, y, gx, gy)
 
-    def __calculate_layout_height(self):
+    def __calculate_layout_height(self) -> int:
         item_count = self.__delegate.item_count if self.__delegate else 0
         return item_count * self.__item_height
 
@@ -125,11 +160,10 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                                     size=Geometry.IntSize(width=item_width, height=item_height))
         return Geometry.IntRect.empty_rect()
 
-    def _repaint_visible(self, drawing_context, visible_rect):
-        if self.__delegate:
-            canvas_bounds = self.canvas_bounds
-
-            item_width = int(canvas_bounds.width)
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, visible_rect: Geometry.IntRect) -> None:
+        canvas_bounds = self.canvas_bounds
+        if self.__delegate and canvas_bounds:
+            item_width = canvas_bounds.width
             item_height = self.__item_height
 
             with drawing_context.saver():
@@ -153,47 +187,43 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                             if index == self.__drop_index:
                                 with drawing_context.saver():
                                     drop_border_width = 2.5
-                                    rect_in = rect.inset(drop_border_width / 2, drop_border_width / 2)
+                                    rect_in = rect.to_float_rect().inset(drop_border_width / 2, drop_border_width / 2).to_int_rect()
                                     drawing_context.begin_path()
                                     drawing_context.rect(rect_in.left, rect_in.top, rect_in.width, rect_in.height)
                                     drawing_context.line_width = drop_border_width
                                     drawing_context.stroke_style = "rgba(56, 117, 214, 0.8)"
                                     drawing_context.stroke()
 
-    def _repaint(self, drawing_context):
-        self._repaint_visible(drawing_context, self.canvas_bounds)
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_bounds = self.canvas_bounds
+        if canvas_bounds:
+            self._repaint_visible(drawing_context, canvas_bounds)
 
-    def context_menu_event(self, x, y, gx, gy):
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         if self.__delegate:
             max_index = self.__delegate.item_count
             mouse_index = y // self.__item_height
             if mouse_index >= 0 and mouse_index < max_index:
                 if not self.__selection.contains(mouse_index):
                     self.__selection.set(mouse_index)
-                if self.__delegate and hasattr(self.__delegate, "context_menu_event") and self.__delegate.context_menu_event:
+                if self.__delegate:
                     return self.__delegate.context_menu_event(mouse_index, x, y, gx, gy)
-                # TODO: delete soon. only here for backwards compatibility.
-                if self.__delegate and hasattr(self.__delegate, "on_context_menu_event") and self.__delegate.on_context_menu_event:
-                    return self.__delegate.on_context_menu_event(mouse_index, x, y, gx, gy)
             else:
-                if self.__delegate and hasattr(self.__delegate, "context_menu_event") and self.__delegate.context_menu_event:
+                if self.__delegate:
                     return self.__delegate.context_menu_event(None, x, y, gx, gy)
-                # TODO: delete soon. only here for backwards compatibility.
-                if self.__delegate and hasattr(self.__delegate, "on_context_menu_event") and self.__delegate.on_context_menu_event:
-                    return self.__delegate.on_context_menu_event(None, x, y, gx, gy)
         return False
 
-    def mouse_double_clicked(self, x, y, modifiers):
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         max_index = self.__delegate.item_count
         mouse_index = y // self.__item_height
         if mouse_index >= 0 and mouse_index < max_index:
             if not self.__selection.contains(mouse_index):
                 self.__selection.set(mouse_index)
-            if self.__delegate and hasattr(self.__delegate, "item_selected") and self.__delegate.item_selected:
+            if self.__delegate:
                 return self.__delegate.item_selected(mouse_index)
         return super().mouse_double_clicked(x, y, modifiers)
 
-    def mouse_pressed(self, x, y, modifiers):
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.__delegate:
             mouse_index = y // self.__item_height
             max_index = self.__delegate.item_count
@@ -201,7 +231,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__mouse_index = mouse_index
                 self.__mouse_pressed = True
                 handled = False
-                if self.__delegate and hasattr(self.__delegate, "mouse_pressed_in_item") and self.__delegate.mouse_pressed_in_item:
+                if self.__delegate:
                     handled = self.__delegate.mouse_pressed_in_item(mouse_index, Geometry.IntPoint(y=y - mouse_index * self.__item_height, x=x), modifiers)
                     if handled:
                         self.__mouse_index = None  # prevent selection handling
@@ -211,7 +241,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super().mouse_pressed(x, y, modifiers)
 
-    def __mouse_released(self, x, y, modifiers, do_select):
+    def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers, do_select: bool) -> None:
         if self.__delegate and self.__mouse_pressed and do_select:
             # double check whether mouse_released has been called explicitly as part of a drag.
             # see https://bugreports.qt.io/browse/QTBUG-40733
@@ -229,14 +259,16 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__mouse_index = None
         self.__mouse_position = None
         self.__mouse_dragging = False
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_released(x, y, modifiers, True)
         return True
 
-    def mouse_released(self, x, y, modifiers):
-        return self.__mouse_released(x, y, modifiers, True)
-
-    def mouse_position_changed(self, x, y, modifiers):
-        if self.__mouse_pressed_for_dragging:
-            if not self.__mouse_dragging and Geometry.distance(self.__mouse_position, Geometry.IntPoint(y=y, x=x)) > 8:
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__mouse_pressed_for_dragging and self.__mouse_position and self.__mouse_index is not None:
+            mouse_position_f = self.__mouse_position.to_float_point()
+            point_f = Geometry.FloatPoint(y=y, x=x)
+            if not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
                 self.__mouse_dragging = True
                 drag_started = getattr(self.__delegate, "drag_started", None) if self.__delegate else None
                 if callable(drag_started):
@@ -291,13 +323,13 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if self.__delegate:
-            if self.__delegate and hasattr(self.__delegate, "key_pressed") and self.__delegate.key_pressed:
+            if self.__delegate:
                 if self.__delegate.key_pressed(key):
                     return True
             if key.is_delete:
                 return self.handle_delete()
             if key.is_enter_or_return:
-                if self.__delegate and hasattr(self.__delegate, "item_selected") and self.__delegate.item_selected:
+                if self.__delegate:
                     indexes = self.__selection.indexes
                     if len(indexes) == 1:
                         return self.__delegate.item_selected(list(indexes)[0])
@@ -331,18 +363,18 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 return True
         return super().key_pressed(key)
 
-    def drag_enter(self, mime_data):
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__dropping = True
         self.update()
         return "ignore"
 
-    def drag_move(self, mime_data, x, y):
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         mouse_index = y // self.__item_height
         max_index = self.__delegate.item_count
         drop_index = None
         if mouse_index >= 0 and mouse_index < max_index:
             drop_index = mouse_index
-            if self.__delegate and hasattr(self.__delegate, "item_can_drop_mime_data") and callable(self.__delegate.item_can_drop_mime_data):
+            if self.__delegate:
                 if not self.__delegate.item_can_drop_mime_data(mime_data, "move", drop_index):
                     drop_index = None
             else:
@@ -350,35 +382,33 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         if drop_index != self.__drop_index:
             self.__drop_index = drop_index
             self.update()
+        return "ignore"
 
-    def drag_leave(self):
+    def drag_leave(self) -> str:
         self.__dropping = False
         self.__drop_index = None
         self.update()
-        return False
+        return "ignore"
 
-    def drop(self, mime_data, x, y):
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         drop_index = self.__drop_index
         self.__dropping = False
         self.__drop_index = None
         self.update()
         if drop_index is not None:
-            if self.__delegate and hasattr(self.__delegate, "item_drop_mime_data") and callable(self.__delegate.item_drop_mime_data):
+            if self.__delegate:
                 return self.__delegate.item_drop_mime_data(mime_data, "move", drop_index)
         return "ignore"
 
-    def handle_select_all(self):
+    def handle_select_all(self) -> bool:
         if self.__delegate:
             self.__selection.set_multiple(set(range(self.__delegate.item_count)))
             return True
         return False
 
-    def handle_delete(self):
-        if self.__delegate and hasattr(self.__delegate, "delete_pressed") and self.__delegate.delete_pressed:
+    def handle_delete(self) -> bool:
+        if self.__delegate:
             self.__delegate.delete_pressed()
-        # TODO: delete soon. only here for backwards compatibility.
-        if self.__delegate and hasattr(self.__delegate, "on_delete_pressed") and self.__delegate.on_delete_pressed:
-            self.__delegate.on_delete_pressed()
         return True
 
     def size_to_content(self) -> None:

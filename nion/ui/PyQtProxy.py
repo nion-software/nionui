@@ -215,7 +215,7 @@ class PyDrag(QtGui.QDrag):
 
 class PyMenu(QtWidgets.QMenu):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.aboutToShow.connect(self.__about_to_show)
@@ -383,7 +383,7 @@ class DockWidget(QtWidgets.QDockWidget):
 
 class PyPushButton(QtWidgets.QPushButton):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.clicked.connect(self.__clicked)
@@ -399,7 +399,7 @@ class PyPushButton(QtWidgets.QPushButton):
 
 class PyRadioButton(QtWidgets.QRadioButton):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.setAutoExclusive(False)
@@ -416,7 +416,7 @@ class PyRadioButton(QtWidgets.QRadioButton):
 
 class PyButtonGroup(QtWidgets.QButtonGroup):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.buttonClicked.connect(self.__button_clicked)
@@ -432,7 +432,7 @@ class PyButtonGroup(QtWidgets.QButtonGroup):
 
 class PyCheckBox(QtWidgets.QCheckBox):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.stateChanged.connect(self.__state_changed)
@@ -448,7 +448,7 @@ class PyCheckBox(QtWidgets.QCheckBox):
 
 class PyComboBox(QtWidgets.QComboBox):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.currentTextChanged.connect(self.__current_text_changed)
@@ -464,7 +464,7 @@ class PyComboBox(QtWidgets.QComboBox):
 
 class PySlider(QtWidgets.QSlider):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.setOrientation(QtCore.Qt.Horizontal)
@@ -509,7 +509,7 @@ class PySlider(QtWidgets.QSlider):
 
 class PyLineEdit(QtWidgets.QLineEdit):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.editingFinished.connect(self.__editing_finished)
@@ -565,7 +565,7 @@ class PyLineEdit(QtWidgets.QLineEdit):
 
 class PyTextEdit(QtWidgets.QTextEdit):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.setAcceptRichText(False)
@@ -682,7 +682,7 @@ class Overlay(QtWidgets.QWidget):
 
 class PyScrollArea(QtWidgets.QScrollArea):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.setWidgetResizable(True)
@@ -745,7 +745,7 @@ class PyScrollArea(QtWidgets.QScrollArea):
 
 class PyTabWidget(QtWidgets.QTabWidget):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.currentChanged.connect(self.__current_changed)
@@ -761,7 +761,7 @@ class PyTabWidget(QtWidgets.QTabWidget):
 
 class TreeWidget(QtWidgets.QTreeView):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.setAcceptDrops(True)
@@ -871,13 +871,15 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_row = selected_index[1]
             parent_id = selected_index[2]
             try:
-                if self.object.treeItemKeyPressed(row, parent_row, parent_id, text, key, modifiers):
+                if self.object and self.object.treeItemKeyPressed(row, parent_row, parent_id, text, key, modifiers):
                     return True
             except Exception as e:
                 import traceback
                 traceback.print_exc()
         try:
-            return self.object.keyPressed(selected_indexes, text, key, modifiers)
+            if self.object:
+                return self.object.keyPressed(selected_indexes, text, key, modifiers)
+            return False
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -892,7 +894,8 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_id = int(index.parent().internalId())
 
         try:
-            self.object.treeItemClicked(row, parent_row, parent_id)
+            if self.object:
+                self.object.treeItemClicked(row, parent_row, parent_id)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -906,7 +909,8 @@ class TreeWidget(QtWidgets.QTreeView):
             parent_id = int(index.parent().internalId())
 
         try:
-            self.object.treeItemDoubleClicked(row, parent_row, parent_id)
+            if self.object:
+                self.object.treeItemDoubleClicked(row, parent_row, parent_id)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -1775,17 +1779,19 @@ class PyCanvasRenderTask(QtCore.QRunnable):
             self.signals.renderingReady.emit(repaint_rect)
 
 
+_QtObject = typing.Any
+
+
 class PyCanvas(QtWidgets.QWidget):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.object = None
         self.__pressed = False
         self.__grab_mouse_count = 0
-        self.__rendered_timestamps = list()
-        self.__known_dts = dict()
+        self.__known_dts: typing.Dict[str, _QtObject] = dict()
         self.__commands_mutex = QtCore.QMutex()
-        self.__sections = dict()
+        self.__sections: typing.Dict[int, PyCanvas.CanvasSection] = dict()
         self.__last_pos = QtCore.QPoint()
         self.__grab_reference_point = QtCore.QPoint()
         self.setMouseTracking(True)
@@ -2110,7 +2116,7 @@ class PyCanvas(QtWidgets.QWidget):
             self.layer_cache: typing.Dict[int, LayerCacheEntry] = dict()
             self.rendered_timestamps: typing.List[RenderedTimestamp] = list()
             self.rendering = False
-            self.time = 0
+            self.time = 0.0
             self.latencies_mutex = QtCore.QMutex()
             self.latencies: typing.List[int] = list()
 
@@ -2240,7 +2246,7 @@ class PyQtProxy:
         # this safely
         class StdoutCatcher:
 
-            def __init__(self):
+            def __init__(self) -> None:
                 pass
 
             def write(self, stuff):

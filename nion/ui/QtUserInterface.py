@@ -627,7 +627,7 @@ class QtNullBehavior:
 
 class QtBoxStretch(UserInterface.Widget):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(QtNullBehavior())
 
 
@@ -1766,7 +1766,7 @@ class QtMenu(UserInterface.Menu):
         self.proxy.Menu_addSeparator(self.native_menu)
         self._item_added(is_separator=True)
 
-    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None, action_id: str = None):
+    def insert_menu_item(self, title, before_action, callback, key_sequence=None, role=None, action_id: typing.Optional[str] = None):
         action = QtAction(self.proxy)
         self._prepare_action(action, title, action_id, callback, key_sequence, role)
         self.proxy.Menu_insertAction(self.native_menu, action.native_action, before_action.native_action)
@@ -1918,13 +1918,13 @@ class QtWindow(UserInterface.Window):
         self._register_ui_activity()
         return self._handle_key_released(QtKey(text, key, raw_modifiers))
 
-    def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
         menu = QtMenu(self, title, menu_id, self.proxy, native_menu)
         self._menu_added(menu)
         return menu
 
-    def insert_menu(self, title, before_menu, menu_id: str = None) -> UserInterface.Menu:
+    def insert_menu(self, title, before_menu, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         before_menu = typing.cast(QtMenu, before_menu)
         native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, notnone(title), before_menu.native_menu)
         menu = QtMenu(self, title, menu_id, self.proxy, native_menu)
@@ -2240,7 +2240,7 @@ class QtUserInterface(UserInterface.UserInterface):
         context_menu.on_about_to_hide = lambda: document_window.queue_task(context_menu.destroy)
         return context_menu
 
-    def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterface.Menu:
+    def create_sub_menu(self, document_window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         sub_menu = QtMenu(document_window, title, menu_id, self.proxy, self.proxy.Menu_create())
         return sub_menu
 

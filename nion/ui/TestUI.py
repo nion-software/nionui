@@ -212,7 +212,7 @@ class Menu(UserInterfaceModule.Menu):
     def __init__(self, document_window, title=None, menu_id=None):
         super().__init__(document_window, title, menu_id)
         self.on_popup = None
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: str = None, role: str = None, action_id: str = None) -> UserInterfaceModule.MenuAction:
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None, role: typing.Optional[str] = None, action_id: typing.Optional[str] = None) -> UserInterfaceModule.MenuAction:
         menu_item = MenuItem(title, action_id, callback, key_sequence, role, None, False, False)
         self._item_added(action=menu_item)
         return menu_item
@@ -249,7 +249,7 @@ class ItemModelController:
             if self.parent:
                 return self.parent.children.index(self)
             return -1
-    def __init__(self):
+    def __init__(self) -> None:
         self.__next_id = 0
         self.root = self.create_item()
     def close(self):
@@ -308,8 +308,8 @@ class ItemModelController:
 class ListModelController:
     DRAG = 0
     DROP = 1
-    def __init__(self):
-        self.model = []
+    def __init__(self) -> None:
+        self.model: typing.List[typing.Any] = []
     def close(self):
         pass
     def begin_insert(self, first_row, last_row):
@@ -413,7 +413,7 @@ class Key(UserInterfaceModule.Key):
 
 class ButtonGroup:
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.on_button_clicked = None
 
     def close(self):
@@ -551,7 +551,7 @@ class NullBehavior:
 
 class BoxStretch(UserInterfaceModule.Widget):
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(NullBehavior())
 
 
@@ -579,7 +579,7 @@ class WidgetItemType(enum.Enum):
 
 class WidgetItem:
 
-    def __init__(self, type: WidgetItemType, *, widget=None, fill: bool = False, alignment: str = None, spacing: int = 0):
+    def __init__(self, type: WidgetItemType, *, widget=None, fill: bool = False, alignment: typing.Optional[str] = None, spacing: int = 0):
         self.type = type
         self.widget = widget
         self.fill = fill
@@ -1022,12 +1022,12 @@ class DocumentWindowX(UserInterfaceModule.Window):
     def tabify_dock_widgets(self, dock_widget1, dock_widget2):
         pass
 
-    def insert_menu(self, title: str, before_menu, menu_id: str = None) -> UserInterfaceModule.Menu:
+    def insert_menu(self, title: str, before_menu, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
         menu = Menu(self)
         self._menu_inserted(menu, before_menu)
         return menu
 
-    def add_menu(self, title: str, menu_id: str = None) -> Menu:
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> Menu:
         menu = Menu(self, menu_id)
         self._menu_added(menu)
         return menu
@@ -1071,9 +1071,9 @@ class DockWidget(UserInterfaceModule.DockWidget):
 
 class UserInterface(UserInterfaceModule.UserInterface):
 
-    def __init__(self):
+    def __init__(self) -> None:
         CanvasItem._threaded_rendering_enabled = False
-        self.clipboard = MimeData()
+        self.clipboard: UserInterfaceModule.MimeData = MimeData()
         self.popup = None
         self.popup_pos = None
         self._font_metrics = make_font_metrics_for_tests()
@@ -1157,7 +1157,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_text_edit_widget(self, properties=None):
         return UserInterfaceModule.TextEditWidget(TextEditWidgetBehavior("textedit", properties))
 
-    def create_canvas_widget(self, properties=None, *, layout_render: str = None):
+    def create_canvas_widget(self, properties=None, *, layout_render: typing.Optional[str] = None):
         return UserInterfaceModule.CanvasWidget(CanvasWidgetBehavior("canvas", properties), layout_render=layout_render)
 
     def create_tree_widget(self, properties=None):
@@ -1220,7 +1220,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def clipboard_clear(self):
         self.clipboard = MimeData()
 
-    def clipboard_mime_data(self) -> MimeData:
+    def clipboard_mime_data(self) -> UserInterfaceModule.MimeData:
         return self.clipboard
 
     def clipboard_set_mime_data(self, mime_data: UserInterfaceModule.MimeData) -> None:
@@ -1258,7 +1258,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         menu.on_popup = handle_popup
         return menu
 
-    def create_sub_menu(self, document_window, title: str = None, menu_id: str = None) -> UserInterfaceModule.Menu:
+    def create_sub_menu(self, document_window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
         return Menu(document_window, title)
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:

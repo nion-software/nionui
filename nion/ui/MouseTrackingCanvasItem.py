@@ -21,63 +21,70 @@ class TrackingCanvasItem(CanvasItem.CanvasItemComposition):
     It is an error to call track(...) while already tracking.
     """
 
-    def __init__(self):
-        super(TrackingCanvasItem, self).__init__()
+    def __init__(self) -> None:
+        super().__init__()
         self.wants_mouse_events = True
         self.focusable = True
+        self.on_close: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_position_changed_by: typing.Optional[typing.Callable[[Geometry.IntPoint], None]] = None
+
+    def close(self) -> None:
         self.on_close = None
         self.on_mouse_position_changed_by = None
+        super().close()
 
-    def close(self):
-        self.on_close = None
-        self.on_mouse_position_changed_by = None
-        super(TrackingCanvasItem, self).close()
-
-    def mouse_clicked(self, x, y, modifiers):
-        self.on_close()
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if callable(self.on_close):
+            self.on_close()
         return True
 
-    def mouse_double_clicked(self, x, y, modifiers):
-        self.on_close()
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if callable(self.on_close):
+            self.on_close()
         return True
 
-    def context_menu_event(self, x, y, gx, gy):
-        self.on_close()
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        if callable(self.on_close):
+            self.on_close()
         return True
 
-    def key_pressed(self, key):
-        self.on_close()
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if callable(self.on_close):
+            self.on_close()
         return True
 
-    def grab_mouse(self, gx, gy):
+    def grab_mouse(self, gx: int, gy: int) -> None:
         self.__discard_first = True
-        self.root_container.grab_mouse(self, gx, gy)
+        if self.root_container:
+            self.root_container.grab_mouse(self, gx, gy)
 
-    def release_mouse(self):
-        self.root_container.release_mouse()
+    def release_mouse(self) -> None:
+        if self.root_container:
+            self.root_container.release_mouse()
 
     def grabbed_mouse_position_changed(self, dx: int, dy: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if not self.__discard_first:
+        if not self.__discard_first and callable(self.on_mouse_position_changed_by):
             self.on_mouse_position_changed_by(Geometry.IntPoint(x=dx, y=dy))
         self.__discard_first = False
         return True
 
 
-def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: CanvasItem.AbstractCanvasItem,
-                        mouse_position_changed_by_fn: typing.Callable[[Geometry.IntPoint], None], global_pos: Geometry.IntPoint, size: Geometry.IntSize):
-
+def start_mouse_tracker(ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop,
+                        canvas_item: CanvasItem.AbstractCanvasItem,
+                        mouse_position_changed_by_fn: typing.Callable[[Geometry.IntPoint], None],
+                        global_pos: Geometry.IntPoint, size: Geometry.IntSize) -> None:
     tracking_canvas_item = TrackingCanvasItem()
     tracking_canvas_item.on_mouse_position_changed_by = mouse_position_changed_by_fn
     tracking_canvas_item.add_canvas_item(canvas_item)
 
-    async def handle_close_later(document_window):
+    async def handle_close_later(document_window: UserInterface.Window) -> None:
         document_window.request_close()
 
-    def handle_close(document_window):
+    def handle_close(document_window: UserInterface.Window) -> None:
         tracking_canvas_item.release_mouse()
         event_loop.create_task(handle_close_later(document_window))
 
-    def activation_changed(document_window, activated):
+    def activation_changed(document_window: UserInterface.Window, activated: bool) -> None:
         if not activated:
             handle_close(document_window)
 
@@ -85,7 +92,7 @@ def start_mouse_tracker(ui, event_loop: asyncio.AbstractEventLoop, canvas_item: 
     document_window = ui.create_document_window()
     document_window.window_style = "mousegrab"
 
-    def close_window(geometry, state):
+    def close_window(geometry: str, state: str) -> None:
         ui.destroy_document_window(document_window)
 
     document_window.on_about_to_close = close_window

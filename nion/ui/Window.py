@@ -17,6 +17,7 @@ import weakref
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Process
+from nion.ui import DrawingContext
 from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
@@ -90,7 +91,7 @@ class Action:
     action_description: typing.Optional[str] = None
     action_parameters: typing.List[ActionProperty] = list()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__reports: typing.List[Report] = list()
 
     @property
@@ -148,14 +149,16 @@ def register_action(action: Action) -> None:
     typing.cast(typing.MutableMapping[str, Action], actions)[action.action_id] = action
 
 
-action_shortcuts: typing.Mapping[str, typing.Mapping] = dict()
+_ActionShortcutsType = typing.Mapping[str, typing.Mapping[str, str]]
+
+action_shortcuts: typing.Mapping[str, typing.Mapping[str, str]] = dict()
 
 
 def add_action_shortcut(action_id: str, action_context: str, key_sequence: str) -> None:
-    typing.cast(typing.MutableMapping[str, typing.MutableMapping], action_shortcuts).setdefault(action_id, dict())[action_context] = key_sequence
+    typing.cast(typing.MutableMapping[str, typing.MutableMapping[str, str]], action_shortcuts).setdefault(action_id, dict())[action_context] = key_sequence
 
 
-def register_action_shortcuts(action_shortcuts: typing.Mapping) -> None:
+def register_action_shortcuts(action_shortcuts: _ActionShortcutsType) -> None:
     for action_id, action_shortcut_d in action_shortcuts.items():
         for action_context, key_sequence in action_shortcut_d.items():
             add_action_shortcut(action_id, action_context, key_sequence)
@@ -201,7 +204,8 @@ class Window:
         self.__shown = False
         self.__request_close = False
 
-        self.__dialogs: typing.List[weakref.ReferenceType] = list()
+        # Python 3.9+: should be weakref.ReferenceType[Dialog]
+        self.__dialogs: typing.List[typing.Any] = list()
 
         self._window_close_event = Event.Event()
 
@@ -319,7 +323,7 @@ class Window:
              },
         ]
 
-        self.build_menu(None, typing.cast(typing.List[typing.Dict], menu_descriptions))
+        self.build_menu(None, typing.cast(typing.List[typing.Dict[str, typing.Any]], menu_descriptions))
 
     def _adjust_menus(self) -> None:
         # called when key may be shortcut. does not work for sub-menus.
@@ -367,7 +371,7 @@ class Window:
         if self.__request_close:
             self.request_close()
 
-    def exec_action_events(self, event_type_str: str, **kwargs) -> bool:
+    def exec_action_events(self, event_type_str: str, **kwargs: typing.Any) -> bool:
         action_context = None
         for action in self.__modal_actions:
             if not action_context:
@@ -406,7 +410,7 @@ class Window:
     def register_dialog(self, dialog: Window) -> None:
         old_on_close = dialog.on_close
 
-        def close_dialog():
+        def close_dialog() -> None:
             self.__dialogs.remove(weakref.ref(dialog))
             if callable(old_on_close):
                 old_on_close()
@@ -467,7 +471,7 @@ class Window:
             self._adjust_menus()
         return False
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: numpy.ndarray, hot_spot_x: int, hot_spot_y: int) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type], hot_spot_x: int, hot_spot_y: int) -> None:
         root_widget = self.__document_window.root_widget
         if root_widget:
             root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)
@@ -480,13 +484,13 @@ class Window:
     def title(self, value: str) -> None:
         self.__document_window.title = value
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_paths_dialog(title, directory, filter, selected_filter)
 
-    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_path_dialog(title, directory, filter, selected_filter)
 
-    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: str = None) -> typing.Tuple[str, str, str]:
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         return self.__document_window.get_save_file_path(title, directory, filter, selected_filter)
 
     def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str,
@@ -530,19 +534,19 @@ class Window:
     def dock_widgets(self) -> typing.Sequence[UserInterface.DockWidget]:
         return self.__document_window.dock_widgets
 
-    def show(self, *, size: Geometry.IntSize = None, position: Geometry.IntPoint = None) -> None:
+    def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         self.__document_window.show(size=size, position=position)
 
     def activate(self) -> None:
         self.__document_window.activate()
 
-    def add_menu(self, title: str, menu_id: str = None) -> UserInterface.Menu:
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         return self.__document_window.add_menu(title, menu_id)
 
-    def insert_menu(self, title: str, before_menu: UserInterface.Menu, menu_id: str = None) -> UserInterface.Menu:
+    def insert_menu(self, title: str, before_menu: UserInterface.Menu, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         return self.__document_window.insert_menu(title, before_menu, menu_id)
 
-    def create_sub_menu(self, title: str = None, menu_id: str = None) -> UserInterface.Menu:
+    def create_sub_menu(self, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         return self.ui.create_sub_menu(self.__document_window, title, menu_id)
 
     def create_context_menu(self) -> UserInterface.Menu:
@@ -577,7 +581,7 @@ class Window:
         assert self.app
         self.app.exit()
 
-    def _dispatch_any_to_focus_widget(self, method: str, *args, **kwargs) -> bool:
+    def _dispatch_any_to_focus_widget(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
         focus_widget = self.focus_widget
         if focus_widget and focus_widget._dispatch_any(method, *args, **kwargs):
             return True
@@ -593,7 +597,7 @@ class Window:
             return True
         return False
 
-    def build_menu(self, menu: typing.Optional[UserInterface.Menu], menu_descriptions: typing.Sequence[typing.Mapping]) -> None:
+    def build_menu(self, menu: typing.Optional[UserInterface.Menu], menu_descriptions: typing.Sequence[typing.Mapping[str, typing.Any]]) -> None:
         for item_d in menu_descriptions:
             item_type = item_d["type"]
             if item_type == "menu":
@@ -665,10 +669,10 @@ class Window:
             key_sequence = action_shortcuts.get(action_id, dict()).get("window")
             assert menu is not None
 
-            def perform_action():
+            def perform_action() -> None:
                 self.perform_action_in_context(action_id, action_context)
 
-            def queue_perform_action():
+            def queue_perform_action() -> None:
                 # delay execution to ensure menu closes properly
                 # this would manifest itself by export dialog crashes in nionswift.
                 self.queue_task(perform_action)
@@ -683,7 +687,7 @@ class Window:
         return action
 
     def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None,
-                       parameters: typing.Optional[typing.List] = None) -> ActionResult:
+                       parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> ActionResult:
         context = action_context or self._get_action_context()
         if parameters:
             context.parameters.update(parameters)
@@ -731,7 +735,7 @@ class Window:
         if hasattr(self, menu_item_state_method):
             menu_item_state = getattr(self, menu_item_state_method)()
             if menu_item_state:
-                return menu_item_state
+                return typing.cast(UserInterface.MenuItemState, menu_item_state)
         if hasattr(self, handle_method):
             return UserInterface.MenuItemState(title=None, enabled=True, checked=False)
         return None

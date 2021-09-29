@@ -2,60 +2,79 @@
 Preference dialog.
 """
 
+from __future__ import annotations
+
 # standard libraries
+import asyncio
 import gettext
 
 # third party libraries
 # None
 
 # local libraries
+import typing
+
 from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Selection
 
+if typing.TYPE_CHECKING:
+    from nion.ui import Application
+    from nion.ui import UserInterface
+
 _ = gettext.gettext
 
 
 class Singleton(type):
-    def __init__(cls, name, bases, dict):
-        super(Singleton, cls).__init__(name, bases, dict)
-        cls.instance = None
+    def __init__(cls, name: str, bases: typing.Tuple[typing.Type[typing.Any], ...], d: typing.Dict[str, typing.Any]) -> None:
+        super(Singleton, cls).__init__(name, bases, d)
+        cls.instance: typing.Any = None
 
-    def __call__(cls, *args, **kw):
+    def __call__(cls, *args: typing.Any, **kw: typing.Any) -> typing.Any:
         if cls.instance is None:
             cls.instance = super(Singleton, cls).__call__(*args, **kw)
         return cls.instance
 
 
+class PreferencePaneDelegate(typing.Protocol):
+    identifier: str
+    label: str
+    def build(self, ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop, **kwargs: typing.Any) -> Declarative.DeclarativeWidget: ...
+
+
 class PreferencesManager(metaclass=Singleton):
-    def __init__(self):
-        self.preference_pane_delegates = list()
+    def __init__(self) -> None:
+        self.preference_pane_delegates: typing.List[PreferencePaneDelegate] = list()
         self.preference_pane_delegates_changed_event = Event.Event()
 
-    def register_preference_pane(self, preference_pane_delegate):
+    def register_preference_pane(self, preference_pane_delegate: PreferencePaneDelegate) -> None:
         assert preference_pane_delegate not in self.preference_pane_delegates
         self.preference_pane_delegates.append(preference_pane_delegate)
         self.preference_pane_delegates_changed_event.fire()
 
-    def unregister_preference_pane(self, preference_pane_delegate):
+    def unregister_preference_pane(self, preference_pane_delegate: PreferencePaneDelegate) -> None:
         assert preference_pane_delegate in self.preference_pane_delegates
         self.preference_pane_delegates.remove(preference_pane_delegate)
         self.preference_pane_delegates_changed_event.fire()
 
 
 class EmptyPreferencePanel:
-    def __init__(self):
+    def __init__(self) -> None:
         self.identifier = "empty_preferences"
         self.label = _("Preferences")
 
-    def build(self, ui, event_loop=None, **kwargs):
+    def build(self, ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop,
+              **kwargs: typing.Any) -> Declarative.DeclarativeWidget:
         u = Declarative.DeclarativeUI()
 
-        class Handler:
-            def __init__(self, ui_view):
+        class Handler(Declarative.HandlerLike):
+            def __init__(self, ui_view: Declarative.UIDescription) -> None:
                 self.ui_view = ui_view
+
+            def close(self) -> None:
+                pass
 
         no_content_row = u.create_row(u.create_stretch(), u.create_label(text=_("No Preferences Available")),
                                       u.create_stretch())
@@ -64,7 +83,7 @@ class EmptyPreferencePanel:
 
 
 class PreferencesDialog(Dialog.ActionDialog):
-    def __init__(self, ui, app):
+    def __init__(self, ui: UserInterface.UserInterface, app: Application.BaseApplication) -> None:
         super().__init__(ui, _("Preferences"), app=app)
 
         self.ui = ui
@@ -74,12 +93,12 @@ class PreferencesDialog(Dialog.ActionDialog):
         properties["min-height"] = 400
         properties["min-width"] = 800
 
-        preference_pane_delegates = list()
-        preference_pane_delegate_id_ref = [None]
+        preference_pane_delegates: typing.List[PreferencePaneDelegate] = list()
+        preference_pane_delegate_id_ref: typing.List[typing.Optional[str]] = [None]
 
         content_stack = ui.create_stack_widget()
 
-        def change_selection(indexes):
+        def change_selection(indexes: typing.AbstractSet[int]) -> None:
             index = list(indexes)[0]
             assert 0 <= index < len(preference_pane_delegates)
             content_stack.current_index = index
@@ -105,7 +124,7 @@ class PreferencesDialog(Dialog.ActionDialog):
 
         self.add_button(_("Done"), lambda: True)
 
-        def rebuild():
+        def rebuild() -> None:
             content_stack.remove_all()
             preference_pane_delegates.clear()
             preference_pane_delegate_id = preference_pane_delegate_id_ref[0]
@@ -135,7 +154,7 @@ class PreferencesDialog(Dialog.ActionDialog):
 
         rebuild()
 
-    def close(self):
+    def close(self) -> None:
         self.__preference_pane_delegates_changed_listener.close()
-        self.__preference_pane_delegates_changed_listener = None
+        self.__preference_pane_delegates_changed_listener = typing.cast(typing.Any, None)
         super().close()

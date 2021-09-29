@@ -15,7 +15,7 @@ from nion.utils import Geometry
 
 
 class TestCanvasItem(CanvasItem.AbstractCanvasItem):
-    def __init__(self):
+    def __init__(self) -> None:
         super(TestCanvasItem, self).__init__()
         self.wants_mouse_events = True
         self._mouse_released = False
@@ -717,7 +717,7 @@ class TestCanvasItemClass(unittest.TestCase):
 
     class TestCanvasItem(CanvasItem.CanvasItemComposition):
 
-        def __init__(self):
+        def __init__(self) -> None:
             super(TestCanvasItemClass.TestCanvasItem, self).__init__()
             self.mouse_inside = False
             self.mouse_pos = None

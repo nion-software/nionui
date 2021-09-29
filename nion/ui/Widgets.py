@@ -193,8 +193,8 @@ class SectionWidget(CompositeWidgetBase):
 
 class ListCanvasItemDelegate:
 
-    def __init__(self):
-        self.__items = list()
+    def __init__(self) -> None:
+        self.__items: typing.List[typing.Any] = list()
         self.on_item_selected = None
         self.on_cancel = None
 

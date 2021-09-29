@@ -337,7 +337,7 @@ class WidgetBehavior(typing.Protocol):
     size: Geometry.IntSize
     tool_tip: typing.Optional[str]
     on_ui_activity: typing.Optional[typing.Callable[[], None]]
-    on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]]
+    on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]]
     on_focus_changed: typing.Optional[typing.Callable[[bool], None]]
 
     def close(self) -> None: ...
@@ -361,9 +361,10 @@ class Widget:
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.widget_id: typing.Optional[str] = None
 
-        def handle_context_menu_event(x: int, y: int, gx: int, gy: int) -> None:
+        def handle_context_menu_event(x: int, y: int, gx: int, gy: int) -> bool:
             if callable(self.on_context_menu_event):
-                self.on_context_menu_event(x, y, gx, gy)
+                return self.on_context_menu_event(x, y, gx, gy)
+            return False
 
         def handle_focus_changed(focused: bool) -> None:
             if callable(self.on_focus_changed):

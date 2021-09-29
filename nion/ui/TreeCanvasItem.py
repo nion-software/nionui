@@ -48,7 +48,7 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         self.layout = CanvasItem.CanvasItemColumnLayout()
         self.on_content_height_changed = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_content_height_changed = None
         super().close()
 

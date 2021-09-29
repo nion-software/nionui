@@ -57,7 +57,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__direction = direction
         self.__wrap = wrap
 
-    def close(self):
+    def close(self) -> None:
         self.__selection_changed_listener.close()
         self.__selection_changed_listener = None
         super().close()

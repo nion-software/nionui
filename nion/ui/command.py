@@ -1,11 +1,16 @@
 import importlib
 import os
+import typing
+
 import pkg_resources
-import subprocess
 import sys
 
 
-def load_module_as_path(path):
+class _MainFunctionType(typing.Protocol):
+    def run(self) -> None: ...
+
+
+def load_module_as_path(path: str) -> typing.Any:
     if os.path.isfile(path):
         dirname = os.path.dirname(path)
         module_name = os.path.splitext(os.path.basename(path))[0]
@@ -15,38 +20,38 @@ def load_module_as_path(path):
     return None
 
 
-def load_module_as_package(package):
+def load_module_as_package(package: str) -> typing.Optional[_MainFunctionType]:
     try:
         module = importlib.import_module(package)
         main_fn = getattr(module, "main", None)
         if main_fn:
-            return main_fn
+            return typing.cast(_MainFunctionType, main_fn)
     except ImportError:
         pass
     try:
         module = importlib.import_module(package + ".main")
         main_fn = getattr(module, "main", None)
         if main_fn:
-            return main_fn
+            return typing.cast(_MainFunctionType, main_fn)
     except ImportError:
         pass
     return None
 
 
-def load_module_local(path=None):
+def load_module_local(path: typing.Optional[str] = None) -> typing.Optional[_MainFunctionType]:
     try:
         if path:
             sys.path.insert(0, path)
         module = importlib.import_module("main")
         main_fn = getattr(module, "main", None)
         if main_fn:
-            return main_fn
+            return typing.cast(_MainFunctionType, main_fn)
     except ImportError:
         pass
     return None
 
 
-def bootstrap_main(args):
+def bootstrap_main(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Optional[_MainFunctionType], typing.Optional[str]]:
     """
     Main function explicitly called from the C++ code.
     Return the main application object.
@@ -67,7 +72,7 @@ def bootstrap_main(args):
     return None, "main"
 
 
-def main():
+def main() -> None:
 
     # first attempt to launch using nionui-launcher
     if pkg_resources.Environment()["nionui-tool"]:
@@ -99,7 +104,7 @@ def main():
 
         if app:
             app.run()
-        else:
+        elif error:
             print("Error: " + error)
 
 

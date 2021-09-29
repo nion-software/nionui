@@ -294,7 +294,7 @@ class QtItemModelController:
         self.supported_drop_actions = 0
         self.mime_types_for_drop = []
 
-    def close(self):
+    def close(self) -> None:
         self.proxy.ItemModel_destroy(self.py_item_model)
         self.proxy = None
         self.py_item_model = None
@@ -448,7 +448,7 @@ class QtDrag:
             self.proxy.Drag_setThumbnail(self.__raw_drag, width, height, rgba_data, hot_spot_x, hot_spot_y)
         self.on_drag_finished = drag_finished_fn
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     def execute(self):
@@ -478,7 +478,7 @@ class QtWidgetBehavior:
 
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
-    def close(self):
+    def close(self) -> None:
         # not sure if this call to close is needed. it only applies in the PyQtProxy case.
         if callable(getattr(self.widget, "close", None)):
             self.widget.close()
@@ -604,7 +604,7 @@ class QtNullBehavior:
         self.size = Geometry.IntSize()
         self.tool_tip: typing.Optional[str] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
-        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
 
     def close(self) -> None:
@@ -708,7 +708,7 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         self.on_current_index_changed = None
         self.proxy.TabWidget_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_current_index_changed = None
         super().close()
 
@@ -805,7 +805,7 @@ class QtScrollAreaWidgetBehavior(QtWidgetBehavior):
         self.on_viewport_changed = None
         self.proxy.ScrollArea_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_size_changed = None
         self.on_viewport_changed = None
         super().close()
@@ -841,7 +841,7 @@ class QtComboBoxWidgetBehavior(QtWidgetBehavior):
         self.on_current_text_changed = None
         self.proxy.ComboBox_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_current_text_changed = None
         super().close()
 
@@ -881,7 +881,7 @@ class QtPushButtonWidgetBehavior(QtWidgetBehavior):
         self.__icon = None
         self.proxy.PushButton_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_clicked = None
         super().close()
 
@@ -922,7 +922,7 @@ class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
         self.__icon = None
         self.proxy.RadioButton_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_clicked = None
         super().close()
 
@@ -970,7 +970,7 @@ class QtButtonGroup:
         self.proxy.ButtonGroup_connect(self.py_button_group, self)
         self.on_button_clicked = None
 
-    def close(self):
+    def close(self) -> None:
         self.proxy.ButtonGroup_destroy(self.py_button_group)
         self.proxy = None
         self.on_button_clicked = None
@@ -995,7 +995,7 @@ class QtCheckBoxWidgetBehavior(QtWidgetBehavior):
         self.__text = None
         self.proxy.CheckBox_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_check_state_changed = None
         super().close()
 
@@ -1080,7 +1080,7 @@ class QtSliderWidgetBehavior(QtWidgetBehavior):
         self.__max = 0
         self.proxy.Slider_connect(self.widget, self)
 
-    def close(self):
+    def close(self) -> None:
         self.on_value_changed = None
         self.on_slider_pressed = None
         self.on_slider_released = None
@@ -1153,7 +1153,7 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
         self.__clear_button_enabled = False
         self._no_focus = "click_focus"
 
-    def close(self):
+    def close(self) -> None:
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
@@ -1244,7 +1244,7 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.TextEdit_connect(self.widget, self)
         self._no_focus = "click_focus"
 
-    def close(self):
+    def close(self) -> None:
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
@@ -1398,7 +1398,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_pan_gesture = None
         self.__focusable = False
 
-    def close(self):
+    def close(self) -> None:
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_clicked = None
@@ -1582,7 +1582,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.__selection_mode = "single"
         self.__block_selected_changed = False
 
-    def close(self):
+    def close(self) -> None:
         self.__item_model_controller = None
         self.on_key_pressed = None
         self.on_tree_selection_changed = None
@@ -1683,7 +1683,7 @@ class QtAction(UserInterface.MenuAction):
         self.native_action = native_action  # action is not connected since native_action will not by PyAction
         self.__title = None
 
-    def close(self):
+    def close(self) -> None:
         self.proxy = None
         self.native_action = None
         super().close()
@@ -1732,7 +1732,7 @@ class QtMenu(UserInterface.Menu):
         self.native_menu = native_menu
         self.proxy.Menu_connect(self.native_menu, self)
 
-    def close(self):
+    def close(self) -> None:
         # what looks like a bug in Qt 5.13 - aboutToHide is called twice. watch for that here.
         # seen in PySide2 and Qt native. reproduce by right clicking context menu and not choosing anything.
         if self.native_menu:
@@ -1794,7 +1794,7 @@ class QtWindow(UserInterface.Window):
         self.native_document_window = self.proxy.DocumentWindow_create(parent_native, title)
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
 
-    def close(self):
+    def close(self) -> None:
         # this is a callback and should not be invoked directly from Python;
         # call request_close instead.
         assert self.native_document_window is not None
@@ -1819,7 +1819,7 @@ class QtWindow(UserInterface.Window):
             return None
         return match_native_widget(self.root_widget)
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         selected_filter = selected_filter if selected_filter else str()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(self.native_document_window, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory
@@ -1967,7 +1967,7 @@ class QtDockWidget(UserInterface.DockWidget):
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
         self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.native_dock_widget)
 
-    def close(self):
+    def close(self) -> None:
         # close the child widgets before remove dock widget.
         super().close()
         # this must go after close since remove dock widget will delete all of the widgets.
@@ -2019,7 +2019,7 @@ class QtUserInterface(UserInterface.UserInterface):
         self.persistence_handler: typing.Optional[UserInterface.PersistenceHandler] = None
         self.proxy.Core_syncLatencyTimer(time.perf_counter())
 
-    def close(self):
+    def close(self) -> None:
         self.proxy.Application_close()
         self.proxy = None
 
@@ -2121,7 +2121,7 @@ class QtUserInterface(UserInterface.UserInterface):
         existing_directory, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "directory", notnone(title), notnone(directory), str(), str())
         return existing_directory, directory
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         selected_filter = selected_filter if selected_filter else str()
         file_paths, filter, directory = self.proxy.DocumentWindow_getFilePath(None, "loadmany", notnone(title), notnone(directory), notnone(filter), notnone(selected_filter))
         return file_paths, filter, directory

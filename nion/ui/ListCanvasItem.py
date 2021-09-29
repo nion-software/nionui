@@ -22,7 +22,21 @@ from nion.utils import Event
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
+    from nion.ui import DrawingContext
     from nion.utils import Selection
+
+
+class ListCanvasItemDelegate(typing.Protocol):
+    items: typing.Sequence[typing.Any]
+    on_item_selected: typing.Optional[typing.Callable[[int], None]]
+    on_cancel: typing.Optional[typing.Callable[[], None]]
+
+    @property
+    def item_count(self) -> int: raise NotImplementedError()
+
+    def key_pressed(self, key: UserInterface.Key) -> bool: ...
+    def item_selected(self, index: int) -> bool: ...
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None: ...
 
 
 class ListCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -43,7 +57,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
 
-    def __init__(self, delegate, selection: Selection.IndexedSelection, item_height: int = 80):
+    def __init__(self, delegate: ListCanvasItemDelegate, selection: Selection.IndexedSelection, item_height: int = 80) -> None:
         super().__init__()
         # store parameters
         self.__delegate = delegate
@@ -69,7 +83,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         super().close()
 
     def detach_delegate(self) -> None:
-        self.__delegate = None
+        self.__delegate = typing.cast(typing.Any, None)
 
     def update_layout(self, canvas_origin, canvas_size, *, immediate=False):
         """Override from abstract canvas item.
@@ -92,7 +106,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         mouse_index = y // self.__item_height
         if mouse_index >= 0 and mouse_index < max_index:
             if self.__delegate and hasattr(self.__delegate, "item_tool_tip"):
-                text = self.__delegate.item_tool_tip(mouse_index)
+                text = getattr(self.__delegate, "item_tool_tip")(mouse_index)
                 if text:
                     self.show_tool_tip_text(text, gx, gy)
                     return True
@@ -272,7 +286,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                     else:
                         pass  # do nothing. maybe a use case will pop up where this should do something?
 
-    def make_selection_visible(self):
+    def make_selection_visible(self) -> None:
         self.__make_selection_visible(-1)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:

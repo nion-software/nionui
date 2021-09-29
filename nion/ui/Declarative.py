@@ -1419,7 +1419,7 @@ def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handle
         # this will be called from the delegate when the delegate gets a context menu event.
         # the call is passed on to the widget on_item_handle_context_menu function.
         if callable(widget.on_item_handle_context_menu):
-            return typing.cast(bool, widget.on_item_handle_context_menu(*args, **kwargs))
+            return widget.on_item_handle_context_menu(*args, **kwargs)
         return False
 
     list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
@@ -1766,7 +1766,8 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
 
 class ComponentWidget(Widgets.CompositeWidgetBase):
     def __init__(self, ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike) -> None:
-        super().__init__(ui.create_column_widget())
+        self.__column_widget = ui.create_column_widget()
+        super().__init__(self.__column_widget)
         self.ui = ui
         self.__window = window
         self.__handler = handler
@@ -1800,7 +1801,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         if self.__component_handler:
             self.__getattr(handler, "_closer").pop_closeable(self.__component_handler)
         self.__component_handler = None
-        self.content_widget.remove_all()
+        self.__column_widget.remove_all()
         window = self.__window
         handler = self.__handler
         identifier = self.__identifier
@@ -1851,7 +1852,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
                 connect_event(widget, component_handler, d, handler, event["event"], event["parameters"])
             if handler:
                 connect_attributes(widget, d, handler, finishes)
-            self.content_widget.add(widget)
+            self.__column_widget.add(widget)
         for finish in finishes:
             finish()
 
@@ -1881,7 +1882,8 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
     """A widget containing a declarative ui handler."""
 
     def __init__(self, ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop, ui_handler: HandlerLike) -> None:
-        super().__init__(ui.create_stack_widget())
+        stack_widget = ui.create_stack_widget()
+        super().__init__(stack_widget)
 
         # create a top level closer. for each object added to a closer, the closer will
         # call close (if it exists) and then close the object's _closer (if it exists).
@@ -1899,7 +1901,7 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
 
         finishes: _FinishesListType = list()
         widget = construct(ui, typing.cast(Window.Window, DummyWindow()), getattr(ui_handler, "ui_view"), ui_handler, finishes)
-        self.content_widget.add(widget)
+        stack_widget.add(widget)
         for finish in finishes:
             finish()
         setattr(ui_handler, "_event_loop", event_loop)

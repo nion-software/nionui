@@ -185,7 +185,7 @@ class MenuItem(UserInterfaceModule.MenuAction):
         self.is_separator = is_separator
         self.__checked = checked
         self.__enabled = True
-    def close(self):
+    def close(self) -> None:
         self.callback = None
         super().close()
     @property
@@ -252,7 +252,7 @@ class ItemModelController:
     def __init__(self) -> None:
         self.__next_id = 0
         self.root = self.create_item()
-    def close(self):
+    def close(self) -> None:
         pass
     def create_item(self, data=None):
         item = ItemModelController.Item(data)
@@ -310,7 +310,7 @@ class ListModelController:
     DROP = 1
     def __init__(self) -> None:
         self.model: typing.List[typing.Any] = []
-    def close(self):
+    def close(self) -> None:
         pass
     def begin_insert(self, first_row, last_row):
         pass
@@ -416,7 +416,7 @@ class ButtonGroup:
     def __init__(self) -> None:
         self.on_button_clicked = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_button_clicked = None
 
     def add_button(self, radio_button, button_id):
@@ -457,7 +457,7 @@ class WidgetBehavior:
         self.widget.on_size_changed = self._size_changed
         self.does_retain_focus = False
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
-        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self._no_focus = "no_focus"
@@ -528,7 +528,7 @@ class NullBehavior:
         self.size = Geometry.IntSize()
         self.tool_tip: typing.Optional[str] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
-        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
 
     def close(self) -> None:
@@ -685,7 +685,7 @@ class ScrollAreaWidgetBehavior(WidgetBehavior):
         self.on_size_changed = None
         self.on_viewport_changed = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_size_changed = None
         self.on_viewport_changed = None
         super().close()
@@ -718,7 +718,7 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
         self.current_index = 0
         self.item_strings: typing.List[str] = list()
 
-    def close(self):
+    def close(self) -> None:
         self.on_current_text_changed = None
         super().close()
 
@@ -795,7 +795,7 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
         self.__focusable = False
 
-    def close(self):
+    def close(self) -> None:
         self.on_mouse_entered = None
         self.on_mouse_exited = None
         self.on_mouse_clicked = None
@@ -874,7 +874,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
         self.editable = True
         self.clear_button_enabled = False
 
-    def close(self):
+    def close(self) -> None:
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
@@ -913,7 +913,7 @@ class TextEditWidgetBehavior(WidgetBehavior):
         self.editable = True
         self.word_wrap_mode = None
 
-    def close(self):
+    def close(self) -> None:
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
@@ -1078,7 +1078,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         self.popup_pos = None
         self._font_metrics = make_font_metrics_for_tests()
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     def run(self, app: Application.BaseApplication) -> None:
@@ -1174,7 +1174,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_existing_directory_dialog(self, title, directory):
         return directory, directory
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: str=None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
     def get_file_path_dialog(self, title, directory, filter, selected_filter=None):

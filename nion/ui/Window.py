@@ -21,7 +21,6 @@ from nion.ui import DrawingContext
 from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
-    import numpy
     from nion.ui import Application
 
 
@@ -484,13 +483,16 @@ class Window:
     def title(self, value: str) -> None:
         self.__document_window.title = value
 
-    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str,
+                              selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_paths_dialog(title, directory, filter, selected_filter)
 
-    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+    def get_file_path_dialog(self, title: str, directory: str, filter: str,
+                             selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__document_window.get_file_path_dialog(title, directory, filter, selected_filter)
 
-    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
+    def get_save_file_path(self, title: str, directory: str, filter: str,
+                           selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         return self.__document_window.get_save_file_path(title, directory, filter, selected_filter)
 
     def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str,

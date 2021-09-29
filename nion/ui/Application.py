@@ -249,10 +249,6 @@ def make_ui(bootstrap_args: typing.Mapping[str, typing.Any]) -> UserInterface.Us
         from nion.ui import QtUserInterface
         from nion.ui import PyQtProxy
         return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())
-    # elif "server" in bootstrap_args:
-    #     from nion.ui import CanvasUI
-    #     server = bootstrap_args["server"]
-    #     return CanvasUI.CanvasUserInterface(server.draw, server.get_font_metrics)
     raise Exception("Unable to create user interface object.")
 
 

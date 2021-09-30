@@ -38,7 +38,7 @@ FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent"
 MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
 
 
-class KeyboardModifiers(abc.ABC):
+class KeyboardModifiers(typing.Protocol):
 
     def __str__(self) -> str:
         return "shift:{} control:{} alt:{} option:{} meta:{}".format(self.shift, self.control, self.alt, self.option, self.meta)
@@ -120,7 +120,7 @@ class KeyboardModifiers(abc.ABC):
         ...
 
 
-class Key(abc.ABC):
+class Key(typing.Protocol):
 
     @property
     @abc.abstractmethod
@@ -129,7 +129,7 @@ class Key(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def key(self) -> str:
+    def key(self) -> int:
         ...
 
     @property
@@ -1175,7 +1175,7 @@ class ComboBoxWidgetBehavior(WidgetBehavior, typing.Protocol):
 
 class ComboBoxWidget(Widget):
 
-    def __init__(self, widget_behavior: ComboBoxWidgetBehavior, items: typing.List[typing.Any], item_getter: typing.Callable[[typing.Any], str]) -> None:
+    def __init__(self, widget_behavior: ComboBoxWidgetBehavior, items: typing.Sequence[typing.Any], item_getter: typing.Callable[[typing.Any], str]) -> None:
         super().__init__(widget_behavior)
         self.__items : typing.List[typing.Any] = list()
         self.on_items_changed : typing.Optional[typing.Callable[[typing.Sequence[typing.Any]], None]] = None
@@ -1183,7 +1183,7 @@ class ComboBoxWidget(Widget):
         self.on_current_item_changed : typing.Optional[typing.Callable[[typing.Any], None]] = None
         self.on_current_index_changed : typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.item_getter = item_getter
-        self.items = items if items else list()
+        self.items = list(items) if items else list()
         self.__current_item_binding: typing.Optional[Binding.Binding] = None
         self.__items_binding: typing.Optional[Binding.Binding] = None
 
@@ -1249,7 +1249,7 @@ class ComboBoxWidget(Widget):
         self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
 
     @property
-    def items(self) -> typing.List[typing.Any]:
+    def items(self) -> typing.Sequence[typing.Any]:
         return self.__items
 
     @items.setter
@@ -1882,7 +1882,10 @@ class SliderWidgetBehavior(WidgetBehavior, typing.Protocol):
     value: int
     minimum: int
     maximum: int
-    pressed: bool
+
+    @property
+    def pressed(self) -> bool: raise NotImplementedError()
+
     on_value_changed: typing.Optional[typing.Callable[[int], None]]
     on_slider_pressed: typing.Optional[typing.Callable[[], None]]
     on_slider_released: typing.Optional[typing.Callable[[], None]]
@@ -3673,7 +3676,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_item_model_controller(self) -> None:
+    def create_item_model_controller(self) -> typing.Any:
         ...
 
     @abc.abstractmethod

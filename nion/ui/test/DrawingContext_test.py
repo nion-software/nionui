@@ -11,13 +11,13 @@ from nion.utils import Geometry
 
 class TestImageClass(unittest.TestCase):
 
-    def setUp(self):
+    def setUp(self) -> None:
         pass
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         pass
 
-    def test_draw_data_with_color_table(self):
+    def test_draw_data_with_color_table(self) -> None:
         dc = DrawingContext.DrawingContext()
         data = numpy.zeros((4, 4), numpy.float32)
         color_map_data = numpy.zeros((256, ), numpy.uint32)

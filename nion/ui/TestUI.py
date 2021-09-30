@@ -21,17 +21,17 @@ if typing.TYPE_CHECKING:
     from . import Window
 
 
-focused_widget = None  # simulate focus handling at the widget level
+focused_widget: typing.Optional[WidgetBehavior] = None  # simulate focus handling at the widget level
 
 
 class TestFontMetrics:
     def __init__(self,
-                 display_scaling: int,
+                 display_scaling: float,
                  font_metrics_height: int,
                  font_metrics_ascent: int,
                  font_metrics_descent: int,
                  font_metrics_leading: int,
-                 font_width_and_chars: typing.Iterable[typing.Tuple[int, str]],
+                 font_width_and_chars: typing.Dict[int, str],
                  default_char_width: int):
         """
         :param font_width_and_chars: iterator over `(width, chars)` where `chars` is the string consisting
@@ -53,7 +53,7 @@ class TestFontMetrics:
         self._default_char_width = default_char_width
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
-        def get_char_width(c):
+        def get_char_width(c: str) -> int:
             return self._font_width_by_char.get(c, self._default_char_width)
 
         var_text_width = int(round(sum(map(get_char_width, text))))
@@ -122,7 +122,7 @@ def calculate_font_metric_info_for_tests(font_str: str, display_scaling: float) 
     return test_font_metrics_str
 
 
-def make_font_metrics_for_tests():
+def make_font_metrics_for_tests() -> TestFontMetrics:
     """
     The body came from running the following in a NionSwift console on a Mac:
 
@@ -152,30 +152,32 @@ def make_font_metrics_for_tests():
 
 
 class MimeData(UserInterfaceModule.MimeData):
-    def __init__(self, mime_data=None):
-        self.mime_data = dict() if mime_data is None else mime_data
+    def __init__(self, mime_data: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
+        self.mime_data = dict() if mime_data is None else dict(mime_data)
 
     @property
-    def formats(self):
+    def formats(self) -> typing.Sequence[str]:
         return list(self.mime_data.keys())
 
     @property
-    def file_paths(self):
+    def file_paths(self) -> typing.Sequence[str]:
         urls = self.urls
         file_paths = []
         for url in urls:
             file_paths.append(url)
         return file_paths
 
-    def data_as_string(self, format):
+    def data_as_string(self, format: str) -> str:
         return str(self.mime_data.get(format))
 
-    def set_data_as_string(self, format, text):
+    def set_data_as_string(self, format: str, text: str) -> None:
         self.mime_data[format] = text
 
 
 class MenuItem(UserInterfaceModule.MenuAction):
-    def __init__(self, title, action_id, callback, key_sequence, role, menu, is_separator, checked):
+    def __init__(self, title: str, action_id: str, callback: typing.Optional[typing.Callable[[], None]],
+                 key_sequence: typing.Optional[str], role: typing.Optional[str],
+                 menu: typing.Optional[UserInterfaceModule.Menu], is_separator: bool, checked: bool) -> None:
         super().__init__(action_id)
         self.__title = title
         self.callback = callback
@@ -185,44 +187,57 @@ class MenuItem(UserInterfaceModule.MenuAction):
         self.is_separator = is_separator
         self.__checked = checked
         self.__enabled = True
+
     def close(self) -> None:
         self.callback = None
         super().close()
+
     @property
-    def title(self):
-        return self.__title
+    def title(self) -> str:
+        return self.__title or str()
+
     @title.setter
-    def title(self, value):
+    def title(self, value: str) -> None:
         self.__title = value
+
     @property
-    def checked(self):
+    def checked(self) -> bool:
         return self.__checked
+
     @checked.setter
-    def checked(self, value):
-        self.__checked = value
+    def checked(self, checked: bool) -> None:
+        self.__checked = checked
+
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return self.__enabled
+
     @enabled.setter
-    def enabled(self, value):
-        self.__enabled = value
+    def enabled(self, enabled: bool) -> None:
+        self.__enabled = enabled
 
 
 class Menu(UserInterfaceModule.Menu):
-    def __init__(self, document_window, title=None, menu_id=None):
-        super().__init__(document_window, title, menu_id)
-        self.on_popup = None
-    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None, role: typing.Optional[str] = None, action_id: typing.Optional[str] = None) -> UserInterfaceModule.MenuAction:
-        menu_item = MenuItem(title, action_id, callback, key_sequence, role, None, False, False)
+    def __init__(self, document_window: UserInterfaceModule.Window, title: typing.Optional[str] = None,
+                 menu_id: typing.Optional[str] = None) -> None:
+        super().__init__(document_window, title or str(), menu_id or str())
+        self.on_popup: typing.Optional[typing.Callable[[UserInterfaceModule.Menu, int, int], None]] = None
+
+    def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None,
+                      role: typing.Optional[str] = None,
+                      action_id: typing.Optional[str] = None) -> UserInterfaceModule.MenuAction:
+        menu_item = MenuItem(title, action_id or str(), callback, key_sequence, role, None, False, False)
         self._item_added(action=menu_item)
         return menu_item
-    def add_sub_menu(self, title, menu, menu_id = None):
-        menu_item = MenuItem(title, menu_id, None, None, None, menu, False, False)
+
+    def add_sub_menu(self, title: str, menu: UserInterfaceModule.Menu) -> None:
+        menu_item = MenuItem(title, str(), None, None, None, menu, False, False)
         self._item_added(sub_menu=menu_item.menu)
-        return menu_item
-    def add_separator(self):
+
+    def add_separator(self) -> None:
         self._item_added(is_separator=True)
-    def popup(self, gx, gy):
+
+    def popup(self, gx: int, gy: int) -> None:
         if self.on_popup:
             self.on_popup(self, gx, gy)
 
@@ -230,69 +245,92 @@ class Menu(UserInterfaceModule.Menu):
 class ItemModelController:
     DRAG = 0
     DROP = 1
+
     class Item:
-        def __init__(self, data=None):
-            self.children = []
-            self.parent = None
-            self.id = None
+        def __init__(self, data: typing.Any = None) -> None:
+            self.children: typing.List[ItemModelController.Item] = list()
+            self.parent: typing.Optional[ItemModelController.Item] = None
+            self.id: typing.Optional[int] = None
             self.data = data if data else {}
-        def insert_child(self, before_index, item):
+
+        def insert_child(self, before_index: int, item: ItemModelController.Item) -> None:
             item.parent = self
             self.children.insert(before_index, item)
-        def remove_child(self, item):
+
+        def remove_child(self, item: ItemModelController.Item) -> None:
             item.parent = None
             self.children.remove(item)
-        def child(self, index):
+
+        def child(self, index: int) -> ItemModelController.Item:
             return self.children[index]
+
         @property
-        def row(self):
+        def row(self) -> int:
             if self.parent:
                 return self.parent.children.index(self)
             return -1
+
     def __init__(self) -> None:
         self.__next_id = 0
         self.root = self.create_item()
+
     def close(self) -> None:
         pass
-    def create_item(self, data=None):
+
+    def create_item(self, data: typing.Any = None) -> ItemModelController.Item:
         item = ItemModelController.Item(data)
         item.id = self.__next_id
         self.__next_id = self.__next_id + 1
         return item
-    def item_from_id(self, item_id, parent=None):
+
+    def item_from_id(self, item_id: typing.Optional[int], parent: typing.Optional[ItemModelController.Item] = None) -> typing.Optional[ItemModelController.Item]:
         item = []  # nonlocal in Python 3.1+
-        def fn(parent, index, child):
+
+        def fn(parent: typing.Optional[ItemModelController.Item], index: typing.Optional[int],
+               child: ItemModelController.Item) -> bool:
             if child.id == item_id:
                 item.append(child)
                 return True
+            return False
+
         self.traverse(fn)
         return item[0] if item else None
-    def __item_id(self, index, parent_id):
+
+    def __item_id(self, index: int, parent_id: int) -> typing.Optional[int]:
         parent = self.item_from_id(parent_id)
         assert parent is not None
         if index >= 0 and index < len(parent.children):
             return parent.children[index].id
         return 0  # invalid id
-    def item_value_for_item_id(self, role, index, item_id):
+
+    def item_value_for_item_id(self, role: str, index: int, item_id: typing.Optional[int]) -> typing.Any:
         child = self.item_from_id(item_id)
         if role == "index":
             return index
-        if role in child.data:
+        if child and role in child.data:
             return child.data[role]
         return None
-    def item_value(self, role, index, parent_id):
+
+    def item_value(self, role: str, index: int, parent_id: int) -> typing.Any:
         return self.item_value_for_item_id(role, index, self.__item_id(index, parent_id))
-    def begin_insert(self, first_row, last_row, parent_row, parent_id):
+
+    def begin_insert(self, first_row: int, last_row: int, parent_row: int, parent_id: int) -> None:
         pass
-    def end_insert(self):
+
+    def end_insert(self) -> None:
         pass
-    def begin_remove(self, first_row, last_row, parent_row, parent_id):
+
+    def begin_remove(self, first_row: int, last_row: int, parent_row: int, parent_id: int) -> None:
         pass
-    def end_remove(self):
+
+    def end_remove(self) -> None:
         pass
-    def data_changed(self, row, parent_row, parent_id):
+
+    def data_changed(self, row: int, parent_row: int, parent_id: int) -> None:
         pass
-    def traverse_depth_first(self, fn, parent):
+
+    def traverse_depth_first(self, fn: typing.Callable[[typing.Optional[ItemModelController.Item], typing.Optional[int], ItemModelController.Item], bool],
+                             parent: ItemModelController.Item) -> bool:
         real_parent = parent if parent else self.root
         for index, child in enumerate(real_parent.children):
             if self.traverse_depth_first(fn, child):
@@ -300,7 +338,8 @@ class ItemModelController:
             if fn(parent, index, child):
                 return True
         return False
-    def traverse(self, fn):
+
+    def traverse(self, fn: typing.Callable[[typing.Optional[ItemModelController.Item], typing.Optional[int], ItemModelController.Item], bool]) -> None:
         if not fn(None, 0, self.root):
             self.traverse_depth_first(fn, self.root)
 
@@ -308,24 +347,31 @@ class ItemModelController:
 class ListModelController:
     DRAG = 0
     DROP = 1
+
     def __init__(self) -> None:
         self.model: typing.List[typing.Any] = []
+
     def close(self) -> None:
         pass
-    def begin_insert(self, first_row, last_row):
+
+    def begin_insert(self, first_row: int, last_row: int) -> None:
         pass
-    def end_insert(self):
+
+    def end_insert(self) -> None:
         pass
-    def begin_remove(self, first_row, last_row):
+
+    def begin_remove(self, first_row: int, last_row: int) -> None:
         pass
-    def end_remove(self):
+
+    def end_remove(self) -> None:
         pass
-    def data_changed(self):
+
+    def data_changed(self) -> None:
         pass
 
 
 class Key(UserInterfaceModule.Key):
-    def __init__(self, text, key, modifiers):
+    def __init__(self, text: str, key: str, modifiers: UserInterfaceModule.KeyboardModifiers) -> None:
         self.__text = text
         self.__key = key
         self.__modifiers = modifiers if modifiers else CanvasItem.KeyboardModifiers()
@@ -335,113 +381,113 @@ class Key(UserInterfaceModule.Key):
         return self.__text
 
     @property
-    def key(self) -> str:
-        return self.__key
+    def key(self) -> int:
+        return 0
 
     @property
     def modifiers(self) -> UserInterfaceModule.KeyboardModifiers:
         return self.__modifiers
 
     @property
-    def is_delete(self):
-        return self.key == "delete"
+    def is_delete(self) -> bool:
+        return self.__key == "delete"
 
     @property
-    def is_enter_or_return(self):
-        return self.key == "enter" or self.key == "return"
+    def is_enter_or_return(self) -> bool:
+        return self.__key == "enter" or self.__key == "return"
 
     @property
-    def is_tab(self):
-        return self.key == "tab"
+    def is_tab(self) -> bool:
+        return self.__key == "tab"
 
     @property
-    def is_arrow(self):
+    def is_arrow(self) -> bool:
         return self.is_left_arrow or self.is_up_arrow or self.is_right_arrow or self.is_down_arrow
 
     @property
-    def is_left_arrow(self):
-        return self.key == "left"
+    def is_left_arrow(self) -> bool:
+        return self.__key == "left"
 
     @property
-    def is_up_arrow(self):
-        return self.key == "up"
+    def is_up_arrow(self) -> bool:
+        return self.__key == "up"
 
     @property
-    def is_right_arrow(self):
-        return self.key == "right"
+    def is_right_arrow(self) -> bool:
+        return self.__key == "right"
 
     @property
-    def is_down_arrow(self):
-        return self.key == "down"
+    def is_down_arrow(self) -> bool:
+        return self.__key == "down"
 
     @property
-    def is_delete_to_end_of_line(self):
-        return self.key == "delete_to_end_of_line"
+    def is_delete_to_end_of_line(self) -> bool:
+        return self.__key == "delete_to_end_of_line"
 
     @property
-    def is_end(self):
-        return self.key == "end"
+    def is_end(self) -> bool:
+        return self.__key == "end"
 
     @property
-    def is_escape(self):
-        return self.key == "escape"
+    def is_escape(self) -> bool:
+        return self.__key == "escape"
 
     @property
-    def is_home(self):
-        return self.key == "home"
+    def is_home(self) -> bool:
+        return self.__key == "home"
 
     @property
-    def is_insert(self):
-        return self.key == "insert"
+    def is_insert(self) -> bool:
+        return self.__key == "insert"
 
     @property
-    def is_move_to_end_of_line(self):
-        return self.key == "end_of_line"
+    def is_move_to_end_of_line(self) -> bool:
+        return self.__key == "end_of_line"
 
     @property
-    def is_move_to_start_of_line(self):
-        return self.key == "start_of_line"
+    def is_move_to_start_of_line(self) -> bool:
+        return self.__key == "start_of_line"
 
     @property
-    def is_page_down(self):
-        return self.key == "page_down"
+    def is_page_down(self) -> bool:
+        return self.__key == "page_down"
 
     @property
-    def is_page_up(self):
-        return self.key == "page_up"
+    def is_page_up(self) -> bool:
+        return self.__key == "page_up"
 
 
 class ButtonGroup:
 
     def __init__(self) -> None:
-        self.on_button_clicked = None
+        self.on_button_clicked: typing.Optional[typing.Callable[[str], None]] = None
 
     def close(self) -> None:
         self.on_button_clicked = None
 
-    def add_button(self, radio_button, button_id):
+    def add_button(self, radio_button: UserInterfaceModule.RadioButtonWidget, button_id: str) -> None:
         pass
 
-    def remove_button(self, radio_button):
+    def remove_button(self, radio_button: UserInterfaceModule.RadioButtonWidget) -> None:
         pass
 
-    def clicked(self, button_id):
+    def clicked(self, button_id: str) -> None:
         if self.on_button_clicked:
             self.on_button_clicked(button_id)
 
 
 class Widget:
 
-    def __init__(self, widget_type: str):
+    def __init__(self, widget_type: str) -> None:
         self.widget_type = widget_type
         self.children: typing.List[Widget] = list()
-        self.size: typing.Optional[int] = None
-        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
+        self.size: typing.Optional[Geometry.IntSize] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[typing.Optional[Geometry.IntSize]], None]] = None
 
     def close(self) -> None:
         self.children = typing.cast(typing.List[Widget], None)
 
-    def size_changed(self, size) -> None:
+    def size_changed(self, size: typing.Optional[Geometry.IntSize]) -> None:
         if size != self.size:
             self.size = size
             if callable(self.on_size_changed):
@@ -452,7 +498,7 @@ class Widget:
 
 class WidgetBehavior:
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         self.widget = Widget(widget_type)
         self.widget.on_size_changed = self._size_changed
         self.does_retain_focus = False
@@ -467,8 +513,8 @@ class WidgetBehavior:
         self.size: Geometry.IntSize = Geometry.IntSize()
         self.tool_tip: typing.Optional[str] = None
         self.children: typing.List[Widget] = list()
-        self.content = None
-        self.canvas_item = None
+        self.content: typing.Optional[UserInterfaceModule.Widget] = None
+        self.canvas_item: typing.Optional[CanvasItem.AbstractCanvasItem] = None
 
     def close(self) -> None:
         if callable(getattr(self.widget, "close", None)):
@@ -481,10 +527,10 @@ class WidgetBehavior:
         self.content = None
         self.canvas_item = None
 
-    def _set_root_container(self, root_container):
+    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
         pass
 
-    def _register_ui_activity(self):
+    def _register_ui_activity(self) -> None:
         pass
 
     @property
@@ -503,13 +549,13 @@ class WidgetBehavior:
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
 
-    def set_property(self, key: str, value) -> None:
+    def set_property(self, key: str, value: typing.Any) -> None:
         pass
 
-    def _size_changed(self, size: Geometry.IntSize) -> None:
+    def _size_changed(self, size: typing.Optional[Geometry.IntSize]) -> None:
         pass
 
-    def map_to_global(self, p):
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return p
 
     def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
@@ -562,12 +608,12 @@ class BoxSpacing(UserInterfaceModule.Widget):
         self.spacing = spacing
 
 
-def extract_widget(widget: UserInterfaceModule.Widget) -> typing.Optional[Widget]:
+def extract_widget(widget: typing.Optional[UserInterfaceModule.Widget]) -> typing.Optional[Widget]:
     content_widget = getattr(widget, "content_widget", None)
     if content_widget:
         return extract_widget(content_widget)
     elif hasattr(widget, "_behavior"):
-        return getattr(widget._behavior, "widget")
+        return typing.cast(typing.Optional[Widget], getattr(getattr(widget, "_behavior"), "widget"))
     return None
 
 
@@ -579,7 +625,8 @@ class WidgetItemType(enum.Enum):
 
 class WidgetItem:
 
-    def __init__(self, type: WidgetItemType, *, widget=None, fill: bool = False, alignment: typing.Optional[str] = None, spacing: int = 0):
+    def __init__(self, type: WidgetItemType, *, widget: typing.Optional[Widget] = None, fill: bool = False,
+                 alignment: typing.Optional[str] = None, spacing: int = 0) -> None:
         self.type = type
         self.widget = widget
         self.fill = fill
@@ -589,7 +636,7 @@ class WidgetItem:
 
 class BoxWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.__widgets: typing.List[WidgetItem] = list()
 
@@ -619,7 +666,7 @@ class BoxWidgetBehavior(WidgetBehavior):
 
 class SplitterWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
@@ -636,20 +683,27 @@ class SplitterWidgetBehavior(WidgetBehavior):
     def save_state(self, tag: str) -> None:
         pass
 
-    def set_sizes(self, sizes: typing.Sequence[int]) -> None:
-        for child, size in zip(self.widget.children, sizes):
-            child.size = size
-
 
 class TabWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.current_index = 0
+        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+
+    def add(self, child: UserInterfaceModule.Widget, label: str) -> None:
+        pass
+
+    def restore_state(self, tag: str) -> None:
+        pass
+
+    def save_state(self, tag: str) -> None:
+        pass
 
 
 class StackWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.current_index = -1
 
@@ -659,7 +713,7 @@ class StackWidgetBehavior(WidgetBehavior):
         assert child_widget is not None
         index = index if index is not None else len(self.widget.children)
         self.widget.children.insert(index, child_widget)
-        child_widget.size_changed(self.widget.size)
+        child_widget.size_changed(self.widget.size or Geometry.IntSize())
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
         child_widget = extract_widget(child)
@@ -674,47 +728,57 @@ class StackWidgetBehavior(WidgetBehavior):
 
 class GroupWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.title: typing.Optional[str] = None
+
+    def add(self, child: UserInterfaceModule.Widget) -> None:
+        pass
+
+    def remove(self, child: UserInterfaceModule.Widget) -> None:
+        pass
 
 
 class ScrollAreaWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
-        self.on_size_changed = None
-        self.on_viewport_changed = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
+        self.on_viewport_changed: typing.Optional[typing.Callable[[Geometry.RectIntTuple], None]] = None
 
     def close(self) -> None:
         self.on_size_changed = None
         self.on_viewport_changed = None
         super().close()
 
-    def set_content(self, content: UserInterfaceModule.Widget) -> None:
+    def set_content(self, content: typing.Optional[UserInterfaceModule.Widget]) -> None:
         assert not self.widget.children
         child_widget = extract_widget(content)
         assert child_widget
         self.widget.children.append(child_widget)
-        child_widget.size_changed(self.widget.size)
+        child_widget.size_changed(self.widget.size or Geometry.IntSize())
 
     # called from widget
-    def _size_changed(self, size: Geometry.IntSize) -> None:
+    def _size_changed(self, size: typing.Optional[Geometry.IntSize]) -> None:
         self._register_ui_activity()
-        if callable(self.on_size_changed):
+        if callable(self.on_size_changed) and size:
             self.on_size_changed(size.width, size.height)
 
-    def scroll_to(self, x, y):
+    def scroll_to(self, x: int, y: int) -> None:
         pass
 
-    def set_scrollbar_policies(self, horizontal_policy, vertical_policy):
+    def set_scrollbar_policies(self, horizontal_policy: str, vertical_policy: str) -> None:
+        pass
+
+    def info(self) -> None:
         pass
 
 
 class ComboBoxWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
-        self.on_current_text_changed = None
+        self.on_current_text_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.current_index = 0
         self.item_strings: typing.List[str] = list()
 
@@ -737,44 +801,67 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
 
 class PushButtonWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.text: typing.Optional[str] = None
+        self.icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
 
 class RadioButtonWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.text: typing.Optional[str] = None
+        self.icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.checked = False
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
 
 class CheckBoxWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.text: typing.Optional[str] = None
+        self.check_state = "checked"
+        self.tristate = False
+        self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
 
 
 class LabelWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.text: typing.Optional[str] = None
+        self.word_wrap = False
 
-    def set_text_color(self, color: str) -> None:
+    def set_text_color(self, color: typing.Optional[str]) -> None:
         pass
 
-    def set_text_font(self, font_str: str) -> None:
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
         pass
 
 
 class SliderWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.value = 0
+        self.minimum = 0
+        self.maximum = 100
+        self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_slider_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_released: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_moved: typing.Optional[typing.Callable[[int], None]] = None
+
+    @property
+    def pressed(self) -> bool:
+        return False
 
 
 class CanvasWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
         self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
@@ -816,21 +903,21 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.on_pan_gesture = None
         super().close()
 
-    def _set_canvas_item(self, canvas_item):
+    def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
         pass
 
-    def periodic(self):
+    def periodic(self) -> None:
         pass
 
     @property
-    def focusable(self):
+    def focusable(self) -> bool:
         return self.__focusable
 
     @focusable.setter
-    def focusable(self, focusable):
+    def focusable(self, focusable: bool) -> None:
         self.__focusable = focusable
 
-    def draw(self, drawing_context):
+    def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
         pass
 
     def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
@@ -839,19 +926,19 @@ class CanvasWidgetBehavior(WidgetBehavior):
     def remove_section(self, section_id: int) -> None:
         pass
 
-    def set_cursor_shape(self, cursor_shape):
+    def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         cursor_shape = cursor_shape or "arrow"
 
-    def grab_gesture(self, gesture_type):
+    def grab_gesture(self, gesture_type: str) -> None:
         pass
 
-    def release_gesture(self, gesture_type):
+    def release_gesture(self, gesture_type: str) -> None:
         pass
 
-    def grab_mouse(self, gx, gy):
+    def grab_mouse(self, gx: int, gy: int) -> None:
         pass
 
-    def release_mouse(self):
+    def release_mouse(self) -> None:
         pass
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
@@ -860,17 +947,17 @@ class CanvasWidgetBehavior(WidgetBehavior):
 
 class LineEditWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
-        self.on_editing_finished = None
-        self.on_escape_pressed = None
-        self.on_return_pressed = None
-        self.on_key_pressed = None
-        self.on_text_edited = None
+        self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
+        self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
         self.__clear_button_enabled = False
         self._no_focus = "click_focus"
-        self.text = str()
-        self.placeholder_text = str()
+        self.text: typing.Optional[str] = str()
+        self.placeholder_text: typing.Optional[str] = str()
         self.editable = True
         self.clear_button_enabled = False
 
@@ -882,7 +969,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
         super().close()
 
     @property
-    def selected_text(self) -> str:
+    def selected_text(self) -> typing.Optional[str]:
         return self.text
 
     def select_all(self) -> None:
@@ -896,22 +983,22 @@ class LineEditWidgetBehavior(WidgetBehavior):
 
 class TextEditWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
-        self.__word_wrap_mode = "optimal"
-        self.on_cursor_position_changed = None
-        self.on_selection_changed = None
-        self.on_text_changed = None
-        self.on_escape_pressed = None
-        self.on_return_pressed = None
-        self.on_key_pressed = None
-        self.on_insert_mime_data = None
+        self.on_cursor_position_changed: typing.Optional[typing.Callable[[UserInterfaceModule.CursorPosition], None]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[UserInterfaceModule.Selection], None]] = None
+        self.on_text_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_text_edited: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
+        self.on_insert_mime_data: typing.Optional[typing.Callable[[UserInterfaceModule.MimeData], None]] = None
         self._no_focus = "click_focus"
-        self.text = str()
-        self.selected_text = str()
-        self.placeholder = str()
+        self.text: typing.Optional[str] = str()
+        self.selected_text: typing.Optional[str] = str()
+        self.placeholder: typing.Optional[str] = str()
         self.editable = True
-        self.word_wrap_mode = None
+        self.word_wrap_mode = "optimal"
 
     def close(self) -> None:
         self.on_cursor_position_changed = None
@@ -932,10 +1019,16 @@ class TextEditWidgetBehavior(WidgetBehavior):
         return UserInterfaceModule.Selection(0, 0)
 
     def append_text(self, value: str) -> None:
-        self.text += value
+        if self.text:
+            self.text += value
+        else:
+            self.text = value
 
     def insert_text(self, value: str) -> None:
-        self.text += value
+        if self.text:
+            self.text += value
+        else:
+            self.text = value
 
     def clear_selection(self) -> None:
         pass
@@ -946,50 +1039,60 @@ class TextEditWidgetBehavior(WidgetBehavior):
     def select_all(self) -> None:
         pass
 
-    def move_cursor_position(self, operation, mode=None, n: int = 1) -> None:
+    def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
         pass
 
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
         pass
 
-    def set_text_background_color(self, color: str) -> None:
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
         pass
 
-    def set_text_color(self, color: str) -> None:
+    def set_text_color(self, color: typing.Optional[str]) -> None:
         pass
 
-    def set_text_font(self, font_str: str) -> None:
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
         pass
 
 
 class TreeWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, widget_type: str, properties: typing.Mapping):
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.selection_mode = str()
+        self.item_model_controller: typing.Any = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], UserInterfaceModule.Key], bool]] = None
+        self.on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]] = None
+        self.on_tree_item_changed: typing.Optional[typing.Callable[[int, int, int], None]] = None
+        self.on_tree_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
+        self.on_tree_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
+        self.on_tree_item_key_pressed: typing.Optional[typing.Callable[[int, int, int, UserInterfaceModule.Key], bool]] = None
 
-    def set_current_row(self, index, parent_row, parent_id):
+    def set_current_row(self, index: int, parent_row: int, parent_id: int) -> None:
         pass
 
-    def clear_current_row(self):
+    def clear_current_row(self) -> None:
         pass
 
-    def size_to_content(self):
+    def size_to_content(self) -> None:
         pass
 
 
-class DocumentWindowX(UserInterfaceModule.Window):
+class DocumentWindow(UserInterfaceModule.Window):
 
     def __init__(self, size: typing.Optional[Geometry.IntSize] = None):
         super().__init__(None, "title")
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
         self.__title: typing.Optional[str] = None
 
-    def request_close(self):
+    def request_close(self) -> None:
         if self.on_about_to_close:
             self.on_about_to_close(str(), str())
 
-    def _attach_root_widget(self, root_widget):
-        extract_widget(root_widget).size_changed(self.__size)
+    def _attach_root_widget(self, root_widget: typing.Optional[UserInterfaceModule.Widget]) -> None:
+        widget = extract_widget(root_widget)
+        if widget:
+            widget.size_changed(self.__size)
 
     def _set_title(self, value: str) -> None:
         self.__title = value
@@ -1019,49 +1122,51 @@ class DocumentWindowX(UserInterfaceModule.Window):
         dock_widget.size_changed(Geometry.IntSize(height=320, width=480))
         return dock_widget
 
-    def tabify_dock_widgets(self, dock_widget1, dock_widget2):
+    def tabify_dock_widgets(self, dock_widget1: UserInterfaceModule.DockWidget, dock_widget2: UserInterfaceModule.DockWidget) -> None:
         pass
 
-    def insert_menu(self, title: str, before_menu, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
+    def insert_menu(self, title: str, before_menu: UserInterfaceModule.Menu, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
         menu = Menu(self)
         self._menu_inserted(menu, before_menu)
         return menu
 
-    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> Menu:
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
         menu = Menu(self, menu_id)
         self._menu_added(menu)
         return menu
 
-    def show(self, size=None, position=None):
+    def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         pass
 
-    def restore(self, geometry, state):
+    def restore(self, geometry: str, state: str) -> None:
         pass
 
-    def _get_focus_widget(self):
-        global focused_widget
-        return focused_widget
+    def _get_focus_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:
+        return None
+        # wrong type. disabling.
+        # global focused_widget
+        # return focused_widget
 
 
 class DockWidget(UserInterfaceModule.DockWidget):
 
-    def __init__(self, window, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str):
+    def __init__(self, window: DocumentWindow, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> None:
         super().__init__(window, widget, panel_id, title, positions, position)
         self.visible = False
         self.__focus_policy = "no_focus"
         self.does_retain_focus = False
 
     @property
-    def toggle_action(self):
+    def toggle_action(self) -> UserInterfaceModule.MenuAction:
         action = UserInterfaceModule.MenuAction("toggle_dock_widget_" + self.panel_id)
         action.on_ui_activity = self._register_ui_activity
         return action
 
-    def show(self):
+    def show(self) -> None:
         self.visible = True
         self._register_ui_activity()
 
-    def hide(self):
+    def hide(self) -> None:
         self.visible = False
         self._register_ui_activity()
 
@@ -1074,8 +1179,8 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def __init__(self) -> None:
         CanvasItem._threaded_rendering_enabled = False
         self.clipboard: UserInterfaceModule.MimeData = MimeData()
-        self.popup = None
-        self.popup_pos = None
+        self.popup: typing.Optional[UserInterfaceModule.Menu] = None
+        self.popup_pos: typing.Optional[typing.Tuple[int, int]] = None
         self._font_metrics = make_font_metrics_for_tests()
 
     def close(self) -> None:
@@ -1095,129 +1200,129 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_mime_data(self) -> MimeData:
         return MimeData()
 
-    def create_item_model_controller(self):
+    def create_item_model_controller(self) -> typing.Any:
         return ItemModelController()
 
-    def create_button_group(self):
+    def create_button_group(self) -> ButtonGroup:
         return ButtonGroup()
 
     # window elements
 
-    def create_document_window(self, title=None, parent_window=None):
-        return DocumentWindowX()
+    def create_document_window(self, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterfaceModule.Window] = None) -> UserInterfaceModule.Window:
+        return DocumentWindow()
 
-    def destroy_document_window(self, document_window):
+    def destroy_document_window(self, document_window: UserInterfaceModule.Window) -> None:
         document_window.close()
 
-    def create_row_widget(self, alignment=None, properties=None):
+    def create_row_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.BoxWidget:
         return UserInterfaceModule.BoxWidget(BoxWidgetBehavior("row", properties), alignment)
 
-    def create_column_widget(self, alignment=None, properties=None):
+    def create_column_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.BoxWidget:
         return UserInterfaceModule.BoxWidget(BoxWidgetBehavior("column", properties), alignment)
 
-    def create_splitter_widget(self, orientation=None, properties=None):
+    def create_splitter_widget(self, orientation: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.SplitterWidget:
         return UserInterfaceModule.SplitterWidget(SplitterWidgetBehavior("splitter", properties), orientation)
 
-    def create_tab_widget(self, properties=None):
+    def create_tab_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.TabWidget:
         return UserInterfaceModule.TabWidget(TabWidgetBehavior("tab", properties))
 
-    def create_stack_widget(self, properties=None):
+    def create_stack_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.StackWidget:
         return UserInterfaceModule.StackWidget(StackWidgetBehavior("stack", properties))
 
-    def create_group_widget(self, properties=None):
+    def create_group_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.GroupWidget:
         return UserInterfaceModule.GroupWidget(GroupWidgetBehavior("group", properties))
 
-    def create_scroll_area_widget(self, properties=None):
+    def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.ScrollAreaWidget:
         return UserInterfaceModule.ScrollAreaWidget(ScrollAreaWidgetBehavior("scrollarea", properties))
 
-    def create_combo_box_widget(self, items=None, item_getter=None, properties=None):
-        return UserInterfaceModule.ComboBoxWidget(ComboBoxWidgetBehavior("combobox", properties), items, item_getter)
+    def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.ComboBoxWidget:
+        return UserInterfaceModule.ComboBoxWidget(ComboBoxWidgetBehavior("combobox", properties), items or list(), item_getter or (lambda x: str(x)))
 
-    def create_push_button_widget(self, text=None, properties=None):
+    def create_push_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.PushButtonWidget:
         return UserInterfaceModule.PushButtonWidget(PushButtonWidgetBehavior("pushbutton", properties), text)
 
-    def create_radio_button_widget(self, text=None, properties=None):
+    def create_radio_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.RadioButtonWidget:
         return UserInterfaceModule.RadioButtonWidget(RadioButtonWidgetBehavior("radiobutton", properties), text)
 
-    def create_check_box_widget(self, text=None, properties=None):
+    def create_check_box_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.CheckBoxWidget:
         return UserInterfaceModule.CheckBoxWidget(CheckBoxWidgetBehavior("checkbox", properties), text)
 
-    def create_label_widget(self, text=None, properties=None):
+    def create_label_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.LabelWidget:
         return UserInterfaceModule.LabelWidget(LabelWidgetBehavior("label", properties), text)
 
-    def create_slider_widget(self, properties=None):
+    def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.SliderWidget:
         return UserInterfaceModule.SliderWidget(SliderWidgetBehavior("slider", properties))
 
-    def create_progress_bar_widget(self, properties=None):
+    def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.ProgressBarWidget:
         return UserInterfaceModule.ProgressBarWidget(CanvasWidgetBehavior("canvas", properties))
 
-    def create_line_edit_widget(self, properties=None):
+    def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.LineEditWidget:
         return UserInterfaceModule.LineEditWidget(LineEditWidgetBehavior("lineedit", properties))
 
-    def create_text_edit_widget(self, properties=None):
+    def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.TextEditWidget:
         return UserInterfaceModule.TextEditWidget(TextEditWidgetBehavior("textedit", properties))
 
-    def create_canvas_widget(self, properties=None, *, layout_render: typing.Optional[str] = None):
+    def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> UserInterfaceModule.CanvasWidget:
         return UserInterfaceModule.CanvasWidget(CanvasWidgetBehavior("canvas", properties), layout_render=layout_render)
 
-    def create_tree_widget(self, properties=None):
+    def create_tree_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.TreeWidget:
         return UserInterfaceModule.TreeWidget(TreeWidgetBehavior("pytree", properties))
 
     # file i/o
 
-    def load_rgba_data_from_file(self, filename):
+    def load_rgba_data_from_file(self, filename: str) -> typing.Optional[DrawingContext.RGBA32Type]:
         return numpy.zeros((20,20), numpy.uint32)
 
-    def save_rgba_data_to_file(self, data, filename, format):
+    def save_rgba_data_to_file(self, data: DrawingContext.RGBA32Type, filename: str, format: typing.Optional[str]) -> None:
         pass
 
-    def get_existing_directory_dialog(self, title, directory):
+    def get_existing_directory_dialog(self, title: str, directory: str) -> typing.Tuple[str, str]:
         return directory, directory
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
-    def get_file_path_dialog(self, title, directory, filter, selected_filter=None):
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
-    def get_save_file_path(self, title, directory, filter, selected_filter=None):
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         raise NotImplementedError()
 
     # persistence (associated with application)
 
-    def get_data_location(self):
+    def get_data_location(self) -> str:
         return str()
 
-    def get_document_location(self):
+    def get_document_location(self) -> str:
         return str()
 
-    def get_temporary_location(self):
+    def get_temporary_location(self) -> str:
         return str()
 
-    def get_configuration_location(self):
+    def get_configuration_location(self) -> str:
         return str()
 
-    def set_persistence_handler(self, handler) -> None:
+    def set_persistence_handler(self, handler: UserInterfaceModule.PersistenceHandler) -> None:
         pass
 
-    def get_persistent_string(self, key, default_value=None):
+    def get_persistent_string(self, key: str, default_value: typing.Optional[str] = None) -> str:
+        return default_value or str()
+
+    def set_persistent_string(self, key: str, value: str) -> None:
+        pass
+
+    def get_persistent_object(self, key: str, default_value: typing.Optional[typing.Any] = None) -> typing.Any:
         return default_value
 
-    def set_persistent_string(self, key, value):
+    def set_persistent_object(self, key: str, value: typing.Optional[typing.Any]) -> None:
         pass
 
-    def get_persistent_object(self, key, default_value=None):
-        return default_value
-
-    def set_persistent_object(self, key, value):
-        pass
-
-    def remove_persistent_key(self, key):
+    def remove_persistent_key(self, key: str) -> None:
         pass
 
     # clipboard
 
-    def clipboard_clear(self):
+    def clipboard_clear(self) -> None:
         self.clipboard = MimeData()
 
     def clipboard_mime_data(self) -> UserInterfaceModule.MimeData:
@@ -1226,16 +1331,16 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def clipboard_set_mime_data(self, mime_data: UserInterfaceModule.MimeData) -> None:
         self.clipboard = mime_data
 
-    def clipboard_set_text(self, text):
+    def clipboard_set_text(self, text: str) -> None:
         self.clipboard = MimeData()
         self.clipboard.set_data_as_string('text', text)
 
-    def clipboard_text(self):
-        self.clipboard.data_as_string('text')
+    def clipboard_text(self) -> str:
+        return self.clipboard.data_as_string('text')
 
     # misc
 
-    def create_rgba_image(self, drawing_context, width, height):
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         return numpy.zeros((height, width), dtype=numpy.uint32)
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
@@ -1250,27 +1355,27 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_tolerance(self, tolerance_type: UserInterfaceModule.ToleranceType) -> float:
         return 5
 
-    def create_context_menu(self, document_window) -> UserInterfaceModule.Menu:
+    def create_context_menu(self, document_window: UserInterfaceModule.Window) -> UserInterfaceModule.Menu:
         menu = Menu(document_window)
-        def handle_popup(menu, gx, gy):
+        def handle_popup(menu: UserInterfaceModule.Menu, gx: int, gy: int) -> None:
             self.popup = menu
             self.popup_pos = gx, gy
         menu.on_popup = handle_popup
         return menu
 
-    def create_sub_menu(self, document_window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
+    def create_sub_menu(self, document_window: UserInterfaceModule.Window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
         return Menu(document_window, title)
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         return color
 
     def get_keyboard_modifiers(self, query: bool = False) -> UserInterfaceModule.KeyboardModifiers:
-        return typing.cast(UserInterfaceModule.KeyboardModifiers, CanvasItem.KeyboardModifiers())
+        return CanvasItem.KeyboardModifiers()
 
     # testing
 
-    def create_key_by_id(self, key_id: str, modifiers: CanvasItem.KeyboardModifiers = None) -> UserInterfaceModule.Key:
-        return Key(None, key_id, modifiers)
+    def create_key_by_id(self, key_id: str, modifiers: typing.Optional[CanvasItem.KeyboardModifiers] = None) -> UserInterfaceModule.Key:
+        return Key(str(), key_id, modifiers or CanvasItem.KeyboardModifiers())
 
     def create_modifiers_by_id_list(self, modifiers_id_list: typing.Sequence[str]) -> CanvasItem.KeyboardModifiers:
         shift = False

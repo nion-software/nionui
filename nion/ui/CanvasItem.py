@@ -631,6 +631,10 @@ class KeyboardModifiers:
     def only_keypad(self) -> bool:
         return self.__keypad
 
+    @property
+    def native_control(self) -> bool:
+        return self.control
+
 
 def visible_canvas_item(canvas_item: typing.Optional[AbstractCanvasItem]) -> typing.Optional[AbstractCanvasItem]:
     return canvas_item if canvas_item and canvas_item.visible else None

@@ -68,6 +68,9 @@ class ListCanvasItemDelegate(typing.Protocol):
     def delete_pressed(self) -> None:
         pass
 
+    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        pass
+
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None: ...
 
 
@@ -270,21 +273,11 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             point_f = Geometry.FloatPoint(y=y, x=x)
             if not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
                 self.__mouse_dragging = True
-                drag_started = getattr(self.__delegate, "drag_started", None) if self.__delegate else None
-                if callable(drag_started):
+                if self.__delegate:
                     root_container = self.root_container
                     if root_container:
                         root_container.bypass_request_focus()
-                    drag_started(self.__mouse_index, x, y, modifiers)
-                    # once a drag starts, mouse release will not be called; call it here instead
-                    self.__mouse_released(x, y, modifiers, False)
-                # TODO: delete soon. only here for backwards compatibility.
-                on_drag_started = getattr(self.__delegate, "on_drag_started", None) if self.__delegate else None
-                if callable(on_drag_started):
-                    root_container = self.root_container
-                    if root_container:
-                        root_container.bypass_request_focus()
-                    on_drag_started(self.__mouse_index, x, y, modifiers)
+                    self.__delegate.drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
                 return True
@@ -323,16 +316,14 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if self.__delegate:
-            if self.__delegate:
-                if self.__delegate.key_pressed(key):
-                    return True
+            if self.__delegate.key_pressed(key):
+                return True
             if key.is_delete:
                 return self.handle_delete()
             if key.is_enter_or_return:
-                if self.__delegate:
-                    indexes = self.__selection.indexes
-                    if len(indexes) == 1:
-                        return self.__delegate.item_selected(list(indexes)[0])
+                indexes = self.__selection.indexes
+                if len(indexes) == 1:
+                    return self.__delegate.item_selected(list(indexes)[0])
             if key.is_up_arrow:
                 new_index = None
                 indexes = self.__selection.indexes

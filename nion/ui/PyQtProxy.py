@@ -1,3 +1,5 @@
+# type: ignore
+
 from __future__ import annotations
 
 import collections
@@ -34,6 +36,9 @@ g_timer = None
 g_timer_offset_ns = 0
 
 g_stylesheet = None
+
+
+_QtObject = typing.Any
 
 
 def GetDirectory(path: str) -> str:
@@ -1777,9 +1782,6 @@ class PyCanvasRenderTask(QtCore.QRunnable):
         repaint_rect = self.__canvas.render_one()
         if repaint_rect is not None:
             self.signals.renderingReady.emit(repaint_rect)
-
-
-_QtObject = typing.Any
 
 
 class PyCanvas(QtWidgets.QWidget):

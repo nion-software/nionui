@@ -248,7 +248,7 @@ def make_ui(bootstrap_args: typing.Mapping[str, typing.Any]) -> UserInterface.Us
     elif "pyqt" in bootstrap_args:
         from nion.ui import QtUserInterface
         from nion.ui import PyQtProxy
-        return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())
+        return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())  # type: ignore
     raise Exception("Unable to create user interface object.")
 
 

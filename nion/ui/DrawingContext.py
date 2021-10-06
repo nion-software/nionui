@@ -234,7 +234,7 @@ class DrawingContext:
         line_cap = "square"
         line_join = "bevel"
         line_width = 1.0
-        line_dash: typing.Optional[str] = None
+        line_dash: typing.Optional[int] = None
         text_anchor = "start"
         text_baseline = "alphabetic"
         font_style: typing.Optional[str] = None
@@ -723,11 +723,11 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4sf", b"linw", float(a)))
 
     @property
-    def line_dash(self) -> typing.Optional[float]:
+    def line_dash(self) -> typing.Optional[int]:
         raise NotImplementedError()
 
     @line_dash.setter
-    def line_dash(self, a: typing.Optional[float]) -> None:
+    def line_dash(self, a: typing.Optional[int]) -> None:
         """Set the line dash. Takes a single value with the length of the dash."""
         assert a is not None
         self.commands.append(("lineDash", float(a)))

@@ -2041,11 +2041,11 @@ class LineEditWidget(Widget):
 
     def __init__(self, widget_behavior: LineEditWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.on_editing_finished : typing.Optional[typing.Callable[[str], None]] = None
-        self.on_escape_pressed : typing.Optional[typing.Callable[[], bool]] = None
-        self.on_return_pressed : typing.Optional[typing.Callable[[], bool]] = None
-        self.on_key_pressed : typing.Optional[typing.Callable[[Key], bool]] = None
-        self.on_text_edited : typing.Optional[typing.Callable[[str], None]] = None
+        self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
+        self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
         self.__binding: typing.Optional[Binding.Binding] = None
         self.__last_text = None
 

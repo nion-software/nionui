@@ -1018,8 +1018,8 @@ class Closer:
         self.__handlers = typing.cast(typing.Any, None)
 
 
-def connect_reference_value(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike, property: str,
-                            finishes: typing.List[typing.Callable[[], None]], binding_name: typing.Optional[str] = None,
+def connect_reference_value(bindable: typing.Any, d: UIDescription, handler: HandlerLike, property: str,
+                            finishes: _FinishesListType, binding_name: typing.Optional[str] = None,
                             value_type: typing.Optional[typing.Any] = None) -> None:
     """Connects a reference to the property, but also allows binding.
 
@@ -1046,26 +1046,26 @@ def connect_reference_value(widget: UserInterface.Widget, d: UIDescription, hand
             if getattr(handler, "get_object_converter", None):
                 converter = getattr(handler, "get_object_converter")(converter)
             # configure the binding if the source and widget meet the criteria.
-            if hasattr(source, "property_changed_event") and hasattr(widget, "bind_" + binding_name_):
+            if hasattr(source, "property_changed_event") and hasattr(bindable, "bind_" + binding_name_):
                 binding = None
                 get_binding = getattr(handler, "get_binding", None)
                 if callable(get_binding):
                     binding = get_binding(source, last_property_path_component, converter=converter)
                 binding = binding or Binding.PropertyBinding(source, last_property_path_component, converter=converter)
-                getattr(widget, "bind_" + binding_name_)(binding)
+                getattr(bindable, "bind_" + binding_name_)(binding)
             # otherwise just set the value.
             else:
-                setattr(widget, binding_name_, value)
+                setattr(bindable, binding_name_, value)
 
         finishes.append(finish_binding)
     elif v is not None:
         if value_type == str and hasattr(handler, v):
             # backwards compatible binding
-            setattr(widget, binding_name_, getattr(handler, v))
+            setattr(bindable, binding_name_, getattr(handler, v))
         elif value_type and isinstance(v, value_type):
-            setattr(widget, binding_name_, v)
+            setattr(bindable, binding_name_, v)
         else:
-            setattr(widget, binding_name_, getattr(handler, v))
+            setattr(bindable, binding_name_, getattr(handler, v))
 
 
 def connect_event(widget: UserInterface.Widget, source: typing.Any, d: UIDescription, handler: HandlerLike,
@@ -1085,8 +1085,7 @@ def connect_event(widget: UserInterface.Widget, source: typing.Any, d: UIDescrip
             print("WARNING: '" + event_str + "' method " + event_method_name + " not found in handler.")
 
 
-def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike,
-                       finishes: typing.List[typing.Callable[[], None]]) -> None:
+def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike, finishes: _FinishesListType) -> None:
     connect_reference_value(widget, d, handler, "enabled", finishes, value_type=bool)
     connect_reference_value(widget, d, handler, "visible", finishes, value_type=bool)
     connect_string_value(widget, d, handler, "tool_tip", finishes)
@@ -1151,7 +1150,7 @@ def run_window(d: UIDescription, handler: HandlerLike, *, app: typing.Optional[A
     else:
         getattr(handler, "resources").update(resources)
     closer = Closer()
-    finishes: typing.List[typing.Callable[[], None]] = list()
+    finishes: _FinishesListType = list()
     window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
     window.title = title
     window.on_close = closer.close
@@ -1270,7 +1269,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
                 getattr(handler, "_closer").push_closeable(component_handler)
                 component_content = getattr(component_handler, "ui_view", component_content)
             assert component_content
-            item_finishes: typing.List[typing.Callable[[], None]] = list()
+            item_finishes: _FinishesListType = list()
             # now construct the widget
             item_widget = construct(ui, window, component_content, component_handler, item_finishes)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
@@ -1737,7 +1736,7 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     else:
         getattr(handler, "resources").update(resources)
     closer = Closer()
-    finishes: typing.List[typing.Callable[[], None]] = list()
+    finishes: _FinishesListType = list()
     dialog = Dialog.ActionDialog(ui, title, app=window.app, parent_window=window, persistent_id=persistent_id)
     dialog.on_close = closer.close
     # dialog._create_menus()  # not needed; see pr#39.
@@ -1811,7 +1810,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         component_content: typing.Optional[UIDescription] = None
         events = list()
         component = None
-        finishes: typing.List[typing.Callable[[], None]] = list()
+        finishes: _FinishesListType = list()
         if callable(getattr(handler, "get_resource", None)):
             component = getattr(handler, "get_resource")(identifier)
         component = component or getattr(handler, "resources", dict()).get(identifier)

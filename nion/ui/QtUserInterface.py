@@ -1593,7 +1593,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         self.proxy.TreeWidget_connect(self.widget, self)
         self.__item_model_controller = None
         self.on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], UserInterface.Key], bool]] = None
-        self.on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]] = None
+        self.on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[typing.Tuple[int, int, int]]], None]] = None
         self.on_tree_item_changed: typing.Optional[typing.Callable[[int, int, int], None]] = None
         self.on_tree_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
         self.on_tree_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
@@ -1660,7 +1660,7 @@ class QtTreeWidgetBehavior(QtWidgetBehavior):
         if callable(self.on_tree_item_changed):
             self.on_tree_item_changed(index, parent_row, parent_id)
 
-    def treeSelectionChanged(self, selected_indexes: typing.Sequence[int]) -> None:
+    def treeSelectionChanged(self, selected_indexes: typing.Sequence[typing.Tuple[int, int, int]]) -> None:
         self._register_ui_activity()
         if not self.__block_selected_changed:
             if callable(self.on_tree_selection_changed):

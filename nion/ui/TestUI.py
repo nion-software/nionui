@@ -1062,7 +1062,7 @@ class TreeWidgetBehavior(WidgetBehavior):
         self.selection_mode = str()
         self.item_model_controller: typing.Any = None
         self.on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], UserInterfaceModule.Key], bool]] = None
-        self.on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]] = None
+        self.on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[typing.Tuple[int, int, int]]], None]] = None
         self.on_tree_item_changed: typing.Optional[typing.Callable[[int, int, int], None]] = None
         self.on_tree_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
         self.on_tree_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None

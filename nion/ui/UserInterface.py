@@ -2869,7 +2869,7 @@ class TreeWidgetBehavior(WidgetBehavior, typing.Protocol):
     selection_mode: str
     item_model_controller: typing.Any
     on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], Key], bool]]
-    on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]]
+    on_tree_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[typing.Tuple[int, int, int]]], None]]
     on_tree_item_changed: typing.Optional[typing.Callable[[int, int, int], None]]
     on_tree_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]]
     on_tree_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]]
@@ -2884,7 +2884,7 @@ class TreeWidget(Widget):
     def __init__(self, widget_behavior: TreeWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.on_key_pressed: typing.Optional[typing.Callable[[typing.Sequence[int], Key], bool]] = None
-        self.on_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[int]], None]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[typing.Sequence[typing.Tuple[int, int, int]]], None]] = None
         self.on_current_item_changed: typing.Optional[typing.Callable[[int, int, int], None]] = None
         self.on_item_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
         self.on_item_double_clicked: typing.Optional[typing.Callable[[int, int, int], bool]] = None
@@ -2903,7 +2903,7 @@ class TreeWidget(Widget):
 
         self._behavior.on_tree_item_changed = handle_tree_item_changed
 
-        def handle_tree_selection_changed(selected_indexes: typing.Sequence[int]) -> None:
+        def handle_tree_selection_changed(selected_indexes: typing.Sequence[typing.Tuple[int, int, int]]) -> None:
             if callable(self.on_selection_changed):
                 self.on_selection_changed(selected_indexes)
 

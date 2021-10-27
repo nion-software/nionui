@@ -106,6 +106,8 @@ class DeclarativeUI:
             "size_policy_horizontal",
             "size_policy_vertical",
             "tool_tip",
+            "color",
+            "font",
             "background_color",
             "border_color"
         )
@@ -1091,6 +1093,8 @@ def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: 
     connect_string_value(widget, d, handler, "tool_tip", finishes)
     connect_reference_value(widget, d, handler, "background_color", finishes, value_type=str)
     connect_reference_value(widget, d, handler, "border_color", finishes, value_type=str)
+    connect_reference_value(widget, d, handler, "color", finishes, value_type=str)
+    connect_reference_value(widget, d, handler, "font", finishes, value_type=str)
 
 
 class WindowHandler(Observable.Observable):
@@ -1693,6 +1697,8 @@ def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, hand
         connect_string_value(widget, d, handler, "text", finishes)
         connect_name(widget, d, handler)
         connect_attributes(widget, d, handler, finishes)
+        connect_reference_value(widget, d, handler, "color", finishes, binding_name="text_color", value_type=str)
+        connect_reference_value(widget, d, handler, "font", finishes, binding_name="text_font", value_type=str)
     return widget
 
 

@@ -392,6 +392,8 @@ class DeclarativeUI:
         if name is not None:
             d["name"] = name
         self.__process_common_properties(d, **kwargs)
+        if "word_wrap" in kwargs:
+            d["word_wrap"] = bool(kwargs["word_wrap"])
         return d
 
     def create_image(self, *, image: typing.Optional[UIIdentifier] = None, name: typing.Optional[UIIdentifier] = None,
@@ -1029,7 +1031,7 @@ def connect_reference_value(bindable: typing.Any, d: UIDescription, handler: Han
     """
     binding_name_ = binding_name if binding_name else property
     v = d.get(property)
-    m = re.match("^@binding\((.+)\)$", v if v else "")
+    m = re.match("^@binding\((.+)\)$", v if isinstance(v, str) else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
     if m:
         b = m.group(1)
@@ -1699,6 +1701,7 @@ def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, hand
         connect_attributes(widget, d, handler, finishes)
         connect_reference_value(widget, d, handler, "color", finishes, binding_name="text_color", value_type=str)
         connect_reference_value(widget, d, handler, "font", finishes, binding_name="text_font", value_type=str)
+        connect_reference_value(widget, d, handler, "word_wrap", finishes, value_type=bool)
     return widget
 
 

@@ -3,7 +3,7 @@ Changelog (nionui)
 
 NEXT (UNRELEASED)
 ------------------
-- Add ability to set color/font on declarative UI labels.
+- Add ability to set color/font/word_wrap on declarative UI labels.
 - Enable strict typing on entire library.
 - Drop support for Python 3.7.
 - Add methods to create persistent value models.

@@ -1,11 +1,11 @@
 Changelog (nionui)
 ==================
 
-NEXT (UNRELEASED)
+0.6.0 (2021-11-10)
 ------------------
 - Add ability to set color/font/word_wrap on declarative UI labels.
 - Enable strict typing on entire library.
-- Drop support for Python 3.7.
+- Drop support for Python 3.7, enable support for Python 3.10.
 - Add methods to create persistent value models.
 - Allow subclasses to override persistent value behavior.
 - Configure stack widgets to expand/contract as content changes.

@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.1 (UNRELEASED)
+------------------
+- Fix issue with spacing items in column/row widgets.
+
 0.6.0 (2021-11-10)
 ------------------
 - Add ability to set color/font/word_wrap on declarative UI labels.

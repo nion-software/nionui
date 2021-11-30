@@ -664,6 +664,7 @@ class QtBoxWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy: _QtProxy, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, widget_type, properties)
+        self.__widget_type = widget_type
 
     def insert(self, child: UserInterface.Widget, index: typing.Optional[typing.Union[UserInterface.Widget, int]],
                fill: bool = False, alignment: typing.Optional[str] = None) -> None:
@@ -679,8 +680,16 @@ class QtBoxWidgetBehavior(QtWidgetBehavior):
         return QtBoxStretch()
 
     def add_spacing(self, spacing: int) -> UserInterface.Widget:
-        self.proxy.Widget_addSpacing(self.widget, spacing)
-        return QtBoxSpacing(spacing)
+        if self.__widget_type == "row":
+            space_widget = UserInterface.BoxWidget(QtBoxWidgetBehavior(self.proxy, "row", dict()), None)
+            space_widget.set_property("min-width", spacing)
+            space_widget.set_property("max-width", spacing)
+        else:
+            space_widget = UserInterface.BoxWidget(QtBoxWidgetBehavior(self.proxy, "column", dict()), None)
+            space_widget.set_property("min-height", spacing)
+            space_widget.set_property("max-height", spacing)
+        self.insert(space_widget, None)
+        return space_widget
 
     def remove_all(self) -> None:
         self.proxy.Widget_removeAll(self.widget)

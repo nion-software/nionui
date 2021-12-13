@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.6.1 (UNRELEASED)
+0.6.1 (2021-12-13)
 ------------------
 - Fix issue with spacing items in column/row widgets.
 

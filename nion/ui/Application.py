@@ -28,7 +28,7 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class LoggingHandler(logging.StreamHandler):
+class LoggingHandler(logging.StreamHandler[typing.TextIO]):
 
     def __init__(self) -> None:
         super().__init__()

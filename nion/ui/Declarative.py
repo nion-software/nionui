@@ -109,7 +109,8 @@ class DeclarativeUI:
             "color",
             "font",
             "background_color",
-            "border_color"
+            "border_color",
+            "widget_id"
         )
         for k in common_properties:
             if k in kwargs and kwargs[k] is not None:
@@ -1097,6 +1098,7 @@ def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: 
     connect_reference_value(widget, d, handler, "border_color", finishes, value_type=str)
     connect_reference_value(widget, d, handler, "color", finishes, value_type=str)
     connect_reference_value(widget, d, handler, "font", finishes, value_type=str)
+    widget.widget_id = d.get("widget_id", widget.widget_id)
 
 
 class WindowHandler(Observable.Observable):

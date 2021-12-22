@@ -1809,7 +1809,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         # see notes in connect_items
         self.clear_task("update_identifier")
         if self.__component_handler:
-            self.__getattr(handler, "_closer").pop_closeable(self.__component_handler)
+            self.__getattr(self.__handler, "_closer").pop_closeable(self.__component_handler)
         self.__component_handler = None
         self.__column_widget.remove_all()
         window = self.__window

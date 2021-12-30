@@ -655,6 +655,7 @@ class ImageWidget(CompositeWidgetBase):
         super().__init__(column_widget)
         self.ui = ui
         self.on_clicked = None
+        self.__image_binding: typing.Optional[Binding.Binding] = None
 
         def button_clicked() -> None:
             if callable(self.on_clicked):
@@ -668,6 +669,12 @@ class ImageWidget(CompositeWidgetBase):
 
         self.image = rgba_bitmap_data
 
+    def close(self) -> None:
+        if self.__image_binding:
+            self.__image_binding.close()
+            self.__image_binding = None
+        self.clear_task("update_image")
+
     @property
     def image(self) -> typing.Optional[DrawingContext.RGBA32Type]:
         return self.__rgba_bitmap_data
@@ -676,6 +683,26 @@ class ImageWidget(CompositeWidgetBase):
     def image(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self.__bitmap_canvas_item.rgba_bitmap_data = rgba_bitmap_data
         self.__rgba_bitmap_data = rgba_bitmap_data
+
+    def bind_image(self, binding: Binding.Binding) -> None:
+        if self.__image_binding:
+            self.__image_binding.close()
+            self.__image_binding = None
+        self.image = binding.get_target_value()
+        self.__image_binding = binding
+
+        def update_image(image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            def update_image_() -> None:
+                self.image = image
+
+            self.add_task("update_image", update_image_)
+
+        self.__image_binding.target_setter = update_image
+
+    def unbind_image(self) -> None:
+        if self.__image_binding:
+            self.__image_binding.close()
+            self.__image_binding = None
 
     @property
     def background_color(self) -> typing.Optional[str]:

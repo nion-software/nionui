@@ -4,6 +4,7 @@ Changelog (nionui)
 0.6.2 (UNRELEASED)
 ------------------
 - Allow setting of widget id in declarative; useful for testing.
+- Allow binding of image property in declarative image.
 
 0.6.1 (2021-12-13)
 ------------------

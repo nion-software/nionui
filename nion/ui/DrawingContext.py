@@ -358,7 +358,7 @@ class DrawingContext:
                 m = 255.0 / (high - low) if high != low else 1
                 image = numpy.empty(data.shape, numpy.uint32)
                 if color_table is not None:
-                    adj_color_table = numpy.empty(color_table.shape, numpy.uint32)
+                    adj_color_table: numpy.typing.NDArray[numpy.uint32] = numpy.empty(color_table.shape, numpy.uint32)
                     # ordering of color_table is BGRA
                     # ordering of adj_color_table is RGBA
                     get_byte_view(adj_color_table)[:, 0] = get_byte_view(color_table)[:, 2]

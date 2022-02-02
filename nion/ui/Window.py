@@ -243,7 +243,7 @@ class Window:
         self._bring_to_front_action = None
 
         # configure the event loop object. for backwards compatibility only.
-        self.__event_loop = asyncio.get_event_loop()
+        self.__event_loop = asyncio.get_event_loop_policy().get_event_loop()
 
         if app:
             app._window_created(self)

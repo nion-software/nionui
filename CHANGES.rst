@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.3 (UNRELEASED)
+------------------
+- Introduce Declarative.Handler base class. Will be required in 0.7.0 and later.
+
 0.6.2 (2022-02-18)
 ------------------
 - Allow setting of widget id in declarative; useful for testing.

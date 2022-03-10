@@ -946,6 +946,14 @@ class HandlerLike(typing.Protocol):
     def close(self) -> None: ...
 
 
+class Handler(Observable.Observable, HandlerLike):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def close(self) -> None:
+        pass
+
+
 def connect_name(widget: UserInterface.Widget, d: UIDescription, handler: HandlerLike) -> None:
     name = d.get("name", None)
     if name:

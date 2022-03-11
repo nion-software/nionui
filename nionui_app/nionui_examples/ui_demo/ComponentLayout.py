@@ -4,24 +4,30 @@ from nion.ui import Declarative
 from nion.utils import Event
 from nion.utils import Model
 
-class Section:
+if typing.TYPE_CHECKING:
+    from nion.ui import UserInterface
 
-    def __init__(self, title: str):
+
+class Section(Declarative.Handler):
+
+    def __init__(self, title: str) -> None:
+        super().__init__()
         self.title = title
         self.count = 0
 
 
-class Handler:
+class Handler(Declarative.Handler):
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         self.sections = list()
         self.item_inserted_event = Event.Event()
         self.item_removed_event = Event.Event()
         self.sections.append(Section("Apples"))
         self.sections.append(Section("Oranges"))
-        self.title_model = Model.PropertyModel()
+        self.title_model = Model.PropertyModel[str]()
 
-    def add(self, widget) -> None:
+    def add(self, widget: Declarative.UIWidget) -> None:
         title = self.title_model.value
         if title:
             section = Section(title)
@@ -34,37 +40,44 @@ class Handler:
         del self.sections[index]
         self.item_removed_event.fire("sections", section, index)
 
-    def create_handler(self, component_id: str, container=None, item=None, **kwargs):
+    def create_handler(self, component_id: str, container: typing.Any = None, item: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[Declarative.HandlerLike]:
 
-        class SectionHandler:
+        class SectionHandler(Declarative.Handler):
 
-            def __init__(self, container: typing.List[Section], section: Section):
+            def __init__(self, container: typing.List[Section], section: Section) -> None:
+                super().__init__()
                 self.container = container
                 self.section = section
-                self.title_label_widget = None
-                self.count_label_widget = None
+                self.title_label_widget: typing.Optional[UserInterface.LabelWidget] = None
+                self.count_label_widget: typing.Optional[UserInterface.LabelWidget] = None
 
-            def init_handler(self):
+            def init_handler(self) -> None:
+                assert self.title_label_widget
+                assert self.count_label_widget
                 # when this is called, all fields will be populated
                 self.title_label_widget.text = self.section.title
                 self.count_label_widget.text = str(self.section.count)
 
-            def increase_count(self, widget):
+            def increase_count(self, widget: Declarative.UIWidget) -> None:
+                assert self.count_label_widget
                 self.section.count += 1
                 self.count_label_widget.text = str(self.section.count)
 
-            def decrease_count(self, widget):
+            def decrease_count(self, widget: Declarative.UIWidget) -> None:
+                assert self.count_label_widget
                 self.section.count -= 1
                 self.count_label_widget.text = str(self.section.count)
 
-            def remove(self, widget):
+            def remove(self, widget: Declarative.UIWidget) -> None:
                 self.container.remove(self.section)
 
         if component_id == "section":
             return SectionHandler(container, item)
 
+        return None
+
     @property
-    def resources(self):
+    def resources(self) -> typing.Mapping[str, typing.Any]:
         ui = Declarative.DeclarativeUI()
         title_label = ui.create_label(name="title_label_widget")
         count_label = ui.create_label(name="count_label_widget")
@@ -76,8 +89,8 @@ class Handler:
         return {"section": component}
 
 
-def construct_ui(ui: Declarative.DeclarativeUI):
-    title_field = ui.create_line_edit(text="@binding(title_model.value)")
-    add_button = ui.create_push_button(text="Add", on_clicked="add")
-    sections_column = ui.create_column(items="sections", item_component_id="section", spacing=8)
-    return ui.create_column(title_field, add_button, sections_column, spacing=8, margin=12)
+def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
+    title_field = u.create_line_edit(text="@binding(title_model.value)")
+    add_button = u.create_push_button(text="Add", on_clicked="add")
+    sections_column = u.create_column(items="sections", item_component_id="section", spacing=8)
+    return u.create_column(title_field, add_button, sections_column, spacing=8, margin=12)

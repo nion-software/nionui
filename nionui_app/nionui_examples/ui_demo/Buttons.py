@@ -12,9 +12,9 @@ IconType = numpy.typing.NDArray[typing.Any]
 def make_icon(w: int, h: int) -> IconType:
     # make bitmap_data (random static) for icon push button
     bitmap: IconType = numpy.zeros((h, w, 4), numpy.uint8)
-    bitmap[..., 0] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # blue
-    bitmap[..., 1] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # green
-    bitmap[..., 2] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # red
+    bitmap[..., 0] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # type: ignore  # blue
+    bitmap[..., 1] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # type: ignore  # green
+    bitmap[..., 2] = (numpy.random.randn(h, w) * 255).astype(numpy.uint8)  # type: ignore  # red
     bitmap[..., 3] = 255
     return bitmap.view(numpy.uint32).reshape(bitmap.shape[:-1])
 

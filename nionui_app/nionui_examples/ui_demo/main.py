@@ -86,7 +86,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
     items = list()
 
     for page_cls, page_id, page_title in page_list:
-        resources[page_id] = u.define_component(content=page_cls.construct_ui(u))
+        resources[page_id] = u.define_component(content=typing.cast(typing.Any, page_cls).construct_ui(u))
         instance = u.create_component_instance(page_id)
         pages.append(u.create_column(instance, u.create_stretch()))
         items.append(page_title)

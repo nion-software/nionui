@@ -3,7 +3,7 @@
 # Use it like this:
 #   pip install -r test-requirements.txt
 
--e git://github.com/nion-software/nionutils.git#egg=nionutils
+-e git+https://github.com/nion-software/nionutils.git#egg=nionutils
 
-numpy==1.21.3
+numpy==1.22.3
 imageio

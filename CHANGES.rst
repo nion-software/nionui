@@ -1,9 +1,9 @@
 Changelog (nionui)
 ==================
 
-0.6.3 (UNRELEASED)
+0.6.3 (2022-04-20)
 ------------------
-- Introduce Declarative.Handler base class. Will be required in 0.7.0 and later.
+- Introduce Declarative.Handler base class. Optional, but will be required in 0.7.0 and later.
 
 0.6.2 (2022-02-18)
 ------------------

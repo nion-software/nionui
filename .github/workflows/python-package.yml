@@ -44,7 +44,7 @@ jobs:
         flake8 --max-line-length=160 nion/ui/PreferencesDialog.py nion/ui/Window.py
     - name: Test
       run: |
-        python -m unittest discover -p '*_test.py'
+        python -m unittest discover -s nion/ui -p '*_test.py'
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.8'

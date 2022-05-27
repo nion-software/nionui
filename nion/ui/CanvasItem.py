@@ -143,7 +143,7 @@ def constraint_solve(canvas_origin: int, canvas_size: int, canvas_item_constrain
     finished = False
     while not finished:
         finished = True
-        actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
+        actual_canvas_size = sum([(solver_item.size or 0) for solver_item in solver_items])
         assert actual_canvas_size is not None
         if actual_canvas_size > canvas_size:
             remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])
@@ -169,7 +169,7 @@ def constraint_solve(canvas_origin: int, canvas_size: int, canvas_item_constrain
     finished = False
     while not finished:
         finished = True
-        actual_canvas_size = sum([solver_item.size for solver_item in solver_items])
+        actual_canvas_size = sum([(solver_item.size or 0) for solver_item in solver_items])
         assert actual_canvas_size is not None
         if actual_canvas_size < canvas_size:
             remaining_count = sum([not solver_item.is_constrained for solver_item in solver_items])

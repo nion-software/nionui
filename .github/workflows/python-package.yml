@@ -40,7 +40,7 @@ jobs:
         mypy --version
     - name: Type checking
       run: |
-        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent --install-types --non-interactive --strict --no-warn-unused-ignores -p nion.ui -p nionui_app.nionui_examples
+        mypy --namespace-packages --ignore-missing-imports --follow-imports=silent --install-types --non-interactive --strict --no-warn-redundant-casts --no-warn-unused-ignores -p nion.ui -p nionui_app.nionui_examples
         flake8 --max-line-length=160 nion/ui/PreferencesDialog.py nion/ui/Window.py
     - name: Test
       run: |

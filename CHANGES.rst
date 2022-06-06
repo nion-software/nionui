@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+0.6.4 (UNRELEASED)
+------------------
+- Add a color related function to represent any color in hex without alpha.
+- A Future version will have color functionality moved to nionutils.
+
 0.6.3 (2022-04-20)
 ------------------
 - Introduce Declarative.Handler base class. Optional, but will be required in 0.7.0 and later.

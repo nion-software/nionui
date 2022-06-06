@@ -993,3 +993,12 @@ def hex_color(color: str) -> typing.Optional[str]:
         if len(color) == 9 or len(color) == 7:
             return color.lower()
     return svg_color_map.get(color, color)
+
+
+def to_hex_color_without_alpha(color: typing.Optional[str]) -> typing.Optional[str]:
+    # assumes color is valid
+    if not color:
+        return None
+    color = svg_color_reverse_map.get(color, color)
+    color = color_without_alpha(color)
+    return hex_color(color)

@@ -23,7 +23,7 @@ import typing
 import xml.sax.saxutils
 
 # third party libraries
-import imageio.v3 as imageio
+import imageio
 import numpy
 
 # local libraries
@@ -349,7 +349,7 @@ class DrawingContext:
                 # image compression is time consuming. pass parameters to make this step as fast as possible.
                 # see nionswift-642.
                 # TODO: fix typing when imageio gets their numpy typing correct.
-                imageio.imwrite(png_file, rgba_data[..., (2,1,0,3)], extension=".png", optimize=False, compress_level=1)  # type: ignore
+                imageio.imwrite(png_file, rgba_data[..., (2,1,0,3)], "png", optimize=False, compress_level=1)  # type: ignore
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
@@ -380,7 +380,7 @@ class DrawingContext:
                 # image compression is time consuming. pass parameters to make this step as fast as possible.
                 # see nionswift-642.
                 # TODO: fix typing when imageio gets their numpy typing correct.
-                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), extension=".png", optimize=False, compress_level=1)  # type: ignore
+                imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), "png", optimize=False, compress_level=1)  # type: ignore
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
                 svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"

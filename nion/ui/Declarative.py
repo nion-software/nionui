@@ -1066,7 +1066,7 @@ def connect_reference_value(bindable: typing.Any, d: UIDescription, handler: Han
                     binding = get_binding(source, last_property_path_component, converter=converter)
                 binding = binding or Binding.PropertyBinding(source, last_property_path_component, converter=converter)
                 getattr(bindable, "bind_" + binding_name_)(binding)
-            # otherwise just set the value.
+            # otherwise as a fallback, set the value.
             else:
                 setattr(bindable, binding_name_, value)
 
@@ -1232,8 +1232,6 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     The preferred technique for dynamic content is to define `create_handler` to return a handler for the given
     `item_component_id` and associated `item` with a defined `ui_view` and do not define `get_resource` or `resources`
     to respond to the `item_component_id`.
-
-    NOTE: it does not currently support removing items.
     """
     assert window is not None
     items_parts = items.split('.')

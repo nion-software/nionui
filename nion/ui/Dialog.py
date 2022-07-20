@@ -242,7 +242,7 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
     class Handler:
         def __init__(self) -> None:
             self.is_rejected = True
-            self.computation_index_model = Model.PropertyModel(current_item)
+            self.index_model = Model.PropertyModel(current_item)
             self.item_list: typing.Optional[typing.Any] = None
 
         def close(self) -> None:
@@ -281,14 +281,14 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Select Item")), u.create_stretch())
-    item_list = u.create_list_box(name="item_list", items=[item_getter(c) for c in items], width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(computation_index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
+    item_list = u.create_list_box(name="item_list", items=[item_getter(c) for c in items], width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
     button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Select"), on_clicked="handle_select"), spacing=8)
     column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
     popup = PopupWindow(window, column, ui_handler)
 
     def handle_close() -> None:
         if not ui_handler.is_rejected:
-            computation = items[ui_handler.computation_index_model.value or 0]
+            computation = items[ui_handler.index_model.value or 0]
             completion_fn(computation)
         else:
             completion_fn(None)

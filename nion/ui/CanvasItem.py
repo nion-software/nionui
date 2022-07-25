@@ -11,7 +11,7 @@ import copy
 import datetime
 import enum
 import functools
-import imageio
+import imageio.v3 as imageio
 import logging
 import operator
 import sys
@@ -4617,8 +4617,9 @@ class TimestampCanvasItem(AbstractCanvasItem):
 
 def load_rgba_data_from_bytes(b: typing.ByteString, format: typing.Optional[str] = None) -> typing.Optional[numpy.typing.NDArray[numpy.uint8]]:
     image_rgba = None
+    extension = "." + format if format else None
     # TODO: fix typing when imageio gets their numpy typing correct.
-    image_argb = typing.cast(typing.Optional[numpy.typing.NDArray[numpy.uint8]], imageio.imread(b, format))  # type: ignore
+    image_argb = typing.cast(typing.Optional[numpy.typing.NDArray[numpy.uint8]], imageio.imread(b, extension=extension))  # type: ignore
     if image_argb is not None:
         image_rgba = numpy.zeros_like(image_argb)
         image_rgba[:, :, 0] = image_argb[:, :, 2]

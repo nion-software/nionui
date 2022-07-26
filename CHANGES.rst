@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.4 (2022-07-25)
+------------------
+- Minor code maintenance.
+
 0.6.3 (2022-04-20)
 ------------------
 - Introduce Declarative.Handler base class. Optional, but will be required in 0.7.0 and later.

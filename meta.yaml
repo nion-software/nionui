@@ -23,7 +23,7 @@ requirements:
     - python >=3.8
     - nionutils >=0.4.4,<0.5.0
     - numpy >=1.21,<2.0
-    - imageio
+    - imageio >=2.19.0
 
 test:
   imports:

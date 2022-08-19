@@ -29,11 +29,19 @@ _ = gettext.gettext
 
 class ActionContext:
     def __init__(self, application: Application.BaseApplication, window: typing.Optional[Window], focus_widget: typing.Optional[UserInterface.Widget]):
-        self.application = application
-        self.window = window
+        self._application = application
+        self._window = window
         self.focus_widget = focus_widget
         self.event_type_str: typing.Optional[str] = None
         self.parameters: typing.Dict[str, typing.Any] = dict()
+
+    @property
+    def application(self) -> Application.BaseApplication:
+        return self._application
+
+    @property
+    def window(self) -> typing.Optional[Window]:
+        return self._window
 
 
 class ActionStatus(enum.IntEnum):

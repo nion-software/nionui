@@ -1399,7 +1399,7 @@ class PushButtonWidget(Widget):
         text = str(value) if value is not None else None
         self.text = text
 
-        # save the binding and configure the the target setter
+        # save the binding and configure the target setter
         # which will set the text when the binding changes
         self.__text_binding = binding
 
@@ -1575,7 +1575,7 @@ class RadioButtonWidget(Widget):
         text = str(value) if value is not None else None
         self.text = text
 
-        # save the binding and configure the the target setter
+        # save the binding and configure the target setter
         # which will set the text when the binding changes
         self.__text_binding = binding
 
@@ -1703,7 +1703,7 @@ class CheckBoxWidget(Widget):
         text = str(value) if value is not None else None
         self.text = text
 
-        # save the binding and configure the the target setter
+        # save the binding and configure the target setter
         # which will set the text when the binding changes
         self.__text_binding = binding
 
@@ -1798,13 +1798,18 @@ class LabelWidget(Widget):
         self.text = text
         self.__text_font: typing.Optional[str] = None
         self.__text_color: typing.Optional[str] = None
-        self.__binding: typing.Optional[Binding.Binding] = None
+        self.__text_binding: typing.Optional[Binding.Binding] = None
+        self.__text_color_binding: typing.Optional[Binding.Binding] = None
 
     def close(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+        if self.__text_color_binding:
+            self.__text_color_binding.close()
+            self.__text_color_binding = None
         self.clear_task("update_text")
+        self.clear_task("update_text_color")
         super().close()
 
     @property
@@ -1848,18 +1853,18 @@ class LabelWidget(Widget):
     # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
         # close the old binding
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
 
         # grab the initial value from the binding. use str method to convert value to text.
         value = binding.get_target_value()
         text = str(value) if value is not None else None
         self.text = text
 
-        # save the binding and configure the the target setter
+        # save the binding and configure the target setter
         # which will set the text when the binding changes
-        self.__binding = binding
+        self.__text_binding = binding
 
         def update_value(value: typing.Optional[str]) -> None:
             def update_value_inner() -> None:
@@ -1870,12 +1875,44 @@ class LabelWidget(Widget):
 
             self.add_task("update_text", update_value_inner)
 
-        self.__binding.target_setter = update_value
+        self.__text_binding.target_setter = update_value
 
     def unbind_text(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
+        if self.__text_binding:
+            self.__text_binding.close()
+            self.__text_binding = None
+
+    # bind to text. takes ownership of binding.
+    def bind_text_color(self, binding: Binding.Binding) -> None:
+        # close the old binding
+        if self.__text_color_binding:
+            self.__text_color_binding.close()
+            self.__text_color_binding = None
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        value = binding.get_target_value()
+        text = str(value) if value is not None else None
+        self.text_color = text
+
+        # save the binding and configure the target setter
+        # which will set the text when the binding changes
+        self.__text_color_binding = binding
+
+        def update_value(value: typing.Optional[str]) -> None:
+            def update_value_inner() -> None:
+                if self._behavior:
+                    # use str method to convert value to text.
+                    text_color = str(value) if value is not None else None
+                    self.text_color = text_color
+
+            self.add_task("update_text_color", update_value_inner)
+
+        self.__text_color_binding.target_setter = update_value
+
+    def unbind_text_color(self) -> None:
+        if self.__text_color_binding:
+            self.__text_color_binding.close()
+            self.__text_color_binding = None
 
 
 class SliderWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -2174,7 +2211,7 @@ class LineEditWidget(Widget):
         def update_value(value: typing.Optional[str]) -> None:
             self.add_task("update_text", lambda: update_value_(value))
 
-        # configure the the target setter which will set the text when the binding changes
+        # configure the target setter which will set the text when the binding changes
         self.__binding.target_setter = update_value
 
         def editing_finished(text: str) -> None:
@@ -2447,7 +2484,7 @@ class TextEditWidget(Widget):
             if not self.__in_update:
                 self.add_task("update_text", update_value_)
 
-        # configure the the target setter which will set the text when the binding changes
+        # configure the target setter which will set the text when the binding changes
         self.__binding.target_setter = update_value
 
         def on_text_edited(text: typing.Optional[str]) -> None:

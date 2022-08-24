@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.5 (UNRELEASED)
+------------------
+- Add ability to bind text_color property of declarative label.
+
 0.6.4 (2022-07-25)
 ------------------
 - Minor code maintenance.

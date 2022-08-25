@@ -1,11 +1,9 @@
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
 
 
 class Handler(Declarative.Handler):

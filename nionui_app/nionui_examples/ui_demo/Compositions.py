@@ -1,9 +1,7 @@
 import typing
 
 from nion.ui import Declarative
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
+from nion.ui import UserInterface
 
 
 class Handler(Declarative.Handler):

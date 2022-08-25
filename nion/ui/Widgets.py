@@ -5,7 +5,6 @@ A library of custom widgets.
 from __future__ import annotations
 
 # standard libraries
-import copy
 import gettext
 import typing
 
@@ -246,8 +245,6 @@ class ListWidget(CompositeWidgetBase):
         self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
         self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None  # used for declarative
         self.__items_binding: typing.Optional[Binding.Binding] = None
-        self.__current_index_binding: typing.Optional[Binding.Binding] = None
-        self.__on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
         self.__v_auto_resize = v_auto_resize
         self.on_escape_pressed : typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed : typing.Optional[typing.Callable[[], bool]] = None
@@ -255,11 +252,10 @@ class ListWidget(CompositeWidgetBase):
         self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
 
         def selection_changed() -> None:
+            self.__current_index_binding_helper.value_changed(self.__selection.current_index or 0)
             on_selection_changed = self.on_selection_changed
             if callable(on_selection_changed):
                 on_selection_changed(self.__selection.indexes)
-            if callable(self.__on_current_index_changed):
-                self.__on_current_index_changed(self.current_index)
 
         def handle_delegate_cancel() -> None:
             if callable(self.on_cancel):
@@ -297,21 +293,29 @@ class ListWidget(CompositeWidgetBase):
 
         self.__canvas_widget = canvas_widget
 
-        self.items = list(items)
+        def set_current_index(index: int) -> None:
+            self.__selection.set(index)
+
+        def validate_current_index(new_value: int, old_value: int) -> int:
+            return new_value if new_value >= 0 and new_value < len(self.items) else 0
+
+        def set_items(items: typing.Sequence[typing.Any]) -> None:
+            self.__set_items(items)
+
+        self.__current_index_binding_helper = UserInterface.BindablePropertyHelper[int](None, set_current_index, validate_current_index)
+        self.__items_binding_helper = UserInterface.BindablePropertyHelper[typing.Sequence[typing.Any]](None, set_items)
+
+        self.items = list(items) if items else list()
+        self.current_index = 0
 
     def close(self) -> None:
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.on_selection_changed = None
-        if self.__items_binding:
-            self.__items_binding.close()
-            self.__items_binding = None
-        self.clear_task("update_items")
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        self.__on_current_index_changed = None
-        self.clear_task("update_current_index")
+        self.__items_binding_helper.close()
+        self.__items_binding_helper = typing.cast(typing.Any, None)
+        self.__current_index_binding_helper.close()
+        self.__current_index_binding_helper = typing.cast(typing.Any, None)
         self.__items = typing.cast(typing.Any, None)
         super().close()
 
@@ -333,10 +337,13 @@ class ListWidget(CompositeWidgetBase):
 
     @property
     def items(self) -> typing.Sequence[typing.Any]:
-        return self.__items if self.__items is not None else list()
+        return self.__items_binding_helper.value
 
     @items.setter
     def items(self, items: typing.Sequence[typing.Any]) -> None:
+        self.__items_binding_helper.value = items
+
+    def __set_items(self, items: typing.Sequence[typing.Any]) -> None:
         self.__items = list(items)
 
         self.__list_canvas_item_delegate.items = self.__items
@@ -361,21 +368,10 @@ class ListWidget(CompositeWidgetBase):
         # setting items on the widget will not update items on the bound items since the list widget is merely a view
 
     def bind_items(self, binding: Binding.Binding) -> None:
-        self.clear_task("update_items")
-        if self.__items_binding:
-            self.__items_binding.close()
-            self.__items_binding = None
-        self.items = list(typing.cast(typing.Sequence[typing.Any], binding.get_target_value()))
-        self.__items_binding = binding
+        self.__items_binding_helper.bind_value(binding)
 
-        def update_items(items: typing.Sequence[typing.Any]) -> None:
-            def update_items_() -> None:
-                if self._behavior:
-                    self.items = items
-
-            self.add_task("update_items", update_items_)
-
-        self.__items_binding.target_setter = update_items
+    def unbind_items(self) -> None:
+        self.__items_binding_helper.unbind_value()
 
     @property
     def selected_items(self) -> typing.AbstractSet[int]:
@@ -390,43 +386,17 @@ class ListWidget(CompositeWidgetBase):
 
     @property
     def current_index(self) -> int:
-        return self.__selection.current_index or 0
+        return self.__current_index_binding_helper.value
 
     @current_index.setter
     def current_index(self, index: int) -> None:
-        self.__selection.set(index)
+        self.__current_index_binding_helper.value = index
 
     def bind_current_index(self, binding: Binding.Binding) -> None:
-        self.clear_task("update_current_index")
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        current_index = typing.cast(typing.Optional[int], binding.get_target_value())
-        if current_index is not None and 0 <= current_index < len(self.items):
-            self.current_index = current_index
-        self.__current_index_binding = binding
-
-        def update_current_index(current_index: int) -> None:
-            if current_index is not None and 0 <= current_index < len(self.items):
-                def update_current_index_() -> None:
-                    if self._behavior:
-                        self.current_index = current_index
-
-                self.add_task("update_current_index", update_current_index_)
-
-        self.__current_index_binding.target_setter = update_current_index
-
-        def handle_current_index_changed(index: int) -> None:
-            if self.__current_index_binding:
-                self.__current_index_binding.update_source(index)
-
-        self.__on_current_index_changed = handle_current_index_changed
+        self.__current_index_binding_helper.bind_value(binding)
 
     def unbind_current_index(self) -> None:
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        self.__on_current_index_changed = None
+        self.__current_index_binding_helper.unbind_value()
 
 
 class StringListCanvasItemDelegate(ListCanvasItemDelegate):
@@ -655,7 +625,6 @@ class ImageWidget(CompositeWidgetBase):
         super().__init__(column_widget)
         self.ui = ui
         self.on_clicked = None
-        self.__image_binding: typing.Optional[Binding.Binding] = None
 
         def button_clicked() -> None:
             if callable(self.on_clicked):
@@ -667,42 +636,31 @@ class ImageWidget(CompositeWidgetBase):
         bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         column_widget.add(bitmap_canvas_widget)
 
+        def set_image(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            self.__bitmap_canvas_item.rgba_bitmap_data = value
+
+        self.__image_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_image, None, typing.cast(typing.Any, numpy.array_equal))
+
         self.image = rgba_bitmap_data
 
     def close(self) -> None:
-        if self.__image_binding:
-            self.__image_binding.close()
-            self.__image_binding = None
-        self.clear_task("update_image")
+        self.__image_binding_helper.close()
+        self.__image_binding_helper = typing.cast(typing.Any, None)
+        super().close()
 
     @property
     def image(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__rgba_bitmap_data
+        return self.__image_binding_helper.value
 
     @image.setter
     def image(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__bitmap_canvas_item.rgba_bitmap_data = rgba_bitmap_data
-        self.__rgba_bitmap_data = rgba_bitmap_data
+        self.__image_binding_helper.value = rgba_bitmap_data
 
     def bind_image(self, binding: Binding.Binding) -> None:
-        if self.__image_binding:
-            self.__image_binding.close()
-            self.__image_binding = None
-        self.image = binding.get_target_value()
-        self.__image_binding = binding
-
-        def update_image(image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            def update_image_() -> None:
-                self.image = image
-
-            self.add_task("update_image", update_image_)
-
-        self.__image_binding.target_setter = update_image
+        self.__image_binding_helper.bind_value(binding)
 
     def unbind_image(self) -> None:
-        if self.__image_binding:
-            self.__image_binding.close()
-            self.__image_binding = None
+        self.__image_binding_helper.unbind_value()
 
     @property
     def background_color(self) -> typing.Optional[str]:
@@ -840,76 +798,65 @@ class ColorPushButtonWidget(CompositeWidgetBase):
 
         column_widget.add(color_button_canvas_widget)
 
-        self.__color_binding: typing.Optional[Binding.Binding] = None
+        def set_color(color: typing.Optional[str]) -> None:
+            self.__color_button_canvas_item.color_button_cell.color = color
+            self.__color_button_canvas_item.update()
+
+        self.__color_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[str]](None, set_color)
+
+        self.color = color
 
     def close(self) -> None:
-        if self.__color_binding:
-            self.__color_binding.close()
-            self.__color_binding = None
-        self.clear_task("update_color")
+        self.__color_binding_helper.close()
+        self.__color_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     @property
     def color(self) -> typing.Optional[str]:
-        return self.__color_button_canvas_item.color_button_cell.color
+        return self.__color_binding_helper.value
 
     @color.setter
     def color(self, color: typing.Optional[str]) -> None:
-        if color != self.color:
-            self.__color_button_canvas_item.color_button_cell.color = color
-            self.__color_button_canvas_item.update()
+        self.__color_binding_helper.value = color
 
     def bind_color(self, binding: Binding.Binding) -> None:
-        if self.__color_binding:
-            self.__color_binding.close()
-            self.__color_binding = None
-        self.color = binding.get_target_value()
-        self.__color_binding = binding
-
-        def update_color(color: typing.Optional[str]) -> None:
-            def update_color_() -> None:
-                if self._behavior:
-                    self.color = color
-
-            self.add_task("update_color", update_color_)
-
-        self.__color_binding.target_setter = update_color
+        self.__color_binding_helper.bind_value(binding)
 
     def unbind_color(self) -> None:
-        if self.__color_binding:
-            self.__color_binding.close()
-            self.__color_binding = None
+        self.__color_binding_helper.unbind_value()
 
 
 class IconRadioButtonWidget(CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None):
         column_widget = ui.create_column_widget(properties=properties)
+        # must be available for enabled property in super class. needs refactoring.
+        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(None, border_color="#CCC")
         super().__init__(column_widget)
         self.ui = ui
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
-        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(None, border_color="#CCC")
         self.__bitmap_canvas_item.on_button_clicked = self.__handle_clicked
         self.__value: typing.Optional[int] = None
-        self.__group_value: typing.Optional[int] = None
-        self.__on_group_value_changed: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
-        self.__group_value_binding: typing.Optional[Binding.Binding] = None
-        self.__icon_binding: typing.Optional[Binding.Binding] = None
         self.__enabled = True
         self.__checked = False
         bitmap_canvas_widget = self.ui.create_canvas_widget()
         bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         column_widget.add(bitmap_canvas_widget)
 
+        def set_group_value(group_value: typing.Optional[int]) -> None:
+            self.checked = group_value == self.__value
+
+        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            self.__bitmap_canvas_item.rgba_bitmap_data = value
+
+        self.__group_value_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[typing.Optional[int]]](None, set_group_value)
+        self.__icon_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+
     def close(self) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.clear_task("update_icon")
-        self.clear_task("update_group_value")
+        self.__group_value_binding_helper.close()
+        self.__group_value_binding_helper = typing.cast(typing.Any, None)
+        self.__icon_binding_helper.close()
+        self.__icon_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     def __handle_clicked(self) -> None:
@@ -924,7 +871,6 @@ class IconRadioButtonWidget(CompositeWidgetBase):
 
     @enabled.setter
     def enabled(self, value: bool) -> None:
-        print(f"set enabled {self.__value} {self.__group_value}")
         self.__bitmap_canvas_item.enabled = value
 
     @property
@@ -937,11 +883,11 @@ class IconRadioButtonWidget(CompositeWidgetBase):
 
     @property
     def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__bitmap_canvas_item.rgba_bitmap_data
+        return self.__icon_binding_helper.value
 
     @icon.setter
-    def icon(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__bitmap_canvas_item.rgba_bitmap_data = rgba_bitmap_data
+    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+        self.__icon_binding_helper.value = rgba_image
 
     @property
     def value(self) -> typing.Optional[int]:
@@ -950,64 +896,24 @@ class IconRadioButtonWidget(CompositeWidgetBase):
     @value.setter
     def value(self, value: typing.Optional[int]) -> None:
         self.__value = value
-        self.checked = self.__group_value == self.__value
+        self.checked = self.group_value == self.__value
 
     @property
     def group_value(self) -> typing.Optional[int]:
-        return self.__group_value
+        return self.__group_value_binding_helper.value
 
     @group_value.setter
     def group_value(self, group_value: typing.Optional[int]) -> None:
-        self.__group_value = group_value
-        self.checked = self.__group_value == self.__value
-        if callable(self.__on_group_value_changed):
-            self.__on_group_value_changed(group_value)
+        self.__group_value_binding_helper.value = group_value
 
-    # bind to value. takes ownership of binding.
     def bind_group_value(self, binding: Binding.Binding) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-            self.__on_group_value_changed = None
-        self.group_value = binding.get_target_value()
-        self.__group_value_binding = binding
-
-        def update_group_value(group_value: typing.Optional[int]) -> None:
-            def update_group_value_() -> None:
-                self.group_value = group_value
-
-            self.add_task("update_group_value", update_group_value_)
-
-        self.__group_value_binding.target_setter = update_group_value
-
-        def handle_group_value_changed(group_value: typing.Optional[int]) -> None:
-            if self.__group_value_binding:
-                self.__group_value_binding.update_source(group_value)
-
-        self.__on_group_value_changed = handle_group_value_changed
+        self.__group_value_binding_helper.bind_value(binding)
 
     def unbind_group_value(self) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-        self.__on_group_value_changed = None
+        self.__group_value_binding_helper.unbind_value()
 
     def bind_icon(self, binding: Binding.Binding) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.icon = binding.get_target_value()
-        self.__icon_binding = binding
-
-        def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            def update_icon_() -> None:
-                self.icon = icon
-
-            self.add_task("update_icon", update_icon_)
-
-        self.__icon_binding.target_setter = update_icon
+        self.__icon_binding_helper.bind_value(binding)
 
     def unbind_icon(self) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
+        self.__icon_binding_helper.unbind_value()

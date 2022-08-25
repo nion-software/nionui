@@ -1787,40 +1787,35 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         self.ui = ui
         self.__window = window
         self.__handler = handler
-        self.__identifier: typing.Optional[str] = None
-        self.__identifier_binding: typing.Optional[Binding.Binding] = None
         self.__d = d
         self.__component_handler = None
 
+        def set_identifier(value: typing.Optional[str]) -> None:
+            self.__update_identifier(value)
+
+        self.__identifier_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[str]](None, set_identifier)
+
     def close(self) -> None:
-        self.clear_task("update_identifier")
-        if self.__identifier_binding:
-            self.__identifier_binding.close()
-            self.__identifier_binding = None
+        self.__identifier_binding_helper.close()
+        self.__identifier_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     @property
     def identifier(self) -> typing.Optional[str]:
-        return self.__identifier
+        return self.__identifier_binding_helper.value
 
     @identifier.setter
     def identifier(self, value: typing.Optional[str]) -> None:
-        if self.__identifier != value:
-            self.__identifier = value
-            if self.__identifier_binding:
-                self.__identifier_binding.update_source(value)
-            self.__update_identifier()
+        self.__identifier_binding_helper.value = value
 
-    def __update_identifier(self) -> None:
+    def __update_identifier(self, identifier: typing.Optional[str]) -> None:
         # see notes in connect_items
-        self.clear_task("update_identifier")
         if self.__component_handler:
             getattr(self.__handler, "_closer").pop_closeable(self.__component_handler)
         self.__component_handler = None
         self.__column_widget.remove_all()
         window = self.__window
         handler = self.__handler
-        identifier = self.__identifier
         d = self.__d
         ui = self.ui
         component_id: typing.Optional[str]
@@ -1873,25 +1868,10 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             finish()
 
     def bind_identifier(self, binding: Binding.Binding) -> None:
-        if self.__identifier_binding:
-            self.__identifier_binding.close()
-            self.__identifier_binding = None
-        self.identifier = binding.get_target_value()
-        self.__identifier_binding = binding
-
-        def update_identifier(identifier: str) -> None:
-            def update_identifier_() -> None:
-                self.identifier = identifier
-
-            self.add_task("update_identifier", update_identifier_)
-
-        self.__identifier_binding.target_setter = update_identifier
+        self.__identifier_binding_helper.bind_value(binding)
 
     def unbind_identifier(self) -> None:
-        self.clear_task("update_identifier")
-        if self.__identifier_binding:
-            self.__identifier_binding.close()
-            self.__identifier_binding = None
+        self.__identifier_binding_helper.unbind_value()
 
 
 class DeclarativeWidget(Widgets.CompositeWidgetBase):

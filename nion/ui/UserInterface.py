@@ -5,10 +5,14 @@ from __future__ import annotations
 
 # standard libraries
 import abc
+import asyncio
 import collections
 import copy
 import enum
+import functools
+import logging
 import numbers
+import operator
 import pathlib
 import typing
 import weakref
@@ -329,6 +333,113 @@ class MimeData(abc.ABC):
         ...
 
 
+T = typing.TypeVar('T')
+
+class BindablePropertyHelper(typing.Generic[T]):
+    def __init__(self,
+                 value_getter: typing.Optional[typing.Callable[[], T]],
+                 value_setter: typing.Callable[[T], None],
+                 value_validator: typing.Optional[typing.Callable[[T, T], T]] = None,
+                 value_cmp: typing.Optional[typing.Callable[[T, T], bool]] = None) -> None:
+        self.__value_initialized = False
+        self.__value = typing.cast(T, None)
+        self.__pending_value = typing.cast(T, None)
+        self.__value_getter = value_getter
+        self.__value_setter = value_setter
+        self.__value_validator = value_validator if callable(value_validator) else lambda x, y: x
+        self.__value_cmp = value_cmp if callable(value_cmp) else typing.cast(typing.Callable[[T, T], bool], operator.eq)
+        self.__binding: typing.Optional[Binding.Binding] = None
+        self.__task: typing.Optional[asyncio.Task[None]] = None
+
+        def finalize(task: typing.Optional[asyncio.Task[None]]) -> None:
+            if task:
+                task.cancel()
+
+        weakref.finalize(self, finalize, self.__task)
+
+    def close(self) -> None:
+        if self.__task:
+            self.__task.cancel()
+
+    @property
+    def value(self) -> T:
+        return self.__value_getter() if callable(self.__value_getter) else self.__value
+
+    @value.setter
+    def value(self, value: T) -> None:
+        # when the high level user interface element changes programmatically, this method
+        # should be called with the new value. it updates the low level and the binding.
+        validated_value = self.__value_validator(value, self.__value)
+        if not self.__value_initialized or not self.__value_cmp(validated_value, self.__value):
+            self.__value_initialized = True
+            self.__value = validated_value
+            self.__value_setter(validated_value)
+            if self.__binding:
+                self.__binding.update_source(validated_value)
+
+    def set_value(self, value: T) -> None:
+        # when the binding source changes, this method should be called with the new value.
+        # it updates the low level, but does not update the binding.
+        validated_value = self.__value_validator(value, self.__value)
+        if not self.__value_initialized or not self.__value_cmp(validated_value, self.__value):
+            self.__value_initialized = True
+            self.__value = validated_value
+            self.__value_setter(validated_value)
+
+    def value_changed(self, value: T) -> None:
+        # when the target value changes due to a user action, this method
+        # should be called with the new value. it updates the binding, but does
+        # not update the low level.
+        validated_value = self.__value_validator(value, self.__value)
+        self.__value_initialized = True
+        self.__value = validated_value
+        if self.__binding:
+            self.__binding.update_source(validated_value)
+
+    # bind to value. takes ownership of binding.
+    def bind_value(self, binding: Binding.Binding) -> None:
+        # close the old binding
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+
+        # grab the initial value from the binding. use str method to convert value to text.
+        self.value = typing.cast(T, binding.get_target_value())
+
+        # save the binding and configure the target setter
+        # which will set the text when the binding changes
+        self.__binding = binding
+
+        async def update_value_inner(bph: typing.Any) -> None:
+            try:
+                self_ = typing.cast(typing.Optional[BindablePropertyHelper[T]], bph())
+                if self_:
+                    try:
+                        self_.set_value(self_.__pending_value)
+                    finally:
+                        self_.__task = None
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                logging.debug(e)
+
+        def update_value(bph: typing.Any, value: T) -> None:
+            # to avoid repeated cancel/new-task situations that starve the execution during tests,
+            # update the pending value and only create a new task if required.
+            self_ = typing.cast(typing.Optional[BindablePropertyHelper[T]], bph())
+            if self_:
+                self_.__pending_value = value
+                if not self_.__task:
+                    self_.__task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_value_inner(bph))
+
+        self.__binding.target_setter = functools.partial(update_value, weakref.ref(self))
+
+    def unbind_value(self) -> None:
+        if self.__binding:
+            self.__binding.close()
+            self.__binding = None
+
+
 class WidgetBehavior(typing.Protocol):
     focused: bool
     does_retain_focus: bool
@@ -373,23 +484,30 @@ class Widget:
         self._behavior.on_context_menu_event = handle_context_menu_event
         self._behavior.on_focus_changed = handle_focus_changed
 
-        self.__enabled_binding: typing.Optional[Binding.Binding] = None
-        self.__visible_binding: typing.Optional[Binding.Binding] = None
-        self.__tool_tip_binding: typing.Optional[Binding.Binding] = None
+        def set_visible(value: bool) -> None:
+            self._behavior.visible = value
+
+        def set_enabled(value: bool) -> None:
+            self._behavior.enabled = value
+
+        def set_tool_tip(value: typing.Optional[str]) -> None:
+            self._behavior.tool_tip = value
+
+        self.__visible_binding_helper = BindablePropertyHelper[bool](None, set_visible)
+        self.__enabled_binding_helper = BindablePropertyHelper[bool](None, set_enabled)
+        self.__tool_tip_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_tool_tip)
+
+        self.visible = True
+        self.enabled = True
+        self.tool_tip = None
 
     def close(self) -> None:
-        if self.__enabled_binding:
-            self.__enabled_binding.close()
-            self.__enabled_binding = None
-        if self.__visible_binding:
-            self.__visible_binding.close()
-            self.__visible_binding = None
-        if self.__tool_tip_binding:
-            self.__tool_tip_binding.close()
-            self.__tool_tip_binding = None
-        self.clear_task("update_enabled")
-        self.clear_task("update_visible")
-        self.clear_task("update_tool_tip")
+        self.__visible_binding_helper.close()
+        self.__visible_binding_helper = typing.cast(typing.Any, None)
+        self.__enabled_binding_helper.close()
+        self.__enabled_binding_helper = typing.cast(typing.Any, None)
+        self.__tool_tip_binding_helper.close()
+        self.__tool_tip_binding_helper = typing.cast(typing.Any, None)
         self.__behavior.close()
         self.__behavior = typing.cast(typing.Any, None)
         self.on_context_menu_event = None
@@ -523,25 +641,19 @@ class Widget:
 
     @property
     def visible(self) -> bool:
-        return self._behavior.visible
+        return self.__visible_binding_helper.value
 
     @visible.setter
     def visible(self, visible: bool) -> None:
-        if self._behavior.visible != visible:
-            self._behavior.visible = visible
-            if self.__visible_binding:
-                self.__visible_binding.update_source(visible)
+        self.__visible_binding_helper.value = visible
 
     @property
     def enabled(self) -> bool:
-        return self._behavior.enabled
+        return self.__enabled_binding_helper.value
 
     @enabled.setter
     def enabled(self, enabled: bool) -> None:
-        if self._behavior.enabled != enabled:
-            self._behavior.enabled = enabled
-            if self.__enabled_binding:
-                self.__enabled_binding.update_source(enabled)
+        self.__enabled_binding_helper.value = enabled
 
     @property
     def size(self) -> Geometry.IntSize:
@@ -553,14 +665,11 @@ class Widget:
 
     @property
     def tool_tip(self) -> typing.Optional[str]:
-        return self._behavior.tool_tip
+        return self.__tool_tip_binding_helper.value
 
     @tool_tip.setter
     def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
-        if self._behavior.tool_tip != tool_tip:
-            self._behavior.tool_tip = tool_tip
-            if self.__tool_tip_binding:
-                self.__tool_tip_binding.update_source(tool_tip)
+        self.__tool_tip_binding_helper.value = tool_tip
 
     def set_property(self, key: str, value: typing.Any) -> None:
         self._behavior.set_property(key, value)
@@ -593,67 +702,22 @@ class Widget:
         return None
 
     def bind_enabled(self, binding: Binding.Binding) -> None:
-        if self.__enabled_binding:
-            self.__enabled_binding.close()
-            self.__enabled_binding = None
-        self.enabled = typing.cast(bool, binding.get_target_value())
-        self.__enabled_binding = binding
-
-        def update_enabled(enabled: bool) -> None:
-            def update_enabled_() -> None:
-                if self._behavior:
-                    self.enabled = enabled
-
-            self.add_task("update_enabled", update_enabled_)
-
-        self.__enabled_binding.target_setter = update_enabled
+        self.__enabled_binding_helper.bind_value(binding)
 
     def unbind_enabled(self) -> None:
-        if self.__enabled_binding:
-            self.__enabled_binding.close()
-            self.__enabled_binding = None
+        self.__enabled_binding_helper.unbind_value()
 
     def bind_visible(self, binding: Binding.Binding) -> None:
-        if self.__visible_binding:
-            self.__visible_binding.close()
-            self.__visible_binding = None
-        self.visible = typing.cast(bool, binding.get_target_value())
-        self.__visible_binding = binding
-
-        def update_visible(visible: bool) -> None:
-            def update_visible_() -> None:
-                if self._behavior:
-                    self.visible = visible
-
-            self.add_task("update_visible", update_visible_)
-
-        self.__visible_binding.target_setter = update_visible
+        self.__visible_binding_helper.bind_value(binding)
 
     def unbind_visible(self) -> None:
-        if self.__visible_binding:
-            self.__visible_binding.close()
-            self.__visible_binding = None
+        self.__visible_binding_helper.unbind_value()
 
     def bind_tool_tip(self, binding: Binding.Binding) -> None:
-        if self.__tool_tip_binding:
-            self.__tool_tip_binding.close()
-            self.__tool_tip_binding = None
-        self.tool_tip = typing.cast(typing.Optional[str], binding.get_target_value())
-        self.__tool_tip_binding = binding
-
-        def update_tool_tip(tool_tip: typing.Optional[str]) -> None:
-            def update_tool_tip_() -> None:
-                if self._behavior:
-                    self.tool_tip = tool_tip
-
-            self.add_task("update_tool_tip", update_tool_tip_)
-
-        self.__tool_tip_binding.target_setter = update_tool_tip
+        self.__tool_tip_binding_helper.bind_value(binding)
 
     def unbind_tool_tip(self) -> None:
-        if self.__tool_tip_binding:
-            self.__tool_tip_binding.close()
-            self.__tool_tip_binding = None
+        self.__tool_tip_binding_helper.unbind_value()
 
 
 class BoxWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -816,7 +880,6 @@ class TabWidget(Widget):
     def __init__(self, widget_behavior: TabWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.children: typing.List[Widget] = []
-        self.__current_index_binding: typing.Optional[Binding.Binding] = None
         self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
 
         def handle_current_index_changed(index: int) -> None:
@@ -825,10 +888,19 @@ class TabWidget(Widget):
 
         self._behavior.on_current_index_changed = handle_current_index_changed
 
+        def set_current_index(value: int) -> None:
+            self._behavior.current_index = value
+
+        self.__current_index_binding_helper = BindablePropertyHelper[int](None, set_current_index)
+
+        self.current_index = 0
+
     def close(self) -> None:
         for child in self.children:
             child.close()
         self.children = typing.cast(typing.Any, None)
+        self.__current_index_binding_helper.close()
+        self.__current_index_binding_helper = typing.cast(typing.Any, None)
         self.on_current_index_changed = None
         super().close()
 
@@ -863,42 +935,17 @@ class TabWidget(Widget):
 
     @property
     def current_index(self) -> int:
-        return self._behavior.current_index
+        return self.__current_index_binding_helper.value
 
     @current_index.setter
     def current_index(self, index: int) -> None:
-        self._behavior.current_index = index
+        self.__current_index_binding_helper.value = index
 
     def bind_current_index(self, binding: Binding.Binding) -> None:
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        current_index = binding.get_target_value()
-        if current_index is not None and 0 <= current_index < len(self.children):
-            self.current_index = current_index
-        self.__current_index_binding = binding
-
-        def update_current_index(current_index: int) -> None:
-            if current_index is not None and 0 <= current_index < len(self.children):
-                def update_current_index_() -> None:
-                    if self._behavior:
-                        self.current_index = current_index
-
-                self.add_task("update_current_index", update_current_index_)
-
-        self.__current_index_binding.target_setter = update_current_index
-
-        def handle_current_index_changed(index: int) -> None:
-            if self.__current_index_binding:
-                self.__current_index_binding.update_source(index)
-
-        self.on_current_index_changed = handle_current_index_changed
+        self.__current_index_binding_helper.bind_value(binding)
 
     def unbind_current_index(self) -> None:
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        self.on_current_index_changed = None
+        self.__current_index_binding_helper.unbind_value()
 
 
 class StackWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -913,13 +960,20 @@ class StackWidget(Widget):
     def __init__(self, widget_behavior: StackWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.children: typing.List[Widget] = []
-        self.__current_index_binding: typing.Optional[Binding.Binding] = None
-        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+
+        def set_current_index(value: int) -> None:
+            self._behavior.current_index = value
+
+        self.__current_index_binding_helper = BindablePropertyHelper[int](None, set_current_index)
+
+        self.current_index = 0
 
     def close(self) -> None:
         for child in self.children:
             child.close()
         self.children = typing.cast(typing.Any, None)
+        self.__current_index_binding_helper.close()
+        self.__current_index_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -975,42 +1029,17 @@ class StackWidget(Widget):
 
     @property
     def current_index(self) -> int:
-        return self._behavior.current_index
+        return self.__current_index_binding_helper.value
 
     @current_index.setter
     def current_index(self, index: int) -> None:
-        self._behavior.current_index = index
+        self.__current_index_binding_helper.value = index
 
     def bind_current_index(self, binding: Binding.Binding) -> None:
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        current_index = binding.get_target_value()
-        if current_index is not None and 0 <= current_index < len(self.children):
-            self.current_index = current_index
-        self.__current_index_binding = binding
-
-        def update_current_index(current_index: int) -> None:
-            if current_index is not None and 0 <= current_index < len(self.children):
-                def update_current_index_() -> None:
-                    if self._behavior:
-                        self.current_index = current_index
-
-                self.add_task("update_current_index", update_current_index_)
-
-        self.__current_index_binding.target_setter = update_current_index
-
-        def handle_current_index_changed(index: int) -> None:
-            if self.__current_index_binding:
-                self.__current_index_binding.update_source(index)
-
-        self.on_current_index_changed = handle_current_index_changed
+        self.__current_index_binding_helper.bind_value(binding)
 
     def unbind_current_index(self) -> None:
-        if self.__current_index_binding:
-            self.__current_index_binding.close()
-            self.__current_index_binding = None
-        self.on_current_index_changed = None
+        self.__current_index_binding_helper.unbind_value()
 
 
 class GroupWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1177,17 +1206,15 @@ class ComboBoxWidget(Widget):
 
     def __init__(self, widget_behavior: ComboBoxWidgetBehavior, items: typing.Sequence[typing.Any], item_getter: typing.Callable[[typing.Any], str]) -> None:
         super().__init__(widget_behavior)
-        self.__items : typing.List[typing.Any] = list()
         self.on_items_changed : typing.Optional[typing.Callable[[typing.Sequence[typing.Any]], None]] = None
         self.on_current_text_changed : typing.Optional[typing.Callable[[str], None]]= None
         self.on_current_item_changed : typing.Optional[typing.Callable[[typing.Any], None]] = None
         self.on_current_index_changed : typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.item_getter = item_getter
-        self.items = list(items) if items else list()
-        self.__current_item_binding: typing.Optional[Binding.Binding] = None
         self.__items_binding: typing.Optional[Binding.Binding] = None
 
         def handle_current_text_changed(text: str) -> None:
+            self.__current_index_binding_helper.value_changed(self.current_index)
             if callable(self.on_current_text_changed):
                 self.on_current_text_changed(text)
             if callable(self.on_current_item_changed):
@@ -1197,15 +1224,34 @@ class ComboBoxWidget(Widget):
 
         self._behavior.on_current_text_changed = handle_current_text_changed
 
+        def set_items(items: typing.Sequence[typing.Any]) -> None:
+            current_index = self.current_index
+            item_strings = list()
+            for item in items:
+                item_string = notnone(self.item_getter(item) if self.item_getter else item)
+                item_strings.append(item_string)
+            self._behavior.set_item_strings(item_strings)
+            if callable(self.on_items_changed):
+                self.on_items_changed(self.__items)
+            self.current_index = current_index
+
+        def set_current_index(value: typing.Optional[int]) -> None:
+            self.current_item = self.items[value] if value is not None else None
+
+        def validate_current_index(new_value: typing.Optional[int], old_value: typing.Optional[int]) -> typing.Optional[int]:
+            return new_value if new_value is not None and new_value >= 0 and new_value < len(self.items) else None
+
+        self.__current_index_binding_helper = BindablePropertyHelper[typing.Optional[int]](None, set_current_index, validate_current_index)
+        self.__items_binding_helper = BindablePropertyHelper[typing.Sequence[typing.Any]](None, set_items)
+
+        self.items = list(items) if items else list()
+        self.current_index = 0
+
     def close(self) -> None:
-        if self.__current_item_binding:
-            self.__current_item_binding.close()
-            self.__current_item_binding = None
-        if self.__items_binding:
-            self.__items_binding.close()
-            self.__items_binding = None
-        self.clear_task("update_items")
-        self.clear_task("update_current_index")
+        self.__current_index_binding_helper.close()
+        self.__current_index_binding_helper = typing.cast(typing.Any, None)
+        self.__items_binding_helper.close()
+        self.__items_binding_helper = typing.cast(typing.Any, None)
         self.item_getter = typing.cast(typing.Any, None)
         self.__items = typing.cast(typing.Any, None)
         self.on_items_changed = None
@@ -1246,90 +1292,27 @@ class ComboBoxWidget(Widget):
 
     @current_index.setter
     def current_index(self, value: typing.Optional[int]) -> None:
-        self.current_item = self.items[value] if value and value >= 0 and value < len(self.items) is not None else None
+        self.__current_index_binding_helper.value = value
 
     @property
     def items(self) -> typing.Sequence[typing.Any]:
-        return self.__items
+        return self.__items_binding_helper.value
 
     @items.setter
     def items(self, items: typing.Sequence[typing.Any]) -> None:
-        current_index = self.current_index
-        item_strings = list()
-        self.__items = list()
-        for item in items:
-            item_string = notnone(self.item_getter(item) if self.item_getter else item)
-            item_strings.append(item_string)
-            self.__items.append(item)
-        self._behavior.set_item_strings(item_strings)
-        if callable(self.on_items_changed):
-            self.on_items_changed(self.__items)
-        if current_index != self.current_index:
-            self.current_index = current_index
+        self.__items_binding_helper.value = items
 
     def bind_items(self, binding: Binding.Binding) -> None:
-        if self.__items_binding:
-            self.__items_binding.close()
-            self.__items_binding = None
-            self.on_items_changed = None
-        self.items = list(typing.cast(typing.Sequence[typing.Any], binding.get_target_value()))
-        self.__items_binding = binding
-
-        def update_items(items: typing.Sequence[typing.Any]) -> None:
-            def update_items_() -> None:
-                if self._behavior:
-                    self.items = list(items)
-
-            self.add_task("update_items", update_items_)
-
-        self.__items_binding.target_setter = update_items
-
-        def handle_items_changed(items: typing.Sequence[typing.Any]) -> None:
-            if self.__items_binding:
-                self.__items_binding.update_source(items)
-
-        self.on_items_changed = handle_items_changed
+        self.__items_binding_helper.bind_value(binding)
 
     def unbind_items(self) -> None:
-        if self.__items_binding:
-            self.__items_binding.close()
-            self.__items_binding = None
-        self.on_items_changed = None
+        self.__items_binding_helper.unbind_value()
 
     def bind_current_index(self, binding: Binding.Binding) -> None:
-        if self.__current_item_binding:
-            self.__current_item_binding.close()
-            self.__current_item_binding = None
-            self.on_current_index_changed = None
-        current_index = typing.cast(typing.Optional[int], binding.get_target_value())
-        if current_index is not None and 0 <= current_index < len(self.__items):
-            self.current_item = self.__items[current_index]
-        self.__current_item_binding = binding
-
-        def update_current_index(current_index: int) -> None:
-            if current_index is not None and 0 <= current_index < len(self.__items):
-                item = self.__items[current_index]
-
-                def update_current_item_() -> None:
-                    if self._behavior:
-                        self.current_item = item
-
-                self.add_task("update_current_index", update_current_item_)
-                self.request_refocus()
-
-        self.__current_item_binding.target_setter = update_current_index
-
-        def handle_current_index_changed(index: typing.Optional[int]) -> None:
-            if self.__current_item_binding:
-                self.__current_item_binding.update_source(index)
-
-        self.on_current_index_changed = handle_current_index_changed
+        self.__current_index_binding_helper.bind_value(binding)
 
     def unbind_current_index(self) -> None:
-        if self.__current_item_binding:
-            self.__current_item_binding.close()
-            self.__current_item_binding = None
-        self.on_current_index_changed = None
+        self.__current_index_binding_helper.unbind_value()
 
 
 class PushButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1343,8 +1326,6 @@ class PushButtonWidget(Widget):
     def __init__(self, widget_behavior: PushButtonWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
-        self.text = text
-        self.icon = None
 
         def handle_clicked() -> None:
             if callable(self.on_clicked):
@@ -1352,18 +1333,23 @@ class PushButtonWidget(Widget):
 
         self._behavior.on_clicked = handle_clicked
 
-        self.__text_binding: typing.Optional[Binding.Binding] = None
-        self.__icon_binding: typing.Optional[Binding.Binding] = None
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.text = str(value) if value is not None else None
+
+        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            self._behavior.icon = value
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+
+        self.text = text
+        self.icon = None
 
     def close(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.clear_task("update_text")
-        self.clear_task("update_icon")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.__icon_binding_helper.close()
+        self.__icon_binding_helper = typing.cast(typing.Any, None)
         self.on_clicked = None
         super().close()
 
@@ -1373,72 +1359,31 @@ class PushButtonWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self._behavior.icon
+        return self.__icon_binding_helper.value
 
     @icon.setter
     def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self._behavior.icon = rgba_image
+        self.__icon_binding_helper.value = rgba_image
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = typing.cast(typing.Optional[str], binding.get_target_value())
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding and configure the target setter
-        # which will set the text when the binding changes
-        self.__text_binding = binding
-
-        def update_value(value: str) -> None:
-            def update_value_inner() -> None:
-                if self._behavior:
-                    # use str method to convert value to text.
-                    text = str(value) if value is not None else None
-                    self.text = text
-
-            self.add_task("update_text", update_value_inner)
-
-        self.__text_binding.target_setter = update_value
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
+        self.__text_binding_helper.unbind_value()
 
     def bind_icon(self, binding: Binding.Binding) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.icon = binding.get_target_value()
-        self.__icon_binding = binding
-
-        def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            def update_icon_() -> None:
-                if self._behavior:
-                    self.icon = icon
-
-            self.add_task("update_icon", update_icon_)
-
-        self.__icon_binding.target_setter = update_icon
+        self.__icon_binding_helper.bind_value(binding)
 
     def unbind_icon(self) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
+        self.__icon_binding_helper.unbind_value()
 
 
 class RadioButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1453,14 +1398,20 @@ class RadioButtonWidget(Widget):
     def __init__(self, widget_behavior: RadioButtonWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
-        self.text = text
-        self.icon = None
         self.__value: typing.Optional[int] = None
-        self.__group_value: typing.Optional[int] = None
-        self.__on_group_value_changed: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
-        self.__group_value_binding: typing.Optional[Binding.Binding] = None
-        self.__text_binding: typing.Optional[Binding.Binding] = None
-        self.__icon_binding: typing.Optional[Binding.Binding] = None
+
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.text = str(value) if value is not None else None
+
+        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+            self._behavior.icon = value
+
+        def set_group_value(group_value: typing.Optional[int]) -> None:
+            self.checked = group_value == self.__value
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+        self.__group_value_binding_helper = BindablePropertyHelper[typing.Optional[typing.Optional[int]]](None, set_group_value)
 
         def handle_clicked() -> None:
             if self.__value is not None:
@@ -1470,19 +1421,17 @@ class RadioButtonWidget(Widget):
 
         self._behavior.on_clicked = handle_clicked
 
+        self.text = text
+        self.icon = None
+        self.group_value = None
+
     def close(self) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.clear_task("update_text")
-        self.clear_task("update_icon")
-        self.clear_task("update_group_value")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.__icon_binding_helper.close()
+        self.__icon_binding_helper = typing.cast(typing.Any, None)
+        self.__group_value_binding_helper.close()
+        self.__group_value_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -1491,19 +1440,19 @@ class RadioButtonWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self._behavior.icon
+        return self.__icon_binding_helper.value
 
     @icon.setter
     def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self._behavior.icon = rgba_image
+        self.__icon_binding_helper.value = rgba_image
 
     @property
     def checked(self) -> bool:
@@ -1520,101 +1469,33 @@ class RadioButtonWidget(Widget):
     @value.setter
     def value(self, value: typing.Optional[int]) -> None:
         self.__value = value
-        self.checked = self.__group_value == self.__value
+        self.checked = self.group_value == self.__value
 
     @property
     def group_value(self) -> typing.Optional[int]:
-        return self.__group_value
+        return self.__group_value_binding_helper.value
 
     @group_value.setter
     def group_value(self, group_value: typing.Optional[int]) -> None:
-        self.__group_value = group_value
-        self.checked = self.__group_value == self.__value
-        if callable(self.__on_group_value_changed):
-            self.__on_group_value_changed(group_value)
+        self.__group_value_binding_helper.value = group_value
 
-    # bind to value. takes ownership of binding.
     def bind_group_value(self, binding: Binding.Binding) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-            self.__on_group_value_changed = None
-        self.group_value = binding.get_target_value()
-        self.__group_value_binding = binding
-
-        def update_group_value(group_value: typing.Optional[int]) -> None:
-            def update_group_value_() -> None:
-                if self._behavior:
-                    self.group_value = group_value
-
-            self.add_task("update_group_value", update_group_value_)
-
-        self.__group_value_binding.target_setter = update_group_value
-
-        def handle_group_value_changed(group_value: typing.Optional[int]) -> None:
-            if self.__group_value_binding:
-                self.__group_value_binding.update_source(group_value)
-
-        self.__on_group_value_changed = handle_group_value_changed
+        self.__group_value_binding_helper.bind_value(binding)
 
     def unbind_group_value(self) -> None:
-        if self.__group_value_binding:
-            self.__group_value_binding.close()
-            self.__group_value_binding = None
-        self.__on_group_value_changed = None
+        self.__group_value_binding_helper.unbind_value()
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding and configure the target setter
-        # which will set the text when the binding changes
-        self.__text_binding = binding
-
-        def update_value(value: typing.Optional[str]) -> None:
-            def update_value_inner() -> None:
-                if self._behavior:
-                    # use str method to convert value to text.
-                    text = str(value) if value is not None else str()
-                    self.text = text
-
-            self.add_task("update_text", update_value_inner)
-
-        self.__text_binding.target_setter = update_value
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
+        self.__text_binding_helper.unbind_value()
 
     def bind_icon(self, binding: Binding.Binding) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
-        self.icon = binding.get_target_value()
-        self.__icon_binding = binding
-
-        def update_icon(icon: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            def update_icon_() -> None:
-                if self._behavior:
-                    self.icon = icon
-
-            self.add_task("update_icon", update_icon_)
-
-        self.__icon_binding.target_setter = update_icon
+        self.__icon_binding_helper.bind_value(binding)
 
     def unbind_icon(self) -> None:
-        if self.__icon_binding:
-            self.__icon_binding.close()
-            self.__icon_binding = None
+        self.__icon_binding_helper.unbind_value()
 
 
 class CheckBoxWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1630,11 +1511,31 @@ class CheckBoxWidget(Widget):
         super().__init__(widget_behavior)
         self.on_checked_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
-        self.text = text
-        self.__check_binding: typing.Optional[Binding.Binding] = None
-        self.__text_binding: typing.Optional[Binding.Binding] = None
+
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.text = str(value) if value is not None else None
+
+        def get_check_state() -> str:
+            return self._behavior.check_state
+
+        def set_check_state(value: str) -> None:
+            self._behavior.check_state = value
+
+        def get_checked() -> bool:
+            return self._behavior.check_state == "checked"
+
+        def set_checked(value: bool) -> None:
+            set_check_state("checked" if value else "unchecked")
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+
+        # check state and checked are not independent, so use low level getters
+        self.__check_state_binding_helper = BindablePropertyHelper[str](get_check_state, set_check_state)
+        self.__checked_binding_helper = BindablePropertyHelper[bool](get_checked, set_checked)
 
         def handle_check_state_changed(check_state: str) -> None:
+            self.__checked_binding_helper.value_changed(check_state == "checked")
+            self.__check_state_binding_helper.value_changed(check_state)
             if callable(self.on_checked_changed):
                 self.on_checked_changed(check_state == "checked")
             if callable(self.on_check_state_changed):
@@ -1642,15 +1543,17 @@ class CheckBoxWidget(Widget):
 
         self._behavior.on_check_state_changed = handle_check_state_changed
 
+        self.text = text
+        self.check_state = "unchecked"
+        self.checked = False
+
     def close(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        if self.__check_binding:
-            self.__check_binding.close()
-            self.__check_binding = None
-        self.clear_task("update_text")
-        self.clear_task("update_check_state")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.__check_state_binding_helper.close()
+        self.__check_state_binding_helper = typing.cast(typing.Any, None)
+        self.__checked_binding_helper.close()
+        self.__checked_binding_helper = typing.cast(typing.Any, None)
         self.on_checked_changed = None
         self.on_check_state_changed = None
         super().close()
@@ -1661,19 +1564,19 @@ class CheckBoxWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def checked(self) -> bool:
-        return self.check_state == "checked"
+        return self.__checked_binding_helper.value
 
     @checked.setter
     def checked(self, value: bool) -> None:
-        self.check_state = "checked" if value else "unchecked"
+        self.__checked_binding_helper.value = value
 
     @property
     def tristate(self) -> bool:
@@ -1685,103 +1588,29 @@ class CheckBoxWidget(Widget):
 
     @property
     def check_state(self) -> str:
-        return self._behavior.check_state
+        return self.__check_state_binding_helper.value
 
     @check_state.setter
     def check_state(self, value: str) -> None:
-        self._behavior.check_state = value
+        self.__check_state_binding_helper.value = value
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding and configure the target setter
-        # which will set the text when the binding changes
-        self.__text_binding = binding
-
-        def update_value(value: typing.Optional[str]) -> None:
-            def update_value_inner() -> None:
-                if self._behavior:
-                    # use str method to convert value to text.
-                    text = str(value) if value is not None else None
-                    self.text = text
-
-            self.add_task("update_text", update_value_inner)
-
-        self.__text_binding.target_setter = update_value
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
+        self.__text_binding_helper.unbind_value()
 
-    # bind to state. takes ownership of binding.
     def bind_checked(self, binding: Binding.Binding) -> None:
-        if self.__check_binding:
-            self.__check_binding.close()
-            self.__check_binding = None
-            self.on_checked_changed = None
-        self.checked = typing.cast(bool, binding.get_target_value())
-        self.__check_binding = binding
-
-        def update_checked(checked: bool) -> None:
-            def update_checked_() -> None:
-                if self._behavior:
-                    self.checked = checked
-
-            self.add_task("update_checked", update_checked_)
-
-        self.__check_binding.target_setter = update_checked
-
-        def handle_checked_changed(checked: bool) -> None:
-            if self.__check_binding:
-                self.__check_binding.update_source(checked)
-
-        self.on_checked_changed = handle_checked_changed
+        self.__checked_binding_helper.bind_value(binding)
 
     def unbind_checked(self) -> None:
-        if self.__check_binding:
-            self.__check_binding.close()
-            self.__check_binding = None
-        self.on_checked_changed = None
+        self.__checked_binding_helper.unbind_value()
 
-    # bind to state. takes ownership of binding.
     def bind_check_state(self, binding: Binding.Binding) -> None:
-        if self.__check_binding:
-            self.__check_binding.close()
-            self.__check_binding = None
-            self.on_check_state_changed = None
-        self.check_state = typing.cast(str, binding.get_target_value())
-        self.__check_binding = binding
-
-        def update_check_state(check_state: str) -> None:
-            def update_check_state_() -> None:
-                if self._behavior:
-                    self.check_state = check_state
-
-            self.add_task("update_check_state", update_check_state_)
-
-        self.__check_binding.target_setter = update_check_state
-
-        def handle_check_state_changed(check_state: str) -> None:
-            if self.__check_binding:
-                self.__check_binding.update_source(check_state)
-
-        self.on_check_state_changed = handle_check_state_changed
+        self.__check_state_binding_helper.bind_value(binding)
 
     def unbind_check_state(self) -> None:
-        if self.__check_binding:
-            self.__check_binding.close()
-            self.__check_binding = None
-        self.on_check_state_changed = None
+        self.__check_state_binding_helper.unbind_value()
 
 
 class LabelWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1795,21 +1624,31 @@ class LabelWidget(Widget):
 
     def __init__(self, widget_behavior: LabelWidgetBehavior, text: typing.Optional[str]) -> None:
         super().__init__(widget_behavior)
+
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.text = str(value) if value is not None else str()
+
+        def set_text_font(value: typing.Optional[str]) -> None:
+            self._behavior.set_text_font(str(value) if value is not None else None)
+
+        def set_text_color(value: typing.Optional[str]) -> None:
+            self._behavior.set_text_color(str(value) if value is not None else None)
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+        self.__text_font_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_font)
+        self.__text_color_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_color)
+
         self.text = text
-        self.__text_font: typing.Optional[str] = None
-        self.__text_color: typing.Optional[str] = None
-        self.__text_binding: typing.Optional[Binding.Binding] = None
-        self.__text_color_binding: typing.Optional[Binding.Binding] = None
+        self.text_font = None
+        self.text_color = "black"
 
     def close(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-        if self.__text_color_binding:
-            self.__text_color_binding.close()
-            self.__text_color_binding = None
-        self.clear_task("update_text")
-        self.clear_task("update_text_color")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.__text_font_binding_helper.close()
+        self.__text_font_binding_helper = typing.cast(typing.Any, None)
+        self.__text_color_binding_helper.close()
+        self.__text_color_binding_helper = typing.cast(typing.Any, None)
         super().close()
 
     @property
@@ -1818,29 +1657,27 @@ class LabelWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def text_color(self) -> typing.Optional[str]:
-        return self.__text_color
+        return self.__text_color_binding_helper.value
 
     @text_color.setter
     def text_color(self, value: typing.Optional[str]) -> None:
-        self.__text_color = value
-        self._behavior.set_text_color(value)
+        self.__text_color_binding_helper.value = value
 
     @property
     def text_font(self) -> typing.Optional[str]:
-        return self.__text_font
+        return self.__text_font_binding_helper.value
 
     @text_font.setter
     def text_font(self, value: typing.Optional[str]) -> None:
-        self.__text_font = value
-        self._behavior.set_text_font(value)
+        self.__text_font_binding_helper.value = value
 
     @property
     def word_wrap(self) -> bool:
@@ -1850,69 +1687,23 @@ class LabelWidget(Widget):
     def word_wrap(self, value: bool) -> None:
         self._behavior.word_wrap = value
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding and configure the target setter
-        # which will set the text when the binding changes
-        self.__text_binding = binding
-
-        def update_value(value: typing.Optional[str]) -> None:
-            def update_value_inner() -> None:
-                if self._behavior:
-                    # use str method to convert value to text.
-                    text = str(value) if value is not None else None
-                    self.text = text
-
-            self.add_task("update_text", update_value_inner)
-
-        self.__text_binding.target_setter = update_value
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__text_binding:
-            self.__text_binding.close()
-            self.__text_binding = None
+        self.__text_binding_helper.unbind_value()
 
-    # bind to text. takes ownership of binding.
+    def bind_text_font(self, binding: Binding.Binding) -> None:
+        self.__text_font_binding_helper.bind_value(binding)
+
+    def unbind_text_font(self) -> None:
+        self.__text_font_binding_helper.unbind_value()
+
     def bind_text_color(self, binding: Binding.Binding) -> None:
-        # close the old binding
-        if self.__text_color_binding:
-            self.__text_color_binding.close()
-            self.__text_color_binding = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text_color = text
-
-        # save the binding and configure the target setter
-        # which will set the text when the binding changes
-        self.__text_color_binding = binding
-
-        def update_value(value: typing.Optional[str]) -> None:
-            def update_value_inner() -> None:
-                if self._behavior:
-                    # use str method to convert value to text.
-                    text_color = str(value) if value is not None else None
-                    self.text_color = text_color
-
-            self.add_task("update_text_color", update_value_inner)
-
-        self.__text_color_binding.target_setter = update_value
+        self.__text_color_binding_helper.bind_value(binding)
 
     def unbind_text_color(self) -> None:
-        if self.__text_color_binding:
-            self.__text_color_binding.close()
-            self.__text_color_binding = None
+        self.__text_color_binding_helper.unbind_value()
 
 
 class SliderWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1942,9 +1733,24 @@ class SliderWidget(Widget):
         self.on_slider_moved: typing.Optional[typing.Callable[[int], None]] = None
         self.minimum = 0
         self.maximum = 0
-        self.__binding: typing.Optional[Binding.Binding] = None
+
+        def set_value(value: int) -> None:
+            old_value_changed = self.on_value_changed
+            self.on_value_changed = None
+            try:
+                self._behavior.value = value
+                if callable(self.on_value_changed):
+                    self.on_value_changed(value)
+            finally:
+                self.on_value_changed = old_value_changed
+
+        def validate_value(new_value: int, old_value: int) -> int:
+            return min(max(new_value, self.minimum), self.maximum)
+
+        self.__value_binding_helper = BindablePropertyHelper[int](None, set_value, validate_value)
 
         def handle_value_changed(value: int) -> None:
+            self.__value_binding_helper.value_changed(value)
             if callable(self.on_value_changed):
                 self.on_value_changed(value)
 
@@ -1968,11 +1774,11 @@ class SliderWidget(Widget):
 
         self._behavior.on_slider_moved = handle_slider_moved
 
+        self.value = 0
+
     def close(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_value")
+        self.__value_binding_helper.close()
+        self.__value_binding_helper = typing.cast(typing.Any, None)
         self.on_value_changed = None
         self.on_slider_pressed = None
         self.on_slider_released = None
@@ -1985,12 +1791,11 @@ class SliderWidget(Widget):
 
     @property
     def value(self) -> int:
-        return self._behavior.value
+        return self.__value_binding_helper.value
 
     @value.setter
     def value(self, value: int) -> None:
-        if value != self.value:
-            self._behavior.value = value
+        self.__value_binding_helper.value = value
 
     @property
     def minimum(self) -> int:
@@ -2012,47 +1817,11 @@ class SliderWidget(Widget):
     def pressed(self) -> bool:
         return self._behavior.pressed
 
-    # bind to value. takes ownership of binding.
     def bind_value(self, binding: Binding.Binding) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-            self.on_value_changed = None
-        self.value = typing.cast(int, binding.get_target_value())
-        self.__binding = binding
-
-        def update_value(value: int) -> None:
-            def update_value_() -> None:
-                if self._behavior:
-                    # ensure that setting the value does not loop around with another value changed
-                    old_value_changed = self.on_value_changed
-                    self.on_value_changed = None
-                    try:
-                        self.value = value
-                    finally:
-                        self.on_value_changed = old_value_changed
-
-            self.add_task("update_value", update_value_)
-
-        self.__binding.target_setter = update_value
-
-        def update_source(value: int) -> None:
-            # ensure that responding to a changing slider value does not loop around with another value
-            if self.__binding:
-                old_target_setter = self.__binding.target_setter
-                self.__binding.target_setter = None
-                try:
-                    self.__binding.update_source(value)
-                finally:
-                    self.__binding.target_setter = old_target_setter
-
-        self.on_value_changed = update_source
+        self.__value_binding_helper.bind_value(binding)
 
     def unbind_value(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.on_value_changed = None
+        self.__value_binding_helper.unbind_value()
 
 
 class LineEditWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -2083,10 +1852,11 @@ class LineEditWidget(Widget):
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
         self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
-        self.__binding: typing.Optional[Binding.Binding] = None
         self.__last_text = None
 
         def handle_editing_finished(text: str) -> None:
+            if text != self.__last_text:
+                self.__text_binding_helper.value_changed(text)
             if callable(self.on_editing_finished):
                 self.on_editing_finished(text)
             self.__last_text = text
@@ -2094,6 +1864,8 @@ class LineEditWidget(Widget):
         self._behavior.on_editing_finished = handle_editing_finished
 
         def handle_escape_pressed() -> bool:
+            self.__text_binding_helper.value_changed(self.__last_text)
+            self.request_refocus()
             if callable(self.on_escape_pressed):
                 return self.on_escape_pressed()
             return False
@@ -2101,6 +1873,8 @@ class LineEditWidget(Widget):
         self._behavior.on_escape_pressed = handle_escape_pressed
 
         def handle_return_pressed() -> bool:
+            self.__text_binding_helper.value_changed(self.text)
+            self.request_refocus()
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()
             return False
@@ -2120,11 +1894,16 @@ class LineEditWidget(Widget):
 
         self._behavior.on_text_edited = handle_text_edited
 
+        def set_text(value: typing.Optional[str]) -> None:
+            str_ = str(value) if value is not None else str()
+            self.__last_text = str_
+            self._behavior.text = str_
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+
     def close(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_text")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
         self.on_editing_finished = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
@@ -2137,12 +1916,11 @@ class LineEditWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self.__last_text = notnone(text)
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def placeholder_text(self) -> typing.Optional[str]:
@@ -2182,72 +1960,11 @@ class LineEditWidget(Widget):
     def refocus(self) -> None:
         self.select_all()
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding and clear other listener methods
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-            self.on_editing_finished = None
-            self.on_return_pressed = None
-            self.on_escape_pressed = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding
-        self.__binding = binding
-
-        def update_value_(value: typing.Optional[str]) -> None:
-            if self._behavior:
-                text = str(value) if value is not None else None
-                if self.text != text and (not self.focused or self.selected_text == self.text):
-                    self.text = text
-                    if self.focused:
-                        self.select_all()
-
-        def update_value(value: typing.Optional[str]) -> None:
-            self.add_task("update_text", lambda: update_value_(value))
-
-        # configure the target setter which will set the text when the binding changes
-        self.__binding.target_setter = update_value
-
-        def editing_finished(text: str) -> None:
-            if text != self.__last_text and self.__binding:
-                self.__binding.update_source(text)
-
-        # when editing is finished, update the binding value. the binding value will always
-        # be set as a string.
-        self.on_editing_finished = editing_finished
-
-        def return_pressed() -> bool:
-            text = self.text
-            if self.__binding:
-                self.__binding.update_source(text)
-            self.request_refocus()
-            return True
-
-        def escape_pressed() -> bool:
-            text = self.__last_text
-            if self.__binding:
-                self.__binding.update_source(text)
-            self.request_refocus()
-            return True
-
-        # when return or escape are pressed, update th binding value (always a string).
-        # in the case of escape, revert the value to the last text.
-        self.on_return_pressed = return_pressed
-        self.on_escape_pressed = escape_pressed
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.on_editing_finished = None
-        self.on_return_pressed = None
-        self.on_escape_pressed = None
+        self.__text_binding_helper.unbind_value()
 
     def editing_finished(self, text: str) -> None:
         self._behavior.editing_finished(text)
@@ -2306,8 +2023,6 @@ class TextEditWidget(Widget):
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
         self.on_insert_mime_data: typing.Optional[typing.Callable[[MimeData], None]] = None
-        self.__binding: typing.Optional[Binding.Binding] = None
-        self.__in_update = False
 
         def handle_cursor_position_changed(cursor_position: CursorPosition) -> None:
             if callable(self.on_cursor_position_changed):
@@ -2322,6 +2037,7 @@ class TextEditWidget(Widget):
         self._behavior.on_selection_changed = handle_selection_changed
 
         def handle_text_changed(text: typing.Optional[str]) -> None:
+            self.__text_binding_helper.value_changed(text)
             if callable(self.on_text_changed):
                 self.on_text_changed(text)
             if callable(self.on_text_edited):
@@ -2359,11 +2075,14 @@ class TextEditWidget(Widget):
 
         self._behavior.on_insert_mime_data = handle_insert_mime_data
 
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.text = str(value) if value is not None else str()
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+
     def close(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_text")
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
@@ -2380,11 +2099,11 @@ class TextEditWidget(Widget):
 
     @property
     def text(self) -> typing.Optional[str]:
-        return self._behavior.text
+        return self.__text_binding_helper.value
 
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
-        self._behavior.text = text
+        self.__text_binding_helper.value = text
 
     @property
     def placeholder(self) -> typing.Optional[str]:
@@ -2458,50 +2177,11 @@ class TextEditWidget(Widget):
     def word_wrap_mode(self, value: str) -> None:
         self._behavior.word_wrap_mode = value
 
-    # bind to text. takes ownership of binding.
     def bind_text(self, binding: Binding.Binding) -> None:
-        # close the old binding and clear other listener methods
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-            self.on_text_changed = None
-            self.on_text_edited = None
-
-        # grab the initial value from the binding. use str method to convert value to text.
-        value = binding.get_target_value()
-        text = str(value) if value is not None else None
-        self.text = text
-
-        # save the binding
-        self.__binding = binding
-
-        def update_value(value: typing.Optional[str]) -> None:
-            def update_value_() -> None:
-                if self._behavior:
-                    text = str(value) if value is not None else None
-                    self.text = text
-
-            if not self.__in_update:
-                self.add_task("update_text", update_value_)
-
-        # configure the target setter which will set the text when the binding changes
-        self.__binding.target_setter = update_value
-
-        def on_text_edited(text: typing.Optional[str]) -> None:
-            self.__in_update = True
-            if self.__binding:
-                self.__binding.update_source(text)
-            self.__in_update = False
-
-        # when text is edited, update the binding value (always a string).
-        self.on_text_edited = on_text_edited
+        self.__text_binding_helper.bind_value(binding)
 
     def unbind_text(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.on_text_changed = None
-        self.on_text_edited = None
+        self.__text_binding_helper.unbind_value()
 
 
 class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -2821,21 +2501,34 @@ class ProgressBarWidget(CanvasWidget):
 
     def __init__(self, widget_behavior: ProgressBarWidgetBehavior) -> None:
         super().__init__(widget_behavior)
-        self.__value = 0
         self.__minimum = 0
         self.__maximum = 0
         self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
-        self.__binding: typing.Optional[Binding.Binding] = None
+
+        def set_value(value: int) -> None:
+            old_value_changed = self.on_value_changed
+            self.on_value_changed = None
+            try:
+                self.__progress_bar_canvas_item.progress = (value - self.__minimum) / (self.__maximum - self.__minimum) if self.__maximum != self.__minimum else 0.0
+                if callable(self.on_value_changed):
+                    self.on_value_changed(value)
+            finally:
+                self.on_value_changed = old_value_changed
+
+        def validate_value(new_value: int, old_value: int) -> int:
+            return min(max(new_value, self.__minimum), self.__maximum)
+
+        self.__value_binding_helper = BindablePropertyHelper[int](None, set_value, validate_value)
 
         self.__progress_bar_canvas_item = CanvasItem.ProgressBarCanvasItem()
         self.__progress_bar_canvas_item.update_sizing(self.__progress_bar_canvas_item.sizing.with_fixed_size(Geometry.IntSize(w=500, h=20)))
         self.canvas_item.add_canvas_item(self.__progress_bar_canvas_item)
 
+        self.value = 0
+
     def close(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.clear_task("update_value")
+        self.__value_binding_helper.close()
+        self.__value_binding_helper = typing.cast(typing.Any, None)
         self.on_value_changed = None
         super().close()
 
@@ -2845,15 +2538,11 @@ class ProgressBarWidget(CanvasWidget):
 
     @property
     def value(self) -> int:
-        return self.__value
+        return self.__value_binding_helper.value
 
     @value.setter
     def value(self, value: int) -> None:
-        if value != self.__value:
-            self.__value = value
-            self.__progress_bar_canvas_item.progress = (value - self.__minimum) / (self.__maximum - self.__minimum) if self.__maximum != self.__minimum else 0.0
-            if callable(self.on_value_changed):
-                self.on_value_changed(value)
+        self.__value_binding_helper.value = value
 
     @property
     def minimum(self) -> int:
@@ -2871,35 +2560,11 @@ class ProgressBarWidget(CanvasWidget):
     def maximum(self, maximum: int) -> None:
         self.__maximum = maximum
 
-    # bind to value. takes ownership of binding.
     def bind_value(self, binding: Binding.Binding) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-            self.on_value_changed = None
-        self.value = typing.cast(int, binding.get_target_value())
-        self.__binding = binding
-
-        def update_value(value: int) -> None:
-            def update_value_() -> None:
-                if self._behavior:
-                    self.value = value
-
-            self.add_task("update_value", update_value_)
-
-        self.__binding.target_setter = update_value
-
-        def handle_value_changed(value: int) -> None:
-            if self.__binding:
-                self.__binding.update_source(value)
-
-        self.on_value_changed = handle_value_changed
+        self.__value_binding_helper.bind_value(binding)
 
     def unbind_value(self) -> None:
-        if self.__binding:
-            self.__binding.close()
-            self.__binding = None
-        self.on_value_changed = None
+        self.__value_binding_helper.unbind_value()
 
 
 class TreeWidgetBehavior(WidgetBehavior, typing.Protocol):

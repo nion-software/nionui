@@ -471,7 +471,7 @@ class QtDrag:
             self.on_drag_finished(action)
 
 
-class QtWidgetBehavior:
+class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy #4125 is available
 
     def __init__(self, proxy: _QtProxy, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         self.proxy = proxy
@@ -508,8 +508,14 @@ class QtWidgetBehavior:
     def set_property(self, key: str, value: typing.Any) -> None:
         self.proxy.Widget_setWidgetProperty(self.widget, key, self.proxy.encode_variant(value))
 
+    def periodic(self) -> None:
+        pass
+
     def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
         pass
+
+    def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
+        return None
 
     def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
@@ -609,7 +615,7 @@ class QtWidgetBehavior:
         return Geometry.IntPoint(x=gx, y=gy)
 
 
-class QtNullBehavior:
+class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy #4125 is available
     def __init__(self) -> None:
         self.focused = False
         self.does_retain_focus = False
@@ -620,12 +626,19 @@ class QtNullBehavior:
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
         self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.widget = None
 
     def close(self) -> None:
         pass
 
+    def periodic(self) -> None:
+        pass
+
     def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
         pass
+
+    def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
+        return None
 
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
@@ -653,11 +666,10 @@ class QtBoxSpacing(UserInterface.Widget):
 
 
 def extract_widget(widget: typing.Any) -> typing.Optional[UserInterface.Widget]:
-    if hasattr(widget, "content_widget"):
-        return extract_widget(widget.content_widget)
-    elif hasattr(widget, "_behavior"):
-        return typing.cast(typing.Optional[UserInterface.Widget], widget._behavior.widget)
-    return None
+    content_widget = widget._behavior._get_content_widget() if widget else None
+    if content_widget:
+        return extract_widget(content_widget)
+    return typing.cast(typing.Optional[UserInterface.Widget], widget._behavior.widget if widget else None)
 
 
 class QtBoxWidgetBehavior(QtWidgetBehavior):
@@ -700,6 +712,12 @@ class QtSplitterWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "splitter", properties)
         self.__orientation: typing.Optional[str] = "vertical"
+        self.__children: typing.List[UserInterface.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     @property
     def orientation(self) -> typing.Optional[str]:
@@ -711,6 +729,7 @@ class QtSplitterWidgetBehavior(QtWidgetBehavior):
         self.proxy.Splitter_setOrientation(self.widget, self.__orientation)
 
     def add(self, child: UserInterface.Widget) -> None:
+        self.__children.append(child)
         self.proxy.Widget_addWidget(self.widget, extract_widget(child))
 
     def restore_state(self, tag: str) -> None:
@@ -730,12 +749,16 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         self.__current_index = -1
         self.on_current_index_changed : typing.Optional[typing.Callable[[int], None]] = None
         self.proxy.TabWidget_connect(self.widget, self)
+        self.__children: typing.List[UserInterface.Widget] = list()
 
     def close(self) -> None:
+        for child in self.__children:
+            child.close()
         self.on_current_index_changed = None
         super().close()
 
     def add(self, child: UserInterface.Widget, label: str) -> None:
+        self.__children.append(child)
         self.proxy.TabWidget_addTab(self.widget, extract_widget(child), notnone(label))
 
     def restore_state(self, tag: str) -> None:
@@ -764,6 +787,12 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "stack", properties)
         self.__current_index = -1
+        self.__children: typing.List[UserInterface.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def insert(self, child: UserInterface.Widget, index: int) -> None:
         # behavior must handle index of None, meaning insert at end
@@ -771,13 +800,17 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         assert self.widget is not None
         assert child_widget is not None
         index = index if index is not None else self.proxy.Widget_widgetCount(self.widget)
+        self.__children.insert(index, child)
         self.proxy.StackWidget_insertWidget(self.widget, child_widget, index)
 
     def add(self, child: UserInterface.Widget) -> None:
+        self.__children.append(child)
         self.proxy.StackWidget_addWidget(self.widget, extract_widget(child))
 
     def remove(self, child: UserInterface.Widget) -> None:
         self.proxy.StackWidget_removeWidget(self.widget, extract_widget(child))
+        self.__children.remove(child)
+        child.close()
 
     @property
     def current_index(self) -> int:
@@ -803,12 +836,21 @@ class QtGroupWidgetBehavior(QtWidgetBehavior):
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "group", properties)
         self.__title: typing.Optional[str] = None
+        self.__children: typing.List[UserInterface.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def add(self, child: UserInterface.Widget) -> None:
+        self.__children.append(child)
         self.proxy.Widget_addWidget(self.widget, extract_widget(child))
 
     def remove(self, child: UserInterface.Widget) -> None:
         self.proxy.Widget_removeWidget(self.widget, extract_widget(child))
+        self.__children.remove(child)
+        child.close()
 
     @property
     def title(self) -> typing.Optional[str]:
@@ -1449,9 +1491,6 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         super().close()
 
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
-        pass
-
-    def periodic(self) -> None:
         pass
 
     @property

@@ -441,6 +441,10 @@ class BindablePropertyHelper(typing.Generic[T]):
 
 
 class WidgetBehavior(typing.Protocol):
+    # note: behaviors are generally responsible for closing widgets that get added to them.
+    # this is so behaviors which insert added widgets into another widget get closed in a
+    # predictable manner (i.e. when the enclosing widget gets closed).
+
     focused: bool
     does_retain_focus: bool
     visible: bool
@@ -451,8 +455,14 @@ class WidgetBehavior(typing.Protocol):
     on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]]
     on_focus_changed: typing.Optional[typing.Callable[[bool], None]]
 
+    # low level UI specific widget
+    @property
+    def widget(self) -> typing.Any: raise NotImplementedError()
+
     def close(self) -> None: ...
+    def periodic(self) -> None: pass
     def _set_root_container(self, window: typing.Optional[WindowModule.Window]) -> None: ...
+    def _get_content_widget(self) -> typing.Optional[Widget]: return None
     def set_property(self, key: str, value: typing.Any) -> None: ...
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint: ...
     def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
@@ -508,6 +518,9 @@ class Widget:
         self.__enabled_binding_helper = typing.cast(typing.Any, None)
         self.__tool_tip_binding_helper.close()
         self.__tool_tip_binding_helper = typing.cast(typing.Any, None)
+        content_widget = self._behavior._get_content_widget()
+        if content_widget:
+            content_widget.close()
         self.__behavior.close()
         self.__behavior = typing.cast(typing.Any, None)
         self.on_context_menu_event = None
@@ -541,7 +554,16 @@ class Widget:
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return list()
+        content_widget = self._behavior._get_content_widget()
+        return [content_widget] if content_widget else list()
+
+    @property
+    def content_widget(self) -> Widget:
+        # this is a compromise method for backwards compatibility for code expecting the widgets to be
+        # based on CompositeWidgetBase.
+        content_widget = self._behavior._get_content_widget()
+        assert content_widget
+        return content_widget
 
     def find_widget_by_id(self, widget_id: str) -> typing.Optional[Widget]:
         if self.widget_id == widget_id:
@@ -554,7 +576,7 @@ class Widget:
 
     # not thread safe
     def periodic(self) -> None:
-        pass
+        self._behavior.periodic()
 
     def run_pending_keyed_tasks(self) -> None:
         # used for testing
@@ -751,7 +773,7 @@ class BoxWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return copy.copy(self.children)
+        return super()._contained_widgets + copy.copy(self.children)
 
     def periodic(self) -> None:
         super().periodic()
@@ -820,8 +842,7 @@ class SplitterWidget(Widget):
         self.orientation = orientation
 
     def close(self) -> None:
-        for child in self.children:
-            child.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
         self.children = typing.cast(typing.Any, None)
         super().close()
 
@@ -836,7 +857,7 @@ class SplitterWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return copy.copy(self.children)
+        return super()._contained_widgets + copy.copy(self.children)
 
     def periodic(self) -> None:
         super().periodic()
@@ -896,8 +917,7 @@ class TabWidget(Widget):
         self.current_index = 0
 
     def close(self) -> None:
-        for child in self.children:
-            child.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
         self.children = typing.cast(typing.Any, None)
         self.__current_index_binding_helper.close()
         self.__current_index_binding_helper = typing.cast(typing.Any, None)
@@ -915,7 +935,7 @@ class TabWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return copy.copy(self.children)
+        return super()._contained_widgets + copy.copy(self.children)
 
     def periodic(self) -> None:
         super().periodic()
@@ -969,8 +989,7 @@ class StackWidget(Widget):
         self.current_index = 0
 
     def close(self) -> None:
-        for child in self.children:
-            child.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
         self.children = typing.cast(typing.Any, None)
         self.__current_index_binding_helper.close()
         self.__current_index_binding_helper = typing.cast(typing.Any, None)
@@ -987,7 +1006,7 @@ class StackWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return copy.copy(self.children)
+        return super()._contained_widgets + copy.copy(self.children)
 
     def periodic(self) -> None:
         super().periodic()
@@ -1018,10 +1037,10 @@ class StackWidget(Widget):
 
     def remove(self, child: typing.Union[Widget, int]) -> None:
         child_widget = child if isinstance(child, Widget) else self.children[int(child)]
-        self._behavior.remove(child_widget)
         child_widget._set_root_container(None)
         self.children.remove(child_widget)
-        child_widget.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
+        self._behavior.remove(child_widget)
 
     def remove_all(self) -> None:
         while len(self.children) > 0:
@@ -1057,8 +1076,7 @@ class GroupWidget(Widget):
         self.__title: typing.Optional[str] = None
 
     def close(self) -> None:
-        for child in self.children:
-            child.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
         self.children = typing.cast(typing.Any, None)
         super().close()
 
@@ -1073,7 +1091,7 @@ class GroupWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return copy.copy(self.children)
+        return super()._contained_widgets + copy.copy(self.children)
 
     def periodic(self) -> None:
         super().periodic()
@@ -1086,10 +1104,10 @@ class GroupWidget(Widget):
         child._set_root_container(self.root_container)
 
     def remove(self, child: Widget) -> None:
-        self._behavior.remove(child)
         child._set_root_container(None)
         self.children.remove(child)
-        child.close()
+        # note: behavior is responsible for closing the children so that behavior can put children in another widget.
+        self._behavior.remove(child)
 
     def remove_all(self) -> None:
         while len(self.children) > 0:
@@ -1160,7 +1178,7 @@ class ScrollAreaWidget(Widget):
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
-        return [self.__content] if self.__content else list()
+        return super()._contained_widgets + ([self.__content] if self.__content else list())
 
     def periodic(self) -> None:
         super().periodic()

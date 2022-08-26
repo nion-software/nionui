@@ -527,8 +527,14 @@ class WidgetBehavior:
         self.content = None
         self.canvas_item = None
 
+    def periodic(self) -> None:
+        pass
+
     def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
         pass
+
+    def _get_content_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:
+        return None
 
     def _register_ui_activity(self) -> None:
         pass
@@ -576,12 +582,19 @@ class NullBehavior:
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
         self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.widget = None
 
     def close(self) -> None:
         pass
 
+    def periodic(self) -> None:
+        pass
+
     def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
         pass
+
+    def _get_content_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:
+        return None
 
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
@@ -609,12 +622,10 @@ class BoxSpacing(UserInterfaceModule.Widget):
 
 
 def extract_widget(widget: typing.Optional[UserInterfaceModule.Widget]) -> typing.Optional[Widget]:
-    content_widget = getattr(widget, "content_widget", None)
+    content_widget = widget._behavior._get_content_widget() if widget else None
     if content_widget:
         return extract_widget(content_widget)
-    elif hasattr(widget, "_behavior"):
-        return typing.cast(typing.Optional[Widget], getattr(getattr(widget, "_behavior"), "widget"))
-    return None
+    return typing.cast(typing.Optional[Widget], widget._behavior.widget if widget else None)
 
 
 class WidgetItemType(enum.Enum):
@@ -668,9 +679,16 @@ class SplitterWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
+        self.__children: typing.List[UserInterfaceModule.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
         # behavior must handle index of None, meaning insert at end
+        self.__children.append(child)
         child_widget = extract_widget(child)
         assert child_widget is not None
         index = len(self.widget.children)
@@ -690,9 +708,15 @@ class TabWidgetBehavior(WidgetBehavior):
         super().__init__(widget_type, properties)
         self.current_index = 0
         self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.__children: typing.List[UserInterfaceModule.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def add(self, child: UserInterfaceModule.Widget, label: str) -> None:
-        pass
+        self.__children.append(child)
 
     def restore_state(self, tag: str) -> None:
         pass
@@ -706,9 +730,16 @@ class StackWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.current_index = -1
+        self.__children: typing.List[UserInterfaceModule.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def insert(self, child: UserInterfaceModule.Widget, index: int) -> None:
         # behavior must handle index of None, meaning insert at end
+        self.__children.insert(index, child)
         child_widget = extract_widget(child)
         assert child_widget is not None
         index = index if index is not None else len(self.widget.children)
@@ -716,11 +747,13 @@ class StackWidgetBehavior(WidgetBehavior):
         child_widget.size_changed(self.widget.size or Geometry.IntSize())
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
+        self.__children.append(child)
         child_widget = extract_widget(child)
         assert child_widget
         self.widget.children.append(child_widget)
 
     def remove(self, child: UserInterfaceModule.Widget) -> None:
+        self.__children.remove(child)
         child_widget = extract_widget(child)
         assert child_widget
         self.widget.children.remove(child_widget)
@@ -731,12 +764,18 @@ class GroupWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.title: typing.Optional[str] = None
+        self.__children: typing.List[UserInterfaceModule.Widget] = list()
+
+    def close(self) -> None:
+        for child in self.__children:
+            child.close()
+        super().close()
 
     def add(self, child: UserInterfaceModule.Widget) -> None:
-        pass
+        self.__children.append(child)
 
     def remove(self, child: UserInterfaceModule.Widget) -> None:
-        pass
+        self.__children.remove(child)
 
 
 class ScrollAreaWidgetBehavior(WidgetBehavior):

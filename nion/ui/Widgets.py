@@ -28,7 +28,7 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class CompositeWidgetBehavior:
+class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy #4125 is available
 
     def __init__(self, content_widget: UserInterface.Widget) -> None:
         self.content_widget = content_widget
@@ -39,11 +39,22 @@ class CompositeWidgetBehavior:
     # subclasses should override to clear their variables.
     # subclasses should NOT call Qt code to delete anything here... that is done by the Qt code
     def close(self) -> None:
-        self.content_widget.close()
+        # the content will be closed automatically since content widget gets returned as a contained item.
+        # self.content_widget.close()
         self.content_widget = typing.cast(typing.Any, None)
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
-        pass
+    def periodic(self) -> None:
+        self.content_widget.periodic()
+
+    @property
+    def widget(self) -> UserInterface.Widget:
+        return self.content_widget
+
+    def _set_root_container(self, root_container: typing.Optional[Window.Window]) -> None:
+        self.content_widget._set_root_container(root_container)
+
+    def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
+        return self.content_widget
 
     @property
     def focused(self) -> bool:
@@ -105,32 +116,7 @@ class CompositeWidgetBehavior:
         pass
 
 
-class CompositeWidgetBase(UserInterface.Widget):
-
-    def __init__(self, content_widget: UserInterface.Widget) -> None:
-        assert content_widget is not None
-        self.__composite_widget_behavior = CompositeWidgetBehavior(content_widget)
-        super().__init__(self.__composite_widget_behavior)
-
-    @property
-    def content_widget(self) -> UserInterface.Widget:
-        return self.__composite_widget_behavior.content_widget
-
-    @property
-    def _contained_widgets(self) -> typing.List[UserInterface.Widget]:
-        return [self.content_widget]
-
-    def _set_root_container(self, root_container: typing.Optional[Window.Window]) -> None:
-        super()._set_root_container(root_container)
-        self.content_widget._set_root_container(root_container)
-
-    # not thread safe
-    def periodic(self) -> None:
-        super().periodic()
-        self.content_widget.periodic()
-
-
-class SectionWidget(CompositeWidgetBase):
+class SectionWidget(UserInterface.Widget):
     """A widget representing a twist down section.
 
     The section is composed of a title in bold and then content.
@@ -138,7 +124,7 @@ class SectionWidget(CompositeWidgetBase):
 
     def __init__(self, ui: UserInterface.UserInterface, section_title: str, section: UserInterface.Widget, section_id: typing.Optional[str] = None) -> None:
         section_widget = ui.create_column_widget()
-        super().__init__(section_widget)
+        super().__init__(CompositeWidgetBehavior(section_widget))
 
         section_title_row = ui.create_row_widget()
 
@@ -225,7 +211,7 @@ class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
         raise NotImplementedError()
 
 
-class ListWidget(CompositeWidgetBase):
+class ListWidget(UserInterface.Widget):
     """A widget with a list in a scroll bar."""
 
     def __init__(self, ui: UserInterface.UserInterface, list_item_delegate: ListCanvasItem.ListCanvasItemDelegate, *,
@@ -236,7 +222,7 @@ class ListWidget(CompositeWidgetBase):
                  border_color: typing.Optional[str] = None, v_scroll_enabled: bool = True,
                  v_auto_resize: bool = False) -> None:
         column_widget = ui.create_column_widget()
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
         self.property_changed_event = Event.Event()
         items = items or list()
         self.__items: typing.List[typing.Any] = list()
@@ -439,7 +425,7 @@ class StringListWidget(ListWidget):
                          v_scroll_enabled=v_scroll_enabled, v_auto_resize=v_auto_resize)
 
 
-class TableWidget(CompositeWidgetBase):
+class TableWidget(UserInterface.Widget):
     """A widget representing a table (column only)."""
 
     def __init__(self, ui: UserInterface.UserInterface,
@@ -447,7 +433,7 @@ class TableWidget(CompositeWidgetBase):
                  header_widget: typing.Optional[UserInterface.Widget] = None,
                  header_for_empty_list_widget: typing.Optional[UserInterface.Widget] = None) -> None:
         column_widget = ui.create_column_widget()
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
         self.__binding: typing.Optional[Binding.Binding] = None
         self.content_section = ui.create_column_widget()
         self.content_section.widget_id = "content_section"
@@ -592,10 +578,10 @@ class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
         return True
 
 
-class TextPushButtonWidget(CompositeWidgetBase):
+class TextPushButtonWidget(UserInterface.Widget):
     def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
         column_widget = ui.create_column_widget()
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
@@ -618,11 +604,11 @@ class TextPushButtonWidget(CompositeWidgetBase):
         column_widget.add(text_button_canvas_widget)
 
 
-class ImageWidget(CompositeWidgetBase):
+class ImageWidget(UserInterface.Widget):
     def __init__(self, ui: UserInterface.UserInterface, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget(properties=properties)
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
         self.ui = ui
         self.on_clicked = None
 
@@ -767,10 +753,10 @@ class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):
         return True
 
 
-class ColorPushButtonWidget(CompositeWidgetBase):
+class ColorPushButtonWidget(UserInterface.Widget):
     def __init__(self, ui: UserInterface.UserInterface, color: typing.Optional[str] = None):
         column_widget = ui.create_column_widget()
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
 
         self.on_color_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
 
@@ -826,13 +812,13 @@ class ColorPushButtonWidget(CompositeWidgetBase):
         self.__color_binding_helper.unbind_value()
 
 
-class IconRadioButtonWidget(CompositeWidgetBase):
+class IconRadioButtonWidget(UserInterface.Widget):
 
     def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None):
         column_widget = ui.create_column_widget(properties=properties)
         # must be available for enabled property in super class. needs refactoring.
         self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(None, border_color="#CCC")
-        super().__init__(column_widget)
+        super().__init__(CompositeWidgetBehavior(column_widget))
         self.ui = ui
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.__bitmap_canvas_item.on_button_clicked = self.__handle_clicked
@@ -917,3 +903,10 @@ class IconRadioButtonWidget(CompositeWidgetBase):
 
     def unbind_icon(self) -> None:
         self.__icon_binding_helper.unbind_value()
+
+
+class CompositeWidgetBase(UserInterface.Widget):
+    # deprecated - no longer required - just pass the behavior directly to the widget
+
+    def __init__(self, content_widget: UserInterface.Widget) -> None:
+        super().__init__(CompositeWidgetBehavior(content_widget))

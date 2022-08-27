@@ -110,7 +110,8 @@ class DeclarativeUI:
             "font",
             "background_color",
             "border_color",
-            "widget_id"
+            "widget_id",
+            "style"
         )
         for k in common_properties:
             if k in kwargs and kwargs[k] is not None:
@@ -1509,7 +1510,10 @@ def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: U
 def construct_tabs(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
                    finishes: _FinishesListType) -> UserInterface.TabWidget:
     properties = construct_sizing_properties(d)
-    widget = ui.create_tab_widget(properties)
+    if d.get("style", None) == "minimal":
+        widget = UserInterface.TabWidget(Widgets.TabWidgetBehavior(ui))
+    else:
+        widget = ui.create_tab_widget(properties)
     for tab in d.get("tabs", list()):
         widget.add(construct(ui, window, tab["content"], handler, finishes), tab["label"])
     if handler:

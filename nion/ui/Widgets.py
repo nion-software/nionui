@@ -6,6 +6,7 @@ from __future__ import annotations
 
 # standard libraries
 import gettext
+import functools
 import typing
 
 # third party libraries
@@ -16,12 +17,13 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
+from nion.utils import Binding
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import Model
 from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
-    from nion.utils import Binding
     from nion.ui import Window
 
 
@@ -114,6 +116,80 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
 
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
+
+
+class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterface.TabWidgetBehavior until mypy #4125 is available
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        column_widget = ui.create_column_widget()
+        super().__init__(column_widget)
+        self.__current_index_model = Model.PropertyModel[int](-1)
+        self.ui = ui
+        self.label_row = ui.create_row_widget()
+        stretched_row = ui.create_row_widget()
+        stretched_row.add(self.label_row)
+        stretched_row.add_stretch()
+        self.stack = ui.create_stack_widget()
+        self.stack.bind_current_index(Binding.PropertyBinding(self.__current_index_model, "value"))
+        divider = self.ui.create_canvas_widget(properties={"height": 1, "size_policy_horizontal": "expanding"})
+        divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal", color="gray"))
+        column_widget.add(stretched_row)
+        column_widget.add(divider)
+        column_widget.add_spacing(4)
+        column_widget.add(self.stack)
+        self.__button_canvas_items: typing.List[CanvasItem.TextButtonCanvasItem] = list()
+
+        def value_changed(value: typing.Optional[int]) -> None:
+            value_ = max(0, min(value or 0, self.stack.child_count))
+            for index, button_canvas_item in enumerate(self.__button_canvas_items):
+                button_canvas_item.font = "12px bold" if value == index else "12px"
+            if callable(self.on_current_index_changed):
+                self.on_current_index_changed(value_)
+
+        self.__current_index_model.on_value_changed = value_changed
+        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+
+    def close(self) -> None:
+        self.__current_index_model.on_value_changed = None
+        self.on_current_index_changed = None
+        super().close()
+
+    def add(self, child: UserInterface.Widget, label: str) -> None:
+        button_canvas_item = CanvasItem.TextButtonCanvasItem(label)
+        button_canvas_item.border_enabled = False
+        button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        button = self.ui.create_canvas_widget(properties={"height": button_canvas_item.sizing.preferred_height, "width": button_canvas_item.sizing.preferred_width})
+        button.canvas_item.add_canvas_item(button_canvas_item)
+        divider = self.ui.create_canvas_widget(properties={"width": 1, "size_policy_vertical": "expanding"})
+        divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="vertical", color="gray"))
+        divider_group = self.ui.create_row_widget(properties={"min-height": 16})
+        divider_group.add_spacing(4)
+        divider_group.add(divider)
+        divider_group.add_spacing(4)
+        group = self.ui.create_row_widget()
+        group.add(button)
+        group.add(divider_group)
+        self.label_row.add(group)
+        self.stack.add(child)
+        self.__button_canvas_items.append(button_canvas_item)
+
+        def button_clicked(index: int) -> None:
+            self.__current_index_model.value = index
+
+        button_canvas_item.on_button_clicked = functools.partial(button_clicked, len(self.__button_canvas_items) - 1)
+
+    def restore_state(self, tag: str) -> None:
+        pass
+
+    def save_state(self, tag: str) -> None:
+        pass
+
+    @property
+    def current_index(self) -> int:
+        return self.__current_index_model.value or 0
+
+    @current_index.setter
+    def current_index(self, index: int) -> None:
+        self.__current_index_model.value = index
 
 
 class SectionWidget(UserInterface.Widget):

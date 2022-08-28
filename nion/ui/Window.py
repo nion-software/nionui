@@ -399,7 +399,10 @@ class Window:
         return False
 
     def _close_dialogs(self) -> None:
-        for weak_dialog in self.__dialogs:
+        # each window may have its own dialogs, but for the most part, this is used for the top level
+        # windows. request close will trigger close which will remove items from __dialogs, so be sure
+        # to copy the list so that it doesn't get modified while iterating.
+        for weak_dialog in list(self.__dialogs):
             dialog = typing.cast("Window", weak_dialog())
             if dialog:
                 try:

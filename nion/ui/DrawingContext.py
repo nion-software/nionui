@@ -550,6 +550,12 @@ class DrawingContext:
         self.commands.append(("lineTo", float(x), float(y)))
         self.binary_commands.extend(struct.pack("4sff", b"line", float(x), float(y)))
 
+    # optimization; use with care.
+    def _line_to_multi(self, line_commands: typing.Sequence[typing.Tuple[float, float]]) -> None:
+        for x, y in line_commands:
+            self.commands.append(("lineTo", x, y))
+            self.binary_commands.extend(struct.pack("4sff", b"line", x, y))
+
     def rect(self, l: float, t: float, w: float, h: float) -> None:
         self.commands.append(("rect", float(l), float(t), float(w), float(h)))
         self.binary_commands.extend(struct.pack("4sffff", b"rect", float(l), float(t), float(w), float(h)))

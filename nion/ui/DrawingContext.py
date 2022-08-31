@@ -11,6 +11,7 @@ import base64
 import collections
 import contextlib
 import copy
+import enum
 import io
 import logging
 import math
@@ -522,6 +523,9 @@ class DrawingContext:
         self.commands.append(("closePath", ))
         self.binary_commands.extend(b"cpth")
 
+    def add_path(self, path: Path) -> None:
+        path.add_commands(self)
+
     def clip_rect(self, a: float, b: float, c: float, d: float) -> None:
         self.commands.append(("clip", float(a), float(b), float(c), float(d)))
         self.binary_commands.extend(struct.pack("4sffff", b"clip", float(a), float(b), float(c), float(d)))
@@ -784,6 +788,28 @@ class DrawingContext:
         self.commands.append(("statistics", str(stat_id)))
         stat_id_encoded = stat_id.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(stat_id_encoded)), b"stat", len(stat_id_encoded), stat_id_encoded))
+
+
+class Path:
+    def __init__(self) -> None:
+        self.__path = DrawingContext()
+
+    def __deepcopy__(self, memo: typing.Dict[typing.Any, typing.Any]) -> Path:
+        path = Path()
+        path.__path = copy.deepcopy(self.__path)
+        return path
+
+    def add_commands(self, drawing_context: DrawingContext) -> None:
+        drawing_context.add(self.__path)
+
+    def move_to(self, x: float, y: float) -> None:
+        self.__path.move_to(x, y)
+
+    def line_to(self, x: float, y: float) -> None:
+        self.__path.line_to(x, y)
+
+    def close_path(self) -> None:
+        self.__path.close_path()
 
 
 def color_without_alpha(color: typing.Optional[str]) -> typing.Optional[str]:

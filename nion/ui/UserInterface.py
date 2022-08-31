@@ -904,6 +904,7 @@ class TabWidget(Widget):
         self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
 
         def handle_current_index_changed(index: int) -> None:
+            self.__current_index_binding_helper.value_changed(index)
             if callable(self.on_current_index_changed):
                 self.on_current_index_changed(index)
 

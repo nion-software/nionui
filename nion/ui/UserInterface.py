@@ -7,6 +7,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import collections
+import concurrent.futures
 import copy
 import enum
 import functools
@@ -14,6 +15,7 @@ import logging
 import numbers
 import operator
 import pathlib
+import threading
 import typing
 import weakref
 
@@ -350,16 +352,23 @@ class BindablePropertyHelper(typing.Generic[T]):
         self.__value_cmp = value_cmp if callable(value_cmp) else typing.cast(typing.Callable[[T, T], bool], operator.eq)
         self.__binding: typing.Optional[Binding.Binding] = None
         self.__task: typing.Optional[asyncio.Task[None]] = None
+        self.__future: typing.Optional[concurrent.futures.Future[None]] = None
 
-        def finalize(task: typing.Optional[asyncio.Task[None]]) -> None:
+        def finalize(task: typing.Optional[asyncio.Task[None]], future: typing.Optional[concurrent.futures.Future[None]]) -> None:
             if task:
                 task.cancel()
+            if future:
+                future.cancel()
 
-        weakref.finalize(self, finalize, self.__task)
+        weakref.finalize(self, finalize, self.__task, self.__future)
 
     def close(self) -> None:
         if self.__task:
             self.__task.cancel()
+            self.__task = None
+        if self.__future:
+            self.__future.cancel()
+            self.__future = None
 
     @property
     def value(self) -> T:
@@ -418,21 +427,26 @@ class BindablePropertyHelper(typing.Generic[T]):
                         self_.set_value(self_.__pending_value)
                     finally:
                         self_.__task = None
+                        self_.__future = None
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 logging.debug(e)
 
-        def update_value(bph: typing.Any, value: T) -> None:
+        def update_value(bph: typing.Any, event_loop: asyncio.AbstractEventLoop, thread: threading.Thread, value: T) -> None:
             # to avoid repeated cancel/new-task situations that starve the execution during tests,
             # update the pending value and only create a new task if required.
             self_ = typing.cast(typing.Optional[BindablePropertyHelper[T]], bph())
             if self_:
                 self_.__pending_value = value
-                if not self_.__task:
-                    self_.__task = asyncio.get_event_loop_policy().get_event_loop().create_task(update_value_inner(bph))
+                if threading.current_thread() != thread:
+                    if not self_.__future:
+                        self_.__future = asyncio.run_coroutine_threadsafe(update_value_inner(bph), event_loop)
+                else:
+                    if not self_.__task:
+                        self_.__task = event_loop.create_task(update_value_inner(bph))
 
-        self.__binding.target_setter = functools.partial(update_value, weakref.ref(self))
+        self.__binding.target_setter = functools.partial(update_value, weakref.ref(self), asyncio.get_event_loop_policy().get_event_loop(), threading.current_thread())
 
     def unbind_value(self) -> None:
         if self.__binding:

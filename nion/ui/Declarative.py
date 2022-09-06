@@ -228,6 +228,32 @@ class DeclarativeUI:
         """
         return {"type": "stretch"}
 
+    def create_section(self, content: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                       title: typing.Optional[UILabel] = None, expanded: typing.Optional[UILabel] = None,
+                       **kwargs: typing.Any) -> UIDescriptionResult:
+        """Create a section UI description with title, content.
+
+        Args:
+            content: UI description of the content
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            title: title of the section
+            margin: margin in points
+
+        Returns:
+            UI description of the section
+        """
+        d: UIDescriptionResult = {"type": "section", "content": content}
+        if name is not None:
+            d["name"] = name
+        if title is not None:
+            d["title"] = title
+        if expanded is not None:
+            d["expanded"] = expanded
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_tab(self, label: UILabel, content: UIDescription) -> UIDescriptionResult:
         """Create a tab UI description with a label and content.
 
@@ -1375,6 +1401,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         return construct_divider(ui, d, handler, finishes)
     elif d_type == "progress_bar":
         return construct_progress_bar(ui, d, handler, finishes)
+    elif d_type == "section":
+        return construct_section(ui, window, d, handler, finishes)
     elif d_type == "tabs":
         return construct_tabs(ui, window, d, handler, finishes)
     elif d_type == "stack":
@@ -1503,6 +1531,23 @@ def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: U
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
         connect_event(widget, widget, d, handler, "on_current_index_changed", ["current_index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_section(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                      finishes: _FinishesListType) -> UserInterface.Widget:
+    # properties = construct_sizing_properties(d)
+    content = typing.cast(UIDescription, d.get("content"))
+    outer_column = ui.create_column_widget()
+    inner_content = construct(ui, window, content, handler, finishes)
+    outer_column.add(inner_content)
+    widget = Widgets.SectionWidget(ui, d["title"], outer_column)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_string_value(widget, d, handler, "title", finishes)
+        connect_reference_value(widget, d, handler, "expanded", finishes, value_type=bool)
+        connect_event(widget, widget, d, handler, "on_expanded_changed", ["expanded"])
         connect_attributes(widget, d, handler, finishes)
     return widget
 

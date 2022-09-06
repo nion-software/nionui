@@ -225,11 +225,14 @@ class SectionWidget(UserInterface.Widget):
         section_widget.add(section_content_row)
         section_widget.add_spacing(4)
 
-        def toggle() -> None:
-            twist_down_canvas_item.checked = not twist_down_canvas_item.checked
-            section_content_column.visible = twist_down_canvas_item.checked
+        def set_expanded(expanded: typing.Optional[bool]) -> None:
+            twist_down_canvas_item.checked = expanded or False
+            section_content_column.visible = expanded or False
             if section_id:
                 ui.set_persistent_string(section_id, "true" if twist_down_canvas_item.checked else "false")
+
+        def toggle() -> None:
+            self.expanded = not twist_down_canvas_item.checked
 
         section_open = ui.get_persistent_string(section_id, "true") == "true" if section_id else True
         twist_down_canvas_item.checked = section_open
@@ -239,15 +242,49 @@ class SectionWidget(UserInterface.Widget):
         self.section_title_row = section_title_row
         self.__twist_down_canvas_item = twist_down_canvas_item
 
+        def set_title(value: typing.Optional[str]) -> None:
+            section_title_label.text = str(value) if value is not None else str()
+
+        self.__title_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[str]](None, set_title)
+        self.__expanded_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[bool]](None, set_expanded)
+
+        self.title = section_title
+        self.expanded = True
+
+    def close(self) -> None:
+        self.__title_binding_helper.close()
+        self.__title_binding_helper = typing.cast(typing.Any, None)
+        self.__expanded_binding_helper.close()
+        self.__expanded_binding_helper = typing.cast(typing.Any, None)
+        super().close()
+
+    @property
+    def title(self) -> str:
+        return self.__title_binding_helper.value or str()
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self.__title_binding_helper.value = value
+
     @property
     def expanded(self) -> bool:
-        return self.__twist_down_canvas_item.checked
+        return self.__expanded_binding_helper.value or False
 
     @expanded.setter
     def expanded(self, value: bool) -> None:
-        if value != self.expanded:
-            if callable(self.__twist_down_canvas_item.on_button_clicked):
-                self.__twist_down_canvas_item.on_button_clicked()
+        self.__expanded_binding_helper.value = value or False
+
+    def bind_title(self, binding: Binding.Binding) -> None:
+        self.__title_binding_helper.bind_value(binding)
+
+    def unbind_title(self) -> None:
+        self.__title_binding_helper.unbind_value()
+
+    def bind_expanded(self, binding: Binding.Binding) -> None:
+        self.__expanded_binding_helper.bind_value(binding)
+
+    def unbind_expanded(self) -> None:
+        self.__expanded_binding_helper.unbind_value()
 
 
 class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):

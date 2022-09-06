@@ -24,6 +24,7 @@ from . import Groups
 from . import LineEdits
 from . import ProgressBars
 from . import RadioButtons
+from . import Sections
 from . import Sliders
 from . import Stacks
 from . import StatusBar
@@ -68,6 +69,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (LineEdits, "line_edits", _("Line Edits")),
         (ProgressBars, "progress_bars", _("Progress Bars")),
         (RadioButtons, "radio_buttons", _("Radio Buttons")),
+        (Sections, "sections", _("Sections")),
         (Sliders, "sliders", _("Sliders")),
         (Stacks, "stacks", _("Stacks")),
         (StatusBar, "status_bar", _("Status Bar")),

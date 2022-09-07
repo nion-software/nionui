@@ -21,6 +21,7 @@ import weakref
 # local libraries
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
+from nion.utils import Color
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -36,17 +37,6 @@ _QtObject = typing.Any
 def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
 
-
-def parse_color(color: str) -> typing.Tuple[int, int, int, int]:
-    hex_color = DrawingContext.hex_color(color)
-    if hex_color and len(hex_color) == 7:
-        rgb = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5))
-        return rgb[0], rgb[1], rgb[2], 255
-    elif hex_color and len(hex_color) == 9:
-        rgba = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5, 7))
-        return rgba[0], rgba[1], rgba[2], rgba[3]
-    else:
-        return 255, 255, 255, 255
 
 class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
     def __init__(self, raw_modifiers: typing.Any) -> None:
@@ -582,6 +572,12 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
             self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
+    def set_background_color(self, color: typing.Optional[str]) -> None:
+        if color:
+            self.proxy.Widget_setPaletteColor(self.widget, "background", *(Color.Color(color or str()).to_rgba_255()))
+        else:
+            self.proxy.Widget_setPaletteColor(self.widget, "background", 0, 0, 0, 0)
+
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
@@ -649,6 +645,9 @@ class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
+        pass
+
+    def set_background_color(self, value: typing.Optional[str]) -> None:
         pass
 
 
@@ -1117,7 +1116,7 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
         self.proxy.Label_setText(self.widget, self.__text)
 
     def set_text_color(self, color: typing.Optional[str]) -> None:
-        self.proxy.Label_setTextColor(self.widget, *(parse_color(color or str())[:-1]))
+        self.proxy.Label_setTextColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
 
     def set_text_font(self, font_str: typing.Optional[str]) -> None:
         self.proxy.Label_setTextFont(self.widget, font_str or str())
@@ -1383,10 +1382,10 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
         self.proxy.TextEdit_setProportionalLineHeight(self.widget, proportional_line_height)
 
     def set_text_background_color(self, color: typing.Optional[str]) -> None:
-        self.proxy.TextEdit_setTextBackgroundColor(self.widget, *(parse_color(color or str())[:-1]))
+        self.proxy.TextEdit_setTextBackgroundColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
 
     def set_text_color(self, color: typing.Optional[str]) -> None:
-        self.proxy.TextEdit_setTextColor(self.widget, *(parse_color(color or str())[:-1]))
+        self.proxy.TextEdit_setTextColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
 
     def set_text_font(self, font_str: typing.Optional[str]) -> None:
         self.proxy.TextEdit_setTextFont(self.widget, font_str or str())

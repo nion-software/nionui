@@ -555,6 +555,9 @@ class WidgetBehavior:
             if self.on_focus_changed:
                 self.on_focus_changed(focused)
 
+    def set_background_color(self, color: typing.Optional[str]) -> None:
+        pass
+
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
 
@@ -605,6 +608,9 @@ class NullBehavior:
     def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
+        pass
+
+    def set_background_color(self, value: typing.Optional[str]) -> None:
         pass
 
 

@@ -106,6 +106,9 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
     def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.content_widget.tool_tip = tool_tip
 
+    def set_background_color(self, value: typing.Optional[str]) -> None:
+        self.content_widget.background_color = value
+
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:

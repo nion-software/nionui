@@ -482,6 +482,7 @@ class WidgetBehavior(typing.Protocol):
     def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None: ...
+    def set_background_color(self, value: typing.Optional[str]) -> None: ...
 
 
 class Widget:
@@ -517,9 +518,13 @@ class Widget:
         def set_tool_tip(value: typing.Optional[str]) -> None:
             self._behavior.tool_tip = value
 
+        def set_background_color(value: typing.Optional[str]) -> None:
+            self._behavior.set_background_color(str(value) if value is not None else None)
+
         self.__visible_binding_helper = BindablePropertyHelper[bool](None, set_visible)
         self.__enabled_binding_helper = BindablePropertyHelper[bool](None, set_enabled)
         self.__tool_tip_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_tool_tip)
+        self.__background_color_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_background_color)
 
         self.visible = True
         self.enabled = True
@@ -532,6 +537,8 @@ class Widget:
         self.__enabled_binding_helper = typing.cast(typing.Any, None)
         self.__tool_tip_binding_helper.close()
         self.__tool_tip_binding_helper = typing.cast(typing.Any, None)
+        self.__background_color_binding_helper.close()
+        self.__background_color_binding_helper = typing.cast(typing.Any, None)
         content_widget = self._behavior._get_content_widget()
         if content_widget:
             content_widget.close()
@@ -707,6 +714,14 @@ class Widget:
     def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.__tool_tip_binding_helper.value = tool_tip
 
+    @property
+    def background_color(self) -> typing.Optional[str]:
+        return self.__background_color_binding_helper.value
+
+    @background_color.setter
+    def background_color(self, value: typing.Optional[str]) -> None:
+        self.__background_color_binding_helper.value = value
+
     def set_property(self, key: str, value: typing.Any) -> None:
         self._behavior.set_property(key, value)
 
@@ -754,6 +769,12 @@ class Widget:
 
     def unbind_tool_tip(self) -> None:
         self.__tool_tip_binding_helper.unbind_value()
+
+    def bind_background_color(self, binding: Binding.Binding) -> None:
+        self.__background_color_binding_helper.bind_value(binding)
+
+    def unbind_background_color(self) -> None:
+        self.__background_color_binding_helper.unbind_value()
 
 
 class BoxWidgetBehavior(WidgetBehavior, typing.Protocol):
@@ -1674,6 +1695,7 @@ class LabelWidget(Widget):
         self.text = text
         self.text_font = None
         self.text_color = "black"
+        self.background_color = None
 
     def close(self) -> None:
         self.__text_binding_helper.close()

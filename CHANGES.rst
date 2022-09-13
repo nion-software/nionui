@@ -1,12 +1,14 @@
 Changelog (nionui)
 ==================
 
-0.6.5 (UNRELEASED)
+0.6.5 (2022-09-13)
 ------------------
 - Add a bindable background_color property to widgets, requires tool 0.4.15 or later.
 - Add a declarative twist-down section widget.
 - Add Path object and method to add it to drawing context.
+- Add a alternate compact Tab implementation.
 - Add ability to bind text_color property of declarative label.
+- Fix issue with dialogs being closed twice.
 
 0.6.4 (2022-07-25)
 ------------------

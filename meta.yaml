@@ -1,9 +1,9 @@
 package:
   name: 'nionui'
-  version: '0.6.4'
+  version: '0.6.5'
 
 source:
-  git_rev: 0.6.4
+  git_rev: 0.6.5
   git_url: https://github.com/nion-software/nionui.git
 
 build:
@@ -21,7 +21,7 @@ requirements:
     - setuptools
   run:
     - python >=3.8
-    - nionutils >=0.4.4,<0.5.0
+    - nionutils >=0.4.5,<0.5.0
     - numpy >=1.21,<2.0
     - imageio >=2.19.0
 

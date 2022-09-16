@@ -2181,7 +2181,7 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def load_rgba_data_from_file(self, filename: str) -> typing.Optional[DrawingContext.RGBA32Type]:
         # returns data packed as uint32
-        return self.proxy.decode_data(self.proxy.Core_readImageToBinary(notnone(filename)))
+        return typing.cast(typing.Optional[DrawingContext.RGBA32Type], self.proxy.decode_data(self.proxy.Core_readImageToBinary(notnone(filename))))
 
     def save_rgba_data_to_file(self, data: DrawingContext.RGBA32Type, filename: str, format: typing.Optional[str]) -> None:
         self.proxy.Core_writeBinaryToImage(data.shape[1], data.shape[0], data, notnone(filename), str(format))
@@ -2282,9 +2282,9 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         if hasattr(self.proxy, "Canvas_draw_binary"):
-            return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height))
+            return typing.cast(typing.Optional[DrawingContext.RGBA32Type], self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height)))
         else:
-            return self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height))
+            return typing.cast(typing.Optional[DrawingContext.RGBA32Type], self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height)))
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterface.FontMetrics:
         return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font_str, text)))

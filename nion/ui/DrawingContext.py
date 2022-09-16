@@ -35,10 +35,10 @@ from nion.utils import Geometry
 # pylint: disable=star-args
 
 
-RGBA32Type = typing.Any
-RGBA8Type = typing.Any
-GrayscaleF32Type = typing.Any
-C8Type = typing.Any
+RGBA32Type = numpy.typing.NDArray[numpy.uint32]
+RGBA8Type = numpy.typing.NDArray[numpy.uint8]
+GrayscaleF32Type = numpy.typing.NDArray[numpy.float32]
+C8Type = numpy.typing.NDArray[numpy.uint8]
 
 ByteOrderType = typing.Optional[typing.Union[typing.Literal["little"], typing.Literal["big"]]]
 
@@ -115,7 +115,7 @@ class DrawingContext:
         self.commands: typing.List[typing.Sequence[typing.Any]] = []
         self.binary_commands = bytearray()
         self.save_count = 0
-        self.images: typing.Dict[str, RGBA32Type] = dict()
+        self.images: typing.Dict[str, typing.Union[RGBA32Type, GrayscaleF32Type]] = dict()
 
     def copy_from(self, drawing_context: DrawingContext) -> None:
         assert self.save_count == 0

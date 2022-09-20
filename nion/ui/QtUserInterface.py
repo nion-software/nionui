@@ -751,9 +751,11 @@ class QtTabWidgetBehavior(QtWidgetBehavior):
         self.__children: typing.List[UserInterface.Widget] = list()
 
     def close(self) -> None:
+        self.on_current_index_changed = None
+        # closing the children can generate an index changed message, so closing
+        # the children should occur after disconnecting on_current_index_changed.
         for child in self.__children:
             child.close()
-        self.on_current_index_changed = None
         super().close()
 
     def add(self, child: UserInterface.Widget, label: str) -> None:

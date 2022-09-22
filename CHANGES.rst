@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.6 (UNRELEASED)
+------------------
+- Add ability to set top, left, bottom, right, horizontal, and vertical margins independently.
+
 0.6.5 (2022-09-13)
 ------------------
 - Add a bindable background_color property to widgets, requires tool 0.4.15 or later.

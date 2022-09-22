@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # standard libraries
 import asyncio
+import dataclasses
 import gettext
 import re
 import typing
@@ -117,9 +118,23 @@ class DeclarativeUI:
             if k in kwargs and kwargs[k] is not None:
                 d[k] = kwargs[k]
 
+    def __process_margins(self, d: typing.MutableMapping[str, typing.Any], **kwargs: typing.Any) -> None:
+        margin_properties = (
+            "margin",
+            "margin_top",
+            "margin_left",
+            "margin_bottom",
+            "margin_right",
+            "margin_horizontal",
+            "margin_vertical",
+        )
+        for k in margin_properties:
+            if k in kwargs and kwargs[k] is not None:
+                d[k] = kwargs[k]
+
     def create_column(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
                       items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
-                      spacing: typing.Optional[UIPoints] = None, margin: typing.Optional[UIPoints] = None,
+                      spacing: typing.Optional[UIPoints] = None,
                       **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a column UI description with children or dynamic items, spacing, and margin.
 
@@ -154,18 +169,17 @@ class DeclarativeUI:
             d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
-        if margin is not None:
-            d["margin"] = margin
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
                 d_children.append(child)
         self.__process_common_properties(d, **kwargs)
+        self.__process_margins(d, **kwargs)
         return d
 
     def create_row(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
                    items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
-                   spacing: typing.Optional[UIPoints] = None, margin: typing.Optional[UIPoints] = None,
+                   spacing: typing.Optional[UIPoints] = None,
                    **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a row UI description with children or dynamic items, spacing, and margin.
 
@@ -200,13 +214,12 @@ class DeclarativeUI:
             d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
-        if margin is not None:
-            d["margin"] = margin
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
                 d_children.append(child)
         self.__process_common_properties(d, **kwargs)
+        self.__process_margins(d, **kwargs)
         return d
 
     def create_spacing(self, size: UIPoints) -> UIDescriptionResult:
@@ -377,7 +390,7 @@ class DeclarativeUI:
         return d
 
     def create_group(self, content: UIDescription, name: typing.Optional[UIIdentifier] = None,
-                     title: typing.Optional[UILabel] = None, margin: typing.Optional[UIPoints] = None,
+                     title: typing.Optional[UILabel] = None,
                      **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a group UI description with content, a name, a title, and a margin.
 
@@ -397,9 +410,8 @@ class DeclarativeUI:
             d["name"] = name
         if title is not None:
             d["title"] = title
-        if margin is not None:
-            d["margin"] = margin
         self.__process_common_properties(d, **kwargs)
+        self.__process_margins(d, **kwargs)
         return d
 
     def create_label(self, *, text: typing.Optional[UILabel] = None, name: typing.Optional[UIIdentifier] = None,
@@ -900,7 +912,7 @@ class DeclarativeUI:
 
     def create_modeless_dialog(self, content: UIDescription, *, title: typing.Optional[str] = None,
                                resources: typing.Optional[UIResources] = None,
-                               margin: typing.Optional[UIPoints] = None) -> UIDescriptionResult:
+                               **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a modeless dialog UI description with content, title, resources, and margin.
 
         Args:
@@ -917,15 +929,15 @@ class DeclarativeUI:
         d: UIDescriptionResult = {"type": "modeless_dialog", "content": content}
         if title is not None:
             d["title"] = title
-        if margin is not None:
-            d["margin"] = margin
         if resources is not None:
             d["resources"] = resources
+        self.__process_margins(d, **kwargs)
         return d
 
     def create_window(self, content: UIDescription, *, title: typing.Optional[str] = None,
-                      resources: typing.Optional[UIResources] = None, margin: typing.Optional[UIPoints] = None,
-                      window_style: typing.Optional[str] = None) -> UIDescriptionResult:
+                      resources: typing.Optional[UIResources] = None,
+                      window_style: typing.Optional[str] = None,
+                      **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a window UI description with content, title, resources, and margin.
 
         Args:
@@ -942,12 +954,11 @@ class DeclarativeUI:
         d: UIDescriptionResult = {"type": "window", "content": content}
         if title is not None:
             d["title"] = title
-        if margin is not None:
-            d["margin"] = margin
         if resources is not None:
             d["resources"] = resources
         if window_style is not None:
             d["window_style"] = window_style
+        self.__process_margins(d, **kwargs)
         return d
 
     def define_component(self, content: UIDescription, *, component_id: typing.Optional[str] = None,
@@ -1222,18 +1233,74 @@ def run_window(d: UIDescription, handler: HandlerLike, *, app: typing.Optional[A
     return window
 
 
-def construct_margin(ui: UserInterface.UserInterface, content: UserInterface.BoxWidget, margin: typing.Optional[int]) -> UserInterface.BoxWidget:
-    if margin:
-        column = ui.create_column_widget()
-        column.add_spacing(margin)
-        column.add(content)
-        column.add_spacing(margin)
+@dataclasses.dataclass
+class UIMargins:
+    top: typing.Optional[int] = None
+    left: typing.Optional[int] = None
+    bottom: typing.Optional[int] = None
+    right: typing.Optional[int] = None
+
+
+def construct_margins_box(ui: UserInterface.UserInterface, content: UserInterface.Widget, margins: UIMargins) -> UserInterface.BoxWidget:
+    new_content = ui.create_column_widget()
+    new_content.add(content)
+    if margins.left or margins.right:
         row = ui.create_row_widget()
-        row.add_spacing(margin)
-        row.add(column)
-        row.add_spacing(margin)
-        content = row
-    return content
+        row.add_spacing(margins.left or 0)
+        row.add(new_content)
+        row.add_spacing(margins.right or 0)
+        new_content = row
+    if margins.top or margins.bottom:
+        column = ui.create_column_widget()
+        column.add_spacing(margins.top or 0)
+        column.add(new_content)
+        column.add_spacing(margins.bottom or 0)
+        new_content = column
+    return new_content
+
+
+def construct_sizing_properties(d: UIDescription) -> UIDescriptionResult:
+    properties: UIDescriptionResult = dict()
+    for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
+        v = d.get(k, None)
+        if v is not None:
+            properties[k.replace("_", "-")] = int(v)
+    for k in ("size_policy_horizontal", "size_policy_vertical"):
+        v = d.get(k, None)
+        if v is not None:
+            properties[k.replace("_", "-")] = str(v)
+    return properties
+
+
+def construct_margins(d: UIDescription) -> UIMargins:
+    margins = UIMargins()
+    margin = d.get("margin")
+    margin_h = d.get("margin_horizontal")
+    margin_v = d.get("margin_vertical")
+    margin_top = d.get("margin_top")
+    margin_left = d.get("margin_left")
+    margin_bottom = d.get("margin_bottom")
+    margin_right = d.get("margin_right")
+    if margin:
+        margins.top = margin
+        margins.left = margin
+        margins.bottom = margin
+        margins.right = margin
+    if margin_h:
+        margins.left = margin_h
+        margins.right = margin_h
+    if margin_v:
+        margins.top = margin_v
+        margins.bottom = margin_v
+    if margin_top:
+        margins.top = margin_top
+    if margin_left:
+        margins.left = margin_left
+    if margin_bottom:
+        margins.bottom = margin_bottom
+    if margin_right:
+        margins.right = margin_right
+    return margins
 
 
 # to properly type the container widget needs more work. substitute typing.Any for now.
@@ -1347,19 +1414,6 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     getattr(handler, "_closer").push_closeable(container.item_removed_event.listen(row_item_removed))
 
 
-def construct_sizing_properties(d: UIDescription) -> UIDescriptionResult:
-    properties: UIDescriptionResult = dict()
-    for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
-        v = d.get(k, None)
-        if v is not None:
-            properties[k.replace("_", "-")] = int(v)
-    for k in ("size_policy_horizontal", "size_policy_vertical"):
-        v = d.get(k, None)
-        if v is not None:
-            properties[k.replace("_", "-")] = str(v)
-    return properties
-
-
 class DeclarativeConstructor(typing.Protocol):
     def construct(self, d_type: str, ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
                   handler: HandlerLike, finishes: typing.Optional[_FinishesListType] = None) -> UserInterface.Widget:
@@ -1374,11 +1428,9 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         # this seems like a type error. is this used anywhere?
         return typing.cast(UserInterface.Widget, construct_modeless_dialog(ui, window, d, handler))
     elif d_type == "column":
-        properties = construct_sizing_properties(d)
-        return construct_box(ui, window, ui.create_column_widget(properties=properties), d, handler, finishes)
+        return construct_box(ui, window, True, d, handler, finishes)
     elif d_type == "row":
-        properties = construct_sizing_properties(d)
-        return construct_box(ui, window, ui.create_row_widget(properties=properties), d, handler, finishes)
+        return construct_box(ui, window, False, d, handler, finishes)
     elif d_type == "text_label":
         return construct_text_label(ui, d, handler, finishes)
     elif d_type == "image":
@@ -1479,7 +1531,7 @@ def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handle
     return widget
 
 
-def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+def construct_group_original(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
                     finishes: _FinishesListType) -> UserInterface.Widget:
     properties = construct_sizing_properties(d)
     widget = ui.create_group_widget(properties)
@@ -1497,6 +1549,20 @@ def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: U
         outer_row.add_spacing(margin)
         outer_column.add_spacing(margin)
     widget.add(outer_row)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_string_value(widget, d, handler, "title", finishes)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                    finishes: _FinishesListType) -> UserInterface.Widget:
+    properties = construct_sizing_properties(d)
+    widget = ui.create_group_widget(properties)
+    content = construct(ui, window, typing.cast(UIDescription, d.get("content")), handler, finishes)
+    margins_box = construct_margins_box(ui, content, construct_margins(d))
+    widget.add(margins_box)
     if handler:
         connect_name(widget, d, handler)
         connect_string_value(widget, d, handler, "title", finishes)
@@ -1762,10 +1828,15 @@ def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, hand
     return widget
 
 
-def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_widget: UserInterface.BoxWidget,
+def construct_box(ui: UserInterface.UserInterface, window: Window.Window, is_column: bool,
                   d: UIDescription, handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.BoxWidget:
+    sizing_properties = construct_sizing_properties(d)
+    if is_column:
+        box_widget = ui.create_column_widget(properties=sizing_properties)
+    else:
+        box_widget = ui.create_row_widget(properties=sizing_properties)
+    margins_box_widget = construct_margins_box(ui, box_widget, construct_margins(d))
     spacing: typing.Optional[int] = d.get("spacing")
-    margin: typing.Optional[int] = d.get("margin")
     items = d.get("items")
     item_component_id = d.get("item_component_id")
     children = d.get("children", list())
@@ -1785,13 +1856,12 @@ def construct_box(ui: UserInterface.UserInterface, window: Window.Window, box_wi
         connect_items(ui, window, box_widget, handler, items, item_component_id, spacing_v=spacing)
     if handler:
         connect_name(box_widget, d, handler)
-        connect_attributes(box_widget, d, handler, finishes)
-    return construct_margin(ui, box_widget, margin)
+        connect_attributes(margins_box_widget, d, handler, finishes)
+    return margins_box_widget
 
 
 def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike) -> Dialog.ActionDialog:
     title = d.get("title", _("Untitled"))
-    margin = d.get("margin")
     persistent_id = d.get("persistent_id")
     content = typing.cast(UIDescription, d.get("content"))
     resources = d.get("resources", dict())
@@ -1809,18 +1879,8 @@ def construct_modeless_dialog(ui: UserInterface.UserInterface, window: Window.Wi
     # make and attach closer for the handler; put handler into container closer
     setattr(handler, "_closer", Closer())
     closer.push_closeable(handler)
-    outer_row = ui.create_row_widget()
-    outer_column = ui.create_column_widget()
-    inner_content = construct(ui, window, content, handler, finishes)
-    if margin is not None:
-        outer_row.add_spacing(margin)
-        outer_column.add_spacing(margin)
-    outer_column.add(inner_content)
-    outer_row.add(outer_column)
-    if margin is not None:
-        outer_row.add_spacing(margin)
-        outer_column.add_spacing(margin)
-    dialog.content.add(outer_row)
+    content_widget = construct(ui, window, content, handler, finishes)
+    dialog.content.add(construct_margins_box(ui, content_widget, construct_margins(d)))
     for finish in finishes:
         finish()
     setattr(handler, "_event_loop", window.event_loop)

@@ -18,6 +18,7 @@ from nion.ui import DrawingContext
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.utils import Binding
+from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Model
@@ -218,6 +219,7 @@ class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterfa
         self.__current_index_model = Model.PropertyModel[int](-1)
         self.ui = ui
         self.label_row = ui.create_row_widget()
+        self.label_row.add_spacing(8)
         stretched_row = ui.create_row_widget()
         stretched_row.add(self.label_row)
         stretched_row.add_stretch()
@@ -233,8 +235,7 @@ class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterfa
 
         def value_changed(value: typing.Optional[int]) -> None:
             value_ = max(0, min(value or 0, self.stack.child_count))
-            for index, button_canvas_item in enumerate(self.__button_canvas_items):
-                button_canvas_item.font = "12px bold" if value == index else "12px"
+            self.__update_styles(value_)
             if callable(self.on_current_index_changed):
                 self.on_current_index_changed(value_)
 
@@ -246,24 +247,34 @@ class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterfa
         self.on_current_index_changed = None
         super().close()
 
+    def __update_styles(self, selected_index: int) -> None:
+        for index, button_canvas_item in enumerate(self.__button_canvas_items):
+            border = CanvasItem.CellBorder()
+            if selected_index == index:
+                border.border_top = CanvasItem.CellBorderProperties(Color.Color("gray"))
+                border.border_left = CanvasItem.CellBorderProperties(Color.Color("gray"))
+                border.border_bottom = CanvasItem.CellBorderProperties(Color.Color("steelblue"), "solid", 5.0)
+            else:
+                border.border_top = CanvasItem.CellBorderProperties(Color.Color("gray"))
+                border.border_left = CanvasItem.CellBorderProperties(Color.Color("gray"))
+                border.border_bottom = CanvasItem.CellBorderProperties(Color.Color("gray"))
+            if index == len(self.__button_canvas_items) - 1:
+                border.border_right = CanvasItem.CellBorderProperties(Color.Color("gray"))
+            button_canvas_item.border = border
+
     def add(self, child: UserInterface.Widget, label: str) -> None:
+        border = CanvasItem.CellBorder()
+        border.border = CanvasItem.CellBorderProperties(Color.Color("gray"))
         button_canvas_item = CanvasItem.TextButtonCanvasItem(label)
-        button_canvas_item.border_enabled = False
+        button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
+        button_canvas_item.border = border
         button_canvas_item.size_to_content(self.ui.get_font_metrics)
         button = self.ui.create_canvas_widget(properties={"height": button_canvas_item.sizing.preferred_height, "width": button_canvas_item.sizing.preferred_width})
         button.canvas_item.add_canvas_item(button_canvas_item)
-        divider = self.ui.create_canvas_widget(properties={"width": 1, "size_policy_vertical": "expanding"})
-        divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="vertical", color="gray"))
-        divider_group = self.ui.create_row_widget(properties={"min-height": 16})
-        divider_group.add_spacing(4)
-        divider_group.add(divider)
-        divider_group.add_spacing(4)
-        group = self.ui.create_row_widget()
-        group.add(button)
-        group.add(divider_group)
-        self.label_row.add(group)
+        self.label_row.add(button)
         self.stack.add(child)
         self.__button_canvas_items.append(button_canvas_item)
+        self.__update_styles(self.current_index)
 
         def button_clicked(index: int) -> None:
             self.__current_index_model.value = index
@@ -809,7 +820,7 @@ class ColorButtonCell(CanvasItem.Cell):
         """ Size the canvas item to the text content without padding."""
         return Geometry.IntSize(height=30, width=44)
 
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         # style: "disabled" (default is enabled)
 
         drawing_context.begin_path()

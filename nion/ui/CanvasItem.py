@@ -8,6 +8,7 @@ import collections
 import concurrent.futures
 import contextlib
 import copy
+import dataclasses
 import datetime
 import enum
 import functools
@@ -26,6 +27,7 @@ import numpy
 
 # local libraries
 from nion.ui import DrawingContext
+from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
@@ -3683,7 +3685,35 @@ class BackgroundCanvasItem(AbstractCanvasItem):
                 drawing_context.fill()
 
 
+@dataclasses.dataclass
+class CellBorderProperties:
+    color: Color.Color = Color.Color()
+    style: str = "solid"
+    width: float = 1.0
+
+
+class CellBorder:
+    border: typing.Optional[CellBorderProperties] = None
+    border_horizontal: typing.Optional[CellBorderProperties] = None
+    border_vertical: typing.Optional[CellBorderProperties] = None
+    border_top: typing.Optional[CellBorderProperties] = None
+    border_left: typing.Optional[CellBorderProperties] = None
+    border_bottom: typing.Optional[CellBorderProperties] = None
+    border_right: typing.Optional[CellBorderProperties] = None
+
+    def clear(self) -> None:
+        self.border = None
+        self.border_horizontal = None
+        self.border_vertical = None
+        self.border_top = None
+        self.border_left = None
+        self.border_bottom = None
+        self.border_right = None
+
+
 class CellLike(typing.Protocol):
+    # PRIVATE CLASS. DO NOT USE OUTSIDE NIONUI
+
     update_event: Event.Event
 
     @property
@@ -3699,6 +3729,12 @@ class CellLike(typing.Protocol):
     def border_color(self, border_color: typing.Optional[str]) -> None: ...
 
     @property
+    def border(self) -> CellBorder: raise NotImplementedError()
+
+    @border.setter
+    def border(self, border: CellBorder) -> None: ...
+
+    @property
     def padding(self) -> Geometry.IntSize: raise NotImplementedError()
 
     @padding.setter
@@ -3706,14 +3742,16 @@ class CellLike(typing.Protocol):
 
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize: ...
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None: ...
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None: ...
 
 
 class Cell(CellLike):
-    def __init__(self, background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+    # PRIVATE CLASS. DO NOT USE OUTSIDE NIONUI
+
+    def __init__(self, background_color: typing.Optional[str] = None, border: typing.Optional[CellBorder] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         self.__background_color = background_color
-        self.__border_color = border_color
+        self.__border = border or CellBorder()
         self.__padding = padding or Geometry.IntSize(4, 4)
         self.update_event = Event.Event()
 
@@ -3731,11 +3769,22 @@ class Cell(CellLike):
 
     @property
     def border_color(self) -> typing.Optional[str]:
-        return self.__border_color
+        return self.__border.border.color.color_str if self.__border.border else None
 
     @border_color.setter
     def border_color(self, border_color: typing.Optional[str]) -> None:
-        self.__border_color = border_color
+        self.__border.clear()
+        if border_color:
+            self.__border.border = CellBorderProperties(Color.Color(border_color))
+        self._update()
+
+    @property
+    def border(self) -> CellBorder:
+        return self.__border
+
+    @border.setter
+    def border(self, border: CellBorder) -> None:
+        self.__border = border
         self._update()
 
     @property
@@ -3753,13 +3802,12 @@ class Cell(CellLike):
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         return self._size_to_content(get_font_metrics_fn)
 
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         raise NotImplementedError()
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         # set up the defaults
         background_color = self.__background_color
-        border_color = self.__border_color
         overlay_color = None
 
         # configure based on style
@@ -3776,7 +3824,7 @@ class Cell(CellLike):
                 overlay_color = "rgba(128, 128, 128, 0.1)"
 
         padding = self.__padding
-        dest_rect = Geometry.IntRect.from_tlbr(
+        dest_rect = Geometry.FloatRect.from_tlbr(
             rect.top + padding.height,
             rect.left + padding.width,
             rect.bottom - padding.height,
@@ -3802,11 +3850,74 @@ class Cell(CellLike):
             drawing_context.fill()
 
         # draw the border
-        if border_color or True:
+        border_rect = rect
+        if self.__border.border:
+            border_width = self.__border.border.width
             drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.stroke_style = border_color
+            drawing_context.rect(border_rect.left, border_rect.top, border_rect.width, border_rect.height)
+            drawing_context.line_width = border_width
+            drawing_context.stroke_style = self.__border.border.color.color_str if self.__border.border.color else None
             drawing_context.stroke()
+        else:
+            if self.__border.border_horizontal:
+                border_width = self.__border.border_horizontal.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.left, border_rect.top)
+                drawing_context.line_to(border_rect.right, border_rect.top)
+                drawing_context.move_to(border_rect.left, border_rect.bottom)
+                drawing_context.line_to(border_rect.right, border_rect.bottom)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_horizontal.color.color_str if self.__border.border_horizontal.color else None
+                drawing_context.stroke()
+            if self.__border.border_vertical:
+                border_width = self.__border.border_vertical.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.left, border_rect.top)
+                drawing_context.line_to(border_rect.left, border_rect.bottom)
+                drawing_context.move_to(border_rect.right, border_rect.top)
+                drawing_context.line_to(border_rect.right, border_rect.bottom)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_vertical.color.color_str if self.__border.border_vertical.color else None
+                drawing_context.stroke()
+            if self.__border.border_top:
+                border_width = self.__border.border_top.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.left, border_rect.top)
+                drawing_context.line_to(border_rect.right, border_rect.top)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_top.color.color_str if self.__border.border_top.color else None
+                drawing_context.stroke()
+            if self.__border.border_left:
+                border_width = self.__border.border_left.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.left, border_rect.top)
+                drawing_context.line_to(border_rect.left, border_rect.bottom)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_left.color.color_str if self.__border.border_left.color else None
+                drawing_context.stroke()
+            if self.__border.border_bottom:
+                border_width = self.__border.border_bottom.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.left, border_rect.bottom)
+                drawing_context.line_to(border_rect.right, border_rect.bottom)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_bottom.color.color_str if self.__border.border_bottom.color else None
+                drawing_context.stroke()
+            if self.__border.border_right:
+                border_width = self.__border.border_right.width
+                drawing_context.begin_path()
+                drawing_context.move_to(border_rect.right, border_rect.top)
+                drawing_context.line_to(border_rect.right, border_rect.bottom)
+                drawing_context.line_width = border_width
+                drawing_context.stroke_style = self.__border.border_right.color.color_str if self.__border.border_right.color else None
+                drawing_context.stroke()
+
+            if False:  # for debugging
+                drawing_context.begin_path()
+                drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                drawing_context.line_width = 1.0
+                drawing_context.stroke_style = "red"
+                drawing_context.stroke()
 
 
 class CellCanvasItem(AbstractCanvasItem):
@@ -3887,6 +3998,15 @@ class CellCanvasItem(AbstractCanvasItem):
             self.__cell.border_color = border_color
 
     @property
+    def border(self) -> CellBorder:
+        return self.__cell.border if self.__cell else CellBorder()
+
+    @border.setter
+    def border(self, border: CellBorder) -> None:
+        if self.__cell:
+            self.__cell.border = copy.deepcopy(border)
+
+    @property
     def padding(self) -> Geometry.IntSize:
         return self.__cell.padding if self.__cell else Geometry.IntSize()
 
@@ -3961,14 +4081,14 @@ class CellCanvasItem(AbstractCanvasItem):
         rect = self.canvas_bounds
         if self.__cell and rect is not None:
             with drawing_context.saver():
-                self.__cell.paint_cell(drawing_context, rect, self.style)
+                self.__cell.paint_cell(drawing_context, rect.to_float_rect(), self.style)
 
 
 class TextButtonCell(Cell):
 
     def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
-                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
-        super().__init__(background_color, border_color, padding)
+                 border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(background_color, border, padding)
         self.__text = text if text is not None else str()
         self.__text_color = "#000"
         self.__font = "12px"
@@ -4009,7 +4129,7 @@ class TextButtonCell(Cell):
         font_metrics = get_font_metrics_fn(self.font, self.text)
         return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
 
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         if self.__text:
             drawing_context.font = self.__font
             drawing_context.text_baseline = "middle"
@@ -4023,7 +4143,10 @@ class TextCanvasItem(CellCanvasItem):
     def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
                  border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
-        self.__text_cell = TextButtonCell(text, background_color, border_color, padding)
+        border = CellBorder()
+        if border_color:
+            border.border = CellBorderProperties(Color.Color(border_color))
+        self.__text_cell = TextButtonCell(text, background_color, border, padding)
         self.cell = self.__text_cell
 
     @property
@@ -4109,7 +4232,7 @@ class TwistDownCell(Cell):
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         return Geometry.IntSize(height=18, width=16)
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         # disabled (default is enabled)
         # checked, partial (default is unchecked)
         # hover, active (default is none)
@@ -4170,9 +4293,9 @@ class TwistDownCanvasItem(CellCanvasItem):
 class BitmapCell(Cell):
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 background_color: typing.Optional[str] = None, border: typing.Optional[CellBorder] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
-        super().__init__(background_color, border_color, padding)
+        super().__init__(background_color, border, padding)
         self.__rgba_bitmap_data = rgba_bitmap_data
         self.__data: typing.Optional[DrawingContext.GrayscaleF32Type] = None
         self.__display_limits: typing.Optional[typing.Tuple[float, float]] = None
@@ -4218,7 +4341,7 @@ class BitmapCell(Cell):
             return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, raw_data.shape))
         return Geometry.IntSize()
 
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         bitmap_data = self.rgba_bitmap_data
         raw_data = self.__data
 
@@ -4256,7 +4379,10 @@ class BitmapCanvasItem(CellCanvasItem):
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
         padding = padding or Geometry.IntSize()  # for backwards compatibility
-        self.__bitmap_cell = BitmapCell(rgba_bitmap_data, background_color, border_color, padding)
+        border = CellBorder()
+        if border_color:
+            border.border = CellBorderProperties(Color.Color(border_color))
+        self.__bitmap_cell = BitmapCell(rgba_bitmap_data, background_color, border, padding)
         self.cell = self.__bitmap_cell
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type],

@@ -3683,6 +3683,132 @@ class BackgroundCanvasItem(AbstractCanvasItem):
                 drawing_context.fill()
 
 
+class CellLike(typing.Protocol):
+    update_event: Event.Event
+
+    @property
+    def background_color(self) -> typing.Optional[str]: raise NotImplementedError()
+
+    @background_color.setter
+    def background_color(self, background_color: typing.Optional[str]) -> None: ...
+
+    @property
+    def border_color(self) -> typing.Optional[str]: raise NotImplementedError()
+
+    @border_color.setter
+    def border_color(self, border_color: typing.Optional[str]) -> None: ...
+
+    @property
+    def padding(self) -> Geometry.IntSize: raise NotImplementedError()
+
+    @padding.setter
+    def padding(self, padding: typing.Optional[Geometry.IntSize]) -> None: ...
+
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize: ...
+
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None: ...
+
+
+class Cell(CellLike):
+    def __init__(self, background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        self.__background_color = background_color
+        self.__border_color = border_color
+        self.__padding = padding or Geometry.IntSize(4, 4)
+        self.update_event = Event.Event()
+
+    def _update(self) -> None:
+        self.update_event.fire()
+
+    @property
+    def background_color(self) -> typing.Optional[str]:
+        return self.__background_color
+
+    @background_color.setter
+    def background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__background_color = background_color
+        self._update()
+
+    @property
+    def border_color(self) -> typing.Optional[str]:
+        return self.__border_color
+
+    @border_color.setter
+    def border_color(self, border_color: typing.Optional[str]) -> None:
+        self.__border_color = border_color
+        self._update()
+
+    @property
+    def padding(self) -> Geometry.IntSize:
+        return self.__padding
+
+    @padding.setter
+    def padding(self, padding: typing.Optional[Geometry.IntSize]) -> None:
+        self.__padding = padding or Geometry.IntSize()
+        self._update()
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        raise NotImplementedError()
+
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        return self._size_to_content(get_font_metrics_fn)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+        raise NotImplementedError()
+
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+        # set up the defaults
+        background_color = self.__background_color
+        border_color = self.__border_color
+        overlay_color = None
+
+        # configure based on style
+        if "disabled" in style:
+            overlay_color = "rgba(255, 255, 255, 0.7)"
+            if "checked" in style:
+                background_color = "rgb(64, 64, 64)"
+        else:
+            if "checked" in style:
+                background_color = "rgb(192, 192, 192)"
+            if "active" in style:
+                overlay_color = "rgba(128, 128, 128, 0.5)"
+            elif "hover" in style:
+                overlay_color = "rgba(128, 128, 128, 0.1)"
+
+        padding = self.__padding
+        dest_rect = Geometry.IntRect.from_tlbr(
+            rect.top + padding.height,
+            rect.left + padding.width,
+            rect.bottom - padding.height,
+            rect.right - padding.width
+        )
+
+        rect_args = rect.left, rect.top, rect.width, rect.height
+
+        # draw the background
+        if background_color:
+            drawing_context.begin_path()
+            drawing_context.rect(*rect_args)
+            drawing_context.fill_style = background_color
+            drawing_context.fill()
+
+        self._paint_cell(drawing_context, dest_rect, style)
+
+        # draw the overlay style
+        if overlay_color:
+            drawing_context.begin_path()
+            drawing_context.rect(*rect_args)
+            drawing_context.fill_style = overlay_color
+            drawing_context.fill()
+
+        # draw the border
+        if border_color or True:
+            drawing_context.begin_path()
+            drawing_context.rect(*rect_args)
+            drawing_context.stroke_style = border_color
+            drawing_context.stroke()
+
+
 class CellCanvasItem(AbstractCanvasItem):
 
     """ Canvas item to draw and respond to user events for a cell.
@@ -3698,13 +3824,13 @@ class CellCanvasItem(AbstractCanvasItem):
         hover, active (default is none)
     """
 
-    def __init__(self, cell: typing.Optional[Widgets.CellLike] = None) -> None:
+    def __init__(self, cell: typing.Optional[CellLike] = None) -> None:
         super().__init__()
         self.__enabled = True
         self.__check_state = "unchecked"
         self.__mouse_inside = False
         self.__mouse_pressed = False
-        self.__cell = None
+        self.__cell: typing.Optional[CellLike] = None
         self.__cell_update_event_listener: typing.Optional[Event.EventListener] = None
         self.cell = cell
         self.style: typing.Set[str] = set()
@@ -3741,6 +3867,33 @@ class CellCanvasItem(AbstractCanvasItem):
     @checked.setter
     def checked(self, value: bool) -> None:
         self.check_state = "checked" if value else "unchecked"
+
+    @property
+    def background_color(self) -> typing.Optional[str]:
+        return self.__cell.background_color if self.__cell else None
+
+    @background_color.setter
+    def background_color(self, background_color: typing.Optional[str]) -> None:
+        if self.__cell:
+            self.__cell.background_color = background_color
+
+    @property
+    def border_color(self) -> typing.Optional[str]:
+        return self.__cell.border_color if self.__cell else None
+
+    @border_color.setter
+    def border_color(self, border_color: typing.Optional[str]) -> None:
+        if self.__cell:
+            self.__cell.border_color = border_color
+
+    @property
+    def padding(self) -> Geometry.IntSize:
+        return self.__cell.padding if self.__cell else Geometry.IntSize()
+
+    @padding.setter
+    def padding(self, padding: typing.Optional[Geometry.IntSize]) -> None:
+        if self.__cell:
+            self.__cell.padding = padding or Geometry.IntSize()
 
     @property
     def _mouse_inside(self) -> bool:
@@ -3781,17 +3934,28 @@ class CellCanvasItem(AbstractCanvasItem):
             self.update()
 
     @property
-    def cell(self) -> typing.Optional[Widgets.CellLike]:
+    def cell(self) -> typing.Optional[CellLike]:
         return self.__cell
 
     @cell.setter
-    def cell(self, new_cell: typing.Optional[Widgets.CellLike]) -> None:
+    def cell(self, new_cell: typing.Optional[CellLike]) -> None:
         if self.__cell_update_event_listener:
             self.__cell_update_event_listener.close()
             self.__cell_update_event_listener = None
         self.__cell = new_cell
         if self.__cell:
             self.__cell_update_event_listener = self.__cell.update_event.listen(self.update)
+
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        """ Size the canvas item to the text content with padding."""
+        new_size = self.cell.size_to_content(get_font_metrics_fn) if self.cell else Geometry.IntSize()
+        new_sizing = self.copy_sizing()
+        padding = self.padding
+        # if size is 0 in either dimension, do not pad that dimension. this is a backwards compatibility issue
+        # to avoid drawing dimmed disabled items with no content ("Scan/Abort" in device control panels).
+        new_sizing._set_fixed_width(new_size.width + (padding.width * 2 if new_size.width else 0))
+        new_sizing._set_fixed_height(new_size.height + (padding.height * 2 if new_size.height else 0))
+        self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         rect = self.canvas_bounds
@@ -3800,18 +3964,155 @@ class CellCanvasItem(AbstractCanvasItem):
                 self.__cell.paint_cell(drawing_context, rect, self.style)
 
 
-class TwistDownCell:
+class TextButtonCell(Cell):
+
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(background_color, border_color, padding)
+        self.__text = text if text is not None else str()
+        self.__text_color = "#000"
+        self.__font = "12px"
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        text = text if text is not None else str()
+        if self.__text != text:
+            self.__text = text
+            self._update()
+
+    @property
+    def text_color(self) -> str:
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value: str) -> None:
+        if self.__text_color != value:
+            self.__text_color = value
+            self._update()
+
+    @property
+    def font(self) -> str:
+        return self.__font
+
+    @font.setter
+    def font(self, value: str) -> None:
+        if self.__font != value:
+            self.__font = value
+            self._update()
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        """ Size the canvas item to the text content without padding."""
+        font_metrics = get_font_metrics_fn(self.font, self.text)
+        return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+        if self.__text:
+            drawing_context.font = self.__font
+            drawing_context.text_baseline = "middle"
+            drawing_context.text_align = "center"
+            drawing_context.fill_style = self.__text_color
+            drawing_context.fill_text(self.__text, rect.center.x, rect.center.y + 1)
+
+
+class TextCanvasItem(CellCanvasItem):
+
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__()
+        self.__text_cell = TextButtonCell(text, background_color, border_color, padding)
+        self.cell = self.__text_cell
+
+    @property
+    def _text_cell(self) -> TextButtonCell:
+        return self.__text_cell
+
+    @property
+    def text(self) -> str:
+        return self.__text_cell.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__text_cell.text = text or str()
+
+    @property
+    def text_color(self) -> str:
+        return self.__text_cell.text_color
+
+    @text_color.setter
+    def text_color(self, text_color: str) -> None:
+        self.__text_cell.text_color = text_color
+
+    @property
+    def font(self) -> str:
+        return self.__text_cell.font
+
+    @font.setter
+    def font(self, font: str) -> None:
+        self.__text_cell.font = font
+
+    @property
+    def border_enabled(self) -> bool:
+        return self.border_color is not None
+
+    @border_enabled.setter
+    def border_enabled(self, value: bool) -> None:
+        if value:
+            self.border_color = self.border_color or "black"
+        else:
+            self.border_color = None
+
+
+class TextButtonCanvasItem(TextCanvasItem):
+
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(text, background_color, border_color, padding)
+        self.wants_mouse_events = True
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+    def close(self) -> None:
+        self.on_button_clicked = None
+        super().close()
+
+    def mouse_entered(self) -> bool:
+        self._mouse_inside = True
+        return super().mouse_entered()
+
+    def mouse_exited(self) -> bool:
+        self._mouse_inside = False
+        return super().mouse_exited()
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self._mouse_pressed = True
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self._mouse_pressed = False
+        return True
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.enabled:
+            if self.on_button_clicked:
+                self.on_button_clicked()
+        return True
+
+
+class TwistDownCell(Cell):
 
     def __init__(self) -> None:
         super().__init__()
-        self.update_event = Event.Event()
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        return Geometry.IntSize(height=18, width=16)
 
     def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
-
         # disabled (default is enabled)
         # checked, partial (default is unchecked)
         # hover, active (default is none)
-
         if "checked" in style:
             drawing_context.begin_path()
             drawing_context.move_to(rect.center.x, rect.center.y + 4)
@@ -3825,26 +4126,10 @@ class TwistDownCell:
             drawing_context.line_to(rect.center.x - 4, rect.center.y - 4.5)
             drawing_context.close_path()
 
-        overlay_color = None
-        if "disabled" in style:
-            overlay_color = "rgba(255, 255, 255, 0.5)"
-        else:
-            if "active" in style:
-                overlay_color = "rgba(128, 128, 128, 0.5)"
-            elif "hover" in style:
-                overlay_color = "rgba(128, 128, 128, 0.1)"
-
         drawing_context.fill_style = "#444"
         drawing_context.fill()
         drawing_context.stroke_style = "#444"
         drawing_context.stroke()
-
-        if overlay_color:
-            rect_args = rect.left, rect.top, rect.width, rect.height
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.fill_style = overlay_color
-            drawing_context.fill()
 
 
 class TwistDownCanvasItem(CellCanvasItem):
@@ -3882,18 +4167,16 @@ class TwistDownCanvasItem(CellCanvasItem):
         return True
 
 
-class BitmapCell:
+class BitmapCell(Cell):
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None) -> None:
-        super().__init__()
+                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(background_color, border_color, padding)
         self.__rgba_bitmap_data = rgba_bitmap_data
         self.__data: typing.Optional[DrawingContext.GrayscaleF32Type] = None
         self.__display_limits: typing.Optional[typing.Tuple[float, float]] = None
         self.__color_map_data: typing.Optional[DrawingContext.RGBA32Type] = None
-        self.__background_color = background_color
-        self.__border_color = border_color
-        self.update_event = Event.Event()
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type], trigger_update: bool = True) -> None:
         self.__rgba_bitmap_data = rgba_bitmap_data
@@ -3901,7 +4184,7 @@ class BitmapCell:
         self.__display_limits = None
         self.__color_map_data = None
         if trigger_update:
-            self.update_event.fire()
+            self._update()
 
     def set_data(self, data: typing.Optional[DrawingContext.GrayscaleF32Type],
                  display_limits: typing.Optional[typing.Tuple[float, float]],
@@ -3911,7 +4194,7 @@ class BitmapCell:
         self.__display_limits = display_limits
         self.__color_map_data = color_map_data
         if trigger_update:
-            self.update_event.fire()
+            self._update()
 
     @property
     def data(self) -> typing.Optional[DrawingContext.GrayscaleF32Type]:
@@ -3925,54 +4208,20 @@ class BitmapCell:
     def rgba_bitmap_data(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self.set_rgba_bitmap_data(value, trigger_update=True)
 
-    @property
-    def background_color(self) -> typing.Optional[str]:
-        return self.__background_color
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        """ Size the canvas item to the text content without padding."""
+        bitmap_data = self.rgba_bitmap_data
+        raw_data = self.__data
+        if bitmap_data is not None:
+            return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, bitmap_data.shape))
+        if raw_data is not None:
+            return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, raw_data.shape))
+        return Geometry.IntSize()
 
-    @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
-        self.__background_color = background_color
-        self.update_event.fire()
-
-    @property
-    def border_color(self) -> typing.Optional[str]:
-        return self.__border_color
-
-    @border_color.setter
-    def border_color(self, border_color: typing.Optional[str]) -> None:
-        self.__border_color = border_color
-        self.update_event.fire()
-
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
-        # set up the defaults
-        background_color = self.__background_color
-        border_color = self.__border_color
-        overlay_color = None
-
-        # configure based on style
-        if "disabled" in style:
-            overlay_color = "rgba(255, 255, 255, 0.5)"
-            if "checked" in style:
-                background_color = "rgb(64, 64, 64)"
-        else:
-            if "checked" in style:
-                background_color = "rgb(192, 192, 192)"
-            if "active" in style:
-                overlay_color = "rgba(128, 128, 128, 0.5)"
-            elif "hover" in style:
-                overlay_color = "rgba(128, 128, 128, 0.1)"
-
-        rect_args = rect.left, rect.top, rect.width, rect.height
-
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
         bitmap_data = self.rgba_bitmap_data
         raw_data = self.__data
 
-        # draw the background
-        if background_color:
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.fill_style = background_color
-            drawing_context.fill()
         # draw the bitmap
         if bitmap_data is not None:
             image_size = typing.cast(Geometry.IntSizeTuple, bitmap_data.shape)
@@ -3996,18 +4245,6 @@ class BitmapCell:
                     display_limits = self.__display_limits or (0.0, 0.0)
                     color_map_data = self.__color_map_data
                     drawing_context.draw_data(raw_data, display_left, display_top, display_width, display_height, display_limits[0], display_limits[1], color_map_data)
-        # draw the overlay style
-        if overlay_color:
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.fill_style = overlay_color
-            drawing_context.fill()
-        # draw the border
-        if border_color:
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.stroke_style = border_color
-            drawing_context.stroke()
 
 
 class BitmapCanvasItem(CellCanvasItem):
@@ -4015,9 +4252,11 @@ class BitmapCanvasItem(CellCanvasItem):
     """ Canvas item to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None) -> None:
+                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
-        self.__bitmap_cell = BitmapCell(rgba_bitmap_data, background_color, border_color)
+        padding = padding or Geometry.IntSize()  # for backwards compatibility
+        self.__bitmap_cell = BitmapCell(rgba_bitmap_data, background_color, border_color, padding)
         self.cell = self.__bitmap_cell
 
     def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type],
@@ -4041,29 +4280,14 @@ class BitmapCanvasItem(CellCanvasItem):
     def rgba_bitmap_data(self, rgb_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self.__bitmap_cell.rgba_bitmap_data = rgb_bitmap_data
 
-    @property
-    def background_color(self) -> typing.Optional[str]:
-        return self.__bitmap_cell.background_color
-
-    @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
-        self.__bitmap_cell.background_color = background_color
-
-    @property
-    def border_color(self) -> typing.Optional[str]:
-        return self.__bitmap_cell.border_color
-
-    @border_color.setter
-    def border_color(self, border_color: typing.Optional[str]) -> None:
-        self.__bitmap_cell.border_color = border_color
-
 
 class BitmapButtonCanvasItem(BitmapCanvasItem):
     """ Canvas item button to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None) -> None:
-        super().__init__(rgba_bitmap_data, background_color, border_color)
+                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(rgba_bitmap_data, background_color, border_color, padding)
         self.wants_mouse_events = True
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
@@ -4094,161 +4318,11 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
         return True
 
 
-class StaticTextCanvasItem(AbstractCanvasItem):
+class StaticTextCanvasItem(TextCanvasItem):
+    # for backwards compatibility
 
     def __init__(self, text: typing.Optional[str] = None) -> None:
-        super().__init__()
-        self.__text = text if text is not None else str()
-        self.__text_color = "#000"
-        self.__text_disabled_color = "#888"
-        self.__enabled = True
-        self.__font = "12px"
-
-    @property
-    def text(self) -> str:
-        return self.__text
-
-    @text.setter
-    def text(self, text: typing.Optional[str]) -> None:
-        text = text if text is not None else str()
-        if self.__text != text:
-            self.__text = text
-            self.update()
-
-    @property
-    def enabled(self) -> bool:
-        return self.__enabled
-
-    @enabled.setter
-    def enabled(self, value: bool) -> None:
-        if self.__enabled != value:
-            self.__enabled = value
-            self.update()
-
-    @property
-    def text_color(self) -> str:
-        return self.__text_color
-
-    @text_color.setter
-    def text_color(self, value: str) -> None:
-        if self.__text_color != value:
-            self.__text_color = value
-            self.update()
-
-    @property
-    def text_disabled_color(self) -> str:
-        return self.__text_disabled_color
-
-    @text_disabled_color.setter
-    def text_disabled_color(self, value: str) -> None:
-        if self.__text_disabled_color != value:
-            self.__text_disabled_color = value
-            self.update()
-
-    @property
-    def font(self) -> str:
-        return self.__font
-
-    @font.setter
-    def font(self, value: str) -> None:
-        if self.__font != value:
-            self.__font = value
-            self.update()
-
-    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics],
-                        horizontal_padding: typing.Optional[int] = None,
-                        vertical_padding: typing.Optional[int] = None) -> None:
-        """ Size the canvas item to the text content. """
-        if horizontal_padding is None:
-            horizontal_padding = 4
-        if vertical_padding is None:
-            vertical_padding = 4
-        font_metrics = get_font_metrics_fn(self.__font, self.__text)
-        new_sizing = self.copy_sizing()
-        new_sizing._set_fixed_width(font_metrics.width + 2 * horizontal_padding)
-        new_sizing._set_fixed_height(font_metrics.height + 2 * vertical_padding)
-        self.update_sizing(new_sizing)
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds:
-            canvas_bounds_center = canvas_bounds.center
-            with drawing_context.saver():
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'center'
-                drawing_context.text_baseline = 'middle'
-                drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
-                drawing_context.fill_text(self.__text, canvas_bounds_center.x, canvas_bounds_center.y + 1)
-
-
-class TextButtonCanvasItem(StaticTextCanvasItem):
-
-    def __init__(self, text: typing.Optional[str] = None) -> None:
-        super().__init__(text)
-        self.wants_mouse_events = True
-        self.__border_enabled = True
-        self.__mouse_inside = False
-        self.__mouse_pressed = False
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        super().close()
-
-    @property
-    def border_enabled(self) -> bool:
-        return self.__border_enabled
-
-    @border_enabled.setter
-    def border_enabled(self, value: bool) -> None:
-        if self.__border_enabled != value:
-            self.__border_enabled = value
-            self.update()
-
-    def mouse_entered(self) -> bool:
-        self.__mouse_inside = True
-        self.update()
-        return True
-
-    def mouse_exited(self) -> bool:
-        self.__mouse_inside = False
-        self.update()
-        return True
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_pressed = True
-        self.update()
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_pressed = False
-        self.update()
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if callable(self.on_button_clicked):
-                self.on_button_clicked()
-        return True
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                # drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.round_rect(1.0, 1.0, canvas_size.width - 2.0, canvas_size.height - 2.0, 4)
-                if self.enabled and self.__mouse_inside and self.__mouse_pressed:
-                    drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
-                    drawing_context.fill()
-                elif self.enabled and self.__mouse_inside:
-                    drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
-                    drawing_context.fill()
-                if self.border_enabled:
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.line_width = 1.0
-                    drawing_context.stroke()
-            super()._repaint(drawing_context)
+        super().__init__(text, padding=Geometry.IntSize(4, 4))
 
 
 class CheckBoxCanvasItem(AbstractCanvasItem):

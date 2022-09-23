@@ -58,6 +58,18 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
     def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
         return self.content_widget
 
+    def _set_focused(self, focused: bool) -> None:
+        pass
+
+    def _set_enabled(self, enabled: bool) -> None:
+        pass
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        pass
+
+    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+        pass
+
     @property
     def focused(self) -> bool:
         return self.content_widget.focused
@@ -65,6 +77,7 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
     @focused.setter
     def focused(self, focused: bool) -> None:
         self.content_widget.focused = focused
+        self._set_focused(focused)
 
     @property
     def does_retain_focus(self) -> bool:
@@ -89,6 +102,7 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
     @enabled.setter
     def enabled(self, enabled: bool) -> None:
         self.content_widget.enabled = enabled
+        self._set_enabled(enabled)
 
     @property
     def size(self) -> Geometry.IntSize:
@@ -105,9 +119,11 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
     @tool_tip.setter
     def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.content_widget.tool_tip = tool_tip
+        self._set_tool_tip(tool_tip)
 
     def set_background_color(self, value: typing.Optional[str]) -> None:
         self.content_widget.background_color = value
+        self._set_background_color(value)
 
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
@@ -119,6 +135,80 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
 
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
+
+
+class PushButtonWidgetBehavior(CompositeWidgetBehavior):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__canvas_widget = ui.create_canvas_widget()
+        super().__init__(self.__canvas_widget)
+        self.ui = ui
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        self.__text_button_canvas_item.background_color = "#f0f0f0"
+        self.__text_button_canvas_item.border_color = "gray"
+        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(4, 4))
+        self.__icon_button_canvas_item.background_color = "#f0f0f0"
+        self.__icon_button_canvas_item.border_color = "gray"
+
+        self.__stack = CanvasItem.CanvasItemComposition()
+        self.__stack.layout = CanvasItem.CanvasItemLayout()
+        self.__stack.add_canvas_item(self.__text_button_canvas_item)
+        self.__stack.add_canvas_item(self.__icon_button_canvas_item)
+        self.__canvas_widget.canvas_item.add_canvas_item(self.__stack)
+
+        self.__text: typing.Optional[str] = None
+        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def handle_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        self.__text_button_canvas_item.on_button_clicked = handle_clicked
+        self.__icon_button_canvas_item.on_button_clicked = handle_clicked
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__text = value
+        self.__text_button_canvas_item.visible = True
+        self.__icon_button_canvas_item.visible = False
+        self.__text_button_canvas_item.text = value or str()
+        self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__icon_button_canvas_item.rgba_bitmap_data = None
+        self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__canvas_widget.size = Geometry.IntSize(width=int(self.__text_button_canvas_item.sizing.preferred_width or 0),
+                                                     height=int(self.__text_button_canvas_item.sizing.preferred_height or 0))
+
+    @property
+    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
+        return self.__icon
+
+    @icon.setter
+    def icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+        self.__icon = value
+        self.__text_button_canvas_item.visible = False
+        self.__icon_button_canvas_item.visible = True
+        self.__icon_button_canvas_item.rgba_bitmap_data = value
+        self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__text_button_canvas_item.text = str()
+        self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__canvas_widget.size = Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
+                                                     height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0))
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__text_button_canvas_item.enabled = enabled
+        self.__icon_button_canvas_item.enabled = enabled
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.tool_tip = tool_tip
+        self.__icon_button_canvas_item.tool_tip = tool_tip
+
+    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.background_color = background_color
+        self.__icon_button_canvas_item.background_color = background_color
 
 
 class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterface.TabWidgetBehavior until mypy #4125 is available
@@ -614,86 +704,6 @@ class TableWidget(UserInterface.Widget):
             self.header_for_empty_list_widget.visible = not has_content
 
 
-class CellLike(typing.Protocol):
-    update_event: Event.Event
-
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None: ...
-
-
-class TextButtonCell(CellLike):
-
-    def __init__(self, text: str) -> None:
-        self.update_event = Event.Event()
-        self.__text = text
-
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
-
-        # disabled (default is enabled)
-        # checked, partial (default is unchecked)
-        # hover, active (default is none)
-
-        drawing_context.text_baseline = "middle"
-        drawing_context.text_align = "center"
-        drawing_context.fill_style = "#000"
-        drawing_context.fill_text(self.__text, rect.center.x, rect.center.y)
-
-        overlay_color = None
-        if "disabled" in style:
-            overlay_color = "rgba(255, 255, 255, 0.5)"
-        else:
-            if "active" in style:
-                overlay_color = "rgba(128, 128, 128, 0.5)"
-            elif "hover" in style:
-                overlay_color = "rgba(128, 128, 128, 0.1)"
-
-        drawing_context.fill_style = "#444"
-        drawing_context.fill()
-        drawing_context.stroke_style = "#444"
-        drawing_context.stroke()
-
-        if overlay_color:
-            rect_args = rect[0][1], rect[0][0], rect[1][1], rect[1][0]
-            drawing_context.begin_path()
-            drawing_context.rect(*rect_args)
-            drawing_context.fill_style = overlay_color
-            drawing_context.fill()
-
-
-class TextButtonCanvasItem(CanvasItem.CellCanvasItem):
-
-    def __init__(self, text: str) -> None:
-        super().__init__()
-        self.cell = TextButtonCell(text)
-        self.wants_mouse_events = True
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        super().close()
-
-    def mouse_entered(self) -> bool:
-        self._mouse_inside = True
-        return True
-
-    def mouse_exited(self) -> bool:
-        self._mouse_inside = False
-        return True
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = True
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = False
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if self.on_button_clicked:
-                self.on_button_clicked()
-        return True
-
-
 class TextPushButtonWidget(UserInterface.Widget):
     def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
         column_widget = ui.create_column_widget()
@@ -701,7 +711,7 @@ class TextPushButtonWidget(UserInterface.Widget):
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
-        text_button_canvas_item = TextButtonCanvasItem(text)
+        text_button_canvas_item = CanvasItem.TextButtonCanvasItem(text)
         text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
 
         def button_clicked() -> None:
@@ -781,10 +791,10 @@ class ImageWidget(UserInterface.Widget):
         self.__bitmap_canvas_item.border_color = border_color
 
 
-class ColorButtonCell(CellLike):
+class ColorButtonCell(CanvasItem.Cell):
 
     def __init__(self, color: typing.Optional[str]):
-        self.update_event = Event.Event()
+        super().__init__(padding=Geometry.IntSize(4, 4))
         self.__color = color
 
     @property
@@ -795,17 +805,19 @@ class ColorButtonCell(CellLike):
     def color(self, value: typing.Optional[str]) -> None:
         self.__color = value
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        """ Size the canvas item to the text content without padding."""
+        return Geometry.IntSize(height=30, width=44)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.IntRect, style: typing.Set[str]) -> None:
         # style: "disabled" (default is enabled)
 
-        margin_rect = rect.inset(4, 4)
-
         drawing_context.begin_path()
-        drawing_context.rect(margin_rect.left, margin_rect.top, margin_rect.width, margin_rect.height)
+        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
         drawing_context.fill_style = "#BBB"
         drawing_context.fill()
 
-        inset_rect = margin_rect.inset(4, 4)
+        inset_rect = rect.inset(4, 4)
 
         drawing_context.begin_path()
         drawing_context.rect(inset_rect.left, inset_rect.top, inset_rect.width, inset_rect.height)
@@ -825,12 +837,6 @@ class ColorButtonCell(CellLike):
         drawing_context.rect(inset_rect.left, inset_rect.top, inset_rect.width, inset_rect.height)
         drawing_context.stroke_style = "#454545"
         drawing_context.stroke()
-
-        if "disabled" in style:
-            drawing_context.begin_path()
-            drawing_context.rect(margin_rect.left, margin_rect.top, margin_rect.width, margin_rect.height)
-            drawing_context.fill_style = "rgba(255, 255, 255, 0.5)"
-            drawing_context.fill()
 
 
 class ColorButtonCanvasItem(CanvasItem.CellCanvasItem):

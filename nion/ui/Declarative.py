@@ -1749,7 +1749,10 @@ def construct_check_box(ui: UserInterface.UserInterface, d: UIDescription, handl
 def construct_push_button(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
                           finishes: _FinishesListType) -> UserInterface.PushButtonWidget:
     properties = construct_sizing_properties(d)
-    widget = ui.create_push_button_widget(properties=properties)
+    if d.get("style", None) == "minimal":
+        widget = UserInterface.PushButtonWidget(Widgets.PushButtonWidgetBehavior(ui), None)
+    else:
+        widget = ui.create_push_button_widget(properties=properties)
     if handler:
         connect_name(widget, d, handler)
         if d.get("text", None):

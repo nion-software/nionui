@@ -1949,12 +1949,15 @@ class LineEditWidget(Widget):
 
         self._behavior.on_text_edited = handle_text_edited
 
+        def get_text() -> str:
+            return self._behavior.text or str()
+
         def set_text(value: typing.Optional[str]) -> None:
             str_ = str(value) if value is not None else str()
             self.__last_text = str_
             self._behavior.text = str_
 
-        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](get_text, set_text)
 
     def close(self) -> None:
         self.__text_binding_helper.close()

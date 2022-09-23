@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.6.6 (UNRELEASED)
 ------------------
+- Fix regression where line edits not using latest text when still focused.
 - Add ability to set top, left, bottom, right, horizontal, and vertical borders independently.
 - Add ability to set top, left, bottom, right, horizontal, and vertical margins independently.
 

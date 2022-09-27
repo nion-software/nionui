@@ -288,11 +288,19 @@ def make_ui(bootstrap_args: typing.Mapping[str, typing.Any]) -> UserInterface.Us
     if "proxy" in bootstrap_args:
         from nion.ui import QtUserInterface
         proxy = bootstrap_args["proxy"]
-        return QtUserInterface.QtUserInterface(proxy)
+        ui: UserInterface.UserInterface = QtUserInterface.QtUserInterface(proxy)
+        if "canvas" in bootstrap_args:
+            from nion.ui import CanvasUserInterface
+            ui = CanvasUserInterface.CanvasUserInterface(ui)
+        return ui
     elif "qt" in bootstrap_args:
         from nion.ui import QtUserInterface
         from nion.ui import PyQtProxy
-        return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())  # type: ignore
+        ui: UserInterface.UserInterface = QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())  # type: ignore
+        if "canvas" in bootstrap_args:
+            from nion.ui import CanvasUserInterface
+            ui = CanvasUserInterface.CanvasUserInterface(ui)
+        return ui
     raise Exception("Unable to create user interface object.")
 
 

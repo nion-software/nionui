@@ -1,0 +1,798 @@
+# TODO: merge WidgetBehavior and subclasses with counterparts in Widgets.py
+
+from __future__ import annotations
+
+import asyncio
+import pathlib
+import typing
+
+from nion.ui import Application
+from nion.ui import Bitmap
+from nion.ui import CanvasItem
+from nion.ui import DrawingContext
+from nion.ui import UserInterface
+from nion.ui import Widgets
+from nion.ui import Window
+from nion.utils import Geometry
+from nion.utils import Model
+
+
+def extract_canvas_item(widget: UserInterface.Widget) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
+    # extracts the canvas widget from the user interface widget
+    widget_behavior = typing.cast(WidgetBehavior, widget._behavior)
+    content_widget = widget_behavior._get_content_widget() if widget else None
+    if content_widget:
+        return extract_canvas_item(content_widget)
+    return widget_behavior._canvas_item if widget else None
+
+
+class WidgetBehavior(UserInterface.WidgetBehavior):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, does_retain_focus: bool, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.properties = dict(properties) if properties else {}
+        self.canvas_item = canvas_item
+        self.update_properties()
+        self.__visible = True
+        self.__enabled = True
+        self.__tool_tip: typing.Optional[str] = None
+        self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
+        self.__does_retain_focus = does_retain_focus
+        self._no_focus = "no_focus"
+
+    def close(self) -> None:
+        # close the canvas item?
+        self.on_ui_activity = None
+        self.on_context_menu_event = None
+        self.on_focus_changed = None
+        self.canvas_item = typing.cast(typing.Any, None)
+
+    @property
+    def _canvas_item(self) -> CanvasItem.AbstractCanvasItem:
+        return self.canvas_item
+
+    @property
+    def widget(self) -> typing.Any:
+        return self.canvas_item
+
+    def update_properties(self) -> None:
+        # TODO
+        properties = self.properties
+        for key, value in properties.items():
+            if key == "width":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_width(value))
+            if key == "height":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_height(value))
+            if key == "min-width":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_width(value).with_preferred_width(value))
+            if key == "min-height":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_height(value).with_preferred_height(value))
+
+    def set_property(self, key: str, value: typing.Any) -> None:
+        # TODO
+        pass
+
+    def periodic(self) -> None:
+        # TODO
+        pass
+
+    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+        # TODO
+        pass
+
+    def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
+        # TODO
+        return None
+
+    def _register_ui_activity(self) -> None:
+        if callable(self.on_ui_activity):
+            self.on_ui_activity()
+
+    @property
+    def focused(self) -> bool:
+        return self.canvas_item.focused
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        self.canvas_item._set_focused(focused)
+
+    @property
+    def does_retain_focus(self) -> bool:
+        return self.__does_retain_focus
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, value: bool) -> None:
+        self.__does_retain_focus = value
+
+    @property
+    def visible(self) -> bool:
+        return self.__visible
+
+    @visible.setter
+    def visible(self, visible: bool) -> None:
+        if visible != self.__visible:
+            self.canvas_item.visible = visible
+            self.__visible = visible
+
+    @property
+    def enabled(self) -> bool:
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        if enabled != self.__enabled:
+            self.canvas_item.enabled = enabled
+            self.__enabled = enabled
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        return self.canvas_item.canvas_size or Geometry.IntSize()
+
+    @size.setter
+    def size(self, size: Geometry.IntSize) -> None:
+        self.canvas_item._set_canvas_size(size)
+
+    @property
+    def tool_tip(self) -> typing.Optional[str]:
+        return self.__tool_tip
+
+    @tool_tip.setter
+    def tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        if tool_tip != self.__tool_tip:
+            self.canvas_item.tool_tip = tool_tip
+            self.__tool_tip = tool_tip
+
+    def set_background_color(self, color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.canvas_item.background_color = color
+
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
+             hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
+             drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
+        self._register_ui_activity()
+
+        def drag_finished(action: str) -> None:
+            self._register_ui_activity()
+            if drag_finished_fn:
+                drag_finished_fn(action)
+
+        # TODO
+        # drag = QtDrag(self.proxy, self.widget, typing.cast(QtMimeData, mime_data), thumbnail, hot_spot_x, hot_spot_y, drag_finished)
+        # drag.execute()
+
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        return Geometry.IntPoint()
+        # TODO
+        # gx, gy = self.proxy.Widget_mapToGlobal(self.widget, p.x, p.y)
+        # return Geometry.IntPoint(x=gx, y=gy)
+
+
+class BoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, is_row: bool, properties: typing.Mapping[str, typing.Any] | None, alignment: str | None) -> None:
+        self.__is_row = is_row
+        self.__box_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__box_canvas_item.layout = CanvasItem.CanvasItemRowLayout() if is_row else CanvasItem.CanvasItemColumnLayout()
+        self.__box_canvas_item.layout.alignment = alignment if alignment else "start"
+        super().__init__(self.__box_canvas_item, False, properties)
+
+    def insert(self, child: UserInterface.Widget, index_or_widget: typing.Optional[typing.Union[UserInterface.Widget, int]],
+               fill: bool = False, alignment: typing.Optional[str] = None) -> None:
+        # TODO: fill, alignment
+        child_canvas_item = extract_canvas_item(child)
+        assert self.widget is not None
+        assert child_canvas_item is not None
+        if index_or_widget is not None and isinstance(index_or_widget, UserInterface.Widget):
+            index_canvas_item = extract_canvas_item(index_or_widget)
+            assert index_canvas_item is not None
+            index = self.__box_canvas_item.canvas_items.index(index_canvas_item)
+        else:
+            index = index_or_widget if index_or_widget is not None else len(self.__box_canvas_item.canvas_items)
+        self.__box_canvas_item.insert_canvas_item(index, child_canvas_item)
+
+    def remove(self, child: UserInterface.Widget) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        for alignment_canvas_item in self.__box_canvas_item.canvas_items:
+            if child_canvas_item in alignment_canvas_item.canvas_items:
+                self.__box_canvas_item.remove_canvas_item(alignment_canvas_item)
+
+    def add_stretch(self) -> UserInterface.Widget:
+        return UserInterface.Widget(WidgetBehavior(self.__box_canvas_item.add_stretch(), False, None))
+
+    def add_spacing(self, spacing: int) -> UserInterface.Widget:
+        return UserInterface.Widget(WidgetBehavior(self.__box_canvas_item.add_spacing(spacing), False, None))
+
+    def remove_all(self) -> None:
+        self.__box_canvas_item.remove_all_canvas_items()
+
+
+class LabelWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__canvas_item = CanvasItem.TextCanvasItem(text, padding=Geometry.IntSize())
+        super().__init__(self.__canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.word_wrap = False  # TODO
+
+    @property
+    def _canvas_item(self) -> CanvasItem.TextCanvasItem:
+        return self.__canvas_item
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__canvas_item.text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__canvas_item.text = value or str()
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        self.__canvas_item.text_color = color
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        self.__canvas_item.text_font = font_str
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+
+    def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None:
+        pass
+
+    @property
+    def word_wrap(self) -> bool:
+        return self.__word_wrap
+
+    @word_wrap.setter
+    def word_wrap(self, value: bool) -> None:
+        self.__word_wrap = value
+
+
+class PushButtonWidgetBehavior(WidgetBehavior):
+    # largely the same as the Widgets one.
+
+    def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+
+        widget_canvas_item_factory = Widgets.BasicWidgetCanvasItemControllerFactory(ui)
+
+        self.__canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller()
+
+        self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+
+        self.__text: typing.Optional[str] = None
+        self.__icon: typing.Optional[Bitmap.Bitmap] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def handle_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        def handle_size_changed(size: Geometry.IntSize) -> None:
+            if size.width > 0 and size.height > 0:
+                self.__canvas_item.update_sizing(self.__canvas_item.sizing.with_fixed_size(size))
+
+        self.__canvas_item_controller.on_clicked = handle_clicked
+        self.__canvas_item_controller.on_size_changed = handle_size_changed
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__text = value
+        self.__canvas_item_controller.set_text(value)
+        self.__canvas_item_controller.size_to_content(self.__get_font_metrics_fn)
+
+    @property
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
+        return self.__icon
+
+    @icon.setter
+    def icon(self, value: typing.Optional[Bitmap.Bitmap]) -> None:
+        self.__icon = value
+        self.__canvas_item_controller.set_icon(value)
+        self.__canvas_item_controller.size_to_content(self.__get_font_metrics_fn)
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__canvas_item_controller.set_enabled(enabled)
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__canvas_item_controller.set_tool_tip(tool_tip)
+
+    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__canvas_item_controller.set_background_color(background_color)
+
+
+class CanvasWidgetCanvasItem(CanvasItem.CanvasWidgetCanvasItem):
+
+    @property
+    def canvas_widget(self) -> UserInterface.CanvasWidget:
+        # TODO
+        raise NotImplementedError()
+
+    @property
+    def focused_item(self) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
+        # TODO
+        return None
+
+    def size_changed(self, width: int, height: int) -> None:
+        pass  # TODO
+
+
+class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
+    # TODO
+
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__focusable = False
+        self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
+        self.on_mouse_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_mouse_double_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_mouse_released: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
+        self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
+        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
+        self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_key_released: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_drag_enter: typing.Optional[typing.Callable[[UserInterface.MimeData], str]] = None
+        self.on_drag_leave: typing.Optional[typing.Callable[[], str]] = None
+        self.on_drag_move: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_drop: typing.Optional[typing.Callable[[UserInterface.MimeData, int, int], str]] = None
+        self.on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
+        self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
+
+    def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        self.__canvas_item.remove_all_canvas_items()
+        self.__canvas_item.add_canvas_item(canvas_item)
+        # TODO: how does sizing work?
+
+    def _create_composition_canvas_item(self, canvas_widget: UserInterface.CanvasWidget, layout_render: typing.Optional[str]) -> CanvasItem.CanvasWidgetCanvasItem:
+        return CanvasWidgetCanvasItem()
+
+    def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        pass
+
+    def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        pass  # TODO: draw_section
+
+    def remove_section(self, section_id: int) -> None:
+        pass
+
+    def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
+        pass
+
+    def grab_gesture(self, gesture_type: str) -> None:
+        pass  # TODO: grab_gesture
+
+    def release_gesture(self, gesture_type: str) -> None:
+        pass
+
+    def grab_mouse(self, gx: int, gy: int) -> None:
+        pass
+
+    def release_mouse(self) -> None:
+        pass
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        pass
+
+    @property
+    def focusable(self) -> bool:
+        return self.__focusable
+
+    @focusable.setter
+    def focusable(self, focusable: bool) -> None:
+        self.__focusable = focusable
+
+
+class CanvasWindow(UserInterface.Window):
+
+    def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterface.Window] = None) -> None:
+        super().__init__(parent_window, title or str())
+        self.__ui = ui
+        self.__window = ui.create_document_window(title, parent_window)
+        self.__window.on_periodic = self.periodic
+        self.__canvas_widget: typing.Optional[UserInterface.CanvasWidget] = None
+        self.__canvas_item: CanvasItem.AbstractCanvasItem = typing.cast(typing.Any, None)
+        self.__pending_size: typing.Optional[Geometry.IntSize] = None
+        self.__event_loop = asyncio.get_event_loop()
+
+    def close(self) -> None:
+        self.__ui.destroy_document_window(self.__window)
+        self.__window = typing.cast(typing.Any, None)
+
+    def request_close(self) -> None:
+        self.__window.request_close()
+
+    def _attach_root_widget(self, root_widget: typing.Optional[UserInterface.Widget]) -> None:
+        self.__canvas_widget = self.__ui.create_canvas_widget()
+        # the canvas widget will be created/added in the base UI.
+        # the root canvas item will listen to UI events on the canvas widget.
+        # by adding the associated canvas item of the root widget to the
+        # new root canvas item, the events will be passed into the root widget
+        # hierarchy.
+        root_canvas_item = CanvasItem.RootCanvasItem(self.__canvas_widget)
+        assert root_widget
+        canvas_item = extract_canvas_item(root_widget)
+        assert canvas_item
+        self.__canvas_item = canvas_item
+        # size the root canvas item to the preferred size of the root widget, so that the layout system can work properly.
+        layout_sizing = canvas_item.layout_sizing
+        width = max(layout_sizing.preferred_width_int, round(layout_sizing.minimum_width) if isinstance(layout_sizing.minimum_width, (int, float)) else 0)
+        height = max(layout_sizing.preferred_height_int, round(layout_sizing.minimum_height) if isinstance(layout_sizing.minimum_height, (int, float)) else 0)
+        canvas_item.update_sizing(canvas_item.sizing.with_fixed_size(Geometry.IntSize(height, width)))
+        root_canvas_item.add_canvas_item(canvas_item)
+        self.__canvas_widget.canvas_item.add_canvas_item(root_canvas_item)
+        self.__window._attach_root_widget(self.__canvas_widget)
+
+    def _get_focus_widget(self) -> typing.Optional[UserInterface.Widget]:
+        # TODO
+        return None
+
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return self.__window.get_file_paths_dialog(title, directory, filter, selected_filter)
+
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return self.__window.get_file_path_dialog(title, directory, filter, selected_filter)
+
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
+        return self.__window.get_save_file_path(title, directory, filter, selected_filter)
+
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        return self.__window.get_color_dialog(title, color, show_alpha)
+
+    def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def tabify_dock_widgets(self, dock_widget1: UserInterface.DockWidget, dock_widget2: UserInterface.DockWidget) -> None:
+        # TODO
+        raise NotImplementedError()
+
+    def _get_screen_size(self) -> Geometry.IntSize:
+        return self.__window._get_screen_size()
+
+    def _get_screen_logical_dpi(self) -> float:
+        return self.__window._get_screen_logical_dpi()
+
+    def _get_screen_physical_dpi(self) -> float:
+        return self.__window._get_screen_physical_dpi()
+
+    def _get_display_scaling(self) -> float:
+        return self.__window._get_display_scaling()
+
+    def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
+        layout_sizing = self.__canvas_widget.canvas_item.layout_sizing if self.__canvas_widget else None
+        if not size and layout_sizing:
+            size = Geometry.IntSize(width=int(layout_sizing.preferred_width or 400), height=int(layout_sizing.preferred_height or 200))
+        self.__window.show(size, position)
+
+    def activate(self) -> None:
+        self.__window.activate()
+
+    def fill_screen(self) -> None:
+        self.__window.fill_screen()
+
+    def _set_title(self, value: str) -> None:
+        self.__window._set_title(value)
+
+    def _set_window_file_path(self, value: typing.Optional[pathlib.Path]) -> None:
+        self.__window._set_window_file_path(value)
+
+    def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
+        self.__window.set_palette_color(role, r, g, b, a)
+
+    def set_window_style(self, styles: typing.Sequence[str]) -> None:
+        self.__window.set_window_style(styles)
+
+    def set_attributes(self, attributes: typing.Sequence[str]) -> None:
+        self.__window.set_attributes(attributes)
+
+    def periodic(self) -> None:
+        self._handle_periodic()
+        if self.__canvas_widget:
+            self.__canvas_widget.periodic()
+
+    def aboutToShow(self) -> None:
+        # TODO
+        self._register_ui_activity()
+        self._handle_about_to_show()
+
+    def activationChanged(self, activated: bool) -> None:
+        # TODO
+        self._register_ui_activity()
+        self._handle_activation_changed(activated)
+
+    def aboutToClose(self, geometry: str, state: str) -> None:
+        # TODO
+        self._register_ui_activity()
+        self._handle_about_to_close(geometry, state)
+
+    def keyPressed(self, text: str, key: int, raw_modifiers: int) -> bool:
+        # TODO
+        self._register_ui_activity()
+        # return self._handle_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
+
+    def keyReleased(self, text: str, key: int, raw_modifiers: int) -> bool:
+        # TODO
+        self._register_ui_activity()
+        # return self._handle_key_released(QtKey(text, key, raw_modifiers))
+        return False
+
+    def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
+        # TODO
+        # native_menu = self.proxy.DocumentWindow_addMenu(self.native_document_window, notnone(title))
+        # menu = QtMenu(self, title, menu_id or str(), self.proxy, native_menu)
+        # self._menu_added(menu)
+        # return menu
+        raise NotImplementedError()
+
+    def insert_menu(self, title: str, before_menu: UserInterface.Menu, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
+        # TODO
+        # before_menu = typing.cast(QtMenu, before_menu)
+        # native_menu = self.proxy.DocumentWindow_insertMenu(self.native_document_window, notnone(title), before_menu.native_menu)
+        # menu = QtMenu(self, title, menu_id or str(), self.proxy, native_menu)
+        # self._menu_inserted(menu, before_menu)
+        # return menu
+        raise NotImplementedError()
+
+    def restore(self, geometry: str, state: str) -> None:
+        pass  # TODO
+        # self.proxy.DocumentWindow_restore(self.native_document_window, geometry, state)
+
+    def save(self) -> typing.Tuple[str, str]:
+        # TODO
+        # geometry, state = self.proxy.DocumentWindow_save(self.native_document_window)
+        # return geometry, state
+        raise NotImplementedError()
+
+    def sizeChanged(self, width: int, height: int) -> None:
+        # TODO
+        self._register_ui_activity()
+        self._handle_size_changed(width, height)
+
+    def positionChanged(self, x: int, y: int) -> None:
+        # TODO
+        self._register_ui_activity()
+        self._handle_position_changed(x, y)
+
+    @property
+    def position(self) -> Geometry.IntPoint:
+        return self.__window.position
+
+    @property
+    def size(self) -> Geometry.IntSize:
+        return self.__window.size
+
+
+class CanvasUserInterface(UserInterface.UserInterface):
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__ui = ui
+        self.proxy = self
+
+    def close(self) -> None:
+        pass
+
+    def run(self, app: Application.BaseApplication) -> None:
+        self.__ui.run(app)
+
+    def request_quit(self) -> None:
+        self.__ui.request_quit()
+
+    def Application_setQuitOnLastWindowClosed(self, value: bool) -> None:
+        getattr(self.__ui, "proxy").Application_setQuitOnLastWindowClosed(value)
+
+    # data objects
+
+    def create_mime_data(self) -> UserInterface.MimeData:
+        return self.__ui.create_mime_data()
+
+    def create_item_model_controller(self) -> typing.Any:
+        raise NotImplementedError()
+
+    def create_button_group(self) -> UserInterface.ButtonGroup:
+        raise NotImplementedError()
+
+    # window elements
+
+    def create_document_window(self, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterface.Window] = None) -> UserInterface.Window:
+        return CanvasWindow(self.__ui, title, parent_window)
+
+    def destroy_document_window(self, document_window: UserInterface.Window) -> None:
+        document_window.close()
+
+    # user interface elements
+
+    def create_row_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.BoxWidget:
+        return UserInterface.BoxWidget(BoxWidgetBehavior(True, properties, alignment), alignment)
+
+    def create_column_widget(self, alignment: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.BoxWidget:
+        return UserInterface.BoxWidget(BoxWidgetBehavior(False, properties, alignment), alignment)
+
+    def create_splitter_widget(self, orientation: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SplitterWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_tab_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TabWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_stack_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.StackWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_group_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.GroupWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ScrollAreaWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ComboBoxWidget:
+        # TODO
+        return typing.cast(UserInterface.ComboBoxWidget, self.create_label_widget("COMBOBOX", properties))
+        # raise NotImplementedError()
+
+    def create_push_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.PushButtonWidget:
+        behavior = PushButtonWidgetBehavior(self, properties, self.get_font_metrics)
+        if text is not None:
+            behavior.text = text
+        return UserInterface.PushButtonWidget(behavior, text)
+
+    def create_radio_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.RadioButtonWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_check_box_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.CheckBoxWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_label_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LabelWidget:
+        return UserInterface.LabelWidget(LabelWidgetBehavior(text or str(), properties, self.get_font_metrics), text)
+
+    def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SliderWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ProgressBarWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LineEditWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextBrowserWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextEditWidget:
+        # TODO
+        raise NotImplementedError()
+
+    def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> UserInterface.CanvasWidget:
+        behavior = CanvasWidgetBehavior(properties, self.get_font_metrics)
+        return UserInterface.CanvasWidget(behavior)
+
+    def create_tree_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TreeWidget:
+        # TODO
+        raise NotImplementedError()
+
+    # file i/o
+
+    def load_rgba_data_from_file(self, filename: str) -> typing.Optional[DrawingContext.RGBA32Type]:
+        return self.__ui.load_rgba_data_from_file(filename)
+
+    def save_rgba_data_to_file(self, data: DrawingContext.RGBA32Type, filename: str, format: typing.Optional[str]) -> None:
+        self.__ui.save_rgba_data_to_file(data, filename, format)
+
+    def get_existing_directory_dialog(self, title: str, directory: str) -> typing.Tuple[str, str]:
+        return self.__ui.get_existing_directory_dialog(title, directory)
+
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return self.__ui.get_file_paths_dialog(title, directory, filter, selected_filter)
+
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return self.__ui.get_file_path_dialog(title, directory, filter, selected_filter)
+
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
+        return self.__ui.get_save_file_path(title, directory, filter, selected_filter)
+
+    # persistence (associated with application)
+
+    def get_data_location(self) -> str:
+        return self.__ui.get_data_location()
+
+    def get_document_location(self) -> str:
+        return self.__ui.get_document_location()
+
+    def get_temporary_location(self) -> str:
+        return self.__ui.get_temporary_location()
+
+    def get_configuration_location(self) -> str:
+        return self.__ui.get_configuration_location()
+
+    def set_persistence_handler(self, handler: UserInterface.PersistenceHandler) -> None:
+        self.__ui.set_persistence_handler(handler)
+
+    def get_persistent_string(self, key: str, default_value: typing.Optional[str] = None) -> str:
+        return self.__ui.get_persistent_string(key, default_value)
+
+    def set_persistent_string(self, key: str, value: str) -> None:
+        self.__ui.set_persistent_string(key, value)
+
+    def get_persistent_object(self, key: str, default_value: typing.Any=None) -> typing.Any:
+        return self.__ui.get_persistent_object(key, default_value)
+
+    def set_persistent_object(self, key: str, value: typing.Any) -> None:
+        self.__ui.set_persistent_object(key, value)
+
+    def remove_persistent_key(self, key: str) -> None:
+        self.__ui.remove_persistent_key(key)
+
+    def create_persistent_string_model(self, key: str, default_value: typing.Optional[str] = None) -> Model.PropertyModel[str]:
+        return UserInterface.StringPersistentModel(self, key, default_value)
+
+    def create_persistent_float_model(self, key: str, default_value: typing.Optional[float] = None) -> Model.PropertyModel[float]:
+        return UserInterface.FloatPersistentModel(self, key, default_value)
+
+    # clipboard
+
+    def clipboard_clear(self) -> None:
+        self.__ui.clipboard_clear()
+
+    def clipboard_mime_data(self) -> UserInterface.MimeData:
+        return self.__ui.clipboard_mime_data()
+
+    def clipboard_set_mime_data(self, mime_data: UserInterface.MimeData) -> None:
+        self.__ui.clipboard_set_mime_data(mime_data)
+
+    def clipboard_set_text(self, text: str) -> None:
+        self.__ui.clipboard_set_text(text)
+
+    def clipboard_text(self) -> str:
+        return self.__ui.clipboard_text()
+
+    # misc
+
+    def set_application_info(self, application_name: str, organization_name: str, organization_domain: str) -> None:
+        self.__ui.set_application_info(application_name, organization_name, organization_domain)
+
+    def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
+        return self.__ui.create_rgba_image(drawing_context, width, height)
+
+    def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
+        return self.__ui.get_font_metrics(font, text)
+
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
+        return self.__ui.truncate_string_to_width(font_str, text, pixel_width, mode)
+
+    def get_qt_version(self) -> str:
+        return self.__ui.get_qt_version()
+
+    def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
+        return self.__ui.get_tolerance(tolerance_type)
+
+    def create_context_menu(self, document_window: UserInterface.Window) -> UserInterface.Menu:
+        return self.__ui.create_context_menu(document_window)
+
+    def create_sub_menu(self, document_window: UserInterface.Window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
+        return self.__ui.create_sub_menu(document_window, title, menu_id)
+
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
+        return self.__ui.get_color_dialog(title, color, show_alpha)
+
+    def get_keyboard_modifiers(self, query: bool = False) -> UserInterface.KeyboardModifiers:
+        return self.__ui.get_keyboard_modifiers(query)

@@ -761,6 +761,7 @@ class ImageWidget(UserInterface.Widget):
 
         def set_image(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
             self.__bitmap_canvas_item.rgba_bitmap_data = value
+            self.__bitmap_canvas_item.size_to_content(ui.get_font_metrics)
 
         self.__image_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_image, None, typing.cast(typing.Any, numpy.array_equal))
 

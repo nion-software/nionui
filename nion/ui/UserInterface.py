@@ -459,15 +459,45 @@ class WidgetBehavior(typing.Protocol):
     # this is so behaviors which insert added widgets into another widget get closed in a
     # predictable manner (i.e. when the enclosing widget gets closed).
 
-    focused: bool
-    does_retain_focus: bool
-    visible: bool
-    enabled: bool
-    size: Geometry.IntSize
-    tool_tip: typing.Optional[str]
     on_ui_activity: typing.Optional[typing.Callable[[], None]]
     on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]]
     on_focus_changed: typing.Optional[typing.Callable[[bool], None]]
+
+    @property
+    def focused(self) -> bool: raise NotImplementedError()
+
+    @focused.setter
+    def focused(self, value: bool) -> None: ...
+
+    @property
+    def does_retain_focus(self) -> bool:  raise NotImplementedError()
+
+    @does_retain_focus.setter
+    def does_retain_focus(self, value: bool) -> None: ...
+
+    @property
+    def visible(self) -> bool:  raise NotImplementedError()
+
+    @visible.setter
+    def visible(self, value: bool) -> None: ...
+
+    @property
+    def enabled(self) -> bool:  raise NotImplementedError()
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None: ...
+
+    @property
+    def size(self) -> Geometry.IntSize: raise NotImplementedError()
+
+    @size.setter
+    def size(self, value: Geometry.IntSize) -> None: ...
+
+    @property
+    def tool_tip(self) -> typing.Optional[str]: raise NotImplementedError()
+
+    @tool_tip.setter
+    def tool_tip(self, value: typing.Optional[str]) -> None: ...
 
     # low level UI specific widget
     @property
@@ -2243,7 +2273,6 @@ class TextEditWidget(Widget):
 
 
 class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
-    focusable: bool
     on_mouse_entered: typing.Optional[typing.Callable[[], None]]
     on_mouse_exited: typing.Optional[typing.Callable[[], None]]
     on_mouse_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
@@ -2262,6 +2291,12 @@ class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
     on_drop: typing.Optional[typing.Callable[[MimeData, int, int], str]]
     on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]]
     on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]]
+
+    @property
+    def focusable(self) -> bool: raise NotImplementedError()
+
+    @focusable.setter
+    def focusable(self, value: bool) -> None: ...
 
     def periodic(self) -> None: ...
     def draw(self, drawing_context: DrawingContext.DrawingContext) -> None: ...
@@ -3177,7 +3212,7 @@ class Window:
     def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         raise NotImplementedError()
 
-    def get_color_dialog(self, title: str, color: str, show_alpha: bool) -> typing.Optional[str]:
+    def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         raise NotImplementedError()
 
     def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:

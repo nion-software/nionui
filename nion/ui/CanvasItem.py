@@ -701,6 +701,7 @@ class AbstractCanvasItem:
         self.__background_color: typing.Optional[str] = None
         self.__border_color: typing.Optional[str] = None
         self.__visible = True
+        self.__enabled = True
         self._has_layout = False
         self.__thread = threading.current_thread()
         self.__pending_update = True
@@ -1001,6 +1002,17 @@ class AbstractCanvasItem:
     def visible(self, value: bool) -> None:
         if self.__visible != value:
             self.__visible = value
+            if self.__container:
+                self.__container.refresh_layout()
+
+    @property
+    def enabled(self) -> bool:
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        if self.__enabled != value:
+            self.__enabled = value
             if self.__container:
                 self.__container.refresh_layout()
 
@@ -4106,8 +4118,8 @@ class TextButtonCell(Cell):
                  border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(background_color, border, padding)
         self.__text = text if text is not None else str()
-        self.__text_color = "#000"
-        self.__font = "12px"
+        self.__text_color: typing.Optional[str] = None
+        self.__text_font: typing.Optional[str] = None
 
     @property
     def text(self) -> str:
@@ -4121,36 +4133,39 @@ class TextButtonCell(Cell):
             self._update()
 
     @property
-    def text_color(self) -> str:
+    def text_color(self) -> typing.Optional[str]:
         return self.__text_color
 
     @text_color.setter
-    def text_color(self, value: str) -> None:
+    def text_color(self, value: typing.Optional[str]) -> None:
         if self.__text_color != value:
             self.__text_color = value
             self._update()
 
     @property
-    def font(self) -> str:
-        return self.__font
+    def text_font(self) -> typing.Optional[str]:
+        return self.__text_font
 
-    @font.setter
-    def font(self, value: str) -> None:
-        if self.__font != value:
-            self.__font = value
+    @text_font.setter
+    def text_font(self, value: typing.Optional[str]) -> None:
+        if self.__text_font != value:
+            self.__text_font = value
             self._update()
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         """ Size the canvas item to the text content without padding."""
-        font_metrics = get_font_metrics_fn(self.font, self.text)
+        text_font = self.text_font or "12px"
+        font_metrics = get_font_metrics_fn(text_font, self.text)
         return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         if self.__text:
-            drawing_context.font = self.__font
+            text_font = self.text_font or "12px"
+            text_color = self.__text_color or "black"
+            drawing_context.font = text_font
             drawing_context.text_baseline = "middle"
             drawing_context.text_align = "center"
-            drawing_context.fill_style = self.__text_color
+            drawing_context.fill_style = text_color
             drawing_context.fill_text(self.__text, rect.center.x, rect.center.y + 1)
 
 
@@ -4178,20 +4193,20 @@ class TextCanvasItem(CellCanvasItem):
         self.__text_cell.text = text or str()
 
     @property
-    def text_color(self) -> str:
+    def text_color(self) -> typing.Optional[str]:
         return self.__text_cell.text_color
 
     @text_color.setter
-    def text_color(self, text_color: str) -> None:
+    def text_color(self, text_color: typing.Optional[str]) -> None:
         self.__text_cell.text_color = text_color
 
     @property
-    def font(self) -> str:
-        return self.__text_cell.font
+    def text_font(self) -> typing.Optional[str]:
+        return self.__text_cell.text_font
 
-    @font.setter
-    def font(self, font: str) -> None:
-        self.__text_cell.font = font
+    @text_font.setter
+    def text_font(self, text_font: typing.Optional[str]) -> None:
+        self.__text_cell.text_font = text_font
 
     @property
     def border_enabled(self) -> bool:
@@ -4465,6 +4480,14 @@ class StaticTextCanvasItem(TextCanvasItem):
 
     def __init__(self, text: typing.Optional[str] = None) -> None:
         super().__init__(text, padding=Geometry.IntSize(4, 4))
+
+    @property
+    def font(self) -> typing.Optional[str]:
+        return self.text_font
+
+    @font.setter
+    def font(self, value: typing.Optional[str]) -> None:
+        self.text_font = value
 
 
 class CheckBoxCanvasItem(AbstractCanvasItem):

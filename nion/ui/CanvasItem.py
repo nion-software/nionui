@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 # standard libraries
+import abc
 import collections
 import concurrent.futures
 import contextlib
@@ -3200,11 +3201,26 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
                 canvas_widget.remove_section(section_id)
 
 
+class CanvasWidgetCanvasItem(CanvasItemComposition):
+    """Internal class to represent a composition with a canvas widget."""
+
+    @property
+    @abc.abstractmethod
+    def canvas_widget(self) -> UserInterface.CanvasWidget: ...
+
+    @property
+    @abc.abstractmethod
+    def focused_item(self) -> typing.Optional[AbstractCanvasItem]: ...
+
+    @abc.abstractmethod
+    def size_changed(self, width: int, height: int) -> None: ...
+
+
 RootLayoutRender = "root"
 DefaultLayoutRender: typing.Optional[str] = None
 
 
-class RootCanvasItem(CanvasItemComposition):
+class RootCanvasItem(CanvasWidgetCanvasItem):
     """A root layer to interface to the widget world.
 
     The root canvas item acts as a bridge between the higher level ui widget and a canvas hierarchy. It connects size

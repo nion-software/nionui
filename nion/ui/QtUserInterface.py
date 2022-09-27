@@ -19,6 +19,7 @@ import weakref
 # none
 
 # local libraries
+from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.utils import Color
@@ -26,7 +27,6 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
-    from nion.ui import CanvasItem
     from nion.ui import Window
 
 
@@ -1493,6 +1493,9 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
 
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
         pass
+
+    def _create_composition_canvas_item(self, canvas_widget: UserInterface.CanvasWidget, layout_render: typing.Optional[str]) -> CanvasItem.CanvasWidgetCanvasItem:
+        return CanvasItem.RootCanvasItem(canvas_widget, layout_render=layout_render)
 
     @property
     def focusable(self) -> bool:

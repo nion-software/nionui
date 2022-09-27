@@ -951,6 +951,9 @@ class CanvasWidgetBehavior(WidgetBehavior):
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
         pass
 
+    def _create_composition_canvas_item(self, canvas_widget: UserInterfaceModule.CanvasWidget, layout_render: typing.Optional[str]) -> CanvasItem.CanvasWidgetCanvasItem:
+        return CanvasItem.RootCanvasItem(canvas_widget, layout_render=layout_render)
+
     def periodic(self) -> None:
         pass
 

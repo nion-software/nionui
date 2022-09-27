@@ -2274,6 +2274,7 @@ class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
     def release_mouse(self) -> None: ...
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None: ...
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None: ...
+    def _create_composition_canvas_item(self, canvas_widget: CanvasWidget, layout_render: typing.Optional[str]) -> CanvasItem.CanvasWidgetCanvasItem: ...
 
 
 class CanvasWidget(Widget):
@@ -2435,7 +2436,7 @@ class CanvasWidget(Widget):
 
         self._behavior.on_pan_gesture = handle_pan_gesture
 
-        self.__canvas_item = CanvasItem.RootCanvasItem(self, layout_render=layout_render)
+        self.__canvas_item = self._behavior._create_composition_canvas_item(self, layout_render)
         self._behavior._set_canvas_item(self.__canvas_item)
 
     def close(self) -> None:
@@ -2483,7 +2484,7 @@ class CanvasWidget(Widget):
             self.position_info = None
 
     @property
-    def canvas_item(self) -> CanvasItem.RootCanvasItem:
+    def canvas_item(self) -> CanvasItem.CanvasWidgetCanvasItem:
         return self.__canvas_item
 
     @property

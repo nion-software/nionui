@@ -725,6 +725,16 @@ class AbstractCanvasItem:
         self.on_focus_changed = None
         self.on_layout_updated = None
 
+    def _description(self) -> str:
+        return self.__class__.__name__
+
+    def _summary(self, indent: typing.Optional[str] = None) -> str:
+        indent = indent or str()
+        return indent + self._description() + " (" + str(self.sizing) + ")"
+
+    def __repr__(self) -> str:
+        return self._summary()
+
     def _set_owner_thread(self, thread: threading.Thread) -> None:
         self.__thread = thread
         for canvas_item in self.canvas_items:
@@ -1818,6 +1828,13 @@ class CanvasItemComposition(AbstractCanvasItem):
             # then close several panels and undo. not sure if this is  the permanent fix or not.
             self.__canvas_items = typing.cast(typing.Any, None)
         super().close()
+
+    def _description(self) -> str:
+        return self.__class__.__name__ + "/" + self.layout.__class__.__name__
+
+    def _summary(self, indent: typing.Optional[str] = None) -> str:
+        indent = indent or str()
+        return super()._summary(indent) + f" [{len(self.__canvas_items)}]" + "\n" + "\n".join(canvas_item._summary(indent + "  ") for canvas_item in self.__canvas_items)
 
     def _stop_render_behavior(self) -> None:
         if self.__layout_render_trait:
@@ -4221,6 +4238,9 @@ class TextCanvasItem(CellCanvasItem):
             border.border = CellBorderProperties(Color.Color(border_color))
         self.__text_cell = TextButtonCell(text, background_color, border, padding)
         self.cell = self.__text_cell
+
+    def _description(self) -> str:
+        return self.__class__.__name__ + f" '{self.text}'"
 
     @property
     def _text_cell(self) -> TextButtonCell:

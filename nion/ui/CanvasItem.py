@@ -37,7 +37,6 @@ from nion.utils import Stream
 if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
     from nion.ui import MouseTrackingCanvasItem
-    from nion.ui import Widgets
 
 
 MAX_VALUE = sys.maxsize

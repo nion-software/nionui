@@ -41,6 +41,8 @@ def notnone(s: typing.Any) -> str:
 
 FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent", "descent", "leading"])
 
+MeasureTextFn = typing.Callable[[str, str], FontMetrics]
+
 MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
 
 

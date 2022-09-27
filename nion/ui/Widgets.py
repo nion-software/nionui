@@ -5,6 +5,7 @@ A library of custom widgets.
 from __future__ import annotations
 
 # standard libraries
+import abc
 import gettext
 import functools
 import typing
@@ -31,7 +32,71 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
-class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy #4125 is available
+class WidgetSource:
+    def __init__(self, ui: UserInterface.UserInterface, widget: typing.Optional[UserInterface.Widget], canvas_item: typing.Optional[CanvasItem.AbstractCanvasItem]) -> None:
+        self.__ui = ui
+        self.__widget = widget
+        self.__canvas_item = canvas_item
+
+    @property
+    def canvas_item(self) -> CanvasItem.AbstractCanvasItem:
+        assert self.__canvas_item
+        return self.__canvas_item
+
+    @property
+    def widget(self) -> UserInterface.Widget:
+        if self.__widget:
+            return self.__widget
+        assert self.__canvas_item
+        canvas_widget = self.__ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(self.__canvas_item)
+        return canvas_widget
+
+
+class BaseWidgetCanvasItemController:
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__()
+        self.__ui = ui
+
+    @property
+    def ui(self) -> UserInterface.UserInterface:
+        return self.__ui
+
+    @property
+    @abc.abstractmethod
+    def widget_source(self) -> WidgetSource: ...
+
+
+class PushButtonWidgetCanvasItemController(BaseWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
+
+    @abc.abstractmethod
+    def set_text(self, value: typing.Optional[str]) -> None: ...
+
+    @abc.abstractmethod
+    def set_icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None: ...
+
+    @abc.abstractmethod
+    def set_enabled(self, enabled: bool) -> None: ...
+
+    @abc.abstractmethod
+    def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None: ...
+
+    @abc.abstractmethod
+    def set_background_color(self, background_color: typing.Optional[str]) -> None: ...
+
+
+class WidgetCanvasItemControllerFactory(typing.Protocol):
+
+    def create_push_button_widget_canvas_item_controller(self) -> PushButtonWidgetCanvasItemController: ...
+
+    def create_tab_widget_canvas_item_controller(self) -> TabWidgetCanvasItemController: ...
+
+
+class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
 
     def __init__(self, content_widget: UserInterface.Widget) -> None:
         self.content_widget = content_widget
@@ -138,27 +203,20 @@ class CompositeWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior u
         pass
 
 
-class PushButtonWidgetBehavior(CompositeWidgetBehavior):
+class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemController):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
-        self.__canvas_widget = ui.create_canvas_widget()
-        super().__init__(self.__canvas_widget)
-        self.ui = ui
+        super().__init__(ui)
+
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
         self.__text_button_canvas_item.background_color = "#f0f0f0"
         self.__text_button_canvas_item.border_color = "gray"
         self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(4, 4))
         self.__icon_button_canvas_item.background_color = "#f0f0f0"
         self.__icon_button_canvas_item.border_color = "gray"
-
         self.__stack = CanvasItem.CanvasItemComposition()
         self.__stack.layout = CanvasItem.CanvasItemLayout()
         self.__stack.add_canvas_item(self.__text_button_canvas_item)
         self.__stack.add_canvas_item(self.__icon_button_canvas_item)
-        self.__canvas_widget.canvas_item.add_canvas_item(self.__stack)
-
-        self.__text: typing.Optional[str] = None
-        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
-        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
         def handle_clicked() -> None:
             if callable(self.on_clicked):
@@ -168,27 +226,22 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
         self.__icon_button_canvas_item.on_button_clicked = handle_clicked
 
     @property
-    def text(self) -> typing.Optional[str]:
-        return self.__text
+    def widget_source(self) -> WidgetSource:
+        return WidgetSource(self.ui, None, self.__stack)
 
-    @text.setter
-    def text(self, value: typing.Optional[str]) -> None:
-        self.__text = value
+    def set_text(self, value: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.visible = True
         self.__icon_button_canvas_item.visible = False
         self.__text_button_canvas_item.text = value or str()
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
         self.__icon_button_canvas_item.rgba_bitmap_data = None
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__canvas_widget.size = Geometry.IntSize(width=int(self.__text_button_canvas_item.sizing.preferred_width or 0),
-                                                     height=int(self.__text_button_canvas_item.sizing.preferred_height or 0))
 
-    @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__icon
+        if callable(self.on_size_changed):
+            self.on_size_changed(Geometry.IntSize(width=int(self.__text_button_canvas_item.sizing.preferred_width or 0),
+                                                  height=int(self.__text_button_canvas_item.sizing.preferred_height or 0)))
 
-    @icon.setter
-    def icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+    def set_icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
         self.__icon = value
         self.__text_button_canvas_item.visible = False
         self.__icon_button_canvas_item.visible = True
@@ -196,56 +249,92 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
         self.__text_button_canvas_item.text = str()
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__canvas_widget.size = Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
-                                                     height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0))
 
-    def _set_enabled(self, enabled: bool) -> None:
+        if callable(self.on_size_changed):
+            self.on_size_changed(Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
+                                                  height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0)))
+
+    def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
         self.__icon_button_canvas_item.enabled = enabled
 
-    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+    def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.tool_tip = tool_tip
         self.__icon_button_canvas_item.tool_tip = tool_tip
 
-    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+    def set_background_color(self, background_color: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.background_color = background_color
         self.__icon_button_canvas_item.background_color = background_color
 
 
-class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterface.TabWidgetBehavior until mypy #4125 is available
+class TabWidgetCanvasItemController(BaseWidgetCanvasItemController):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
-        column_widget = ui.create_column_widget()
-        super().__init__(column_widget)
-        self.__current_index_model = Model.PropertyModel[int](-1)
-        self.ui = ui
-        self.label_row = ui.create_row_widget()
-        self.label_row.add_spacing(8)
+        super().__init__(ui)
+        self.on_tab_clicked: typing.Optional[typing.Callable[[int], None]] = None
+
+    @abc.abstractmethod
+    def get_selected_index(self) -> int: ...
+
+    @abc.abstractmethod
+    def set_selected_index(self, selected_index: int) -> None: ...
+
+    @abc.abstractmethod
+    def add(self, child: UserInterface.Widget, label: str) -> None: ...
+
+
+class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.__ui = ui
+        self.__column_widget = ui.create_column_widget()
+        self.__label_row = ui.create_row_widget()
+        self.__label_row.add_spacing(8)
         stretched_row = ui.create_row_widget()
-        stretched_row.add(self.label_row)
+        stretched_row.add(self.__label_row)
         stretched_row.add_stretch()
-        self.stack = ui.create_stack_widget()
-        self.stack.bind_current_index(Binding.PropertyBinding(self.__current_index_model, "value"))
-        divider = self.ui.create_canvas_widget(properties={"height": 1, "size_policy_horizontal": "expanding"})
+        self.__stack = ui.create_stack_widget()
+        divider = ui.create_canvas_widget(properties={"height": 1, "size_policy_horizontal": "expanding"})
         divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal", color="gray"))
-        column_widget.add(stretched_row)
-        column_widget.add(divider)
-        column_widget.add_spacing(4)
-        column_widget.add(self.stack)
+        self.__column_widget.add(stretched_row)
+        self.__column_widget.add(divider)
+        self.__column_widget.add_spacing(4)
+        self.__column_widget.add(self.__stack)
         self.__button_canvas_items: typing.List[CanvasItem.TextButtonCanvasItem] = list()
+        self.__selected_index = 0
 
-        def value_changed(value: typing.Optional[int]) -> None:
-            value_ = max(0, min(value or 0, self.stack.child_count))
-            self.__update_styles(value_)
-            if callable(self.on_current_index_changed):
-                self.on_current_index_changed(value_)
+    @property
+    def widget_source(self) -> WidgetSource:
+        return WidgetSource(self.ui, self.__column_widget, None)
 
-        self.__current_index_model.on_value_changed = value_changed
-        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+    def get_selected_index(self) -> int:
+        return self.__selected_index
 
-    def close(self) -> None:
-        self.__current_index_model.on_value_changed = None
-        self.on_current_index_changed = None
-        super().close()
+    def set_selected_index(self, selected_index: int) -> None:
+        selected_index = max(0, min(selected_index, len(self.__button_canvas_items)))
+        self.__stack.current_index = selected_index
+        self.__update_styles(selected_index)
+        self.__selected_index = selected_index
+
+    def add(self, child: UserInterface.Widget, label: str) -> None:
+        border = CanvasItem.CellBorder()
+        border.border = CanvasItem.CellBorderProperties(Color.Color("gray"))
+        button_canvas_item = CanvasItem.TextButtonCanvasItem(label)
+        button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
+        button_canvas_item.border = border
+        button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        button = self.__ui.create_canvas_widget(properties={"height": button_canvas_item.sizing.preferred_height, "width": button_canvas_item.sizing.preferred_width})
+        button.canvas_item.add_canvas_item(button_canvas_item)
+        self.__label_row.add(button)
+        self.__stack.add(child)
+        self.__button_canvas_items.append(button_canvas_item)
+        self.__update_styles(self.__selected_index)
+
+        def button_clicked(index: int) -> None:
+            if callable(self.on_tab_clicked):
+                self.on_tab_clicked(index)
+
+        button_canvas_item.on_button_clicked = functools.partial(button_clicked, len(self.__button_canvas_items) - 1)
 
     def __update_styles(self, selected_index: int) -> None:
         for index, button_canvas_item in enumerate(self.__button_canvas_items):
@@ -262,24 +351,107 @@ class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterfa
                 border.border_right = CanvasItem.CellBorderProperties(Color.Color("gray"))
             button_canvas_item.border = border
 
+
+class BasicWidgetCanvasItemControllerFactory(WidgetCanvasItemControllerFactory):
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__ui = ui
+
+    def create_push_button_widget_canvas_item_controller(self) -> PushButtonWidgetCanvasItemController:
+        return BasicPushButtonWidgetCanvasItemController(self.__ui)
+
+    def create_tab_widget_canvas_item_controller(self) -> TabWidgetCanvasItemController:
+        return BasicTabWidgetCanvasItemController(self.__ui)
+
+
+class PushButtonWidgetBehavior(CompositeWidgetBehavior):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__canvas_widget = ui.create_canvas_widget()
+        super().__init__(self.__canvas_widget)
+
+        widget_canvas_item_factory = BasicWidgetCanvasItemControllerFactory(ui)
+
+        self.__push_button_widget_canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller()
+
+        canvas_item = self.__push_button_widget_canvas_item_controller.widget_source.canvas_item
+
+        self.__canvas_widget.canvas_item.add_canvas_item(canvas_item)
+
+        self.__text: typing.Optional[str] = None
+        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def handle_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        def handle_size_changed(size: Geometry.IntSize) -> None:
+            self.__canvas_widget.size = size
+
+        self.__push_button_widget_canvas_item_controller.on_clicked = handle_clicked
+        self.__push_button_widget_canvas_item_controller.on_size_changed = handle_size_changed
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__text = value
+        self.__push_button_widget_canvas_item_controller.set_text(value)
+
+    @property
+    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
+        return self.__icon
+
+    @icon.setter
+    def icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+        self.__icon = value
+        self.__push_button_widget_canvas_item_controller.set_icon(value)
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__push_button_widget_canvas_item_controller.set_enabled(enabled)
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__push_button_widget_canvas_item_controller.set_tool_tip(tool_tip)
+
+    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__push_button_widget_canvas_item_controller.set_background_color(background_color)
+
+
+class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterface.TabWidgetBehavior until mypy #4125 is available
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        column_widget = ui.create_column_widget()
+        super().__init__(column_widget)
+        self.__current_index_model = Model.PropertyModel[int](-1)
+
+        widget_canvas_item_factory = BasicWidgetCanvasItemControllerFactory(ui)
+
+        self.__tab_widget_canvas_item_controller = widget_canvas_item_factory.create_tab_widget_canvas_item_controller()
+
+        column_widget.add(self.__tab_widget_canvas_item_controller.widget_source.widget)
+
+        def value_changed(value: typing.Optional[int]) -> None:
+            self.__tab_widget_canvas_item_controller.set_selected_index(value or 0)
+            if callable(self.on_current_index_changed):
+                self.on_current_index_changed(self.__tab_widget_canvas_item_controller.get_selected_index())
+
+        def handle_tab_clicked(selected_index: int) -> None:
+            self.__current_index_model.value = selected_index
+
+        self.__tab_widget_canvas_item_controller.on_tab_clicked = handle_tab_clicked
+
+        self.__current_index_model.on_value_changed = value_changed
+        self.on_current_index_changed: typing.Optional[typing.Callable[[int], None]] = None
+
+    def close(self) -> None:
+        self.__tab_widget_canvas_item_controller.on_tab_clicked = None
+        self.__current_index_model.on_value_changed = None
+        self.on_current_index_changed = None
+        super().close()
+
     def add(self, child: UserInterface.Widget, label: str) -> None:
-        border = CanvasItem.CellBorder()
-        border.border = CanvasItem.CellBorderProperties(Color.Color("gray"))
-        button_canvas_item = CanvasItem.TextButtonCanvasItem(label)
-        button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
-        button_canvas_item.border = border
-        button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        button = self.ui.create_canvas_widget(properties={"height": button_canvas_item.sizing.preferred_height, "width": button_canvas_item.sizing.preferred_width})
-        button.canvas_item.add_canvas_item(button_canvas_item)
-        self.label_row.add(button)
-        self.stack.add(child)
-        self.__button_canvas_items.append(button_canvas_item)
-        self.__update_styles(self.current_index)
-
-        def button_clicked(index: int) -> None:
-            self.__current_index_model.value = index
-
-        button_canvas_item.on_button_clicked = functools.partial(button_clicked, len(self.__button_canvas_items) - 1)
+        self.__tab_widget_canvas_item_controller.add(child, label)
 
     def restore_state(self, tag: str) -> None:
         pass
@@ -817,7 +989,7 @@ class ColorButtonCell(CanvasItem.Cell):
     def color(self, value: typing.Optional[str]) -> None:
         self.__color = value
 
-    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+    def _size_to_content(self, get_font_metrics_fn: UserInterface.MeasureTextFn) -> Geometry.IntSize:
         """ Size the canvas item to the text content without padding."""
         return Geometry.IntSize(height=30, width=44)
 

@@ -287,21 +287,43 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         super().__init__(ui)
         self.__ui = ui
+        self.__calculate_button_height()
+        self.__header_bottom_border_properties = CanvasItem.CellBorderProperties(Color.Color("gray"), "solid", 1.0)
+        header_bottom_border = CanvasItem.CellBorder()
+        header_bottom_border.border_bottom = self.__header_bottom_border_properties
         self.__column_widget = ui.create_column_widget()
-        self.__label_row = ui.create_row_widget()
-        self.__label_row.add_spacing(8)
-        stretched_row = ui.create_row_widget()
-        stretched_row.add(self.__label_row)
-        stretched_row.add_stretch()
+        self.__button_row = CanvasItem.CanvasItemComposition()
+        self.__button_row.layout = CanvasItem.CanvasItemRowLayout()
+        button_height = self.__button_height
+        header_row = ui.create_row_widget()
+        header_row_canvas_item = CanvasItem.CanvasItemComposition()
+        header_row_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        header_left_spacing = CanvasItem.EmptyCanvasItem(border=header_bottom_border)
+        header_left_spacing.update_sizing(header_left_spacing.sizing.with_fixed_width(8).with_fixed_height(button_height))
+        header_right_stretch = CanvasItem.EmptyCanvasItem(border=header_bottom_border)
+        header_right_stretch.update_sizing(header_right_stretch.sizing.with_fixed_height(button_height))
+        header_row_canvas_item.add_canvas_item(header_left_spacing)
+        header_row_canvas_item.add_canvas_item(self.__button_row)
+        header_row_canvas_item.add_canvas_item(header_right_stretch)
+        header_row_sizing_properties = {
+            "height": button_height,
+            "size_policy_horizontal": "expanding"
+        }
+        header_row_widget = ui.create_canvas_widget(header_row_sizing_properties)
+        header_row_widget.canvas_item.add_canvas_item(header_row_canvas_item)
+        header_row.add(header_row_widget)
         self.__stack = ui.create_stack_widget()
-        divider = ui.create_canvas_widget(properties={"height": 1, "size_policy_horizontal": "expanding"})
-        divider.canvas_item.add_canvas_item(CanvasItem.DividerCanvasItem(orientation="horizontal", color="gray"))
-        self.__column_widget.add(stretched_row)
-        self.__column_widget.add(divider)
+        self.__column_widget.add(header_row)
         self.__column_widget.add_spacing(4)
         self.__column_widget.add(self.__stack)
         self.__button_canvas_items: typing.List[CanvasItem.TextButtonCanvasItem] = list()
         self.__selected_index = 0
+
+    def __calculate_button_height(self) -> None:
+        button_canvas_item = CanvasItem.TextButtonCanvasItem("X")
+        button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
+        button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__button_height = int(button_canvas_item.sizing.preferred_height or 0.0)
 
     @property
     def widget_source(self) -> WidgetSource:
@@ -317,15 +339,10 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
         self.__selected_index = selected_index
 
     def add(self, child: UserInterface.Widget, label: str) -> None:
-        border = CanvasItem.CellBorder()
-        border.border = CanvasItem.CellBorderProperties(Color.Color("gray"))
         button_canvas_item = CanvasItem.TextButtonCanvasItem(label)
         button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
-        button_canvas_item.border = border
         button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        button = self.__ui.create_canvas_widget(properties={"height": button_canvas_item.sizing.preferred_height, "width": button_canvas_item.sizing.preferred_width})
-        button.canvas_item.add_canvas_item(button_canvas_item)
-        self.__label_row.add(button)
+        self.__button_row.add_canvas_item(button_canvas_item)
         self.__stack.add(child)
         self.__button_canvas_items.append(button_canvas_item)
         self.__update_styles(self.__selected_index)
@@ -342,11 +359,17 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
             if selected_index == index:
                 border.border_top = CanvasItem.CellBorderProperties(Color.Color("gray"))
                 border.border_left = CanvasItem.CellBorderProperties(Color.Color("gray"))
-                border.border_bottom = CanvasItem.CellBorderProperties(Color.Color("steelblue"), "solid", 5.0)
+                button_canvas_item.background_color = None
             else:
                 border.border_top = CanvasItem.CellBorderProperties(Color.Color("gray"))
                 border.border_left = CanvasItem.CellBorderProperties(Color.Color("gray"))
-                border.border_bottom = CanvasItem.CellBorderProperties(Color.Color("gray"))
+                border.border_bottom = self.__header_bottom_border_properties
+                drawing_context = DrawingContext.DrawingContext()
+                gradient = drawing_context.create_linear_gradient(0, self.__button_height, 0, 0, 0, self.__button_height)
+                gradient.add_color_stop(0.0, Color.Color("gray").to_color_with_alpha(0.00).color_str)
+                gradient.add_color_stop(0.5, Color.Color("gray").to_color_with_alpha(0.33).color_str)
+                gradient.add_color_stop(1.0, Color.Color("gray").to_color_with_alpha(0.25).color_str)
+                button_canvas_item.background_color = gradient
             if index == len(self.__button_canvas_items) - 1:
                 border.border_right = CanvasItem.CellBorderProperties(Color.Color("gray"))
             button_canvas_item.border = border

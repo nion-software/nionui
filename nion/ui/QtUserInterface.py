@@ -572,8 +572,9 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
             self.proxy.Widget_setToolTip(self.widget, notnone(tool_tip) if tool_tip else str())
             self.__tool_tip = tool_tip
 
-    def set_background_color(self, color: typing.Optional[str]) -> None:
+    def set_background_color(self, color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if color:
+            assert isinstance(color, str)
             self.proxy.Widget_setPaletteColor(self.widget, "background", *(Color.Color(color or str()).to_rgba_255()))
         else:
             self.proxy.Widget_setPaletteColor(self.widget, "background", 0, 0, 0, 0)
@@ -647,7 +648,7 @@ class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
 
-    def set_background_color(self, value: typing.Optional[str]) -> None:
+    def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         pass
 
 

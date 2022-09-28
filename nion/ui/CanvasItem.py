@@ -697,7 +697,7 @@ class AbstractCanvasItem:
         self.on_layout_updated: typing.Optional[typing.Callable[[typing.Optional[Geometry.IntPoint], typing.Optional[Geometry.IntSize], bool], None]] = None
         self.__cursor_shape: typing.Optional[str] = None
         self.__tool_tip: typing.Optional[str] = None
-        self.__background_color: typing.Optional[str] = None
+        self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
         self.__border_color: typing.Optional[str] = None
         self.__visible = True
         self.__enabled = True
@@ -798,11 +798,11 @@ class AbstractCanvasItem:
         return self.__container.root_container if self.__container else None
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__background_color
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__background_color = background_color
         self.update()
 
@@ -3695,7 +3695,7 @@ class BackgroundCanvasItem(AbstractCanvasItem):
 
     """ Canvas item to draw background_color. """
 
-    def __init__(self, background_color: typing.Optional[str] = None) -> None:
+    def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None) -> None:
         super().__init__()
         self.background_color = background_color or "#888"
 
@@ -3744,10 +3744,10 @@ class CellLike(typing.Protocol):
     update_event: Event.Event
 
     @property
-    def background_color(self) -> typing.Optional[str]: raise NotImplementedError()
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]: raise NotImplementedError()
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None: ...
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
 
     @property
     def border_color(self) -> typing.Optional[str]: raise NotImplementedError()
@@ -3775,7 +3775,7 @@ class CellLike(typing.Protocol):
 class Cell(CellLike):
     # PRIVATE CLASS. DO NOT USE OUTSIDE NIONUI
 
-    def __init__(self, background_color: typing.Optional[str] = None, border: typing.Optional[CellBorder] = None,
+    def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border: typing.Optional[CellBorder] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         self.__background_color = background_color
         self.__border = border or CellBorder()
@@ -3786,11 +3786,11 @@ class Cell(CellLike):
         self.update_event.fire()
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__background_color
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__background_color = background_color
         self._update()
 
@@ -3830,7 +3830,7 @@ class Cell(CellLike):
         return self._size_to_content(get_font_metrics_fn)
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
-        raise NotImplementedError()
+        pass
 
     def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         # set up the defaults
@@ -4007,11 +4007,11 @@ class CellCanvasItem(AbstractCanvasItem):
         self.check_state = "checked" if value else "unchecked"
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__cell.background_color if self.__cell else None
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if self.__cell:
             self.__cell.background_color = background_color
 
@@ -4113,7 +4113,7 @@ class CellCanvasItem(AbstractCanvasItem):
 
 class TextButtonCell(Cell):
 
-    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
                  border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(background_color, border, padding)
         self.__text = text if text is not None else str()
@@ -4170,7 +4170,7 @@ class TextButtonCell(Cell):
 
 class TextCanvasItem(CellCanvasItem):
 
-    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
                  border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
         border = CellBorder()
@@ -4221,7 +4221,7 @@ class TextCanvasItem(CellCanvasItem):
 
 class TextButtonCanvasItem(TextCanvasItem):
 
-    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[str] = None,
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
                  border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(text, background_color, border_color, padding)
         self.wants_mouse_events = True
@@ -4323,7 +4323,7 @@ class TwistDownCanvasItem(CellCanvasItem):
 class BitmapCell(Cell):
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border: typing.Optional[CellBorder] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border: typing.Optional[CellBorder] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(background_color, border, padding)
         self.__rgba_bitmap_data = rgba_bitmap_data
@@ -4405,7 +4405,7 @@ class BitmapCanvasItem(CellCanvasItem):
     """ Canvas item to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border_color: typing.Optional[str] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
         padding = padding or Geometry.IntSize()  # for backwards compatibility
@@ -4441,7 +4441,7 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
     """ Canvas item button to draw rgba bitmap in bgra uint32 ndarray format. """
 
     def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[str] = None, border_color: typing.Optional[str] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border_color: typing.Optional[str] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(rgba_bitmap_data, background_color, border_color, padding)
         self.wants_mouse_events = True
@@ -4692,12 +4692,12 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         super()._repaint(drawing_context)
 
 
-class EmptyCanvasItem(AbstractCanvasItem):
-
+class EmptyCanvasItem(CellCanvasItem):
     """ Canvas item to act as a placeholder (spacer or stretch). """
 
-    def __init__(self) -> None:
+    def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border: typing.Optional[CellBorder] = None) -> None:
         super().__init__()
+        self.cell = Cell(background_color, border)
 
 
 class RadioButtonGroup:

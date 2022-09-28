@@ -99,6 +99,24 @@ def get_alpha_view(rgba_image: RGBA32Type, byteorder: ByteOrderType = None) -> C
         return typing.cast(C8Type, bytes[..., 0])  # A of ARGB
 
 
+class LinearGradient:
+    next = 1
+
+    def __init__(self, width: float, height: float, x1: float, y1: float, x2: float, y2: float) -> None:
+        self.commands: typing.List[typing.Sequence[typing.Any]] = []
+        self.binary_commands = bytearray()
+        self.command_var = LinearGradient.next
+        self.commands.append(("gradient", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
+        self.binary_commands.extend(struct.pack("4siffffff", b"grad", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
+        LinearGradient.next += 1
+
+    def add_color_stop(self, x: float, color: typing.Optional[str]) -> None:
+        color = color or "#0000"
+        self.commands.append(("colorStop", self.command_var, float(x), str(color)))
+        color_encoded = color.encode("utf-8")
+        self.binary_commands.extend(struct.pack("4sifi{}s0i".format(len(color_encoded)), b"grcs", self.command_var, float(x), len(color_encoded), color_encoded))
+
+
 class DrawingContext:
     """
         Path commands (begin_path, close_path, move_to, line_to, etc.) should not be intermixed
@@ -655,7 +673,7 @@ class DrawingContext:
     @fill_style.setter
     def fill_style(self, a: typing.Optional[typing.Union[str, LinearGradient]]) -> None:
         a = a or "rgba(0, 0, 0, 0.0)"
-        if isinstance(a, DrawingContext.LinearGradient):
+        if isinstance(a, LinearGradient):
             self.commands.extend(a.commands)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
             self.binary_commands.extend(a.binary_commands)
@@ -770,24 +788,8 @@ class DrawingContext:
         a_encoded = a.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"lnjn", len(a_encoded), a_encoded))
 
-    class LinearGradient:
-        next = 1
-
-        def __init__(self, width: float, height: float, x1: float, y1: float, x2: float, y2: float) -> None:
-            self.commands: typing.List[typing.Sequence[typing.Any]] = []
-            self.binary_commands = bytearray()
-            self.command_var = DrawingContext.LinearGradient.next
-            self.commands.append(("gradient", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
-            self.binary_commands.extend(struct.pack("4siffffff", b"grad", self.command_var, float(width), float(height), float(x1), float(y1), float(x2), float(y2)))
-            DrawingContext.LinearGradient.next += 1
-
-        def add_color_stop(self, x: float, color: str) -> None:
-            self.commands.append(("colorStop", self.command_var, float(x), str(color)))
-            color_encoded = color.encode("utf-8")
-            self.binary_commands.extend(struct.pack("4sifi{}s0i".format(len(color_encoded)), b"grcs", self.command_var, float(x), len(color_encoded), color_encoded))
-
-    def create_linear_gradient(self, width: float, height: float, x1: float, y1: float, x2: float, y2: float) -> DrawingContext.LinearGradient:
-        gradient = DrawingContext.LinearGradient(width, height, x1, y1, x2, y2)
+    def create_linear_gradient(self, width: float, height: float, x1: float, y1: float, x2: float, y2: float) -> LinearGradient:
+        gradient = LinearGradient(width, height, x1, y1, x2, y2)
         return gradient
 
     def statistics(self, stat_id: str) -> None:

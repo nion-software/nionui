@@ -514,7 +514,7 @@ class WidgetBehavior(typing.Protocol):
     def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None: ...
-    def set_background_color(self, value: typing.Optional[str]) -> None: ...
+    def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
 
 
 class Widget:
@@ -550,13 +550,13 @@ class Widget:
         def set_tool_tip(value: typing.Optional[str]) -> None:
             self._behavior.tool_tip = value
 
-        def set_background_color(value: typing.Optional[str]) -> None:
-            self._behavior.set_background_color(str(value) if value is not None else None)
+        def set_background_color(value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+            self._behavior.set_background_color(value)
 
         self.__visible_binding_helper = BindablePropertyHelper[bool](None, set_visible)
         self.__enabled_binding_helper = BindablePropertyHelper[bool](None, set_enabled)
         self.__tool_tip_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_tool_tip)
-        self.__background_color_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_background_color)
+        self.__background_color_binding_helper = BindablePropertyHelper[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]](None, set_background_color)
 
         self.visible = True
         self.enabled = True
@@ -747,11 +747,11 @@ class Widget:
         self.__tool_tip_binding_helper.value = tool_tip
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__background_color_binding_helper.value
 
     @background_color.setter
-    def background_color(self, value: typing.Optional[str]) -> None:
+    def background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__background_color_binding_helper.value = value
 
     def set_property(self, key: str, value: typing.Any) -> None:

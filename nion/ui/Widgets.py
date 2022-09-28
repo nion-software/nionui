@@ -86,7 +86,7 @@ class PushButtonWidgetCanvasItemController(BaseWidgetCanvasItemController):
     def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None: ...
 
     @abc.abstractmethod
-    def set_background_color(self, background_color: typing.Optional[str]) -> None: ...
+    def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
 
 
 class WidgetCanvasItemControllerFactory(typing.Protocol):
@@ -133,7 +133,7 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
     def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         pass
 
-    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+    def _set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         pass
 
     @property
@@ -187,7 +187,7 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
         self.content_widget.tool_tip = tool_tip
         self._set_tool_tip(tool_tip)
 
-    def set_background_color(self, value: typing.Optional[str]) -> None:
+    def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.content_widget.background_color = value
         self._set_background_color(value)
 
@@ -262,7 +262,7 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__text_button_canvas_item.tool_tip = tool_tip
         self.__icon_button_canvas_item.tool_tip = tool_tip
 
-    def set_background_color(self, background_color: typing.Optional[str]) -> None:
+    def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__text_button_canvas_item.background_color = background_color
         self.__icon_button_canvas_item.background_color = background_color
 
@@ -415,7 +415,7 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
     def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.__push_button_widget_canvas_item_controller.set_tool_tip(tool_tip)
 
-    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+    def _set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__push_button_widget_canvas_item_controller.set_background_color(background_color)
 
 
@@ -959,11 +959,11 @@ class ImageWidget(UserInterface.Widget):
         self.__image_binding_helper.unbind_value()
 
     @property
-    def background_color(self) -> typing.Optional[str]:
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__bitmap_canvas_item.background_color
 
     @background_color.setter
-    def background_color(self, background_color: typing.Optional[str]) -> None:
+    def background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__bitmap_canvas_item.background_color = background_color
 
     @property

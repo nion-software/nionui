@@ -20,6 +20,14 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
         self.__item_count = item_count if item_count is not None else 4
 
     @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return [1, 2, 3, 4]
+
+    @items.setter
+    def items(self, value: typing.Sequence[typing.Any]) -> None:
+        raise NotImplementedError()
+
+    @property
     def item_count(self) -> int:
         return self.__item_count
 

@@ -19,6 +19,14 @@ class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
         self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
 
     @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return [1, 2, 3, 4]
+
+    @items.setter
+    def items(self, value: typing.Sequence[typing.Any]) -> None:
+        raise NotImplementedError()
+
+    @property
     def item_count(self) -> int:
         return 4
 

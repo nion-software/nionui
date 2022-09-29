@@ -47,13 +47,13 @@ class GridCanvasItemDelegate(typing.Protocol):
     def item_count(self) -> int: raise NotImplementedError()
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
         return False
 
     def delete_pressed(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         return False
@@ -62,7 +62,7 @@ class GridCanvasItemDelegate(typing.Protocol):
         return False
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
 
 class GridCanvasItem(CanvasItem.AbstractCanvasItem):

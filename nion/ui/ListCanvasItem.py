@@ -63,15 +63,16 @@ class ListCanvasItemDelegate(typing.Protocol):
         return False
 
     def item_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> str:
-        pass
+        return str()
 
     def delete_pressed(self) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        pass
+        return  # required to avoid being recognized as abstract by mypy
 
-    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None: ...
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
+        return  # required to avoid being recognized as abstract by mypy
 
 
 class ListCanvasItem(CanvasItem.AbstractCanvasItem):

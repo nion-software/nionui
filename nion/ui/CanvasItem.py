@@ -4227,10 +4227,13 @@ class TextButtonCanvasItem(TextCanvasItem):
                  border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(text, background_color, border_color, padding)
         self.wants_mouse_events = True
+        # on_button_clicked is deprecated; use on_clicked instead
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_button_clicked = None
+        self.on_clicked = None
         super().close()
 
     def mouse_entered(self) -> bool:
@@ -4253,6 +4256,8 @@ class TextButtonCanvasItem(TextCanvasItem):
         if self.enabled:
             if self.on_button_clicked:
                 self.on_button_clicked()
+            if self.on_clicked:
+                self.on_clicked()
         return True
 
 

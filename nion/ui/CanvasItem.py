@@ -3829,14 +3829,9 @@ class Cell(CellLike):
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         return self._size_to_content(get_font_metrics_fn)
 
-    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
-        pass
-
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
-        # set up the defaults
+    def _get_background_and_overlay_colors(self, style: typing.Set[str]) -> typing.Tuple[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], typing.Optional[str]]:
         background_color = self.__background_color
         overlay_color = None
-
         # configure based on style
         if "disabled" in style:
             overlay_color = Color.Color("gray").to_color_with_alpha(0.33).color_str
@@ -3849,6 +3844,13 @@ class Cell(CellLike):
                 overlay_color = "rgba(128, 128, 128, 0.5)"
             elif "hover" in style:
                 overlay_color = "rgba(128, 128, 128, 0.1)"
+        return background_color, overlay_color
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+        pass
+
+    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+        background_color, overlay_color = self._get_background_and_overlay_colors(style)
 
         padding = self.__padding
         dest_rect = Geometry.FloatRect.from_tlbr(
@@ -4262,7 +4264,10 @@ class TwistDownCell(Cell):
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         return Geometry.IntSize(height=18, width=16)
 
-    def paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+    def _get_background_and_overlay_colors(self, style: typing.Set[str]) -> typing.Tuple[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], typing.Optional[str]]:
+        return None, super()._get_background_and_overlay_colors(style)[1]
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         # disabled (default is enabled)
         # checked, partial (default is unchecked)
         # hover, active (default is none)

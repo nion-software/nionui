@@ -3839,7 +3839,7 @@ class Cell(CellLike):
 
         # configure based on style
         if "disabled" in style:
-            overlay_color = "rgba(255, 255, 255, 0.7)"
+            overlay_color = Color.Color("gray").to_color_with_alpha(0.33).color_str
             if "checked" in style:
                 background_color = "rgb(64, 64, 64)"
         else:
@@ -4371,6 +4371,17 @@ class BitmapCell(Cell):
             return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, raw_data.shape))
         return Geometry.IntSize()
 
+    def _update_bitmap_data(self, bitmap_data: DrawingContext.RGBA32Type, style: typing.Set[str]) -> DrawingContext.RGBA32Type:
+        if 'disabled' in style:
+            bitmap_rgba = numpy.copy(numpy.array(bitmap_data, copy=False).view(numpy.uint8).reshape(bitmap_data.shape + (4,)))
+            bitmap_gray_mix = 0.66
+            bitmap_gray = (1.0 - bitmap_gray_mix) * 255 + bitmap_gray_mix * (0.0722 * bitmap_rgba[..., 0] + 0.7152 * bitmap_rgba[..., 1] + 0.2126 * bitmap_rgba[..., 2])
+            bitmap_rgba[..., 0] = bitmap_gray
+            bitmap_rgba[..., 1] = bitmap_gray
+            bitmap_rgba[..., 2] = bitmap_gray
+            return numpy.array(bitmap_rgba, copy=False).view(numpy.uint32).reshape(bitmap_rgba.shape[:-1])
+        return bitmap_data
+
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         bitmap_data = self.rgba_bitmap_data
         raw_data = self.__data
@@ -4385,7 +4396,7 @@ class BitmapCell(Cell):
                 if display_rect and display_width > 0 and display_height > 0:
                     display_top = display_rect.top
                     display_left = display_rect.left
-                    drawing_context.draw_image(bitmap_data, display_left, display_top, display_width, display_height)
+                    drawing_context.draw_image(self._update_bitmap_data(bitmap_data, style), display_left, display_top, display_width, display_height)
         if raw_data is not None:
             image_size = typing.cast(Geometry.IntSizeTuple, raw_data.shape)
             if image_size[0] > 0 and image_size[1] > 0:

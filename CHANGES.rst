@@ -1,11 +1,12 @@
 Changelog (nionui)
 ==================
 
-0.6.6 (UNRELEASED)
+0.6.6 (2022-10-03)
 ------------------
 - Fix regression where line edits not using latest text when still focused.
-- Add ability to set top, left, bottom, right, horizontal, and vertical borders independently.
-- Add ability to set top, left, bottom, right, horizontal, and vertical margins independently.
+- Improved look for basic (canvas item) tabs.
+- Allow background color to be a gradient in most cases.
+- Add ability to set specific borders and margins independently in declarative UI.
 
 0.6.5 (2022-09-13)
 ------------------

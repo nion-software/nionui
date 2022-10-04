@@ -1,3 +1,5 @@
+# type: ignore
+
 import importlib
 import os
 import typing

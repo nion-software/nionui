@@ -2258,7 +2258,7 @@ class PyQtProxy:
             def flush(self):
                 pass
 
-        sys.stdout = StdoutCatcher()  # type: ignore
+        sys.stdout = StdoutCatcher()
         sys.stderr = sys.stdout
 
     def has_method(self, name: str) -> bool:

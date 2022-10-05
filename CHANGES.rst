@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.7 (UNRELEASED)
+------------------
+- Introduce a Bitmap object to optionally replace uses of NDArray/uint32 bitmaps.
+
 0.6.6 (2022-10-03)
 ------------------
 - Fix regression where line edits not using latest text when still focused.

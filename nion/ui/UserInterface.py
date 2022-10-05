@@ -23,6 +23,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Binding
@@ -511,7 +512,7 @@ class WidgetBehavior(typing.Protocol):
     def _get_content_widget(self) -> typing.Optional[Widget]: return None
     def set_property(self, key: str, value: typing.Any) -> None: ...
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint: ...
-    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None: ...
     def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
@@ -757,10 +758,10 @@ class Widget:
     def set_property(self, key: str, value: typing.Any) -> None:
         self._behavior.set_property(key, value)
 
-    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
-        self._behavior.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+        self._behavior.drag(mime_data, Bitmap.promote_bitmap(thumbnail), hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return self._behavior.map_to_global(p)
@@ -1403,7 +1404,7 @@ class ComboBoxWidget(Widget):
 
 class PushButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
     text: typing.Optional[str]
-    icon: typing.Optional[DrawingContext.RGBA32Type]
+    icon: typing.Optional[Bitmap.Bitmap]
     on_clicked: typing.Optional[typing.Callable[[], None]]
 
 
@@ -1422,11 +1423,11 @@ class PushButtonWidget(Widget):
         def set_text(value: typing.Optional[str]) -> None:
             self._behavior.text = str(value) if value is not None else None
 
-        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            self._behavior.icon = value
+        def set_icon(value: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+            self._behavior.icon = Bitmap.promote_bitmap(value)
 
         self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
-        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[Bitmap.BitmapOrArray]](None, set_icon, None, typing.cast(typing.Any, Bitmap.bitmap_or_array_equal))
 
         self.text = text
         self.icon = None
@@ -1452,12 +1453,12 @@ class PushButtonWidget(Widget):
         self.__text_binding_helper.value = text
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__icon_binding_helper.value
+    def icon(self) -> typing.Optional[Bitmap.BitmapOrArray]:  # hack for type checking until all packages switched to Bitmap
+        return Bitmap.promote_bitmap(self.__icon_binding_helper.value)
 
     @icon.setter
-    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__icon_binding_helper.value = rgba_image
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__icon_binding_helper.value = bitmap
 
     def bind_text(self, binding: Binding.Binding) -> None:
         self.__text_binding_helper.bind_value(binding)
@@ -1474,7 +1475,7 @@ class PushButtonWidget(Widget):
 
 class RadioButtonWidgetBehavior(WidgetBehavior, typing.Protocol):
     text: typing.Optional[str]
-    icon: typing.Optional[DrawingContext.RGBA32Type]
+    icon: typing.Optional[Bitmap.Bitmap]
     checked: bool
     on_clicked: typing.Optional[typing.Callable[[], None]]
 
@@ -1489,14 +1490,14 @@ class RadioButtonWidget(Widget):
         def set_text(value: typing.Optional[str]) -> None:
             self._behavior.text = str(value) if value is not None else None
 
-        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            self._behavior.icon = value
+        def set_icon(value: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+            self._behavior.icon = Bitmap.promote_bitmap(value)
 
         def set_group_value(group_value: typing.Optional[int]) -> None:
             self.checked = group_value == self.__value
 
         self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
-        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+        self.__icon_binding_helper = BindablePropertyHelper[typing.Optional[Bitmap.BitmapOrArray]](None, set_icon, None, typing.cast(typing.Any, Bitmap.bitmap_or_array_equal))
         self.__group_value_binding_helper = BindablePropertyHelper[typing.Optional[typing.Optional[int]]](None, set_group_value)
 
         def handle_clicked() -> None:
@@ -1533,12 +1534,12 @@ class RadioButtonWidget(Widget):
         self.__text_binding_helper.value = text
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__icon_binding_helper.value
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
+        return Bitmap.promote_bitmap(self.__icon_binding_helper.value)
 
     @icon.setter
-    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__icon_binding_helper.value = rgba_image
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__icon_binding_helper.value = bitmap
 
     @property
     def checked(self) -> bool:
@@ -3571,9 +3572,16 @@ class UserInterface(abc.ABC):
     def load_rgba_data_from_file(self, filename: str) -> typing.Optional[DrawingContext.RGBA32Type]:
         ...
 
+    def load_bitmap_from_file(self, filename: str) -> typing.Optional[Bitmap.Bitmap]:
+        return Bitmap.Bitmap(rgba_bitmap_data=self.load_rgba_data_from_file(filename))
+
     @abc.abstractmethod
     def save_rgba_data_to_file(self, data: DrawingContext.RGBA32Type, filename: str, format: typing.Optional[str]) -> None:
         ...
+
+    def save_bitmap_to_file(self, bitmap: Bitmap.Bitmap, filename: str, format: typing.Optional[str]) -> None:
+        assert bitmap.rgba_bitmap_data is not None
+        self.save_rgba_data_to_file(bitmap.rgba_bitmap_data, filename, format)
 
     @abc.abstractmethod
     def get_existing_directory_dialog(self, title: str, directory: str) -> typing.Tuple[str, str]:
@@ -3670,6 +3678,10 @@ class UserInterface(abc.ABC):
     @abc.abstractmethod
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         ...
+
+    def create_bitmap(self, drawing_context: DrawingContext.DrawingContext, shape: Geometry.IntSize) -> typing.Optional[Bitmap.Bitmap]:
+        rgba_bitmap_data = self.create_rgba_image(drawing_context, shape.width, shape.height)
+        return Bitmap.Bitmap(rgba_bitmap_data=rgba_bitmap_data)
 
     @abc.abstractmethod
     def get_font_metrics(self, font: str, text: str) -> FontMetrics:

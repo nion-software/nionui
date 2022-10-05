@@ -11,6 +11,7 @@ import typing
 import numpy
 
 # local libraries
+from . import Bitmap
 from . import CanvasItem
 from . import DrawingContext
 from . import UserInterface as UserInterfaceModule
@@ -567,7 +568,7 @@ class WidgetBehavior:
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return p
 
-    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
@@ -605,7 +606,7 @@ class NullBehavior:
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return Geometry.IntPoint()
 
-    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
@@ -849,7 +850,8 @@ class PushButtonWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.text: typing.Optional[str] = None
-        self.icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.icon: typing.Optional[Bitmap.Bitmap] = None
+        self.icon_shape: typing.Optional[Geometry.IntSize] = None
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
 
@@ -858,7 +860,7 @@ class RadioButtonWidgetBehavior(WidgetBehavior):
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
         self.text: typing.Optional[str] = None
-        self.icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.icon: typing.Optional[Bitmap.Bitmap] = None
         self.checked = False
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 

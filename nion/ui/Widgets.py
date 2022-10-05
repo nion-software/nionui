@@ -14,6 +14,7 @@ import typing
 import numpy
 
 # local libraries
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import ListCanvasItem
@@ -77,7 +78,7 @@ class PushButtonWidgetCanvasItemController(BaseWidgetCanvasItemController):
     def set_text(self, value: typing.Optional[str]) -> None: ...
 
     @abc.abstractmethod
-    def set_icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None: ...
+    def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None: ...
 
     @abc.abstractmethod
     def set_enabled(self, enabled: bool) -> None: ...
@@ -191,7 +192,7 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
         self.content_widget.background_color = value
         self._set_background_color(value)
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
             self.content_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
@@ -234,18 +235,17 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.visible = False
         self.__text_button_canvas_item.text = value or str()
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__icon_button_canvas_item.rgba_bitmap_data = None
+        self.__icon_button_canvas_item.bitmap = None
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         if callable(self.on_size_changed):
             self.on_size_changed(Geometry.IntSize(width=int(self.__text_button_canvas_item.sizing.preferred_width or 0),
                                                   height=int(self.__text_button_canvas_item.sizing.preferred_height or 0)))
 
-    def set_icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__icon = value
+    def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         self.__text_button_canvas_item.visible = False
         self.__icon_button_canvas_item.visible = True
-        self.__icon_button_canvas_item.rgba_bitmap_data = value
+        self.__icon_button_canvas_item.bitmap = Bitmap.promote_bitmap(bitmap)
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
         self.__text_button_canvas_item.text = str()
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
@@ -401,7 +401,7 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
         self.__canvas_widget.canvas_item.add_canvas_item(canvas_item)
 
         self.__text: typing.Optional[str] = None
-        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.__icon: typing.Optional[Bitmap.Bitmap] = None
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
         def handle_clicked() -> None:
@@ -424,13 +424,13 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
         self.__push_button_widget_canvas_item_controller.set_text(value)
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
         return self.__icon
 
     @icon.setter
-    def icon(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__icon = value
-        self.__push_button_widget_canvas_item_controller.set_icon(value)
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__icon = Bitmap.promote_bitmap(bitmap)
+        self.__push_button_widget_canvas_item_controller.set_icon(self.__icon)
 
     def _set_enabled(self, enabled: bool) -> None:
         self.__push_button_widget_canvas_item_controller.set_enabled(enabled)
@@ -937,7 +937,8 @@ class TextPushButtonWidget(UserInterface.Widget):
 
 
 class ImageWidget(UserInterface.Widget):
-    def __init__(self, ui: UserInterface.UserInterface, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def __init__(self, ui: UserInterface.UserInterface,
+                 bitmap: typing.Optional[Bitmap.Bitmap] = None,
                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget(properties=properties)
         super().__init__(CompositeWidgetBehavior(column_widget))
@@ -948,19 +949,19 @@ class ImageWidget(UserInterface.Widget):
             if callable(self.on_clicked):
                 self.on_clicked()
 
-        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(rgba_bitmap_data)
+        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(bitmap)
         self.__bitmap_canvas_item.on_button_clicked = button_clicked
         bitmap_canvas_widget = self.ui.create_canvas_widget()
         bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         column_widget.add(bitmap_canvas_widget)
 
-        def set_image(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            self.__bitmap_canvas_item.rgba_bitmap_data = value
+        def set_image(value: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+            self.__bitmap_canvas_item.bitmap = Bitmap.promote_bitmap(value)
             self.__bitmap_canvas_item.size_to_content(ui.get_font_metrics)
 
-        self.__image_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_image, None, typing.cast(typing.Any, numpy.array_equal))
+        self.__image_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[Bitmap.BitmapOrArray]](None, set_image, None, typing.cast(typing.Any, Bitmap.bitmap_or_array_equal))
 
-        self.image = rgba_bitmap_data
+        self.image = bitmap
 
     def close(self) -> None:
         self.__image_binding_helper.close()
@@ -968,12 +969,12 @@ class ImageWidget(UserInterface.Widget):
         super().close()
 
     @property
-    def image(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__image_binding_helper.value
+    def image(self) -> typing.Optional[Bitmap.Bitmap]:
+        return Bitmap.promote_bitmap(self.__image_binding_helper.value)
 
     @image.setter
-    def image(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__image_binding_helper.value = rgba_bitmap_data
+    def image(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__image_binding_helper.value = bitmap
 
     def bind_image(self, binding: Binding.Binding) -> None:
         self.__image_binding_helper.bind_value(binding)
@@ -1161,11 +1162,11 @@ class IconRadioButtonWidget(UserInterface.Widget):
         def set_group_value(group_value: typing.Optional[int]) -> None:
             self.checked = group_value == self.__value
 
-        def set_icon(value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-            self.__bitmap_canvas_item.rgba_bitmap_data = value
+        def set_icon(value: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+            self.__bitmap_canvas_item.bitmap = Bitmap.promote_bitmap(value)
 
         self.__group_value_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[typing.Optional[int]]](None, set_group_value)
-        self.__icon_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[DrawingContext.RGBA32Type]](None, set_icon, None, typing.cast(typing.Any, numpy.array_equal))
+        self.__icon_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[Bitmap.BitmapOrArray]](None, set_icon, None, typing.cast(typing.Any, Bitmap.bitmap_or_array_equal))
 
     def close(self) -> None:
         self.__group_value_binding_helper.close()
@@ -1197,12 +1198,12 @@ class IconRadioButtonWidget(UserInterface.Widget):
         self.__bitmap_canvas_item.checked = value
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__icon_binding_helper.value
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
+        return Bitmap.promote_bitmap(self.__icon_binding_helper.value)
 
     @icon.setter
-    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__icon_binding_helper.value = rgba_image
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__icon_binding_helper.value = bitmap
 
     @property
     def value(self) -> typing.Optional[int]:

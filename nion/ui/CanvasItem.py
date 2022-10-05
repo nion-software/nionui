@@ -27,6 +27,7 @@ import weakref
 import numpy
 
 # local libraries
+from nion.ui import Bitmap
 from nion.ui import DrawingContext
 from nion.utils import Color
 from nion.utils import Event
@@ -868,7 +869,7 @@ class AbstractCanvasItem:
             if root_container:
                 root_container._set_focused_item(None)
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         root_container = self.root_container
@@ -3661,7 +3662,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             self.__drag_leave()
             return response
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         self.__canvas_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
@@ -4332,17 +4333,22 @@ class TwistDownCanvasItem(CellCanvasItem):
 
 class BitmapCell(Cell):
 
-    def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border: typing.Optional[CellBorder] = None,
+    def __init__(self, bitmap: typing.Optional[Bitmap.Bitmap],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border: typing.Optional[CellBorder] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(background_color, border, padding)
-        self.__rgba_bitmap_data = rgba_bitmap_data
+        if bitmap:
+            assert isinstance(bitmap, Bitmap.Bitmap)
+        self.__bitmap = bitmap
         self.__data: typing.Optional[DrawingContext.GrayscaleF32Type] = None
         self.__display_limits: typing.Optional[typing.Tuple[float, float]] = None
         self.__color_map_data: typing.Optional[DrawingContext.RGBA32Type] = None
 
-    def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type], trigger_update: bool = True) -> None:
-        self.__rgba_bitmap_data = rgba_bitmap_data
+    def set_bitmap(self, bitmap: Bitmap.Bitmap, trigger_update: bool = True) -> None:
+        if bitmap:
+            assert isinstance(bitmap, Bitmap.Bitmap)
+        self.__bitmap = bitmap
         self.__data = None
         self.__display_limits = None
         self.__color_map_data = None
@@ -4352,7 +4358,7 @@ class BitmapCell(Cell):
     def set_data(self, data: typing.Optional[DrawingContext.GrayscaleF32Type],
                  display_limits: typing.Optional[typing.Tuple[float, float]],
                  color_map_data: typing.Optional[DrawingContext.RGBA32Type], trigger_update: bool = True) -> None:
-        self.__rgba_bitmap_data = None
+        self.__bitmap = None
         self.__data = data
         self.__display_limits = display_limits
         self.__color_map_data = color_map_data
@@ -4364,21 +4370,21 @@ class BitmapCell(Cell):
         return self.__data
 
     @property
-    def rgba_bitmap_data(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__rgba_bitmap_data
+    def bitmap(self) -> typing.Optional[Bitmap.Bitmap]:
+        return self.__bitmap
 
-    @rgba_bitmap_data.setter
-    def rgba_bitmap_data(self, value: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.set_rgba_bitmap_data(value, trigger_update=True)
+    @bitmap.setter
+    def bitmap(self, bitmap: Bitmap.Bitmap) -> None:
+        if bitmap:
+            assert isinstance(bitmap, Bitmap.Bitmap)
+        self.__bitmap = bitmap
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         """ Size the canvas item to the text content without padding."""
-        bitmap_data = self.rgba_bitmap_data
-        raw_data = self.__data
-        if bitmap_data is not None:
-            return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, bitmap_data.shape))
-        if raw_data is not None:
-            return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, raw_data.shape))
+        if self.__bitmap:
+            return self.__bitmap.computed_shape
+        if self.__data is not None:
+            return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, self.__data.shape))
         return Geometry.IntSize()
 
     def _update_bitmap_data(self, bitmap_data: DrawingContext.RGBA32Type, style: typing.Set[str]) -> DrawingContext.RGBA32Type:
@@ -4393,23 +4399,20 @@ class BitmapCell(Cell):
         return bitmap_data
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
-        bitmap_data = self.rgba_bitmap_data
-        raw_data = self.__data
-
         # draw the bitmap
-        if bitmap_data is not None:
-            image_size = typing.cast(Geometry.IntSizeTuple, bitmap_data.shape)
-            if image_size[0] > 0 and image_size[1] > 0:
+        if self.__bitmap and self.__bitmap.rgba_bitmap_data is not None:
+            image_size = self.__bitmap.computed_shape
+            if image_size.height > 0 and image_size.width > 0:
                 display_rect = Geometry.fit_to_size(rect, image_size)
                 display_height = display_rect.height
                 display_width = display_rect.width
                 if display_rect and display_width > 0 and display_height > 0:
                     display_top = display_rect.top
                     display_left = display_rect.left
-                    drawing_context.draw_image(self._update_bitmap_data(bitmap_data, style), display_left, display_top, display_width, display_height)
-        if raw_data is not None:
-            image_size = typing.cast(Geometry.IntSizeTuple, raw_data.shape)
-            if image_size[0] > 0 and image_size[1] > 0:
+                    drawing_context.draw_image(self._update_bitmap_data(self.__bitmap.rgba_bitmap_data, style), display_left, display_top, display_width, display_height)
+        if self.__data is not None:
+            image_size = Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, self.__data.shape))
+            if image_size.height > 0 and image_size.width > 0:
                 display_rect = Geometry.fit_to_size(rect, image_size)
                 display_height = display_rect.height
                 display_width = display_rect.width
@@ -4418,27 +4421,28 @@ class BitmapCell(Cell):
                     display_left = display_rect.left
                     display_limits = self.__display_limits or (0.0, 0.0)
                     color_map_data = self.__color_map_data
-                    drawing_context.draw_data(raw_data, display_left, display_top, display_width, display_height, display_limits[0], display_limits[1], color_map_data)
+                    drawing_context.draw_data(self.__data, display_left, display_top, display_width, display_height, display_limits[0], display_limits[1], color_map_data)
 
 
 class BitmapCanvasItem(CellCanvasItem):
 
     """ Canvas item to draw rgba bitmap in bgra uint32 ndarray format. """
 
-    def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border_color: typing.Optional[str] = None,
+    def __init__(self, *,
+                 bitmap: typing.Optional[Bitmap.Bitmap] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border_color: typing.Optional[str] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__()
         padding = padding or Geometry.IntSize()  # for backwards compatibility
         border = CellBorder()
         if border_color:
             border.border = CellBorderProperties(Color.Color(border_color))
-        self.__bitmap_cell = BitmapCell(rgba_bitmap_data, background_color, border, padding)
+        self.__bitmap_cell = BitmapCell(bitmap, background_color, border, padding)
         self.cell = self.__bitmap_cell
 
-    def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type],
-                             trigger_update: bool = True) -> None:
-        self.__bitmap_cell.set_rgba_bitmap_data(rgba_bitmap_data, trigger_update)
+    def set_rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type], rgba_bitmap_shape: typing.Optional[Geometry.IntSize] = None, trigger_update: bool = True) -> None:
+        self.__bitmap_cell.set_bitmap(Bitmap.Bitmap(rgba_bitmap_data=rgba_bitmap_data), trigger_update=trigger_update)
 
     def set_data(self, data: typing.Optional[DrawingContext.GrayscaleF32Type],
                  display_limits: typing.Optional[typing.Tuple[float, float]],
@@ -4450,21 +4454,31 @@ class BitmapCanvasItem(CellCanvasItem):
         return self.__bitmap_cell.data
 
     @property
+    def bitmap(self) -> typing.Optional[Bitmap.Bitmap]:
+        return self.__bitmap_cell.bitmap
+
+    @bitmap.setter
+    def bitmap(self, bitmap: typing.Optional[Bitmap.Bitmap]) -> None:
+        self.__bitmap_cell.bitmap = bitmap
+
+    @property
     def rgba_bitmap_data(self) -> typing.Optional[DrawingContext.RGBA32Type]:
-        return self.__bitmap_cell.rgba_bitmap_data
+        return self.__bitmap_cell.bitmap.rgba_bitmap_data if self.__bitmap_cell.bitmap else None
 
     @rgba_bitmap_data.setter
-    def rgba_bitmap_data(self, rgb_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
-        self.__bitmap_cell.rgba_bitmap_data = rgb_bitmap_data
+    def rgba_bitmap_data(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+        self.__bitmap_cell.bitmap = Bitmap.Bitmap(rgba_bitmap_data=rgba_bitmap_data)
 
 
 class BitmapButtonCanvasItem(BitmapCanvasItem):
     """ Canvas item button to draw rgba bitmap in bgra uint32 ndarray format. """
 
-    def __init__(self, rgba_bitmap_data: typing.Optional[DrawingContext.RGBA32Type] = None,
-                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border_color: typing.Optional[str] = None,
+    def __init__(self, bitmap: typing.Optional[Bitmap.BitmapOrArray] = None, *,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border_color: typing.Optional[str] = None,
                  padding: typing.Optional[Geometry.IntSize] = None) -> None:
-        super().__init__(rgba_bitmap_data, background_color, border_color, padding)
+        bitmap = Bitmap.promote_bitmap(bitmap)
+        super().__init__(bitmap=bitmap, background_color=background_color, border_color=border_color, padding=padding)
         self.wants_mouse_events = True
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
 
@@ -4885,3 +4899,7 @@ def load_rgba_data_from_bytes(b: typing.ByteString, format: typing.Optional[str]
         image_rgba[:, :, 3] = image_argb[:, :, 3]
         return image_rgba.view(numpy.uint32).reshape(image_rgba.shape[:-1])
     return None
+
+
+def load_bitmap_from_bytes(b: typing.ByteString, format: typing.Optional[str] = None) -> typing.Optional[Bitmap.Bitmap]:
+    return Bitmap.promote_bitmap(load_rgba_data_from_bytes(b, format))

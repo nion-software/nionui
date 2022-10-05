@@ -19,6 +19,7 @@ import weakref
 # none
 
 # local libraries
+from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
@@ -435,16 +436,17 @@ class QtItemModelController:
 
 class QtDrag:
     def __init__(self, proxy: _QtProxy, widget: _QtObject, mime_data: QtMimeData,
-                 thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None, hot_spot_x: typing.Optional[int] = None,
+                 thumbnail: typing.Optional[Bitmap.Bitmap] = None, hot_spot_x: typing.Optional[int] = None,
                  hot_spot_y: typing.Optional[int] = None,
                  drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         self.proxy = proxy
         self.__raw_drag = self.proxy.Drag_create(widget, mime_data.raw_mime_data)
         self.proxy.Drag_connect(self.__raw_drag, self)
-        if thumbnail is not None:
-            width = thumbnail.shape[1]
-            height = thumbnail.shape[0]
-            rgba_data = self.proxy.encode_data(thumbnail)
+        if thumbnail:
+            width = thumbnail.computed_shape.width
+            height = thumbnail.computed_shape.height
+            rgba_bitmap_data = thumbnail.rgba_bitmap_data if thumbnail else None
+            rgba_data = self.proxy.encode_data(rgba_bitmap_data)
             hot_spot_x = hot_spot_x if hot_spot_x is not None else width // 2
             hot_spot_y = hot_spot_y if hot_spot_y is not None else height // 2
             self.proxy.Drag_setThumbnail(self.__raw_drag, width, height, rgba_data, hot_spot_x, hot_spot_y)
@@ -579,7 +581,7 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
         else:
             self.proxy.Widget_setPaletteColor(self.widget, "background", 0, 0, 0, 0)
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         self._register_ui_activity()
@@ -643,7 +645,7 @@ class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return Geometry.IntPoint()
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type] = None,
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
         pass
@@ -945,7 +947,7 @@ class QtPushButtonWidgetBehavior(QtWidgetBehavior):
         super().__init__(proxy, "pushbutton", properties)
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.__text: typing.Optional[str] = None
-        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.__icon: typing.Optional[Bitmap.Bitmap] = None
         self.proxy.PushButton_connect(self.widget, self)
 
     def close(self) -> None:
@@ -962,17 +964,18 @@ class QtPushButtonWidgetBehavior(QtWidgetBehavior):
         self.proxy.PushButton_setText(self.widget, self.__text)
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
         return self.__icon
 
     @icon.setter
-    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         # rgba_image should be a uint32 numpy array with the pixel order bgra
-        self.__icon = rgba_image
-        width = rgba_image.shape[1] if rgba_image is not None else 0
-        height = rgba_image.shape[0] if rgba_image is not None else 0
-        rgba_data = self.proxy.encode_data(rgba_image)
-        self.proxy.PushButton_setIcon(self.widget, width, height, rgba_data)
+        bitmap = Bitmap.promote_bitmap(bitmap)
+        self.__icon = bitmap
+        shape = bitmap.computed_shape if bitmap else Geometry.IntSize()
+        rgba_bitmap_data = bitmap.rgba_bitmap_data if bitmap else None
+        rgba_data = self.proxy.encode_data(rgba_bitmap_data)
+        self.proxy.PushButton_setIcon(self.widget, shape.width, shape.height, rgba_data)
 
     def clicked(self) -> None:
         self._register_ui_activity()
@@ -986,7 +989,7 @@ class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
         super().__init__(proxy, "radiobutton", properties)
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.__text: typing.Optional[str] = None
-        self.__icon: typing.Optional[DrawingContext.RGBA32Type] = None
+        self.__icon: typing.Optional[Bitmap.Bitmap] = None
         self.proxy.RadioButton_connect(self.widget, self)
 
     def close(self) -> None:
@@ -1003,16 +1006,17 @@ class QtRadioButtonWidgetBehavior(QtWidgetBehavior):
         self.proxy.RadioButton_setText(self.widget, self.__text)
 
     @property
-    def icon(self) -> typing.Optional[DrawingContext.RGBA32Type]:
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
         return self.__icon
 
     @icon.setter
-    def icon(self, rgba_image: typing.Optional[DrawingContext.RGBA32Type]) -> None:
+    def icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         # rgba_image should be a uint32 numpy array with the pixel order bgra
-        self.__icon = rgba_image
-        self.__width = rgba_image.shape[1] if rgba_image is not None else 0
-        self.__height = rgba_image.shape[0] if rgba_image is not None else 0
-        rgba_data = self.proxy.encode_data(rgba_image)
+        bitmap = Bitmap.promote_bitmap(bitmap)
+        self.__icon = bitmap
+        self.__width = bitmap.computed_shape.width if bitmap else 0
+        self.__height = bitmap.computed_shape.height if bitmap else 0
+        rgba_data = self.proxy.encode_data(bitmap.rgba_bitmap_data if bitmap else None)
         self.proxy.RadioButton_setIcon(self.widget, self.__width, self.__height, rgba_data)
 
     @property

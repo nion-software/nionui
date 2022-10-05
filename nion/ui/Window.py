@@ -17,7 +17,7 @@ import weakref
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Process
-from nion.ui import DrawingContext
+from nion.ui import Bitmap
 from nion.ui import UserInterface
 
 if typing.TYPE_CHECKING:
@@ -481,7 +481,7 @@ class Window:
             self._adjust_menus()
         return False
 
-    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[DrawingContext.RGBA32Type], hot_spot_x: int, hot_spot_y: int) -> None:
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray], hot_spot_x: int, hot_spot_y: int) -> None:
         root_widget = self.__document_window.root_widget
         if root_widget:
             root_widget.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y)

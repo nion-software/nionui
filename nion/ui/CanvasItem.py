@@ -4375,9 +4375,7 @@ class BitmapCell(Cell):
 
     @bitmap.setter
     def bitmap(self, bitmap: Bitmap.Bitmap) -> None:
-        if bitmap:
-            assert isinstance(bitmap, Bitmap.Bitmap)
-        self.__bitmap = bitmap
+        self.set_bitmap(bitmap)
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         """ Size the canvas item to the text content without padding."""

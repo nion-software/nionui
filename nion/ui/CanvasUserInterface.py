@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import abc
 import asyncio
+import functools
 import pathlib
 import typing
 
@@ -26,6 +28,139 @@ def extract_canvas_item(widget: UserInterface.Widget) -> typing.Optional[CanvasI
     return widget_behavior._canvas_item if widget else None
 
 
+class ComboBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
+        self.on_current_text_changed: typing.Optional[typing.Callable[[str], None]] = None
+
+    @property
+    @abc.abstractmethod
+    def window(self) -> typing.Optional[UserInterface.Window]: raise NotImplementedError()
+
+    @window.setter
+    @abc.abstractmethod
+    def window(self, value: typing.Optional[UserInterface.Window]) -> None: ...
+
+    @property
+    @abc.abstractmethod
+    def current_text(self) -> str: raise NotImplementedError()
+
+    @current_text.setter
+    @abc.abstractmethod
+    def current_text(self, value: str) -> None: ...
+
+    @abc.abstractmethod
+    def set_item_strings(self, strings: typing.Sequence[str]) -> None: ...
+
+    @abc.abstractmethod
+    def set_enabled(self, enabled: bool) -> None: ...
+
+    @abc.abstractmethod
+    def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None: ...
+
+    @abc.abstractmethod
+    def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
+
+
+class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.__row = CanvasItem.CanvasItemComposition()
+        self.__row.layout = CanvasItem.CanvasItemRowLayout()
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        self.__row.background_color = "#f0f0f0"
+        self.__row.border_color = "gray"
+        self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}")
+        self.__triangle.wants_mouse_events = True
+        self.__row.add_canvas_item(self.__text_button_canvas_item)
+        self.__row.add_canvas_item(self.__triangle)
+        self.__items: typing.List[str] = list()
+        self.__window: typing.Optional[CanvasWindow] = None
+
+        def handle_clicked() -> None:
+            if self.__window:
+                menu = self.__window.create_context_menu()
+                # menu = ui.create_context_menu(self.__window._root_window)
+                for item_str in self.__items:
+                    def handle_menu_item(text: str) -> None:
+                        self.current_text = text  # updates the button
+                        if callable(self.on_current_text_changed):
+                            self.on_current_text_changed(text)
+
+                    menu.add_menu_item(item_str, functools.partial(handle_menu_item, item_str))
+                window_pos = self.__window._root_window.position
+                y_pos = self.__row.canvas_size.height if self.__row.canvas_size else 0
+                pos = window_pos + self.__row.map_to_base_container(Geometry.IntPoint(y=y_pos))
+                menu.popup(pos.x, pos.y)
+
+        self.__text_button_canvas_item.on_clicked = handle_clicked
+        self.__triangle.on_clicked = handle_clicked
+
+    @property
+    def widget_source(self) -> Widgets.WidgetSource:
+        return Widgets.WidgetSource(self.ui, None, self.__row)
+
+    @property
+    def window(self) -> typing.Optional[UserInterface.Window]:
+        return self.__window
+
+    @window.setter
+    def window(self, window: typing.Optional[UserInterface.Window]) -> None:
+        if window:
+            assert isinstance(window, CanvasWindow)
+            self.__window = window
+        else:
+            self.__window = None
+
+    @property
+    def current_text(self) -> str:
+        return self.__text_button_canvas_item.text
+
+    @current_text.setter
+    def current_text(self, value: str) -> None:
+        if value:  # only update if value, matches Qt behavior
+            self.__text_button_canvas_item.text = value
+            self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+            self.__triangle.size_to_content(self.ui.get_font_metrics)
+            self.__row.size_to_content()
+            if callable(self.on_size_changed):
+                size = Geometry.IntSize(width=int(self.__row.sizing.preferred_width or 0), height=int(self.__row.sizing.preferred_height or 0))
+                self.on_size_changed(size)
+
+    def set_item_strings(self, strings: typing.Sequence[str]) -> None:
+        index = self.__items.index(self.current_text) if self.current_text else 0
+        self.__items = list(strings)
+        self.current_text = self.__items[index] if 0 <= index < len(self.__items) else str()
+
+    def set_enabled(self, enabled: bool) -> None:
+        self.__text_button_canvas_item.enabled = enabled
+
+    def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.tool_tip = tool_tip
+
+    def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.__text_button_canvas_item.background_color = background_color
+
+
+class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasItemControllerFactory):
+    # adds methods from the subclass that are specific (for now) to the canvas UI
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        self.__ui = ui
+
+    def create_push_button_widget_canvas_item_controller(self) -> Widgets.PushButtonWidgetCanvasItemController:
+        return Widgets.BasicPushButtonWidgetCanvasItemController(self.__ui)
+
+    def create_tab_widget_canvas_item_controller(self) -> Widgets.TabWidgetCanvasItemController:
+        return Widgets.BasicTabWidgetCanvasItemController(self.__ui)
+
+    # additional methods
+
+    def create_combo_box_widget_canvas_item_controller(self) -> ComboBoxWidgetCanvasItemController:
+        return BasicComboBoxWidgetCanvasItemController(self.__ui)
+
+
 class WidgetBehavior(UserInterface.WidgetBehavior):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, does_retain_focus: bool, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         self.properties = dict(properties) if properties else {}
@@ -39,6 +174,7 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         self.on_focus_changed : typing.Optional[typing.Callable[[bool], None]] = None
         self.__does_retain_focus = does_retain_focus
         self._no_focus = "no_focus"
+        self.__window: typing.Optional[UserInterface.Window] = None
 
     def close(self) -> None:
         # close the canvas item?
@@ -76,9 +212,11 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         # TODO
         pass
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
-        # TODO
-        pass
+    def _set_root_container(self, window: typing.Optional[UserInterface.Window]) -> None:
+        self.__window = window
+
+    def _window(self) -> typing.Optional[UserInterface.Window]:
+        return self.__window
 
     def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
         # TODO
@@ -249,7 +387,6 @@ class LabelWidgetBehavior(WidgetBehavior):
 
 
 class PushButtonWidgetBehavior(WidgetBehavior):
-    # largely the same as the Widgets one.
 
     def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         self.__canvas_item = CanvasItem.CanvasItemComposition()
@@ -296,6 +433,58 @@ class PushButtonWidgetBehavior(WidgetBehavior):
         self.__icon = value
         self.__canvas_item_controller.set_icon(value)
         self.__canvas_item_controller.size_to_content(self.__get_font_metrics_fn)
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__canvas_item_controller.set_enabled(enabled)
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__canvas_item_controller.set_tool_tip(tool_tip)
+
+    def _set_background_color(self, background_color: typing.Optional[str]) -> None:
+        self.__canvas_item_controller.set_background_color(background_color)
+
+
+class ComboBoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+
+        widget_canvas_item_factory = CanvasUserInterfaceWidgetCanvasItemControllerFactory(ui)
+
+        self.__canvas_item_controller = widget_canvas_item_factory.create_combo_box_widget_canvas_item_controller()
+
+        self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+
+        self.on_current_text_changed: typing.Optional[typing.Callable[[str], None]] = None
+
+        def handle_size_changed(size: Geometry.IntSize) -> None:
+            # TODO: size to content be defined in AbstractCanvasItem
+            self.__canvas_item.update_sizing(self.__canvas_item.sizing.with_fixed_size(size))
+
+        def handle_current_text_changed(text: str) -> None:
+            if callable(self.on_current_text_changed):
+                self.on_current_text_changed(text)
+
+        self.__canvas_item_controller.on_size_changed = handle_size_changed
+        self.__canvas_item_controller.on_current_text_changed = handle_current_text_changed
+
+        self.__items: typing.List[str] = list()
+
+    def _set_root_container(self, window: typing.Optional[UserInterface.Window]) -> None:
+        self.__canvas_item_controller.window = window
+        super()._set_root_container(window)
+
+    @property
+    def current_text(self) -> str:
+        return self.__canvas_item_controller.current_text
+
+    @current_text.setter
+    def current_text(self, value: str) -> None:
+        self.__canvas_item_controller.current_text = value
+
+    def set_item_strings(self, strings: typing.Sequence[str]) -> None:
+        self.__canvas_item_controller.set_item_strings(strings)
 
     def _set_enabled(self, enabled: bool) -> None:
         self.__canvas_item_controller.set_enabled(enabled)
@@ -413,6 +602,10 @@ class CanvasWindow(UserInterface.Window):
     def request_close(self) -> None:
         self.__window.request_close()
 
+    @property
+    def _root_window(self) -> UserInterface.Window:
+        return self.__window
+
     def _attach_root_widget(self, root_widget: typing.Optional[UserInterface.Widget]) -> None:
         self.__canvas_widget = self.__ui.create_canvas_widget()
         # the canvas widget will be created/added in the base UI.
@@ -437,6 +630,9 @@ class CanvasWindow(UserInterface.Window):
     def _get_focus_widget(self) -> typing.Optional[UserInterface.Widget]:
         # TODO
         return None
+
+    def create_context_menu(self) -> UserInterface.Menu:
+        return self.__ui.create_context_menu(self.__window)
 
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
         return self.__window.get_file_paths_dialog(title, directory, filter, selected_filter)
@@ -641,9 +837,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         raise NotImplementedError()
 
     def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ComboBoxWidget:
-        # TODO
-        return typing.cast(UserInterface.ComboBoxWidget, self.create_label_widget("COMBOBOX", properties))
-        # raise NotImplementedError()
+        return UserInterface.ComboBoxWidget(ComboBoxWidgetBehavior(self, properties), items or list(), item_getter or (lambda x: str(x)))
 
     def create_push_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.PushButtonWidget:
         behavior = PushButtonWidgetBehavior(self, properties, self.get_font_metrics)

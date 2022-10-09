@@ -1944,6 +1944,10 @@ class CanvasItemComposition(AbstractCanvasItem):
             layout_sizing._maximum_height = 0
         return layout_sizing
 
+    def size_to_content(self) -> None:
+        # I'm not sure if this is the right implementation. It works for now.
+        self.update_sizing(self.layout.get_sizing(self.visible_canvas_items))
+
     def canvas_item_layout_sizing_changed(self, canvas_item: AbstractCanvasItem) -> None:
         """ Contained canvas items call this when their layout_sizing changes. """
         self.refresh_layout()

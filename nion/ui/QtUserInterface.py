@@ -503,7 +503,7 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
     def periodic(self) -> None:
         pass
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+    def _set_root_container(self, window: typing.Optional[UserInterface.Window]) -> None:
         pass
 
     def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:
@@ -633,7 +633,7 @@ class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy
     def periodic(self) -> None:
         pass
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+    def _set_root_container(self, window: typing.Optional[UserInterface.Window]) -> None:
         pass
 
     def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:

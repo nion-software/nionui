@@ -119,7 +119,7 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
     def widget(self) -> UserInterface.Widget:
         return self.content_widget
 
-    def _set_root_container(self, root_container: typing.Optional[Window.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[UserInterface.Window]) -> None:
         self.content_widget._set_root_container(root_container)
 
     def _get_content_widget(self) -> typing.Optional[UserInterface.Widget]:

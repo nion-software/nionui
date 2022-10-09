@@ -508,7 +508,7 @@ class WidgetBehavior(typing.Protocol):
 
     def close(self) -> None: ...
     def periodic(self) -> None: pass
-    def _set_root_container(self, window: typing.Optional[WindowModule.Window]) -> None: ...
+    def _set_root_container(self, window: typing.Optional[Window]) -> None: ...
     def _get_content_widget(self) -> typing.Optional[Widget]: return None
     def set_property(self, key: str, value: typing.Any) -> None: ...
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint: ...
@@ -523,7 +523,7 @@ class Widget:
     def __init__(self, widget_behavior: WidgetBehavior) -> None:
         self.__behavior = widget_behavior
         self.__behavior.on_ui_activity = self._register_ui_activity
-        self.__root_container: typing.Optional[WindowModule.Window] = None  # the document window
+        self.__root_container: typing.Optional[Window] = None  # the document window
         self.__pending_keyed_tasks: typing.List[typing.Tuple[str, typing.Callable[[], None]]] = list()
         self.__pending_queued_tasks: typing.List[typing.Callable[[], None]] = list()
         self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
@@ -586,10 +586,10 @@ class Widget:
         return self.__behavior
 
     @property
-    def root_container(self) -> typing.Optional[WindowModule.Window]:
+    def root_container(self) -> typing.Optional[Window]:
         return self.__root_container
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         self.__root_container = root_container
         self._behavior._set_root_container(root_container)
         if self.__root_container:
@@ -834,7 +834,7 @@ class BoxWidget(Widget):
     def _behavior(self) -> BoxWidgetBehavior:
         return typing.cast(BoxWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
@@ -918,7 +918,7 @@ class SplitterWidget(Widget):
     def _behavior(self) -> SplitterWidgetBehavior:
         return typing.cast(SplitterWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
@@ -997,7 +997,7 @@ class TabWidget(Widget):
     def _behavior(self) -> TabWidgetBehavior:
         return typing.cast(TabWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
@@ -1068,7 +1068,7 @@ class StackWidget(Widget):
     def _behavior(self) -> StackWidgetBehavior:
         return typing.cast(StackWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
@@ -1153,7 +1153,7 @@ class GroupWidget(Widget):
     def _behavior(self) -> GroupWidgetBehavior:
         return typing.cast(GroupWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         for child in self.children:
             child._set_root_container(root_container)
@@ -1240,7 +1240,7 @@ class ScrollAreaWidget(Widget):
     def _behavior(self) -> ScrollAreaWidgetBehavior:
         return typing.cast(ScrollAreaWidgetBehavior, super()._behavior)
 
-    def _set_root_container(self, root_container: typing.Optional[WindowModule.Window]) -> None:
+    def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
         super()._set_root_container(root_container)
         if self.__content:
             self.__content._set_root_container(root_container)
@@ -2986,7 +2986,7 @@ class DockWidget:
         self.document_window = document_window
         self.document_window.register_dock_widget(self)
         self.widget = widget
-        self.widget._set_root_container(typing.cast("WindowModule.Window", self))
+        self.widget._set_root_container(typing.cast("Window", self))
         self.panel_id = panel_id
         self.title = title
         self.positions = positions
@@ -3161,7 +3161,7 @@ class Window:
     # the root widget must respond to _set_root_container
     def attach(self, root_widget: Widget) -> None:
         self.root_widget = root_widget
-        self.root_widget._set_root_container(typing.cast("WindowModule.Window", self))
+        self.root_widget._set_root_container(self)
         self._attach_root_widget(root_widget)
 
     def _attach_root_widget(self, root_widget: typing.Optional[Widget]) -> None:

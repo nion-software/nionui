@@ -531,7 +531,7 @@ class WidgetBehavior:
     def periodic(self) -> None:
         pass
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+    def _set_root_container(self, window: typing.Optional[UserInterfaceModule.Window]) -> None:
         pass
 
     def _get_content_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:
@@ -594,7 +594,7 @@ class NullBehavior:
     def periodic(self) -> None:
         pass
 
-    def _set_root_container(self, window: typing.Optional[Window.Window]) -> None:
+    def _set_root_container(self, window: typing.Optional[UserInterfaceModule.Window]) -> None:
         pass
 
     def _get_content_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:

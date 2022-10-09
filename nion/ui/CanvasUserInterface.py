@@ -343,6 +343,67 @@ class BoxWidgetBehavior(WidgetBehavior):
         self.__box_canvas_item.remove_all_canvas_items()
 
 
+class StackWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+        self.__current_index = 0
+
+    @property
+    def current_index(self) -> int:
+        return self.__current_index
+
+    @current_index.setter
+    def current_index(self, value: int) -> None:
+        self.__current_index = value
+        self.__update()
+
+    def insert(self, child: UserInterface.Widget, before: int) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        self.__canvas_item.insert_canvas_item(before, child_canvas_item)
+        self.__update()
+
+    def remove(self, child: UserInterface.Widget) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        self.__canvas_item.remove_canvas_item(child_canvas_item)
+        self.__update()
+
+    def __update(self) -> None:
+        for index, canvas_item in enumerate(self.__canvas_item.canvas_items):
+            canvas_item.visible = self.current_index == index
+        # TODO: changing the visibility of a child should auto-update the container
+        self.__canvas_item.update()
+
+
+class GroupWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+        self.__title: typing.Optional[str] = None
+
+    @property
+    def title(self) -> typing.Optional[str]:
+        return self.__title
+
+    @title.setter
+    def title(self, title: typing.Optional[str]) -> None:
+        self.__title = title
+
+    def add(self, child: UserInterface.Widget) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        self.__canvas_item.add_canvas_item(child_canvas_item)
+
+    def remove(self, child: UserInterface.Widget) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        self.__canvas_item.remove_canvas_item(child_canvas_item)
+
+
 class LabelWidgetBehavior(WidgetBehavior):
 
     def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
@@ -825,12 +886,10 @@ class CanvasUserInterface(UserInterface.UserInterface):
         raise NotImplementedError()
 
     def create_stack_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.StackWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.StackWidget(StackWidgetBehavior(properties))
 
     def create_group_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.GroupWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.GroupWidget(GroupWidgetBehavior(properties))
 
     def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ScrollAreaWidget:
         # TODO

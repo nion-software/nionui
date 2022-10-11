@@ -14,9 +14,9 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
-from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import Model
+from nion.utils import Stream
 
 
 def extract_canvas_item(widget: UserInterface.Widget) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
@@ -224,6 +224,85 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         self.__text_button_canvas_item.background_color = background_color
 
 
+class BasicSliderWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
+
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.__row = CanvasItem.CanvasItemComposition()
+        self.__row.layout = CanvasItem.CanvasItemRowLayout()
+        self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
+        self.__row.add_canvas_item(self.__slider_canvas_item)
+
+        self.__minimum = 0
+        self.__maximum = 0
+        self.__is_pressed = False
+
+        self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_slider_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_released: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_moved: typing.Optional[typing.Callable[[int], None]] = None
+
+        def handle_value(value: float) -> None:
+            range = (self.maximum - self.minimum) or 1
+            value_int = int(value * range + self.minimum)
+            if self.__is_pressed and callable(self.on_slider_moved):
+                self.on_slider_moved(value_int)
+            if callable(self.on_value_changed):
+                self.on_value_changed(value_int)
+
+        def handle_value_change(value_change: Stream.ValueChange[float]) -> None:
+            if value_change.is_begin:
+                self.__is_pressed = True
+                if callable(self.on_slider_pressed):
+                    self.on_slider_pressed()
+            if value_change.is_end:
+                self.__is_pressed = False
+                if callable(self.on_slider_released):
+                    self.on_slider_released()
+
+        self.__value_stream_listener = self.__slider_canvas_item.value_stream.value_stream.listen(handle_value)
+        self.__value_change_stream_listener = self.__slider_canvas_item.value_change_stream.value_stream.listen(handle_value_change)
+
+    def close(self) -> None:
+        # TODO: this is not called
+        self.__value_stream_listener = typing.cast(typing.Any, None)
+        self.__value_change_stream_listener = typing.cast(typing.Any, None)
+
+    @property
+    def widget_source(self) -> Widgets.WidgetSource:
+        return Widgets.WidgetSource(self.ui, None, self.__row)
+
+    @property
+    def value(self) -> int:
+        range = (self.maximum - self.minimum) or 1
+        return int(self.__slider_canvas_item.value * range + self.minimum)
+
+    @value.setter
+    def value(self, value: int) -> None:
+        range = (self.maximum - self.minimum) or 1
+        self.__slider_canvas_item.value = (value - self.minimum) / range
+
+    @property
+    def minimum(self) -> int:
+        return self.__minimum
+
+    @minimum.setter
+    def minimum(self, minimum: int) -> None:
+        self.__minimum = minimum
+
+    @property
+    def maximum(self) -> int:
+        return self.__maximum
+
+    @maximum.setter
+    def maximum(self, maximum: int) -> None:
+        self.__maximum = maximum
+
+    @property
+    def pressed(self) -> bool:
+        return self.__is_pressed
+
+
 class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasItemControllerFactory):
     # adds methods from the subclass that are specific (for now) to the canvas UI
 
@@ -243,6 +322,9 @@ class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasI
 
     def create_combo_box_widget_canvas_item_controller(self) -> ComboBoxWidgetCanvasItemController:
         return BasicComboBoxWidgetCanvasItemController(self.__ui)
+
+    def create_slider_widget_canvas_item_controller(self) -> BasicSliderWidgetCanvasItemController:
+        return BasicSliderWidgetCanvasItemController(self.__ui)
 
 
 class WidgetBehavior(UserInterface.WidgetBehavior):
@@ -691,6 +773,74 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller.set_background_color(background_color)
 
 
+class SliderWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+
+        widget_canvas_item_factory = CanvasUserInterfaceWidgetCanvasItemControllerFactory(ui)
+
+        self.__canvas_item_controller = widget_canvas_item_factory.create_slider_widget_canvas_item_controller()
+
+        self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+
+        self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_slider_pressed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_released: typing.Optional[typing.Callable[[], None]] = None
+        self.on_slider_moved: typing.Optional[typing.Callable[[int], None]] = None
+
+        def value_changed(value: int) -> None:
+            if callable(self.on_value_changed):
+                self.on_value_changed(value)
+
+        def slider_pressed() -> None:
+            if callable(self.on_slider_pressed):
+                self.on_slider_pressed()
+
+        def slider_released() -> None:
+            if callable(self.on_slider_released):
+                self.on_slider_released()
+
+        def slider_moved(value: int) -> None:
+            if callable(self.on_slider_moved):
+                self.on_slider_moved(value)
+
+        self.__canvas_item_controller.on_value_changed = value_changed
+        self.__canvas_item_controller.on_slider_pressed = slider_pressed
+        self.__canvas_item_controller.on_slider_released = slider_released
+        self.__canvas_item_controller.on_slider_moved = slider_moved
+
+    @property
+    def value(self) -> int:
+        return self.__canvas_item_controller.value
+
+    @value.setter
+    def value(self, value: int) -> None:
+        self.__canvas_item_controller.value = value
+
+    @property
+    def minimum(self) -> int:
+        return self.__canvas_item_controller.minimum
+
+    @minimum.setter
+    def minimum(self, minimum: int) -> None:
+        self.__canvas_item_controller.minimum = minimum
+
+    @property
+    def maximum(self) -> int:
+        return self.__canvas_item_controller.maximum
+
+    @maximum.setter
+    def maximum(self, maximum: int) -> None:
+        self.__canvas_item_controller.maximum = maximum
+
+    @property
+    def pressed(self) -> bool:
+        return self.__canvas_item_controller.pressed
+
+
+
 class CanvasWidgetCanvasItem(CanvasItem.CanvasWidgetCanvasItem):
 
     @property
@@ -1049,8 +1199,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.LabelWidget(LabelWidgetBehavior(text or str(), properties, self.get_font_metrics), text)
 
     def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SliderWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.SliderWidget(SliderWidgetBehavior(self, properties))
 
     def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ProgressBarWidget:
         # TODO

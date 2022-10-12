@@ -928,6 +928,10 @@ class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
         self.__focusable = focusable
 
 
+class ProgressBarWidgetBehavior(CanvasWidgetBehavior, UserInterface.ProgressBarWidgetBehavior):
+    pass
+
+
 class CanvasWindow(UserInterface.Window):
 
     def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterface.Window] = None) -> None:
@@ -1202,8 +1206,10 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.SliderWidget(SliderWidgetBehavior(self, properties))
 
     def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ProgressBarWidget:
-        # TODO
-        raise NotImplementedError()
+        progress_bar_widget = UserInterface.ProgressBarWidget(ProgressBarWidgetBehavior(properties, self.get_font_metrics))
+        # size hack until layout is improved.
+        progress_bar_widget.canvas_item.update_sizing(progress_bar_widget.canvas_item.sizing.with_fixed_width(100))
+        return progress_bar_widget
 
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LineEditWidget:
         # TODO
@@ -1218,8 +1224,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         raise NotImplementedError()
 
     def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> UserInterface.CanvasWidget:
-        behavior = CanvasWidgetBehavior(properties, self.get_font_metrics)
-        return UserInterface.CanvasWidget(behavior)
+        return UserInterface.CanvasWidget(CanvasWidgetBehavior(properties, self.get_font_metrics))
 
     def create_tree_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TreeWidget:
         # TODO

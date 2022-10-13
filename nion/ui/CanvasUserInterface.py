@@ -15,6 +15,7 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Model
 from nion.utils import Stream
@@ -871,6 +872,275 @@ class LabelWidgetBehavior(WidgetBehavior):
         self.__word_wrap = value
 
 
+class TextEditCell(CanvasItem.Cell):
+
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border: typing.Optional[CanvasItem.CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(background_color, border, padding)
+        self.__text = text if text is not None else str()
+        self.__placeholder_text = str()
+        self.__text_color: typing.Optional[str] = None
+        self.__text_font: typing.Optional[str] = None
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        text = text if text is not None else str()
+        if self.__text != text:
+            self.__text = text
+            self._update()
+
+    @property
+    def placeholder_text(self) -> str:
+        return self.__placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, placeholder_text: typing.Optional[str]) -> None:
+        placeholder_text = placeholder_text if placeholder_text is not None else str()
+        if self.__placeholder_text != placeholder_text:
+            self.__placeholder_text = placeholder_text
+            self._update()
+
+    @property
+    def text_color(self) -> typing.Optional[str]:
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value: typing.Optional[str]) -> None:
+        if self.__text_color != value:
+            self.__text_color = value
+            self._update()
+
+    @property
+    def text_font(self) -> typing.Optional[str]:
+        return self.__text_font
+
+    @text_font.setter
+    def text_font(self, value: typing.Optional[str]) -> None:
+        if self.__text_font != value:
+            self.__text_font = value
+            self._update()
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        """ Size the canvas item to the text content without padding."""
+        text_font = self.text_font or "12px"
+        font_metrics = get_font_metrics_fn(text_font, self.text)
+        return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+        if self.__text:
+            text_font = self.text_font or "12px"
+            text_color = self.__text_color or "black"
+            drawing_context.font = text_font
+            drawing_context.text_baseline = "middle"
+            drawing_context.text_align = "center"
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(self.__text, rect.center.x, rect.center.y + 1)
+
+
+class TextEditCanvasItem(CanvasItem.CellCanvasItem):
+
+    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__()
+        border = CanvasItem.CellBorder()
+        if border_color:
+            border.border = CanvasItem.CellBorderProperties(Color.Color(border_color))
+        self.__text_edit_cell = TextEditCell(text, background_color, border, padding)
+        self.cell = self.__text_edit_cell
+
+    def _description(self) -> str:
+        return self.__class__.__name__ + f" '{self.text}'"
+
+    @property
+    def _text_cell(self) -> TextEditCell:
+        return self.__text_edit_cell
+
+    @property
+    def text(self) -> str:
+        return self.__text_edit_cell.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__text_edit_cell.text = text or str()
+
+    @property
+    def placeholder_text(self) -> str:
+        return self.__text_edit_cell.placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, placeholder_text: typing.Optional[str]) -> None:
+        self.__text_edit_cell.placeholder_text = placeholder_text or str()
+
+    @property
+    def text_color(self) -> typing.Optional[str]:
+        return self.__text_edit_cell.text_color
+
+    @text_color.setter
+    def text_color(self, text_color: typing.Optional[str]) -> None:
+        self.__text_edit_cell.text_color = text_color
+
+    @property
+    def text_font(self) -> typing.Optional[str]:
+        return self.__text_edit_cell.text_font
+
+    @text_font.setter
+    def text_font(self, text_font: typing.Optional[str]) -> None:
+        self.__text_edit_cell.text_font = text_font
+
+    @property
+    def border_enabled(self) -> bool:
+        return self.border_color is not None
+
+    @border_enabled.setter
+    def border_enabled(self, value: bool) -> None:
+        if value:
+            self.border_color = self.border_color or "black"
+        else:
+            self.border_color = None
+
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        # override to have minimum width
+        self.update_sizing(self.sizing.with_minimum_width(40))
+
+
+class LineEditWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__canvas_item = TextEditCanvasItem(text, border_color="gray")
+        super().__init__(self.__canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.word_wrap = False  # TODO
+        self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
+
+    @property
+    def _canvas_item(self) -> TextEditCanvasItem:
+        return self.__canvas_item
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__canvas_item.text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__canvas_item.text = value or str()
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+
+    @property
+    def placeholder_text(self) -> typing.Optional[str]:
+        return self.__canvas_item.placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, value: typing.Optional[str]) -> None:
+        self.__canvas_item.placeholder_text = value or str()
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+
+    @property
+    def editable(self) -> bool:
+        # TODO: editable
+        return True
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        # TODO: editable
+        pass
+
+    @property
+    def clear_button_enabled(self) -> bool:
+        # TODO: clear_button_enabled
+        return True
+
+    @clear_button_enabled.setter
+    def clear_button_enabled(self, value: bool) -> None:
+        # TODO: clear_button_enabled
+        pass
+
+    def editing_finished(self, text: str) -> None:
+        # TODO: editing_finished
+        pass
+
+    @property
+    def selected_text(self) -> typing.Optional[str]:
+        # TODO: selected_text
+        return str()
+
+    def select_all(self) -> None:
+        # TODO: select_all
+        pass
+
+
+class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavior):
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        text_edit_canvas_item = TextEditCanvasItem(text, border_color="gray")
+        font_metrics = get_font_metrics_fn(str(), "x")
+        text_edit_canvas_item.update_sizing(text_edit_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
+        super().__init__(text_edit_canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__canvas_item = text_edit_canvas_item
+        self.text: typing.Optional[str]
+        self.placeholder: typing.Optional[str]
+        self.editable: bool
+        self.word_wrap_mode: str
+
+        self.on_cursor_position_changed: typing.Optional[typing.Callable[[UserInterface.CursorPosition], None]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[UserInterface.Selection], None]] = None
+        self.on_text_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_text_edited: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_insert_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData], None]] = None
+
+    @property
+    def selected_text(self) -> typing.Optional[str]:
+        raise NotImplementedError()
+
+    @property
+    def cursor_position(self) -> UserInterface.CursorPosition:
+        raise NotImplementedError()
+
+    @property
+    def selection(self) -> UserInterface.Selection:
+        raise NotImplementedError()
+
+    def append_text(self, value: str) -> None:
+        pass
+
+    def insert_text(self, value: str) -> None:
+        pass
+
+    def clear_selection(self) -> None:
+        pass
+
+    def remove_selected_text(self) -> None:
+        pass
+
+    def select_all(self) -> None:
+        pass
+
+    def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
+        pass
+
+    def set_line_height_proportional(self, proportional_line_height: float) -> None:
+        pass
+
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        pass
+
+
 class PushButtonWidgetBehavior(WidgetBehavior):
 
     def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
@@ -1521,8 +1791,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return progress_bar_widget
 
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LineEditWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.LineEditWidget(LineEditWidgetBehavior(str(), properties, self.get_font_metrics))
 
     def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextBrowserWidget:
         # TODO

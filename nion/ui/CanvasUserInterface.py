@@ -5,6 +5,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import functools
+import math
 import pathlib
 import typing
 
@@ -107,6 +108,260 @@ class BasicCheckBoxWidgetCanvasItemController(CheckBoxWidgetCanvasItemController
     @tristate.setter
     def tristate(self, tristate: bool) -> None:
         self.__check_box_canvas_item.tristate = tristate
+
+
+class RadioButtonWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+    @abc.abstractmethod
+    def set_text(self, value: typing.Optional[str]) -> None: ...
+
+    @abc.abstractmethod
+    def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None: ...
+
+    @property
+    @abc.abstractmethod
+    def checked(self) -> bool: raise NotImplementedError()
+
+    @checked.setter
+    @abc.abstractmethod
+    def checked(self, value: bool) -> None: ...
+
+
+class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
+
+    def __init__(self, text: typing.Optional[str] = None) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.__enabled = True
+        self.__mouse_inside = False
+        self.__mouse_pressed = False
+        self.__checked = False
+        self.__text = text if text is not None else str()
+        self.__text_color = "#000"
+        self.__text_disabled_color = "#888"
+        self.__font = "12px"
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+    def close(self) -> None:
+        self.on_clicked = None
+        super().close()
+
+    @property
+    def enabled(self) -> bool:
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, value: bool) -> None:
+        self.__enabled = value
+        self.update()
+
+    @property
+    def checked(self) -> bool:
+        return self.__checked
+
+    @checked.setter
+    def checked(self, value: bool) -> None:
+        self.__checked = value
+        self.update()
+
+    @property
+    def text(self) -> str:
+        return self.__text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        text = text if text is not None else str()
+        if self.__text != text:
+            self.__text = text
+            self.update()
+
+    @property
+    def text_color(self) -> str:
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value: str) -> None:
+        if self.__text_color != value:
+            self.__text_color = value
+            self.update()
+
+    @property
+    def text_disabled_color(self) -> str:
+        return self.__text_disabled_color
+
+    @text_disabled_color.setter
+    def text_disabled_color(self, value: str) -> None:
+        if self.__text_disabled_color != value:
+            self.__text_disabled_color = value
+            self.update()
+
+    @property
+    def font(self) -> str:
+        return self.__font
+
+    @font.setter
+    def font(self, value: str) -> None:
+        if self.__font != value:
+            self.__font = value
+            self.update()
+
+    def mouse_entered(self) -> bool:
+        self.__mouse_inside = True
+        self.update()
+        return True
+
+    def mouse_exited(self) -> bool:
+        self.__mouse_inside = False
+        self.update()
+        return True
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_pressed = True
+        self.update()
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_pressed = False
+        self.update()
+        return True
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if callable(self.on_clicked):
+            self.on_clicked()
+        return True
+
+    @property
+    def _mouse_inside(self) -> bool:
+        return self.__mouse_inside
+
+    @property
+    def _mouse_pressed(self) -> bool:
+        return self.__mouse_pressed
+
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        """ Size the canvas item to the text content. """
+        horizontal_padding = 4
+        vertical_padding = 3
+        font_metrics = get_font_metrics_fn(self.__font, self.__text)
+        new_sizing = self.copy_sizing()
+        new_sizing = new_sizing.with_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
+        new_sizing = new_sizing.with_fixed_height(font_metrics.height + 2 * vertical_padding)
+        self.update_sizing(new_sizing)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        canvas_size = self.canvas_size
+        if canvas_size:
+            with drawing_context.saver():
+                tx = 4 + 14 + 4
+                cx = 4 + 7
+                cy = canvas_size.height * 0.5
+                size = 14
+                size_half = 7
+                drawing_context.begin_path()
+                drawing_context.move_to(4 + size, cy)
+                drawing_context.arc(4 + size_half, cy, size_half, 0, math.pi * 2)
+                drawing_context.close_path()
+                if self.checked:
+                    drawing_context.fill_style = "#FFF"
+                    drawing_context.fill()
+                if self.enabled and self.__mouse_inside and self.__mouse_pressed:
+                    drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
+                    drawing_context.fill()
+                elif self.enabled and self.__mouse_inside:
+                    drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
+                    drawing_context.fill()
+                drawing_context.stroke_style = "#888"
+                drawing_context.line_width = 1.5
+                drawing_context.stroke()
+                if self.checked:
+                    drawing_context.begin_path()
+                    drawing_context.move_to(4 + size - 3.5, cy)
+                    drawing_context.arc(4 + size_half, cy, size_half - 3.5, 0, math.pi * 2)
+                    drawing_context.close_path()
+                    drawing_context.stroke_style = "#000"
+                    drawing_context.fill_style = "#000"
+                    drawing_context.line_width = 1.0
+                    drawing_context.stroke()
+                    drawing_context.fill()
+                drawing_context.font = self.__font
+                drawing_context.text_align = 'left'
+                drawing_context.text_baseline = 'middle'
+                drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
+                drawing_context.fill_text(self.__text, tx, cy + 1)
+        super()._repaint(drawing_context)
+
+
+class BasicRadioButtonWidgetCanvasItemController(RadioButtonWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+
+        self.__radio_button_canvas_item = RadioButtonCanvasItem()
+        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(4, 4))
+        self.__icon_button_canvas_item.background_color = "#f0f0f0"
+        self.__icon_button_canvas_item.border_color = "gray"
+        self.__stack = CanvasItem.CanvasItemComposition()
+        self.__stack.layout = CanvasItem.CanvasItemLayout()
+        self.__stack.add_canvas_item(self.__radio_button_canvas_item)
+        self.__stack.add_canvas_item(self.__icon_button_canvas_item)
+
+        def handle_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        self.__radio_button_canvas_item.on_clicked = handle_clicked
+        self.__icon_button_canvas_item.on_button_clicked = handle_clicked
+
+    @property
+    def widget_source(self) -> Widgets.WidgetSource:
+        return Widgets.WidgetSource(self.ui, None, self.__stack)
+
+    def set_text(self, value: typing.Optional[str]) -> None:
+        self.__radio_button_canvas_item.visible = True
+        self.__icon_button_canvas_item.visible = False
+        self.__radio_button_canvas_item.text = value or str()
+        self.__radio_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__icon_button_canvas_item.bitmap = None
+        self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+
+        if callable(self.on_size_changed):
+            self.on_size_changed(Geometry.IntSize(width=int(self.__radio_button_canvas_item.sizing.preferred_width or 0),
+                                                  height=int(self.__radio_button_canvas_item.sizing.preferred_height or 0)))
+
+    def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
+        self.__radio_button_canvas_item.visible = False
+        self.__icon_button_canvas_item.visible = True
+        self.__icon_button_canvas_item.bitmap = Bitmap.promote_bitmap(bitmap)
+        self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__radio_button_canvas_item.text = str()
+        self.__radio_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+
+        if callable(self.on_size_changed):
+            self.on_size_changed(Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
+                                                  height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0)))
+
+    def set_enabled(self, enabled: bool) -> None:
+        self.__radio_button_canvas_item.enabled = enabled
+        self.__icon_button_canvas_item.enabled = enabled
+
+    def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__radio_button_canvas_item.tool_tip = tool_tip
+        self.__icon_button_canvas_item.tool_tip = tool_tip
+
+    def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.__radio_button_canvas_item.background_color = background_color
+        self.__icon_button_canvas_item.background_color = background_color
+
+    @property
+    def checked(self) -> bool:
+        return self.__radio_button_canvas_item.checked
+
+    @checked.setter
+    def checked(self, checked: bool) -> None:
+        self.__radio_button_canvas_item.checked = checked
 
 
 class ComboBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
@@ -319,6 +574,9 @@ class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasI
 
     def create_check_box_widget_canvas_item_controller(self) -> CheckBoxWidgetCanvasItemController:
         return BasicCheckBoxWidgetCanvasItemController(self.__ui)
+
+    def create_radio_button_widget_canvas_item_controller(self) -> RadioButtonWidgetCanvasItemController:
+        return BasicRadioButtonWidgetCanvasItemController(self.__ui)
 
     def create_combo_box_widget_canvas_item_controller(self) -> ComboBoxWidgetCanvasItemController:
         return BasicComboBoxWidgetCanvasItemController(self.__ui)
@@ -719,6 +977,58 @@ class CheckBoxWidgetBehavior(WidgetBehavior):
     @tristate.setter
     def tristate(self, tristate: bool) -> None:
         self.__canvas_item_controller.tristate = tristate
+
+
+class RadioButtonWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+
+        widget_canvas_item_factory = CanvasUserInterfaceWidgetCanvasItemControllerFactory(ui)
+
+        self.__canvas_item_controller = widget_canvas_item_factory.create_radio_button_widget_canvas_item_controller()
+
+        self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+
+        def handle_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
+
+        def handle_size_changed(size: Geometry.IntSize) -> None:
+            # TODO: size to content be defined in AbstractCanvasItem
+            self.__canvas_item.update_sizing(self.__canvas_item.sizing.with_fixed_size(size))
+
+        self.__canvas_item_controller.on_clicked = handle_clicked
+        self.__canvas_item_controller.on_size_changed = handle_size_changed
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__text = value
+        self.__canvas_item_controller.set_text(value)
+
+    @property
+    def icon(self) -> typing.Optional[Bitmap.Bitmap]:
+        return self.__icon
+
+    @icon.setter
+    def icon(self, value: typing.Optional[Bitmap.Bitmap]) -> None:
+        self.__icon = value
+        self.__canvas_item_controller.set_icon(value)
+
+    @property
+    def checked(self) -> bool:
+        return self.__canvas_item_controller.checked
+
+    @checked.setter
+    def checked(self, checked: bool) -> None:
+        self.__canvas_item_controller.checked = checked
 
 
 class ComboBoxWidgetBehavior(WidgetBehavior):
@@ -1193,8 +1503,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.PushButtonWidget(behavior, text)
 
     def create_radio_button_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.RadioButtonWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.RadioButtonWidget(RadioButtonWidgetBehavior(self, properties), text)
 
     def create_check_box_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.CheckBoxWidget:
         return UserInterface.CheckBoxWidget(CheckBoxWidgetBehavior(self, properties), text)

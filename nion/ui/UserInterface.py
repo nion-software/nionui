@@ -9,6 +9,7 @@ import asyncio
 import collections
 import concurrent.futures
 import copy
+import dataclasses
 import enum
 import functools
 import logging
@@ -338,6 +339,27 @@ class MimeData(abc.ABC):
         ...
 
 
+@dataclasses.dataclass
+class _TaskAndFuture:
+    task: typing.Optional[asyncio.Task[None]] = None
+    future: typing.Optional[concurrent.futures.Future[None]] = None
+    lock = threading.RLock()
+
+    def cancel(self) -> None:
+        with self.lock:
+            if self.task:
+                self.task.cancel()
+                self.task = None
+            if self.future:
+                self.future.cancel()
+                self.future = None
+
+    def clear(self) -> None:
+        with self.lock:
+            self.task = None
+            self.future = None
+
+
 T = typing.TypeVar('T')
 
 class BindablePropertyHelper(typing.Generic[T]):
@@ -354,24 +376,19 @@ class BindablePropertyHelper(typing.Generic[T]):
         self.__value_validator = value_validator if callable(value_validator) else lambda x, y: x
         self.__value_cmp = value_cmp if callable(value_cmp) else typing.cast(typing.Callable[[T, T], bool], operator.eq)
         self.__binding: typing.Optional[Binding.Binding] = None
-        self.__task: typing.Optional[asyncio.Task[None]] = None
-        self.__future: typing.Optional[concurrent.futures.Future[None]] = None
 
-        def finalize(task: typing.Optional[asyncio.Task[None]], future: typing.Optional[concurrent.futures.Future[None]]) -> None:
-            if task:
-                task.cancel()
-            if future:
-                future.cancel()
+        # in order that we can shut down properly in finalize without holding any reference to self, store
+        # both task and future in a single object that can be passed to finalize and will always hold the latest
+        # task and future. the lock will ensure everything shuts down cleanly.
+        self.__task_and_future = _TaskAndFuture()
 
-        weakref.finalize(self, finalize, self.__task, self.__future)
+        def finalize(task_and_future: _TaskAndFuture) -> None:
+            task_and_future.cancel()
+
+        weakref.finalize(self, finalize, self.__task_and_future)
 
     def close(self) -> None:
-        if self.__task:
-            self.__task.cancel()
-            self.__task = None
-        if self.__future:
-            self.__future.cancel()
-            self.__future = None
+        self.__task_and_future.cancel()
 
     @property
     def value(self) -> T:
@@ -423,32 +440,40 @@ class BindablePropertyHelper(typing.Generic[T]):
         self.__binding = binding
 
         async def update_value_inner(bph: typing.Any) -> None:
+            # this will always be called on the main thread. avoid holding any references to self so that
+            # dealloc works naturally.
             try:
                 self_ = typing.cast(typing.Optional[BindablePropertyHelper[T]], bph())
                 if self_:
                     try:
                         self_.set_value(self_.__pending_value)
                     finally:
-                        self_.__task = None
-                        self_.__future = None
+                        self_.__task_and_future.clear()
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 logging.debug(e)
 
         def update_value(bph: typing.Any, event_loop: asyncio.AbstractEventLoop, thread: threading.Thread, value: T) -> None:
+            # threadsafe. target setter may be called from a thread.
             # to avoid repeated cancel/new-task situations that starve the execution during tests,
             # update the pending value and only create a new task if required.
             self_ = typing.cast(typing.Optional[BindablePropertyHelper[T]], bph())
             if self_:
                 self_.__pending_value = value
                 if threading.current_thread() != thread:
-                    if not self_.__future:
-                        self_.__future = asyncio.run_coroutine_threadsafe(update_value_inner(bph), event_loop)
+                    with self_.__task_and_future.lock:
+                        if not self_.__task_and_future.future:
+                            self_.__task_and_future.future = asyncio.run_coroutine_threadsafe(update_value_inner(bph), event_loop)
                 else:
-                    if not self_.__task:
-                        self_.__task = event_loop.create_task(update_value_inner(bph))
+                    with self_.__task_and_future.lock:
+                        if not self_.__task_and_future.task:
+                            self_.__task_and_future.task = event_loop.create_task(update_value_inner(bph))
 
+        # the target setter may come in on a thread. call update_value, which is threadsafe. then either dispatch
+        # a future (different thread), a task (same thread), or just update the pending value (pending update).
+        # this ensures the value is updated in update_value_inner in all cases. be careful to use locks for anything
+        # that may have thread contention.
         self.__binding.target_setter = functools.partial(update_value, weakref.ref(self), asyncio.get_event_loop_policy().get_event_loop(), threading.current_thread())
 
     def unbind_value(self) -> None:

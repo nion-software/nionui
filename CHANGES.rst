@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.9 (UNRELEASED)
+------------------
+- Fix race condition in binding helper.
+
 0.6.8 (2022-10-06)
 ------------------
 - Introduce a Bitmap object to optionally replace uses of NDArray/uint32 bitmaps.

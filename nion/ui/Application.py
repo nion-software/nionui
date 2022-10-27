@@ -92,6 +92,10 @@ class BaseApplication:
     def initialize(self) -> None:
         """Initialize. Separate from __init__ so that overridden methods can be called."""
         # configure the event loop, which can be used for non-window clients. for backwards compatibility only.
+        if sys.platform == "win32":
+            # hopefully resolves issue with async from a thread (run_coroutine_threadsafe) crashing on Windows.
+            # see https://stackoverflow.com/questions/69833208/runtimeerror-overlapped-overlapped-object-still-has-pending-operation-at-de
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         self.__event_loop = asyncio.get_event_loop()
 
     def deinitialize(self) -> None:

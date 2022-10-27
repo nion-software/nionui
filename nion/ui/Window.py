@@ -549,6 +549,7 @@ class Window:
 
     def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         self.__document_window.show(size=size, position=position)
+        self.__document_window.activate()
 
     def activate(self) -> None:
         self.__document_window.activate()

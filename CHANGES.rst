@@ -3,6 +3,7 @@ Changelog (nionui)
 
 0.6.9 (UNRELEASED)
 ------------------
+- Automatically activate windows when showing them.
 - Use alternate low level asyncio on Windows to avoid crash/bug in default.
 - Fix race condition in binding helper.
 

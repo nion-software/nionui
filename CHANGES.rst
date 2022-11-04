@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-0.6.9 (UNRELEASED)
+0.6.9 (2022-11-04)
 ------------------
 - Automatically activate windows when showing them.
 - Use alternate low level asyncio on Windows to avoid crash/bug in default.

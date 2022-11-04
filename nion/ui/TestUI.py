@@ -1188,6 +1188,9 @@ class DocumentWindow(UserInterfaceModule.Window):
     def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         pass
 
+    def activate(self) -> None:
+        pass
+
     def restore(self, geometry: str, state: str) -> None:
         pass
 

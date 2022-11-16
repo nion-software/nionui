@@ -1340,7 +1340,7 @@ class ComboBoxWidget(Widget):
             current_index = self.current_index
             item_strings = list()
             for item in items:
-                item_string = notnone(self.item_getter(item) if self.item_getter else item)
+                item_string = notnone(self.item_getter(item) if callable(self.item_getter) else item)
                 item_strings.append(item_string)
             self._behavior.set_item_strings(item_strings)
             if callable(self.on_items_changed):
@@ -1388,13 +1388,13 @@ class ComboBoxWidget(Widget):
     def current_item(self) -> typing.Optional[typing.Any]:
         current_text = self.current_text
         for item in self.items or list():
-            if current_text == notnone(self.item_getter(item) if self.item_getter else item):
+            if current_text == notnone(self.item_getter(item) if callable(self.item_getter) else item):
                 return item
         return None
 
     @current_item.setter
     def current_item(self, value: typing.Optional[typing.Any]) -> None:
-        item_string = notnone(self.item_getter(value) if self.item_getter and value is not None else value)
+        item_string = notnone(self.item_getter(value) if callable(self.item_getter) and value is not None else value)
         self.current_text = item_string
 
     @property

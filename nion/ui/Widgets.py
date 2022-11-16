@@ -811,7 +811,7 @@ class StringListCanvasItemDelegate(ListCanvasItemDelegate):
         def notnone(s: typing.Any) -> str:
             return str(s) if s is not None else str()
 
-        item_string = notnone(self.__item_getter(display_item) if self.__item_getter else display_item)
+        item_string = notnone(self.__item_getter(display_item) if callable(self.__item_getter) else display_item)
 
         with drawing_context.saver():
             drawing_context.fill_style = "#000"

@@ -3,6 +3,7 @@ A basic class to serve as the document controller of a typical one window applic
 """
 from __future__ import annotations
 
+import abc
 # standard libraries
 import asyncio
 import enum
@@ -110,7 +111,7 @@ class Action:
 
     def event(self, context: ActionContext) -> ActionResult:
         """Handle the event."""
-        ...
+        return ActionResult(ActionStatus.PASS)
 
     def execute(self, context: ActionContext) -> ActionResult:
         """Execute the action with the context. No user interaction allowed. May be called from scripts."""
@@ -578,14 +579,12 @@ class Window:
     # added tasks do not guarantee execution order or execution at all.
 
     def add_task(self, key: str, task: typing.Callable[[], None]) -> None:
-        assert task
         self.__periodic_set.add_task(key + str(id(self)), task)
 
     def clear_task(self, key: str) -> None:
         self.__periodic_set.clear_task(key + str(id(self)))
 
     def queue_task(self, task: typing.Callable[[], None]) -> None:
-        assert task
         self.__periodic_queue.put(task)
 
     def clear_queued_tasks(self) -> None:

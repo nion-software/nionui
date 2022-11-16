@@ -133,7 +133,7 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         self.reconstruct()
 
     def __context_menu_event(self, value_path: typing.Optional[_ValuePath], x: int, y: int, gx: int, gy: int) -> bool:
-        pass
+        return False
 
     def __drag_started(self, value_path: typing.Optional[_ValuePath], x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         pass

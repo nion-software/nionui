@@ -4389,6 +4389,11 @@ class BitmapCell(Cell):
             return Geometry.IntSize.make(typing.cast(Geometry.IntSizeTuple, self.__data.shape))
         return Geometry.IntSize()
 
+    def _get_background_and_overlay_colors(self, style: typing.Set[str]) -> typing.Tuple[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], typing.Optional[str]]:
+        # bitmaps are disabled by dimming them
+        background_color, overlay_color = super()._get_background_and_overlay_colors(style)
+        return background_color, None if "disabled" in style and "checked" not in style else overlay_color
+
     def _update_bitmap_data(self, bitmap_data: DrawingContext.RGBA32Type, style: typing.Set[str]) -> DrawingContext.RGBA32Type:
         if 'disabled' in style:
             bitmap_rgba = numpy.copy(numpy.array(bitmap_data, copy=False).view(numpy.uint8).reshape(bitmap_data.shape + (4,)))

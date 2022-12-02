@@ -10,9 +10,6 @@ import gettext
 import functools
 import typing
 
-# third party libraries
-import numpy
-
 # local libraries
 from nion.ui import Bitmap
 from nion.ui import CanvasItem

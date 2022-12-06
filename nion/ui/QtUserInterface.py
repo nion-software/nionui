@@ -2081,6 +2081,15 @@ class QtDockWidget(UserInterface.DockWidget):
         self.proxy.Widget_hide(self.native_dock_widget)
         self._register_ui_activity()
 
+    def willClose(self) -> None:
+        self._handle_close()
+
+    def willHide(self) -> None:
+        self._handle_hide()
+
+    def willShow(self) -> None:
+        self._handle_show()
+
     def sizeChanged(self, width: int, height: int) -> None:
         self._handle_size_changed(Geometry.IntSize(width=width, height=height))
 

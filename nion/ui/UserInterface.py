@@ -3016,6 +3016,9 @@ class DockWidget:
         self.title = title
         self.positions = positions
         self.position = position
+        self.on_will_close: typing.Optional[typing.Callable[[], None]] = None
+        self.on_will_hide: typing.Optional[typing.Callable[[], None]] = None
+        self.on_will_show: typing.Optional[typing.Callable[[], None]] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
@@ -3026,6 +3029,9 @@ class DockWidget:
         self.widget = typing.cast(typing.Any, None)
         self.document_window.unregister_dock_widget(self)
         self.document_window = typing.cast(typing.Any, None)
+        self.on_will_close = None
+        self.on_will_hide = None
+        self.on_will_show = None
         self.on_size_changed = None
         self.on_focus_changed = None
         self.on_ui_activity = None
@@ -3093,6 +3099,18 @@ class DockWidget:
 
     def hide(self) -> None:
         self._register_ui_activity()
+
+    def _handle_close(self) -> None:
+        if callable(self.on_will_close):
+            self.on_will_close()
+
+    def _handle_hide(self) -> None:
+        if callable(self.on_will_hide):
+            self.on_will_hide()
+
+    def _handle_show(self) -> None:
+        if callable(self.on_will_show):
+            self.on_will_show()
 
     def _handle_size_changed(self, size: Geometry.IntSize) -> None:
         self._register_ui_activity()

@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+UNRELEASED
+----------
+- Add support for text browser (markdown), requires tool 0.4.18 or later.
+
 0.6.9 (2022-11-04)
 ------------------
 - Automatically activate windows when showing them.

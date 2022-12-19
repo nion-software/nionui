@@ -1303,6 +1303,76 @@ class QtLineEditWidgetBehavior(QtWidgetBehavior):
             self.on_text_edited(text)
 
 
+class QtTextBrowserWidgetBehavior(QtWidgetBehavior):
+
+    def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        super().__init__(proxy, "textbrowser", properties)
+        self.on_anchor_clicked: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_load_image_resource: typing.Optional[typing.Callable[[str], typing.Optional[DrawingContext.RGBA32Type]]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.proxy.TextBrowser_connect(self.widget, self)
+        self._no_focus = "click_focus"
+
+    def close(self) -> None:
+        self.on_anchor_clicked = None
+        self.on_load_image_resource = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        super().close()
+
+    def set_html(self, value: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setHtml(self.widget, notnone(value))
+
+    def set_markdown(self, value: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setMarkdown(self.widget, notnone(value))
+
+    def set_text(self, value: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setText(self.widget, notnone(value))
+
+    def scroll_to_anchor(self, anchor: str) -> None:
+        self.proxy.TextBrowser_scrollToAnchor(self.widget, notnone(anchor))
+
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setTextBackgroundColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setTextColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        self.proxy.TextBrowser_setTextFont(self.widget, font_str or str())
+
+    def anchorClicked(self, anchor_url: str) -> None:
+        self._register_ui_activity()
+        if callable(self.on_anchor_clicked):
+            self.on_anchor_clicked(anchor_url)
+
+    def loadImageResource(self, name: str) -> typing.Optional[DrawingContext.RGBA32Type]:
+        if callable(self.on_load_image_resource):
+            return self.on_load_image_resource(name)
+        return None
+
+    def escapePressed(self) -> bool:
+        self._register_ui_activity()
+        if callable(self.on_escape_pressed):
+            return self.on_escape_pressed()
+        return False
+
+    def returnPressed(self) -> bool:
+        self._register_ui_activity()
+        if callable(self.on_return_pressed):
+            return self.on_return_pressed()
+        return False
+
+    def keyPressed(self, text: str, key: int, raw_modifiers: int) -> bool:
+        self._register_ui_activity()
+        if callable(self.on_key_pressed):
+            return self.on_key_pressed(QtKey(text, key, raw_modifiers))
+        return False
+
+
 class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
@@ -1798,7 +1868,11 @@ class QtAction(UserInterface.MenuAction):
     # comes from the Qt code
     def triggered(self) -> None:
         self._register_ui_activity()
-        self.trigger()
+        try:
+            self.trigger()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
 
 class QtMenu(UserInterface.Menu):
@@ -2186,6 +2260,9 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LineEditWidget:
         return UserInterface.LineEditWidget(QtLineEditWidgetBehavior(self.proxy, properties))
+
+    def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextBrowserWidget:
+        return UserInterface.TextBrowserWidget(QtTextBrowserWidgetBehavior(self.proxy, properties))
 
     def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextEditWidget:
         return UserInterface.TextEditWidget(QtTextEditWidgetBehavior(self.proxy, properties))

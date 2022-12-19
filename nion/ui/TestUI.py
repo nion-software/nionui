@@ -1031,6 +1031,47 @@ class LineEditWidgetBehavior(WidgetBehavior):
             self.on_editing_finished(text)
 
 
+class TextBrowserWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        super().__init__(widget_type, properties)
+        self.on_anchor_clicked: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_load_image_resource: typing.Optional[typing.Callable[[str], typing.Optional[DrawingContext.RGBA32Type]]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
+        self._no_focus = "click_focus"
+
+    def close(self) -> None:
+        self.on_anchor_clicked = None
+        self.on_load_image_resource = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        super().close()
+
+    def set_html(self, value: typing.Optional[str]) -> None:
+        pass
+
+    def set_markdown(self, value: typing.Optional[str]) -> None:
+        pass
+
+    def set_text(self, value: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        pass
+
+    def scroll_to_anchor(self, value: str) -> None:
+        pass
+
+
 class TextEditWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
@@ -1311,6 +1352,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
 
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.LineEditWidget:
         return UserInterfaceModule.LineEditWidget(LineEditWidgetBehavior("lineedit", properties))
+
+    def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.TextBrowserWidget:
+        return UserInterfaceModule.TextBrowserWidget(TextBrowserWidgetBehavior("textbrowser", properties))
 
     def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.TextEditWidget:
         return UserInterfaceModule.TextEditWidget(TextEditWidgetBehavior("textedit", properties))

@@ -2086,6 +2086,22 @@ class LineEditWidget(Widget):
         self._behavior.editing_finished(text)
 
 
+class TextBrowserWidgetBehavior(WidgetBehavior, typing.Protocol):
+    on_anchor_clicked: typing.Optional[typing.Callable[[str], None]]
+    on_load_image_resource: typing.Optional[typing.Callable[[str], typing.Optional[DrawingContext.RGBA32Type]]]
+    on_escape_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_return_pressed: typing.Optional[typing.Callable[[], bool]]
+    on_key_pressed: typing.Optional[typing.Callable[[Key], bool]]
+
+    def set_html(self, str: typing.Optional[str]) -> None: ...
+    def set_markdown(self, str: typing.Optional[str]) -> None: ...
+    def set_text(self, str: typing.Optional[str]) -> None: ...
+    def set_text_background_color(self, color: typing.Optional[str]) -> None: ...
+    def set_text_color(self, color: typing.Optional[str]) -> None: ...
+    def set_text_font(self, font_str: typing.Optional[str]) -> None: ...
+    def scroll_to_anchor(self, anchor: str) -> None: ...
+
+
 Selection = collections.namedtuple("Selection", ["start", "end"])
 
 CursorPosition = collections.namedtuple("CursorPosition", ["position", "block_number", "column_number"])
@@ -2125,6 +2141,120 @@ class TextEditWidgetBehavior(WidgetBehavior, typing.Protocol):
     def set_text_background_color(self, color: typing.Optional[str]) -> None: ...
     def set_text_color(self, color: typing.Optional[str]) -> None: ...
     def set_text_font(self, font_str: typing.Optional[str]) -> None: ...
+
+
+class TextBrowserWidget(Widget):
+
+    def __init__(self, widget_behavior: TextBrowserWidgetBehavior) -> None:
+        super().__init__(widget_behavior)
+        self.on_anchor_clicked: typing.Optional[typing.Callable[[str], bool]] = None
+        self.on_load_image_resource: typing.Optional[typing.Callable[[str], typing.Optional[DrawingContext.RGBA32Type]]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
+
+        def handle_anchor_clicked(anchor: str) -> None:
+            if callable(self.on_anchor_clicked):
+                if self.on_anchor_clicked(anchor):
+                    return
+            if anchor.startswith("#"):
+                self.scroll_to_anchor(anchor)
+
+        self._behavior.on_anchor_clicked = handle_anchor_clicked
+
+        def handle_load_image_resource(name: str) -> typing.Optional[DrawingContext.RGBA32Type]:
+            if callable(self.on_load_image_resource):
+                return self.on_load_image_resource(name)
+            return None
+
+        self._behavior.on_load_image_resource = handle_load_image_resource
+
+        def handle_escape_pressed() -> bool:
+            if callable(self.on_escape_pressed):
+                return self.on_escape_pressed()
+            return False
+
+        self._behavior.on_escape_pressed = handle_escape_pressed
+
+        def handle_return_pressed() -> bool:
+            if callable(self.on_return_pressed):
+                return self.on_return_pressed()
+            return False
+
+        self._behavior.on_return_pressed = handle_return_pressed
+
+        def handle_key_pressed(key: Key) -> bool:
+            if callable(self.on_key_pressed):
+                return self.on_key_pressed(key)
+            return False
+
+        self._behavior.on_key_pressed = handle_key_pressed
+
+        def set_markdown(value: typing.Optional[str]) -> None:
+            self._behavior.set_markdown(str(value) if value is not None else str())
+
+        self.__markdown_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_markdown)
+
+        def set_text(value: typing.Optional[str]) -> None:
+            self._behavior.set_text(str(value) if value is not None else str())
+
+        self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+
+    def close(self) -> None:
+        self.__markdown_binding_helper.close()
+        self.__markdown_binding_helper = typing.cast(typing.Any, None)
+        self.__text_binding_helper.close()
+        self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.on_anchor_clicked = None
+        self.on_load_image_resource = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        super().close()
+
+    @property
+    def _behavior(self) -> TextBrowserWidgetBehavior:
+        return typing.cast(TextBrowserWidgetBehavior, super()._behavior)
+
+    @property
+    def markdown(self) -> typing.Optional[str]:
+        return self.__markdown_binding_helper.value
+
+    @markdown.setter
+    def markdown(self, markdown: typing.Optional[str]) -> None:
+        self.__markdown_binding_helper.value = markdown
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text_binding_helper.value
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__text_binding_helper.value = text
+
+    def scroll_to_anchor(self, anchor: str) -> None:
+        self._behavior.scroll_to_anchor(anchor)
+
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
+        self._behavior.set_text_background_color(color)
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        self._behavior.set_text_color(color)
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        self._behavior.set_text_font(font_str)
+
+    def bind_markdown(self, binding: Binding.Binding) -> None:
+        self.__markdown_binding_helper.bind_value(binding)
+
+    def unbind_markdown(self) -> None:
+        self.__markdown_binding_helper.unbind_value()
+
+    def bind_text(self, binding: Binding.Binding) -> None:
+        self.__text_binding_helper.bind_value(binding)
+
+    def unbind_text(self) -> None:
+        self.__text_binding_helper.unbind_value()
 
 
 class TextEditWidget(Widget):
@@ -3595,6 +3725,10 @@ class UserInterface(abc.ABC):
 
     @abc.abstractmethod
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> LineEditWidget:
+        ...
+
+    @abc.abstractmethod
+    def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> TextBrowserWidget:
         ...
 
     @abc.abstractmethod

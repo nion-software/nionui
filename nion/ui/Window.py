@@ -153,7 +153,7 @@ actions: typing.Mapping[str, Action] = dict()
 
 
 def register_action(action: Action) -> None:
-    assert action.action_id not in actions
+    assert action.action_id not in actions, f"{action.action_id}"
     typing.cast(typing.MutableMapping[str, Action], actions)[action.action_id] = action
 
 

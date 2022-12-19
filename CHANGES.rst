@@ -1,8 +1,8 @@
 Changelog (nionui)
 ==================
 
-UNRELEASED
-----------
+0.6.10 (2022-12-19)
+-------------------
 - Add support for text browser (markdown), requires tool 0.4.18 or later.
 
 0.6.9 (2022-11-04)

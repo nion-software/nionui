@@ -1317,7 +1317,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     First it checks whether the current handler responds to `get_resource` and calls it with the `item_component_id` to
     establish a component. If not successful, it checks whether the `resources` map is defined on the current handler
     and looks up the `item_component_id`. If either of those succeed, it establishes the `component_id` and
-    `component_content` from established component. Otherwise it uses the `item_component_id` as the `component_id`
+    `component_content` from established component. Otherwise, it uses the `item_component_id` as the `component_id`
     and continues.
 
     Next, it calls `create_handler` with the established `component_id` and `item`. If the handler defines a `ui_view`,
@@ -1335,7 +1335,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     items_key = items_parts[-1]
 
     # the _closer should have been set on the handler, even if no close method is present. insert_item makes this
-    # assumption so that sub-components have a path by which to get closed.
+    # assumption so that subcomponents have a path by which to get closed.
     assert getattr(handler, "_closer")
 
     def adjust_spacing() -> None:

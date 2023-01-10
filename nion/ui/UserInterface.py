@@ -541,6 +541,7 @@ class WidgetBehavior(typing.Protocol):
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None: ...
     def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
+    def set_border_color(self, value: typing.Optional[str]) -> None: ...
 
 
 class Widget:
@@ -579,10 +580,14 @@ class Widget:
         def set_background_color(value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
             self._behavior.set_background_color(value)
 
+        def set_border_color(value: typing.Optional[str]) -> None:
+            self._behavior.set_border_color(value)
+
         self.__visible_binding_helper = BindablePropertyHelper[bool](None, set_visible)
         self.__enabled_binding_helper = BindablePropertyHelper[bool](None, set_enabled)
         self.__tool_tip_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_tool_tip)
         self.__background_color_binding_helper = BindablePropertyHelper[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]](None, set_background_color)
+        self.__border_color_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_border_color)
 
         self.visible = True
         self.enabled = True
@@ -597,6 +602,8 @@ class Widget:
         self.__tool_tip_binding_helper = typing.cast(typing.Any, None)
         self.__background_color_binding_helper.close()
         self.__background_color_binding_helper = typing.cast(typing.Any, None)
+        self.__border_color_binding_helper.close()
+        self.__border_color_binding_helper = typing.cast(typing.Any, None)
         content_widget = self._behavior._get_content_widget()
         if content_widget:
             content_widget.close()
@@ -780,6 +787,14 @@ class Widget:
     def background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__background_color_binding_helper.value = value
 
+    @property
+    def border_color(self) -> typing.Optional[str]:
+        return self.__border_color_binding_helper.value
+
+    @border_color.setter
+    def border_color(self, value: typing.Optional[str]) -> None:
+        self.__border_color_binding_helper.value = value
+
     def set_property(self, key: str, value: typing.Any) -> None:
         self._behavior.set_property(key, value)
 
@@ -833,6 +848,12 @@ class Widget:
 
     def unbind_background_color(self) -> None:
         self.__background_color_binding_helper.unbind_value()
+
+    def bind_border_color(self, binding: Binding.Binding) -> None:
+        self.__border_color_binding_helper.bind_value(binding)
+
+    def unbind_border_color(self) -> None:
+        self.__border_color_binding_helper.unbind_value()
 
 
 class BoxWidgetBehavior(WidgetBehavior, typing.Protocol):

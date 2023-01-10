@@ -86,6 +86,9 @@ class PushButtonWidgetCanvasItemController(BaseWidgetCanvasItemController):
     @abc.abstractmethod
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
 
+    @abc.abstractmethod
+    def set_border_color(self, border_color: typing.Optional[str]) -> None: ...
+
 
 class WidgetCanvasItemControllerFactory(typing.Protocol):
 
@@ -132,6 +135,9 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
         pass
 
     def _set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        pass
+
+    def _set_border_color(self, border_color: typing.Optional[str]) -> None:
         pass
 
     @property
@@ -188,6 +194,10 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
     def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.content_widget.background_color = value
         self._set_background_color(value)
+
+    def set_border_color(self, value: typing.Optional[str]) -> None:
+        self.content_widget.border_color = value
+        self._set_border_color(value)
 
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
@@ -262,6 +272,10 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__text_button_canvas_item.background_color = background_color
         self.__icon_button_canvas_item.background_color = background_color
+
+    def set_border_color(self, border_color: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.border_color = border_color
+        self.__icon_button_canvas_item.border_color = border_color
 
 
 class TabWidgetCanvasItemController(BaseWidgetCanvasItemController):
@@ -437,6 +451,9 @@ class PushButtonWidgetBehavior(CompositeWidgetBehavior):
 
     def _set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.__push_button_widget_canvas_item_controller.set_background_color(background_color)
+
+    def _set_border_color(self, border_color: typing.Optional[str]) -> None:
+        self.__push_button_widget_canvas_item_controller.set_border_color(border_color)
 
 
 class TabWidgetBehavior(CompositeWidgetBehavior):  # not subclass of UserInterface.TabWidgetBehavior until mypy #4125 is available

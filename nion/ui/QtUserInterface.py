@@ -581,6 +581,9 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
         else:
             self.proxy.Widget_setPaletteColor(self.widget, "background", 0, 0, 0, 0)
 
+    def set_border_color(self, color: typing.Optional[str]) -> None:
+        pass
+
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
@@ -651,6 +654,9 @@ class QtNullBehavior:  # cannot subclass UserInterface.WidgetBehavior until mypy
         pass
 
     def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        pass
+
+    def set_border_color(self, value: typing.Optional[str]) -> None:
         pass
 
 

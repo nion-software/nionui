@@ -559,6 +559,9 @@ class WidgetBehavior:
     def set_background_color(self, color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         pass
 
+    def set_border_color(self, value: typing.Optional[str]) -> None:
+        pass
+
     def set_property(self, key: str, value: typing.Any) -> None:
         pass
 
@@ -612,6 +615,9 @@ class NullBehavior:
         pass
 
     def set_background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        pass
+
+    def set_border_color(self, value: typing.Optional[str]) -> None:
         pass
 
 

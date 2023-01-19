@@ -1873,12 +1873,7 @@ class QtAction(UserInterface.MenuAction):
 
     # comes from the Qt code
     def triggered(self) -> None:
-        self._register_ui_activity()
-        try:
-            self.trigger()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        self.trigger()
 
 
 class QtMenu(UserInterface.Menu):

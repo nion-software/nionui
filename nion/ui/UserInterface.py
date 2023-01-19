@@ -2985,8 +2985,17 @@ class MenuAction:
         raise NotImplementedError()
 
     def trigger(self) -> None:
-        if callable(self.on_triggered):
-            self.on_triggered()
+        # there is a choice whether to handle top level exceptions here (for all callers) or
+        # in the caller. it is placed here because it may eliminate duplicated code.
+        # if there is a reason to hoist this to the caller at some point, this should be considered
+        # a relatively arbitrary decision that it is here.
+        try:
+            self._register_ui_activity()
+            if callable(self.on_triggered):
+                self.on_triggered()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def create(self, document_window: Window, title: str, key_sequence: typing.Optional[str], role: typing.Optional[str]) -> None:
         raise NotImplementedError()
@@ -3493,10 +3502,18 @@ class Window:
         raise NotImplementedError()
 
     def _handle_periodic(self) -> None:
-        if self.root_widget:
-            self.root_widget.periodic()
-        if self.on_periodic:
-            self.on_periodic()
+        # there is a choice whether to handle top level exceptions here (for all callers) or
+        # in the caller. it is placed here because it may eliminate duplicated code.
+        # if there is a reason to hoist this to the caller at some point, this should be considered
+        # a relatively arbitrary decision that it is here.
+        try:
+            if self.root_widget:
+                self.root_widget.periodic()
+            if self.on_periodic:
+                self.on_periodic()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
 
     def _handle_about_to_show(self) -> None:
         if self.on_about_to_show:

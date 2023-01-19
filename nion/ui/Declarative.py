@@ -1376,7 +1376,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
                 component_handler._closer = Closer()
                 getattr(handler, "_closer").push_closeable(component_handler)
                 component_content = getattr(component_handler, "ui_view", component_content)
-            assert component_content
+            assert component_content, f"missing component content {component_id=}"
             item_finishes: _FinishesListType = list()
             # now construct the widget
             item_widget = construct(ui, window, component_content, component_handler, item_finishes)

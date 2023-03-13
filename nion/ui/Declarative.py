@@ -1959,7 +1959,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
                     # print(f"setting property {k} to {v}")
                     setattr(component_handler, k, v)
                 self.__component_handler = component_handler
-            assert component_content
+            assert component_content, f"{component_id} not found."
             # now construct the widget
             widget = construct(ui, window, component_content, component_handler, finishes)
             # connect the name to the handler if desired

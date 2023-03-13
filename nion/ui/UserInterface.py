@@ -2035,10 +2035,31 @@ class LineEditWidget(Widget):
             str_ = str(value) if value is not None else str()
             self.__last_text = str_
             self._behavior.text = value
+            # if focused, select all text. if no text, un-focus.
+            if self.focused:
+                if self.text:
+                    self.select_all()
+                else:
+                    self.focused = False
+
+        def get_placeholder_text() -> typing.Optional[str]:
+            return self._behavior.placeholder_text
+
+        def set_placeholder_text(value: typing.Optional[str]) -> None:
+            str_ = str(value) if value is not None else str()
+            self.__last_text = str_
+            self._behavior.placeholder_text = value
+            # if focused and no text, un-focus.
+            if self.focused and not self.text:
+                self.focused = False
 
         self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](get_text, set_text)
 
+        self.__placeholder_text_binding_helper = BindablePropertyHelper[typing.Optional[str]](get_placeholder_text, set_placeholder_text)
+
     def close(self) -> None:
+        self.__placeholder_text_binding_helper.close()
+        self.__placeholder_text_binding_helper = typing.cast(typing.Any, None)
         self.__text_binding_helper.close()
         self.__text_binding_helper = typing.cast(typing.Any, None)
         self.on_editing_finished = None
@@ -2061,11 +2082,11 @@ class LineEditWidget(Widget):
 
     @property
     def placeholder_text(self) -> typing.Optional[str]:
-        return self._behavior.placeholder_text
+        return self.__placeholder_text_binding_helper.value
 
     @placeholder_text.setter
     def placeholder_text(self, text: typing.Optional[str]) -> None:
-        self._behavior.placeholder_text = text
+        self.__placeholder_text_binding_helper.value = text
 
     @property
     def selected_text(self) -> typing.Optional[str]:
@@ -2102,6 +2123,12 @@ class LineEditWidget(Widget):
 
     def unbind_text(self) -> None:
         self.__text_binding_helper.unbind_value()
+
+    def bind_placeholder_text(self, binding: Binding.Binding) -> None:
+        self.__placeholder_text_binding_helper.bind_value(binding)
+
+    def unbind_placeholder_text(self) -> None:
+        self.__placeholder_text_binding_helper.unbind_value()
 
     def editing_finished(self, text: str) -> None:
         self._behavior.editing_finished(text)

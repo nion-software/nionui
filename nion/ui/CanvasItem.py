@@ -67,7 +67,11 @@ class SolverItem:
         self.is_constrained = False
 
 
-ConstraintResultType = typing.Tuple[typing.List[int], typing.List[int]]
+@dataclasses.dataclass
+class ConstraintResultType:
+    origins: typing.List[int]
+    sizes: typing.List[int]
+
 
 def constraint_solve(canvas_origin: int, canvas_size: int, canvas_item_constraints: typing.Sequence[Constraint], spacing: int = 0) -> ConstraintResultType:
     """
@@ -203,7 +207,7 @@ def constraint_solve(canvas_origin: int, canvas_size: int, canvas_item_constrain
         origins.append(canvas_origin)
         canvas_origin += sizes[index] + spacing
 
-    return origins, sizes
+    return ConstraintResultType(origins, sizes)
 
 
 class Sizing:
@@ -1529,7 +1533,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
                canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
         # calculate the vertical placement
-        y_positions, heights = self.calculate_column_layout(canvas_origin, canvas_size, canvas_items)
+        column_layout = self.calculate_column_layout(canvas_origin, canvas_size, canvas_items)
         widths = [canvas_item.layout_sizing.get_unrestrained_width(canvas_size.width - self.margins.left - self.margins.right) for canvas_item in canvas_items]
         available_width = canvas_size.width - self.margins.left - self.margins.right
         if self.alignment == "start":
@@ -1538,7 +1542,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
             x_positions = [canvas_origin.x + self.margins.left + (available_width - width) for width in widths]
         else:
             x_positions = [round(canvas_origin.x + self.margins.left + (available_width - width) * 0.5) for width in widths]
-        self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, immediate=immediate)
+        self.layout_canvas_items(x_positions, column_layout.origins, widths, column_layout.sizes, canvas_items, immediate=immediate)
 
     def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
         sizing = self._get_column_sizing(canvas_items)
@@ -1571,17 +1575,16 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
                canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
-        # calculate the vertical placement
-        x_positions, widths = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
+        row_layout = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
         heights = [canvas_item.layout_sizing.get_unrestrained_height(canvas_size.height - self.margins.top - self.margins.bottom) for canvas_item in canvas_items]
         available_height = canvas_size.height - self.margins.top - self.margins.bottom
         if self.alignment == "start":
-            y_positions = [canvas_origin.y + self.margins.top for width in widths]
+            y_positions = [canvas_origin.y + self.margins.top for width in row_layout.sizes]
         elif self.alignment == "end":
             y_positions = [canvas_origin.y + self.margins.top + (available_height - height) for height in heights]
         else:
             y_positions = [round(canvas_origin.y + self.margins.top + (available_height - height) // 2) for height in heights]
-        self.layout_canvas_items(x_positions, y_positions, widths, heights, canvas_items, immediate=immediate)
+        self.layout_canvas_items(row_layout.origins, y_positions, row_layout.sizes, heights, canvas_items, immediate=immediate)
 
     def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
         sizing = self._get_row_sizing(canvas_items)
@@ -1643,7 +1646,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             sizing = self._get_overlap_sizing([visible_canvas_item(self.__columns[x][y]) for y in range(self.__size.height)])
             constraints.append(sizing.get_width_constraint(content_width))
         # run the layout engine
-        x_positions, widths = constraint_solve(content_left, content_width, constraints, self.spacing)
+        row_layout = constraint_solve(content_left, content_width, constraints, self.spacing)
         # calculate the vertical placement
         # calculate the sizing (y, height) for each row
         canvas_item_count = self.__size.height
@@ -1655,7 +1658,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             sizing = self._get_overlap_sizing([visible_canvas_item(self.__columns[x][y]) for x in range(self.__size.width)])
             constraints.append(sizing.get_height_constraint(content_height))
         # run the layout engine
-        y_positions, heights = constraint_solve(content_top, content_height, constraints, self.spacing)
+        column_layout = constraint_solve(content_top, content_height, constraints, self.spacing)
         # do the layout
         combined_xs = list()
         combined_ys = list()
@@ -1666,10 +1669,10 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
             for y in range(self.__size.height):
                 canvas_item = visible_canvas_item(self.__columns[x][y])
                 if canvas_item is not None:
-                    combined_xs.append(x_positions[x])
-                    combined_ys.append(y_positions[y])
-                    combined_widths.append(widths[x])
-                    combined_heights.append(heights[y])
+                    combined_xs.append(row_layout.origins[x])
+                    combined_ys.append(column_layout.origins[y])
+                    combined_widths.append(row_layout.sizes[x])
+                    combined_heights.append(column_layout.sizes[y])
                     combined_canvas_items.append(canvas_item)
         self.layout_canvas_items(combined_xs, combined_ys, combined_widths, combined_heights, combined_canvas_items, immediate=immediate)
 
@@ -2540,9 +2543,9 @@ class SplitterCanvasItem(CanvasItemComposition):
         with self.__lock:
             sizings = copy.deepcopy(self.__sizings)
 
-        _, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
+        layout = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
 
-        return [float(size) / content_size for size in sizes]
+        return [float(size) / content_size for size in layout.sizes]
 
     @splits.setter
     def splits(self, splits: typing.Sequence[float]) -> None:
@@ -2603,22 +2606,22 @@ class SplitterCanvasItem(CanvasItemComposition):
                 sizings = copy.deepcopy(self.__sizings)
             assert len(canvas_items) == len(sizings)
             if canvas_size:
-                origins, sizes = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
+                layout = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
                 if self.orientation == "horizontal":
-                    for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
+                    for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
                         canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
                         canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
                         canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
                         assert canvas_item._has_layout
-                    for sizing, size in zip(sizings, sizes):
+                    for sizing, size in zip(sizings, layout.sizes):
                         sizing._preferred_height = size
                 else:
-                    for canvas_item, (origin, size) in zip(canvas_items, zip(origins, sizes)):
+                    for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
                         canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
                         canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
                         canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
                         assert canvas_item._has_layout
-                    for sizing, size in zip(sizings, sizes):
+                    for sizing, size in zip(sizings, layout.sizes):
                         sizing._preferred_width = size
                 with self.__lock:
                     self.__actual_sizings = sizings
@@ -2638,13 +2641,13 @@ class SplitterCanvasItem(CanvasItemComposition):
         with self.__lock:
             canvas_items = copy.copy(self.__shadow_canvas_items)
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
+        layout = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         if self.orientation == "horizontal":
-            for origin in origins[1:]:  # don't check the '0' origin
+            for origin in layout.origins[1:]:  # don't check the '0' origin
                 if abs(y - origin) < 6:
                     return [self]
         else:
-            for origin in origins[1:]:  # don't check the '0' origin
+            for origin in layout.origins[1:]:  # don't check the '0' origin
                 if abs(x - origin) < 6:
                     return [self]
         return self._canvas_items_at_point(canvas_items, x, y)
@@ -2654,10 +2657,10 @@ class SplitterCanvasItem(CanvasItemComposition):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
+        layout = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         with drawing_context.saver():
             drawing_context.begin_path()
-            for origin in origins[1:]:  # don't paint the '0' origin
+            for origin in layout.origins[1:]:  # don't paint the '0' origin
                 canvas_bounds = self.canvas_bounds
                 if canvas_bounds:
                     if self.orientation == "horizontal":
@@ -2675,13 +2678,13 @@ class SplitterCanvasItem(CanvasItemComposition):
             sizings = copy.deepcopy(self.__actual_sizings)
         canvas_size = self.canvas_size
         if canvas_size:
-            origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
+            layout = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
             if self.orientation == "horizontal":
-                for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
+                for index, origin in enumerate(layout.origins[1:]):  # don't check the '0' origin
                     if abs(y - origin) < 6:
                         return "horizontal"
             else:
-                for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
+                for index, origin in enumerate(layout.origins[1:]):  # don't check the '0' origin
                     if abs(x - origin) < 6:
                         return "vertical"
         return "horizontal"
@@ -2690,9 +2693,9 @@ class SplitterCanvasItem(CanvasItemComposition):
         assert self.canvas_origin is not None and self.canvas_size is not None
         with self.__lock:
             sizings = copy.deepcopy(self.__actual_sizings)
-        origins, _ = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
+        layout = SplitterCanvasItem.__calculate_layout(self.orientation, self.canvas_size, sizings)
         if self.orientation == "horizontal":
-            for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
+            for index, origin in enumerate(layout.origins[1:]):  # don't check the '0' origin
                 if abs(y - origin) < 6:
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
@@ -2704,7 +2707,7 @@ class SplitterCanvasItem(CanvasItemComposition):
                         self.on_splits_will_change()
                     return True
         else:
-            for index, origin in enumerate(origins[1:]):  # don't check the '0' origin
+            for index, origin in enumerate(layout.origins[1:]):  # don't check the '0' origin
                 if abs(x - origin) < 6:
                     self.__tracking = True
                     self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)

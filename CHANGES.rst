@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+0.6.11 (UNRElEASED)
+-------------------
+- Fix issue with closing application, improve compatibility with Qt 6.5.
+
 0.6.10 (2022-12-19)
 -------------------
 - Add support for text browser (markdown), requires tool 0.4.18 or later.

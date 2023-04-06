@@ -2184,10 +2184,14 @@ class QtUserInterface(UserInterface.UserInterface):
         self.proxy.Core_syncLatencyTimer(time.perf_counter())
 
     def close(self) -> None:
-        self.proxy.Application_close()
+        # this message is received from the application stop method, which gets called when the host Qt application
+        # shuts down. Application_close has already been called, so all that needs to be done is to clear the proxy,
+        # which is done to debug cases where it is called after closing.
         self.proxy = None
 
     def request_quit(self) -> None:
+        # ask the application to shut down. this will eventually call the Application stop method, which will call
+        # the close method above.
         self.proxy.Application_close()
 
     def set_application_info(self, application_name: str, organization_name: str, organization_domain: str) -> None:

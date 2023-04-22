@@ -1954,6 +1954,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
                 component_handler._closer = Closer()
                 getattr(handler, "_closer").push_closeable(component_handler)
                 component_content = getattr(component_handler, "ui_view", component_content)
+                assert component_content, f"{component_handler} missing 'ui_view'."
                 # set properties in the component from the properties dict
                 for k, v in d.get("properties", dict()).items():
                     # print(f"setting property {k} to {v}")

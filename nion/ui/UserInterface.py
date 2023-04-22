@@ -2572,9 +2572,14 @@ class CanvasWidget(Widget):
         self._behavior.on_mouse_clicked = handle_mouse_clicked
 
         def handle_mouse_double_clicked(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
-            if callable(self.on_mouse_double_clicked):
-                return self.on_mouse_double_clicked(x, y, modifiers)
-            return False
+            try:
+                if callable(self.on_mouse_double_clicked):
+                    return self.on_mouse_double_clicked(x, y, modifiers)
+                return False
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return False
 
         self._behavior.on_mouse_double_clicked = handle_mouse_double_clicked
 

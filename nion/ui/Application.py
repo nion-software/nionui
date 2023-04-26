@@ -162,11 +162,18 @@ class BaseApplication:
 
     def exit(self) -> None:
         """The exit method should request to close or close the window."""
-        for window in copy.copy(self.__windows):
+        while self.__windows:
+            # remove the windows one by one. closing one window may close other windows, so recheck the
+            # list each time through the loop.
+            window = self.__windows[0]
             # closing the window will trigger the about_to_close event to be called which
             # will then call window close which will fire its _window_close_event which will
             # remove the window from the list of window in _window_did_close.
             window.request_close()
+            # if the window is still in the list, then the window did not close, so we need to
+            # manually remove it from the list.
+            if window in self.__windows:
+                self.__windows.remove(window)
 
     def periodic(self) -> None:
         """The periodic method can be overridden to implement periodic behavior."""

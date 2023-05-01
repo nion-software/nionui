@@ -2329,16 +2329,17 @@ class QtUserInterface(UserInterface.UserInterface):
             handled, value = self.persistence_handler.get_string(key)
             if handled:
                 return value
-        value = self.proxy.Settings_getString(key)
+        else:
+            value = self.proxy.Settings_getString(key)
         return value if value else (default_value or str())
 
     def set_persistent_string(self, key: str, value: str) -> None:
         if value is not None:
             key = "/".join([self.persistence_root, key])
             if self.persistence_handler:
-                if self.persistence_handler.set_string(key, value):
-                    return
-            self.proxy.Settings_setString(key, value)
+                self.persistence_handler.set_string(key, value)
+            else:
+                self.proxy.Settings_setString(key, value)
         else:
             self.remove_persistent_key(key)
 
@@ -2357,9 +2358,9 @@ class QtUserInterface(UserInterface.UserInterface):
     def remove_persistent_key(self, key: str) -> None:
         key = "/".join([self.persistence_root, key])
         if self.persistence_handler:
-            if self.persistence_handler.remove_key(key):
-                return
-        self.proxy.Settings_remove(key)
+            self.persistence_handler.remove_key(key)
+        else:
+            self.proxy.Settings_remove(key)
 
     # clipboard
 

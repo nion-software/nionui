@@ -2148,6 +2148,10 @@ class QtDockWidget(UserInterface.DockWidget):
         action.on_ui_activity = self._register_ui_activity
         return action
 
+    @property
+    def visible(self) -> bool:
+        return bool(self.proxy.Widget_isVisible(self.native_dock_widget))
+
     def show(self) -> None:
         self.proxy.Widget_show(self.native_dock_widget)
         self._register_ui_activity()

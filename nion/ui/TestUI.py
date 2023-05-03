@@ -1252,7 +1252,7 @@ class DockWidget(UserInterfaceModule.DockWidget):
 
     def __init__(self, window: DocumentWindow, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> None:
         super().__init__(window, widget, panel_id, title, positions, position)
-        self.visible = False
+        self.__visible = False
         self.__focus_policy = "no_focus"
         self.does_retain_focus = False
 
@@ -1262,12 +1262,16 @@ class DockWidget(UserInterfaceModule.DockWidget):
         action.on_ui_activity = self._register_ui_activity
         return action
 
+    @property
+    def visible(self) -> bool:
+        return self.__visible
+
     def show(self) -> None:
-        self.visible = True
+        self.__visible = True
         self._register_ui_activity()
 
     def hide(self) -> None:
-        self.visible = False
+        self.__visible = False
         self._register_ui_activity()
 
     def size_changed(self, size: Geometry.IntSize) -> None:

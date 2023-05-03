@@ -3286,6 +3286,10 @@ class DockWidget:
     def toggle_action(self) -> MenuAction:
         raise NotImplementedError()
 
+    @property
+    def visible(self) -> bool:
+        return False
+
     def show(self) -> None:
         self._register_ui_activity()
 

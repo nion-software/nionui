@@ -1,9 +1,12 @@
 Changelog (nionui)
 ==================
 
-0.6.11 (UNRElEASED)
+0.6.11 (UNRELEASED)
 -------------------
 - Fix issue with closing application, improve compatibility with Qt 6.5.
+- Change fallback behavior for preferences to not use old preferences.
+- Allow binding for placeholder text in line edit.
+- Implement visible property to dock widgets.
 
 0.6.10 (2022-12-19)
 -------------------

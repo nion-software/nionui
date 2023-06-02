@@ -538,10 +538,12 @@ class SectionWidget(UserInterface.Widget):
         section_widget.add(section_content_row)
         section_widget.add_spacing(4)
 
+        initialized = False  # small optimization to avoid writing persistent string during initialization
+
         def set_expanded(expanded: typing.Optional[bool]) -> None:
             twist_down_canvas_item.checked = expanded or False
             section_content_column.visible = expanded or False
-            if section_id:
+            if initialized and section_id:
                 ui.set_persistent_string(section_id, "true" if twist_down_canvas_item.checked else "false")
 
         def toggle() -> None:
@@ -563,6 +565,8 @@ class SectionWidget(UserInterface.Widget):
 
         self.title = section_title
         self.expanded = True
+
+        initialized = True
 
     def close(self) -> None:
         self.__title_binding_helper.close()

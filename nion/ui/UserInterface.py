@@ -466,9 +466,7 @@ class BindablePropertyHelper(typing.Generic[T]):
                         if not self_.__task_and_future.future:
                             self_.__task_and_future.future = asyncio.run_coroutine_threadsafe(update_value_inner(bph), event_loop)
                 else:
-                    with self_.__task_and_future.lock:
-                        if not self_.__task_and_future.task:
-                            self_.__task_and_future.task = event_loop.create_task(update_value_inner(bph))
+                    self_.set_value(self_.__pending_value)
 
         # the target setter may come in on a thread. call update_value, which is threadsafe. then either dispatch
         # a future (different thread), a task (same thread), or just update the pending value (pending update).

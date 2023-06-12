@@ -2025,6 +2025,14 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.remove_canvas_item(old_canvas_item)
         self.insert_canvas_item(index, new_canvas_item)
 
+    def replace_canvas_items(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> None:
+        """ Replace all canvas items with the given ones. Canvas items are closed. """
+        for canvas_item in reversed(copy.copy(self.__canvas_items)):
+            canvas_item._set_owner_thread(threading.current_thread())
+        self.remove_all_canvas_items()
+        for canvas_item in canvas_items:
+            self.add_canvas_item(canvas_item)
+
     def wrap_canvas_item(self, canvas_item: AbstractCanvasItem, canvas_item_container: CanvasItemComposition) -> None:
         """ Replace the given canvas item with the container and move the canvas item into the container. """
         canvas_origin = canvas_item.canvas_origin

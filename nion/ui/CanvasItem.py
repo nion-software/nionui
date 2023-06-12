@@ -725,6 +725,16 @@ class AbstractCanvasItem:
         self.on_focus_changed = None
         self.on_layout_updated = None
 
+    def _set_owner_thread(self, thread: threading.Thread) -> None:
+        self.__thread = thread
+        for canvas_item in self.canvas_items:
+            canvas_item._set_owner_thread(thread)
+
+    @property
+    def canvas_items(self) -> typing.List[AbstractCanvasItem]:
+        """ Returns a list of all canvas items in the hierarchy. """
+        return list()
+
     @property
     def is_ui_interaction_active(self) -> bool:
         root_container = self.root_container

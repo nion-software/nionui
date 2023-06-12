@@ -2507,9 +2507,24 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
         if canvas_origin:
             x -= canvas_origin.x
             y -= canvas_origin.y
+
             content = self.__content
+
             if content:
-                return content.wheel_changed(x, y, dx, dy, is_horizontal)
+                # give the content a chance to handle the wheel changed itself.
+                if content.wheel_changed(x, y, dx, dy, is_horizontal):
+                    return True
+
+                # if the content didn't handle the wheel changed, then scroll the content here.
+                dx = dx if is_horizontal else 0
+                dy = dy if not is_horizontal else 0
+                canvas_rect = content.canvas_rect
+                if canvas_rect:
+                    new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
+                    content.update_layout(new_canvas_origin, canvas_rect.size)
+                    content.update()
+                return True
+
         return False
 
     def pan_gesture(self, dx: int, dy: int) -> bool:

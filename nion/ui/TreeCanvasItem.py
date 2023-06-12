@@ -8,6 +8,7 @@ import copy
 import dataclasses
 import functools
 import json
+import threading
 import typing
 
 # third party libraries
@@ -70,6 +71,7 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
         self.__selected_value_paths: typing.Set[str] = set()
         self.layout = CanvasItem.CanvasItemColumnLayout()
         self.on_content_height_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_reconstruct: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
         self.on_content_height_changed = None
@@ -130,7 +132,11 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
     def __toggle_is_expanded(self, value_path: _ValuePath) -> None:
         value_path_key = json.dumps(value_path)
         self.__delegate.toggle_is_expanded(value_path_key)
-        self.reconstruct()
+        if callable(self.on_reconstruct):
+            self.on_reconstruct()
+        else:
+            self.reconstruct()
+        self.update()
 
     def __context_menu_event(self, value_path: typing.Optional[_ValuePath], x: int, y: int, gx: int, gy: int) -> bool:
         return False

@@ -673,6 +673,9 @@ class BoxWidgetBehavior(WidgetBehavior):
         self.widget.children.insert(index, child_widget)
         child_widget.size_changed(self.widget.size)
 
+    def remove(self, child: UserInterfaceModule.Widget) -> None:
+        pass
+
     def add_stretch(self) -> UserInterfaceModule.Widget:
         self.__widgets.append(WidgetItem(WidgetItemType.STRETCH))
         self.widget.children.append(Widget("stretch"))

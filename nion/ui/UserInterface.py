@@ -856,6 +856,7 @@ class Widget:
 
 class BoxWidgetBehavior(WidgetBehavior, typing.Protocol):
     def insert(self, child: Widget, before: int, fill: bool, alignment: typing.Optional[str]) -> None: ...
+    def remove(self, child: Widget) -> None: ...
     def remove_all(self) -> None: ...
     def add_stretch(self) -> Widget: ...
     def add_spacing(self, spacing: int) -> Widget: ...
@@ -921,7 +922,8 @@ class BoxWidget(Widget):
         child_widget = child if isinstance(child, Widget) else self.children[int(child)]
         child_widget._set_root_container(None)
         self.children.remove(child_widget)
-        # closing the child should remove it from the layout
+        # closing the child should remove it from the layout but give the behavior a chance to remote it too
+        self._behavior.remove(child_widget)
         child_widget.close()
 
     def remove_all(self) -> None:

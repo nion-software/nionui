@@ -695,6 +695,9 @@ class QtBoxWidgetBehavior(QtWidgetBehavior):
         index = index if index is not None else self.proxy.Widget_widgetCount(self.widget)
         self.proxy.Widget_insertWidget(self.widget, child_widget, index, fill, alignment)
 
+    def remove(self, child: UserInterface.Widget) -> None:
+        pass
+
     def add_stretch(self) -> UserInterface.Widget:
         self.proxy.Widget_addStretch(self.widget)
         return QtBoxStretch()

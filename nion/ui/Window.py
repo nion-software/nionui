@@ -367,12 +367,16 @@ class Window:
             self.periodic()
 
     def periodic(self) -> None:
-        self.__periodic_queue.perform_tasks()
-        self.__periodic_set.perform_tasks()
-        self.__event_loop.stop()
-        self.__event_loop.run_forever()
+        with Process.audit("perform_task_queue"):
+            self.__periodic_queue.perform_tasks()
+        with Process.audit("perform_task_set"):
+            self.__periodic_set.perform_tasks()
+        with Process.audit("perform_async"):
+            self.__event_loop.stop()
+            self.__event_loop.run_forever()
         if self.app:
-            self.app.periodic()
+            with Process.audit("app_periodic"):
+                self.app.periodic()
         # if the request close flag is set, request the close.
         # this must be at the end of periodic since it will result in the window
         # close method being called.

@@ -33,6 +33,7 @@ from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
+from nion.utils import Process
 from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
@@ -2327,27 +2328,28 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         if not self.__cancel and (needs_repaint or needs_layout):
             if self._canvas_item_composition._has_layout:
                 try:
-                    for canvas_item in copy.copy(self.__prepare_canvas_items):
-                        canvas_item.prepare_render()
-                    self._canvas_item_composition._prepare_render()
-                    # layout or repaint that occurs during prepare render should be handled
-                    # but not trigger another repaint after this one.
-                    with self.__layer_thread_condition:
-                        needs_layout = needs_layout or self.__needs_layout
-                        self.__needs_layout = False
-                        self.__needs_repaint = False
-                    if needs_layout:
-                        assert self._canvas_item_composition.canvas_size is not None
-                        self._canvas_item_composition._update_child_layouts(
-                            self._canvas_item_composition.canvas_size)
-                    drawing_context = DrawingContext.DrawingContext()
-                    self._canvas_item_composition._repaint_children(drawing_context)
-                    self._canvas_item_composition._repaint(drawing_context)
-                    with self.__layer_lock:
-                        self.__layer_seed += 1
-                        self.__layer_drawing_context = drawing_context
-                    if not self.__cancel:
-                        self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
+                    with Process.audit("repaint_layer"):
+                        for canvas_item in copy.copy(self.__prepare_canvas_items):
+                            canvas_item.prepare_render()
+                        self._canvas_item_composition._prepare_render()
+                        # layout or repaint that occurs during prepare render should be handled
+                        # but not trigger another repaint after this one.
+                        with self.__layer_thread_condition:
+                            needs_layout = needs_layout or self.__needs_layout
+                            self.__needs_layout = False
+                            self.__needs_repaint = False
+                        if needs_layout:
+                            assert self._canvas_item_composition.canvas_size is not None
+                            self._canvas_item_composition._update_child_layouts(
+                                self._canvas_item_composition.canvas_size)
+                        drawing_context = DrawingContext.DrawingContext()
+                        self._canvas_item_composition._repaint_children(drawing_context)
+                        self._canvas_item_composition._repaint(drawing_context)
+                        with self.__layer_lock:
+                            self.__layer_seed += 1
+                            self.__layer_drawing_context = drawing_context
+                        if not self.__cancel:
+                            self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
                 except Exception as e:
                     import traceback
                     logging.debug("CanvasItem Render Error: %s", e)

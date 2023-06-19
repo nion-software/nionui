@@ -97,19 +97,6 @@ class BaseApplication:
             # see https://stackoverflow.com/questions/69833208/runtimeerror-overlapped-overlapped-object-still-has-pending-operation-at-de
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         self.__event_loop = asyncio.get_event_loop()
-        # configure a audit wrapper for create task.
-        def audited_create_task(event_loop: asyncio.AbstractEventLoop, coro: typing.Coroutine[typing.Any, typing.Any, typing.Any], context: typing.Any = None) -> asyncio.Task[None]:
-            old_task_factory = self.__event_loop.get_task_factory()
-            self.__event_loop.set_task_factory(None)
-            async def _create_task() -> None:
-                with Process.audit(f"async {coro}"):
-                    await coro
-            print(f"create_task {coro}")
-            task = self.__event_loop.create_task(coro, context=context)
-            self.__event_loop.set_task_factory(old_task_factory)
-            return task
-
-        # self.__event_loop.set_task_factory(typing.cast(typing.Any, audited_create_task))
 
     def deinitialize(self) -> None:
         self._close_dialogs()

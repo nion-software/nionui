@@ -2,10 +2,8 @@
 
 import importlib
 import os
-import typing
-
-import pkg_resources
 import sys
+import typing
 
 
 class _MainFunctionType(typing.Protocol):
@@ -77,10 +75,12 @@ def bootstrap_main(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Opt
 def main() -> None:
 
     # first attempt to launch using nionui-launcher
-    if pkg_resources.Environment()["nionui-tool"]:
+    try:
         from nion.nionui_tool import command
         command.launch(sys.argv)
         return
+    except ImportError:
+        pass
 
     success = False
 

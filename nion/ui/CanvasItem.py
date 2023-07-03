@@ -731,7 +731,7 @@ class AbstractCanvasItem:
 
     def _summary(self, indent: typing.Optional[str] = None) -> str:
         indent = indent or str()
-        return indent + self._description() + " (" + str(self.sizing) + ")"
+        return indent + self._description() + " [" + str(self.canvas_rect) + "]" + " (" + str(self.sizing) + ")"
 
     def __repr__(self) -> str:
         return self._summary()

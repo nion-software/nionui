@@ -644,8 +644,8 @@ class KeyboardModifiers:
         return self.control
 
 
-def visible_canvas_item(canvas_item: typing.Optional[AbstractCanvasItem]) -> typing.Optional[AbstractCanvasItem]:
-    return canvas_item if canvas_item and canvas_item.visible else None
+def visible_canvas_item(canvas_item: typing.Optional[LayoutItem]) -> typing.Optional[LayoutItem]:
+    return canvas_item if canvas_item and canvas_item.is_visible else None
 
 
 class AbstractCanvasItem:
@@ -989,8 +989,14 @@ class AbstractCanvasItem:
 
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
+        canvas_size = self._calculate_self_canvas_size(canvas_size)
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
+        self._update_child_layouts(canvas_size, immediate=immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
+
+    def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
+        """Subclasses may override to calculate a new canvas size."""
+        return canvas_size
 
     def _update_self_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
                             canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
@@ -1000,6 +1006,9 @@ class AbstractCanvasItem:
         if callable(self.on_layout_updated):
             self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
         self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
+
+    def _update_child_layouts(self, canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
+        pass
 
     def refresh_layout_immediate(self) -> None:
         """Immediate re-layout the item."""
@@ -1029,6 +1038,10 @@ class AbstractCanvasItem:
             self.__visible = value
             if self.__container:
                 self.__container.refresh_layout()
+
+    @property
+    def is_visible(self) -> bool:
+        return self.__visible
 
     @property
     def enabled(self) -> bool:
@@ -1306,6 +1319,17 @@ class AbstractCanvasItem:
         self.mouse_released(p[1], p[0], modifiers_)
 
 
+class LayoutItem(typing.Protocol):
+
+    @property
+    def is_visible(self) -> bool: raise NotImplementedError()
+
+    @property
+    def layout_sizing(self) -> Sizing: raise NotImplementedError()
+
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None: ...
+
+
 class CanvasItemAbstractLayout:
 
     """
@@ -1321,7 +1345,7 @@ class CanvasItemAbstractLayout:
         self.spacing = spacing if spacing else 0
 
     def calculate_row_layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-                             canvas_items: typing.Sequence[AbstractCanvasItem]) -> ConstraintResultType:
+                             canvas_items: typing.Sequence[LayoutItem]) -> ConstraintResultType:
         """ Use constraint_solve to return the positions of canvas items as if they are in a row. """
         canvas_item_count = len(canvas_items)
         spacing_count = canvas_item_count - 1
@@ -1331,7 +1355,7 @@ class CanvasItemAbstractLayout:
         return constraint_solve(content_left, content_width, constraints, self.spacing)
 
     def calculate_column_layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-                                canvas_items: typing.Sequence[AbstractCanvasItem]) -> ConstraintResultType:
+                                canvas_items: typing.Sequence[LayoutItem]) -> ConstraintResultType:
         """ Use constraint_solve to return the positions of canvas items as if they are in a column. """
         canvas_item_count = len(canvas_items)
         spacing_count = canvas_item_count - 1
@@ -1341,7 +1365,7 @@ class CanvasItemAbstractLayout:
         return constraint_solve(content_top, content_height, constraints, self.spacing)
 
     def update_canvas_item_layout(self, canvas_item_origin: Geometry.IntPoint, canvas_item_size: Geometry.IntSize,
-                                  canvas_item: AbstractCanvasItem, *, immediate: bool = False) -> None:
+                                  canvas_item: LayoutItem, *, immediate: bool = False) -> None:
         """ Given a container box, adjust a single canvas item within the box according to aspect_ratio constraints. """
         # TODO: Also adjust canvas items for maximums, and positioning
         aspect_ratio = canvas_item_size.aspect_ratio
@@ -1357,7 +1381,7 @@ class CanvasItemAbstractLayout:
 
     def layout_canvas_items(self, x_positions: typing.Sequence[int], y_positions: typing.Sequence[int],
                             widths: typing.Sequence[int], heights: typing.Sequence[int],
-                            canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+                            canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         """ Set the container boxes for the canvas items using update_canvas_item_layout on the individual items. """
         for index, canvas_item in enumerate(canvas_items):
             if canvas_item is not None:
@@ -1380,7 +1404,7 @@ class CanvasItemAbstractLayout:
         elif clear_if_missing:
             setattr(sizing, property, None)
 
-    def _get_overlap_sizing(self, canvas_items: typing.Sequence[typing.Optional[AbstractCanvasItem]]) -> Sizing:
+    def _get_overlap_sizing(self, canvas_items: typing.Sequence[typing.Optional[LayoutItem]]) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is stacked/overlapping.
             Does not include spacing or margins.
@@ -1409,7 +1433,7 @@ class CanvasItemAbstractLayout:
             sizing._preferred_height = None
         return sizing
 
-    def _get_column_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem])-> Sizing:
+    def _get_column_sizing(self, canvas_items: typing.Sequence[LayoutItem])-> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
@@ -1435,7 +1459,7 @@ class CanvasItemAbstractLayout:
             sizing._maximum_height = None
         return sizing
 
-    def _get_row_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def _get_row_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
@@ -1476,14 +1500,14 @@ class CanvasItemAbstractLayout:
         if sizing._preferred_height is not None:
             sizing._preferred_height += self.margins.top + self.margins.bottom + y_spacing
 
-    def add_canvas_item(self, canvas_item: AbstractCanvasItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
+    def add_canvas_item(self, canvas_item: LayoutItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
         """
             Subclasses may override this method to get position specific information when a canvas item is added to
             the layout.
         """
         pass
 
-    def remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+    def remove_canvas_item(self, canvas_item: LayoutItem) -> None:
         """
             Subclasses may override this method to clean up position specific information when a canvas item is removed
             from the layout.
@@ -1491,11 +1515,11 @@ class CanvasItemAbstractLayout:
         pass
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+               canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         """ Subclasses must override this method to layout canvas item. """
         raise NotImplementedError()
 
-    def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         """
             Return the sizing object for this layout. Includes spacing and margins.
 
@@ -1522,11 +1546,11 @@ class CanvasItemLayout(CanvasItemAbstractLayout):
         super().__init__(margins, spacing)
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+               canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         for canvas_item in canvas_items:
             self.update_canvas_item_layout(canvas_origin, canvas_size, canvas_item, immediate=immediate)
 
-    def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         sizing = self._get_overlap_sizing(canvas_items)
         self._adjust_sizing(sizing, 0, 0)
         return sizing
@@ -1552,7 +1576,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
         self.alignment = alignment
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+               canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         # calculate the vertical placement
         column_layout = self.calculate_column_layout(canvas_origin, canvas_size, canvas_items)
         widths = [canvas_item.layout_sizing.get_unrestrained_width(canvas_size.width - self.margins.left - self.margins.right) for canvas_item in canvas_items]
@@ -1565,7 +1589,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
             x_positions = [round(canvas_origin.x + self.margins.left + (available_width - width) * 0.5) for width in widths]
         self.layout_canvas_items(x_positions, column_layout.origins, widths, column_layout.sizes, canvas_items, immediate=immediate)
 
-    def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         sizing = self._get_column_sizing(canvas_items)
         self._adjust_sizing(sizing, 0, self.spacing * (len(canvas_items) - 1))
         return sizing
@@ -1595,7 +1619,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
         self.alignment = alignment
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+               canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         row_layout = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
         heights = [canvas_item.layout_sizing.get_unrestrained_height(canvas_size.height - self.margins.top - self.margins.bottom) for canvas_item in canvas_items]
         available_height = canvas_size.height - self.margins.top - self.margins.bottom
@@ -1607,7 +1631,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
             y_positions = [round(canvas_origin.y + self.margins.top + (available_height - height) // 2) for height in heights]
         self.layout_canvas_items(row_layout.origins, y_positions, row_layout.sizes, heights, canvas_items, immediate=immediate)
 
-    def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         sizing = self._get_row_sizing(canvas_items)
         self._adjust_sizing(sizing, self.spacing * (len(canvas_items) - 1), 0)
         return sizing
@@ -1639,23 +1663,22 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         super().__init__(margins, spacing)
         assert size.width > 0 and size.height > 0
         self.__size = size
-        self.__columns: typing.List[typing.List[typing.Optional[AbstractCanvasItem]]] = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
+        self.__columns: typing.List[typing.List[typing.Optional[LayoutItem]]] = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
 
-    def add_canvas_item(self, canvas_item: AbstractCanvasItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
+    def add_canvas_item(self, canvas_item: LayoutItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
         assert pos
         assert pos.x >= 0 and pos.x < self.__size.width
         assert pos.y >= 0 and pos.y < self.__size.height
         self.__columns[pos.x][pos.y] = canvas_item
 
-    def remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        canvas_item.close()
+    def remove_canvas_item(self, canvas_item: LayoutItem) -> None:
         for x in range(self.__size.width):
             for y in range(self.__size.height):
                 if self.__columns[x][y] == canvas_item:
                     self.__columns[x][y] = None
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
-               canvas_items: typing.Sequence[AbstractCanvasItem], *, immediate: bool = False) -> None:
+               canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
         # calculate the horizontal placement
         # calculate the sizing (x, width) for each column
         canvas_item_count = self.__size.width
@@ -1697,7 +1720,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
                     combined_canvas_items.append(canvas_item)
         self.layout_canvas_items(combined_xs, combined_ys, combined_widths, combined_heights, combined_canvas_items, immediate=immediate)
 
-    def get_sizing(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
         """
             Calculate the sizing for the grid. Treat columns and rows independently.
 

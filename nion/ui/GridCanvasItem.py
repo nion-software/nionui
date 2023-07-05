@@ -144,14 +144,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
         return canvas_size
 
-    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
-                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
-        """Override from abstract canvas item.
-
-        Adjust the canvas height based on the constraints.
-        """
-        if canvas_size:
-            super().update_layout(canvas_origin, self.__calculate_layout_size(canvas_size), immediate=immediate)
+    def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
+        return self.__calculate_layout_size(canvas_size) if canvas_size else None
 
     def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
         dx = dx if is_horizontal else 0

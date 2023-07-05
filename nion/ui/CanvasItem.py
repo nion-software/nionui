@@ -1763,12 +1763,6 @@ class CompositionLayoutRenderTrait:
     def is_layer_container(self) -> bool:
         return False
 
-    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        pass
-
-    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        pass
-
     def _container_layout_changed(self) -> None:
         pass
 
@@ -1848,14 +1842,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     @property
     def layer_container(self) -> typing.Optional[CanvasItemComposition]:
         return self if self.__layout_render_trait.is_layer_container else super().layer_container
-
-    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        """DEPRECATED see _prepare_render."""
-        self.__layout_render_trait.register_prepare_canvas_item(canvas_item)
-
-    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        """DEPRECATED see _prepare_render."""
-        self.__layout_render_trait.unregister_prepare_canvas_item(canvas_item)
 
     def _begin_container_layout_changed(self) -> None:
         # recursively increase the changed count
@@ -2174,7 +2160,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__cancel = False
         self.__needs_layout = False
         self.__needs_repaint = False
-        self.__prepare_canvas_items: typing.List[AbstractCanvasItem] = list()
         self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
         self.__layer_thread_condition = threading.Condition()
         # Python 3.9+: Optional[concurrent.futures.Future[Any]]
@@ -2196,14 +2181,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
     @property
     def is_layer_container(self) -> bool:
         return True
-
-    def register_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        assert canvas_item not in self.__prepare_canvas_items
-        self.__prepare_canvas_items.append(canvas_item)
-
-    def unregister_prepare_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        assert canvas_item in self.__prepare_canvas_items
-        self.__prepare_canvas_items.remove(canvas_item)
 
     def _container_layout_changed(self) -> None:
         # the section drawing code has no layout information; so it's possible for the sections to
@@ -2287,36 +2264,26 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool = True) -> None:
         # used for testing
-        orphan = len(self.__prepare_canvas_items) == 0
-        if orphan:
-            self._canvas_item_composition._inserted(None)
+        self._canvas_item_composition._inserted(None)
         if force or self.__needs_layout:
             self.__needs_layout = False
             layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
-            for canvas_item in copy.copy(self.__prepare_canvas_items):
-                canvas_item.prepare_render()
             self._canvas_item_composition._prepare_render()
             self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
             self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
             self._layer_thread_suppress = layer_thread_suppress
-        if orphan:
-            self._canvas_item_composition._removed(None)
+        self._canvas_item_composition._removed(None)
 
     def _try_repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> bool:
-        orphan = len(self.__prepare_canvas_items) == 0
-        if orphan:
-            self._canvas_item_composition._inserted(None)
+        self._canvas_item_composition._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
         self._layer_thread_suppress = True
-        for canvas_item in copy.copy(self.__prepare_canvas_items):
-            canvas_item.prepare_render()
         self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
         self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
         self._canvas_item_composition._repaint_children(drawing_context, immediate=True)
         self._canvas_item_composition._repaint(drawing_context)
         self._layer_thread_suppress = layer_thread_suppress
-        if orphan:
-            self._canvas_item_composition._removed(None)
+        self._canvas_item_composition._removed(None)
         return True
 
     def __repaint_layer(self) -> None:
@@ -2329,8 +2296,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
             if self._canvas_item_composition._has_layout:
                 try:
                     with Process.audit("repaint_layer"):
-                        for canvas_item in copy.copy(self.__prepare_canvas_items):
-                            canvas_item.prepare_render()
                         self._canvas_item_composition._prepare_render()
                         # layout or repaint that occurs during prepare render should be handled
                         # but not trigger another repaint after this one.

@@ -707,7 +707,6 @@ class AbstractCanvasItem:
         self.__border_color: typing.Optional[str] = None
         self.__visible = True
         self.__enabled = True
-        self._has_layout = False
         self.__thread = threading.current_thread()
         self.__pending_update = True
         self.__repaint_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
@@ -774,6 +773,10 @@ class AbstractCanvasItem:
         if ((self.__canvas_origin is None) != (canvas_origin_ is None)) or (self.__canvas_origin != canvas_origin_):
             self.__canvas_origin = canvas_origin_
             self.update()
+
+    @property
+    def _has_layout(self) -> bool:
+        return self.canvas_origin is not None and self.canvas_size is not None
 
     def _begin_container_layout_changed(self) -> None:
         pass
@@ -989,10 +992,8 @@ class AbstractCanvasItem:
 
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
-        canvas_size = self._calculate_self_canvas_size(canvas_size)
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
-        self._update_child_layouts(canvas_size, immediate=immediate)
-        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
+        self._update_child_layouts(self.canvas_size, immediate=immediate)
 
     def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
         """Subclasses may override to calculate a new canvas size."""
@@ -1002,10 +1003,9 @@ class AbstractCanvasItem:
                             canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         """Update the canvas origin and size and call notification methods."""
         self._set_canvas_origin(canvas_origin)
-        self._set_canvas_size(canvas_size)
+        self._set_canvas_size(self._calculate_self_canvas_size(canvas_size))
         if callable(self.on_layout_updated):
             self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
-        self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def _update_child_layouts(self, canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         pass
@@ -1809,8 +1809,7 @@ class CompositionLayoutRenderTrait:
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool=True) -> None:
         self._canvas_item_composition._prepare_render()
-        self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-        self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
+        self._canvas_item_composition.update_layout(Geometry.IntPoint(), canvas_size, immediate=True)
 
     def _try_repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> bool:
         return False
@@ -1937,8 +1936,7 @@ class CanvasItemComposition(AbstractCanvasItem):
                 assert canvas_size is not None
                 canvas_origin_ = Geometry.IntPoint.make(canvas_origin)
                 canvas_size_ = Geometry.IntSize.make(canvas_size)
-                self._update_self_layout(canvas_origin_, canvas_size_, immediate=immediate)
-                self._update_child_layouts(canvas_size_, immediate=immediate)
+                super().update_layout(canvas_origin_, canvas_size_, immediate=immediate)
 
     def _update_child_layouts(self, canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         with self.__layout_lock:
@@ -2216,6 +2214,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
 
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         # layout self, but not the children. layout for children goes to thread.
+        canvas_size = self._canvas_item_composition._calculate_self_canvas_size(canvas_size)
         self._canvas_item_composition._update_self_layout(canvas_origin, canvas_size)
         self.__trigger_layout()
         return True
@@ -2292,8 +2291,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
             self.__needs_layout = False
             layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
             self._canvas_item_composition._prepare_render()
-            self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-            self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
+            self._canvas_item_composition.update_layout(Geometry.IntPoint(), canvas_size, immediate=True)
             self._layer_thread_suppress = layer_thread_suppress
         self._canvas_item_composition._removed(None)
 
@@ -2301,8 +2299,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self._canvas_item_composition._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
         self._layer_thread_suppress = True
-        self._canvas_item_composition._update_self_layout(Geometry.IntPoint(), canvas_size, immediate=True)
-        self._canvas_item_composition._update_child_layouts(canvas_size, immediate=True)
+        self._canvas_item_composition.update_layout(Geometry.IntPoint(), canvas_size, immediate=True)
         self._canvas_item_composition._repaint_children(drawing_context, immediate=True)
         self._canvas_item_composition._repaint(drawing_context)
         self._layer_thread_suppress = layer_thread_suppress
@@ -2459,7 +2456,6 @@ class ScrollAreaCanvasItem(AbstractCanvasItem):
             # call on_layout_updated, just like the super implementation.
             if callable(self.on_layout_updated):
                 self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
-            self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
 
     def __content_layout_updated(self, canvas_origin: typing.Optional[Geometry.IntPoint],
                       canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
@@ -2668,7 +2664,6 @@ class SplitterCanvasItem(CanvasItemComposition):
                     self.__shadow_canvas_items = canvas_items
                 # instead of calling the canvas item composition, call the one for abstract canvas item.
                 self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
-                self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
                 # the next update is required because the children will trigger updates; but the updates
                 # might not go all the way up the chain if this splitter has no layout. by now, it will
                 # have a layout, so force an update.
@@ -3424,7 +3419,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         if width > 0 and height > 0:
             self._set_canvas_origin(Geometry.IntPoint())
             self._set_canvas_size(Geometry.IntSize(height=height, width=width))
-            self._has_layout = self.canvas_origin is not None and self.canvas_size is not None
             self.refresh_layout()
 
     @property

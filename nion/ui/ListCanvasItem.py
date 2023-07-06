@@ -124,15 +124,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
         return Geometry.IntSize(height=self.__calculate_layout_height(), width=canvas_size.width) if canvas_size else None
 
-    def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
-        dy = dy if not is_horizontal else 0
-        canvas_rect = self.canvas_rect
-        if canvas_rect:
-            new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=0, y=dy)
-            self.update_layout(new_canvas_origin, canvas_rect.size)
-            self.update()
-        return True
-
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
         max_index = self.__delegate.item_count
         mouse_index = y // self.__item_height

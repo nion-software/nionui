@@ -147,16 +147,6 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
         return self.__calculate_layout_size(canvas_size) if canvas_size else None
 
-    def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
-        dx = dx if is_horizontal else 0
-        dy = dy if not is_horizontal else 0
-        canvas_rect = self.canvas_rect
-        if canvas_rect:
-            new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
-            self.update_layout(new_canvas_origin, canvas_rect.size)
-            self.update()
-        return True
-
     def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
         if self.wrap:
             target_size = 80

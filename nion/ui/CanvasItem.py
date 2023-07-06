@@ -940,7 +940,7 @@ class AbstractCanvasItem:
         while canvas_item:  # handle case where last canvas item was root
             canvas_item_origin = canvas_item.canvas_origin
             if canvas_item_origin is not None:  # handle case where canvas item is not root but has no parent
-                p = p + canvas_item_origin
+                p = canvas_item.map_to_container(p)
                 canvas_item = canvas_item.container
             else:
                 break
@@ -1326,6 +1326,9 @@ class LayoutItem(typing.Protocol):
 
     @property
     def layout_sizing(self) -> Sizing: raise NotImplementedError()
+
+    @property
+    def _has_layout(self) -> bool: raise NotImplementedError()
 
     def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None: ...
 
@@ -2359,179 +2362,155 @@ class LayerCanvasItem(CanvasItemComposition):
         self._redraw_container()
 
 
-class ScrollAreaCanvasItem(AbstractCanvasItem):
-    """
-        A scroll area canvas item with content.
+class ScrollAreaLayout(CanvasItemLayout):
+    def __init__(self) -> None:
+        super().__init__()
+        self.auto_resize_contents = False
 
-        The content property holds the content of the scroll area.
+    def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem], *, immediate: bool = False) -> None:
+        content = canvas_items[0] if canvas_items else None
+        if content:
+            if not content._has_layout:
+                self.update_canvas_item_layout(Geometry.IntPoint(), canvas_size, content, immediate=immediate)
+            elif self.auto_resize_contents:
+                self.update_canvas_item_layout(canvas_origin, canvas_size, content, immediate=immediate)
 
-        This scroll area controls the canvas_origin of the content, but not the
-        size. When the scroll area is resized, update_layout will be called on
-        the content, during which the content is free to adjust its canvas size.
-        When the call to update_layout returns, this scroll area will adjust
-        the canvas origin separately.
 
-        The content canvas_rect property describes the position that the content
-        is drawn within the scroll area. This means that content items must
-        already have a layout when they're added to this scroll area.
+class ScrollAreaCanvasItem(CanvasItemComposition):
+    """A scroll area canvas item with content.
 
-        The content canvas_origin will typically be negative if the content
-        canvas_size is larger than the scroll area canvas size.
+    This scroll area has the content_origin property, which controls where the content will be drawn, but not the
+    size. When the scroll area is resized, update_layout will be called on the content (via the ScrollAreaLayout).
+    The content is free to adjust its canvas size at any time.
 
-        The content canvas_origin will typically be positive (or zero) if the
-        content canvas_size is smaller than the scroll area canvas size.
+    The content_origin will typically be negative if the content canvas_size is larger than the scroll area canvas
+    size, and zero otherwise.
     """
 
     def __init__(self, content: typing.Optional[AbstractCanvasItem] = None) -> None:
         super().__init__()
-        self.__content: typing.Optional[AbstractCanvasItem] = None
+        self.__content_origin = Geometry.IntPoint()
+        self.__scroll_area_layout = ScrollAreaLayout()
+        self.layout = self.__scroll_area_layout
+        # the content_updated_event is used by scroll bars to update their size and position.
+        self.content_updated_event = Event.Event()
+        # update the content if it was passed in.
         if content:
             self.content = content
-        self.auto_resize_contents = False
-        self._constrain_position = True
-        self.content_updated_event = Event.Event()
 
-    def close(self) -> None:
-        content = self.__content
-        self.__content = None
-        if content:
-            content.close()
-        super().close()
+    def _set_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
+        super()._set_canvas_size(canvas_size)
+        self.update_content_origin(self.content_origin)
+
+    @property
+    def auto_resize_contents(self) -> bool:
+        """Return whether the content should be resized when the scroll area is resized."""
+        return self.__scroll_area_layout.auto_resize_contents
+
+    @auto_resize_contents.setter
+    def auto_resize_contents(self, value: bool) -> None:
+        """Set whether the content should be resized when the scroll area is resized."""
+        self.__scroll_area_layout.auto_resize_contents = value
 
     @property
     def content(self) -> typing.Optional[AbstractCanvasItem]:
         """ Return the content of the scroll area. """
-        return self.__content
+        return self.canvas_items[0] if self.canvas_items else None
 
     @content.setter
     def content(self, content: AbstractCanvasItem) -> None:
         """ Set the content of the scroll area. """
-        # remove the old content
-        if self.__content:
-            self.__content.container = None
-            self.__content.on_layout_updated = None
-        # add the new content
-        self.__content = content
-        content.container = typing.cast(CanvasItemComposition, self)  # argh
         content.on_layout_updated = self.__content_layout_updated
+        self.replace_canvas_items([content])
+
+    @property
+    def content_origin(self) -> Geometry.IntPoint:
+        """Return the content origin (i.e. the scroll position)."""
+        return self.__content_origin
+
+    @property
+    def content_size(self) -> typing.Optional[Geometry.IntSize]:
+        """Return the content size. This is the size of the content canvas, not the scroll area canvas."""
+        content = self.content
+        return content.canvas_size if content else None
+
+    @property
+    def _content_rect(self) -> Geometry.IntRect:
+        # for testing.
+        return Geometry.IntRect(origin=self.content_origin, size=self.content_size or Geometry.IntSize())
+
+    def update_content_origin(self, new_content_origin: Geometry.IntPoint) -> None:
+        """Update the content origin, restricting it to a valid range."""
+        content_size = self.content_size or Geometry.IntSize()
+        canvas_size = self.canvas_size or Geometry.IntSize()
+        cx = max(-(content_size.width - canvas_size.width), min(0, new_content_origin.x)) if content_size.width > canvas_size.width else 0
+        cy = max(-(content_size.height - canvas_size.height), min(0, new_content_origin.y)) if content_size.height > canvas_size.height else 0
+        self.__content_origin = Geometry.IntPoint(x=cx, y=cy)
+        self.content_updated_event.fire()
         self.update()
 
     @property
-    def visible_rect(self) -> Geometry.IntRect:
-        content = self.__content
-        if content:
-            content_canvas_origin = content.canvas_origin
-            canvas_size = self.canvas_size
-            if content_canvas_origin and canvas_size:
-                return Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-        return Geometry.IntRect(origin=Geometry.IntPoint(), size=Geometry.IntSize())
+    def layout_sizing(self) -> Sizing:
+        return copy.deepcopy(self.sizing)
 
-    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
-                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
-        """Override from abstract canvas item.
+    def __content_layout_updated(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
+        # whenever the content layout changes, this method gets called. adjust the canvas_origin of the content if
+        # necessary. pass the canvas_origin, canvas_size of the content. this method is used in the scroll bar canvas
+        # item to ensure that the content stays within view and consistent with the scroll bar when the scroll area
+        # gets a new layout.
+        if canvas_origin is not None and canvas_size is not None and self._has_layout:
+            # when the scroll area content layout changes, this method will get called. ensure that the content
+            # matches the scroll position.
+            self.update_content_origin(self.__content_origin)
 
-        After setting the canvas origin and canvas size, like the abstract canvas item,
-        update the layout of the content if it has no assigned layout yet. Whether it has
-        an assigned layout is determined by whether the canvas origin and canvas size are
-        None or not.
-        """
-        self._set_canvas_origin(canvas_origin)
-        self._set_canvas_size(canvas_size)
-        content = self.__content
-        if content:
-            canvas_origin = content.canvas_origin
-            canvas_size = content.canvas_size
-            if canvas_origin is None or canvas_size is None:
-                # if content has no assigned layout, update its layout relative to this object.
-                # it will get a 0,0 origin but the same size as this scroll area.
-                content.update_layout(Geometry.IntPoint(), self.canvas_size, immediate=immediate)
-            elif self.auto_resize_contents:
-                # if content has no assigned layout, update its layout relative to this object.
-                # it will get a 0,0 origin but the same size as this scroll area.
-                content.update_layout(canvas_origin, self.canvas_size, immediate=immediate)
-            # validate the content origin. this is used for the scroll bar canvas item to ensure that the content is
-            # consistent with the scroll bar.
-            self.__content_layout_updated(canvas_origin, canvas_size, immediate=immediate)
-            # NOTE: super is never called for this implementation
-            # call on_layout_updated, just like the super implementation.
-            if callable(self.on_layout_updated):
-                self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
-
-    def __content_layout_updated(self, canvas_origin: typing.Optional[Geometry.IntPoint],
-                      canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
-        # whenever the content layout changes, this method gets called.
-        # adjust the canvas_origin of the content if necessary. pass the canvas_origin, canvas_size of the content.
-        # this method is used in the scroll bar canvas item to ensure that the content stays within view and
-        # consistent with the scroll bar when the scroll area gets a new layout.
-        if self._constrain_position and canvas_origin is not None and canvas_size is not None and self.canvas_origin is not None and self.canvas_size is not None:
-            # when the scroll area content layout changes, this method will get called.
-            # ensure that the content matches the scroll position.
-            visible_size = self.canvas_size
-            content = self.__content
-            if content:
-                content_size = content.canvas_size
-                if content_size:
-                    scroll_range_h = max(content_size.width - visible_size.width, 0)
-                    scroll_range_v = max(content_size.height - visible_size.height, 0)
-                    canvas_origin = Geometry.IntPoint(x=canvas_origin.x, y=max(min(canvas_origin.y, 0), -scroll_range_v))
-                    canvas_origin = Geometry.IntPoint(x=max(min(canvas_origin.x, 0), -scroll_range_h), y=canvas_origin.y)
-                    content._set_canvas_origin(canvas_origin)
-                    self.content_updated_event.fire()
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
+        # paint the children with the content origin and a clip rect.
         with drawing_context.saver():
             canvas_origin = self.canvas_origin
             canvas_size = self.canvas_size
             if canvas_origin and canvas_size:
                 drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
-                content = self.__content
-                if content:
-                    content_canvas_origin = content.canvas_origin
-                    if content_canvas_origin:
-                        drawing_context.translate(content_canvas_origin.x, content_canvas_origin.y)
-                        visible_rect = Geometry.IntRect(origin=-content_canvas_origin, size=canvas_size)
-                        content._repaint_visible(drawing_context, visible_rect)
+                content = self.content
+                content_origin = self.content_origin
+                if content and content_origin:
+                    drawing_context.translate(content_origin.x, content_origin.y)
+                    visible_rect = Geometry.IntRect(origin=-content_origin, size=canvas_size)
+                    content._repaint_visible(drawing_context, visible_rect)
+
+    def map_to_container(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        return super().map_to_container(p + self.content_origin)
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[AbstractCanvasItem]:
         canvas_items: typing.List[AbstractCanvasItem] = []
         point = Geometry.IntPoint(x=x, y=y)
-        content = self.__content
-        if content and content.canvas_rect and content.canvas_rect.contains_point(point):
-            content_canvas_origin = content.canvas_origin
-            if content_canvas_origin:
-                canvas_point = point - content_canvas_origin
-                canvas_items.extend(content.canvas_items_at_point(canvas_point.x, canvas_point.y))
+        canvas_point = point - self.content_origin
+        content = self.content
+        if content and content.canvas_rect and content.canvas_rect.contains_point(canvas_point):
+            canvas_items.extend(content.canvas_items_at_point(canvas_point.x, canvas_point.y))
         canvas_items.extend(super().canvas_items_at_point(x, y))
         return canvas_items
 
     def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
         canvas_origin = self.canvas_origin
-        if canvas_origin:
+        canvas_size = self.canvas_size
+        if canvas_origin and canvas_size:
             x -= canvas_origin.x
             y -= canvas_origin.y
-
-            content = self.__content
-
-            if content:
+            content = self.content
+            content_size = self.content_size
+            if content and content_size:
                 # give the content a chance to handle the wheel changed itself.
                 if content.wheel_changed(x, y, dx, dy, is_horizontal):
                     return True
-
                 # if the content didn't handle the wheel changed, then scroll the content here.
                 dx = dx if is_horizontal else 0
                 dy = dy if not is_horizontal else 0
-                canvas_rect = content.canvas_rect
-                if canvas_rect:
-                    new_canvas_origin = canvas_rect.origin + Geometry.IntPoint(x=dx, y=dy)
-                    content.update_layout(new_canvas_origin, canvas_rect.size)
-                    content.update()
+                self.update_content_origin(self.__content_origin + Geometry.IntPoint(x=dx, y=dy))
                 return True
-
         return False
 
     def pan_gesture(self, dx: int, dy: int) -> bool:
-        content = self.__content
+        content = self.content
         if content:
             return content.pan_gesture(dx, dy)
         return False
@@ -3054,7 +3033,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             thumb_length = int(canvas_length * (float(visible_length) / content_length))
             thumb_length = max(thumb_length, 32)
             # the position of the thumb is the content_offset over the content_length multiplied by
-            # the free range of the thumb which is the canvas_length minus the thumb_length.
+            # the free-range of the thumb which is the canvas_length minus the thumb_length.
             thumb_position = int((canvas_length - thumb_length) * (float(-content_offset) / scroll_range))
         else:
             thumb_length = 0
@@ -3068,21 +3047,20 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         if canvas_size:
             index = 0 if self.__orientation == Orientation.Vertical else 1
             scroll_area_canvas_size = self.__scroll_area_canvas_item.canvas_size
-            scroll_area_content = self.__scroll_area_canvas_item.content
-            if scroll_area_content and scroll_area_canvas_size:
+            scroll_area_content_origin = self.__scroll_area_canvas_item.content_origin
+            scroll_area_content_size = self.__scroll_area_canvas_item.content_size
+            if scroll_area_content_size and scroll_area_canvas_size:
                 visible_length = scroll_area_canvas_size[index]
-                scroll_area_rect = scroll_area_content.canvas_rect
-                if scroll_area_rect:
-                    content_length = scroll_area_rect.size[index]
-                    content_offset = scroll_area_rect.origin[index]
-                    thumb_position, thumb_length = self.get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
-                    if self.__orientation == Orientation.Vertical:
-                        thumb_origin = Geometry.IntPoint(x=0, y=thumb_position)
-                        thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_length)
-                    else:
-                        thumb_origin = Geometry.IntPoint(x=thumb_position, y=0)
-                        thumb_size = Geometry.IntSize(width=thumb_length, height=canvas_size.height)
-                    return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
+                content_length = scroll_area_content_size[index]
+                content_offset = scroll_area_content_origin[index]
+                thumb_position, thumb_length = self.get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
+                if self.__orientation == Orientation.Vertical:
+                    thumb_origin = Geometry.IntPoint(x=0, y=thumb_position)
+                    thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_length)
+                else:
+                    thumb_origin = Geometry.IntPoint(x=thumb_position, y=0)
+                    thumb_size = Geometry.IntSize(width=thumb_length, height=canvas_size.height)
+                return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
         return Geometry.IntRect.empty_rect()
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -3091,8 +3069,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         if thumb_rect.contains_point(pos):
             self.__tracking = True
             self.__tracking_start = pos
-            scroll_area_content = self.__scroll_area_canvas_item.content
-            self.__tracking_content_offset = scroll_area_content.canvas_origin if scroll_area_content else Geometry.IntPoint()
+            self.__tracking_content_origin = self.__scroll_area_canvas_item.content_origin or Geometry.IntPoint()
             self.update()
             return True
         elif self.__orientation == Orientation.Vertical and y < thumb_rect.top:
@@ -3120,18 +3097,15 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         scroll_area_rect = self.__scroll_area_canvas_item.canvas_rect
         if scroll_area_rect:
             visible_length = scroll_area_rect.size[index]
-            content = self.__scroll_area_canvas_item.content
-            if content:
-                content_canvas_origin = content.canvas_origin
-                if content_canvas_origin:
-                    if self.__orientation == Orientation.Vertical:
-                        new_content_offset = Geometry.IntPoint(y=round(content_canvas_origin[0] - visible_length * amount), x=content_canvas_origin[1])
-                    else:
-                        new_content_offset = Geometry.IntPoint(y=content_canvas_origin[0], x=round(content_canvas_origin[1] - visible_length * amount))
-                    content.update_layout(new_content_offset, content.canvas_size)
-                    content.update()
+            content_canvas_origin = self.__scroll_area_canvas_item.content_origin
+            if content_canvas_origin:
+                if self.__orientation == Orientation.Vertical:
+                    new_content_origin = Geometry.IntPoint(y=round(content_canvas_origin[0] - visible_length * amount), x=content_canvas_origin[1])
+                else:
+                    new_content_origin = Geometry.IntPoint(y=content_canvas_origin[0], x=round(content_canvas_origin[1] - visible_length * amount))
+                self.__scroll_area_canvas_item.update_content_origin(new_content_origin)
 
-    def adjust_content_offset(self, canvas_length: int, visible_length: int, content_length: int, content_offset: int, mouse_offset: int) -> int:
+    def adjust_content_origin(self, canvas_length: int, visible_length: int, content_length: int, content_origin: int, mouse_offset: int) -> int:
         """
             Return the adjusted content offset.
 
@@ -3141,15 +3115,15 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
 
             The content_length is the size of the content of the scroll area.
 
-            The content_offset is the position of the content within the scroll area. It
+            The content_origin is the position of the content within the scroll area. It
             will always be negative or zero.
 
             The mouse_offset is the offset of the mouse.
         """
         scroll_range = max(content_length - visible_length, 0)
-        _, thumb_length = self.get_thumb_position_and_length(canvas_length, visible_length, content_length, content_offset)
+        _, thumb_length = self.get_thumb_position_and_length(canvas_length, visible_length, content_length, content_origin)
         offset_rel = int(scroll_range * float(mouse_offset) / (canvas_length - thumb_length))
-        return max(min(content_offset - offset_rel, 0), -scroll_range)
+        return max(min(content_origin - offset_rel, 0), -scroll_range)
 
     def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.__tracking:
@@ -3157,25 +3131,23 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             canvas_size = self.canvas_size
             scroll_area_canvas_size = self.__scroll_area_canvas_item.canvas_size
             if canvas_size and scroll_area_canvas_size:
-                scroll_area_content = self.__scroll_area_canvas_item.content
-                if scroll_area_content:
-                    tracking_content_offset = self.__tracking_content_offset
-                    scroll_area_content_canvas_size = scroll_area_content.canvas_size
-                    if tracking_content_offset and scroll_area_content_canvas_size:
+                scroll_area_content_canvas_size = self.__scroll_area_canvas_item.content_size
+                if scroll_area_content_canvas_size:
+                    tracking_content_origin = self.__tracking_content_origin
+                    if tracking_content_origin and scroll_area_content_canvas_size:
                         if self.__orientation == Orientation.Vertical:
                             mouse_offset_v = pos.y - self.__tracking_start.y
                             visible_height = scroll_area_canvas_size[0]
                             content_height = scroll_area_content_canvas_size[0]
-                            new_content_offset_v = self.adjust_content_offset(canvas_size[0], visible_height, content_height, tracking_content_offset[0], mouse_offset_v)
-                            new_content_offset = Geometry.IntPoint(x=tracking_content_offset[1], y=new_content_offset_v)
+                            new_content_origin_v = self.adjust_content_origin(canvas_size[0], visible_height, content_height, tracking_content_origin[0], mouse_offset_v)
+                            new_content_origin = Geometry.IntPoint(x=tracking_content_origin[1], y=new_content_origin_v)
                         else:
                             mouse_offset_h = pos.x - self.__tracking_start.x
                             visible_width = scroll_area_canvas_size[1]
                             content_width = scroll_area_content_canvas_size[1]
-                            new_content_offset_h = self.adjust_content_offset(canvas_size[1], visible_width, content_width, tracking_content_offset[1], mouse_offset_h)
-                            new_content_offset = Geometry.IntPoint(x=new_content_offset_h, y=tracking_content_offset[0])
-                        scroll_area_content._set_canvas_origin(new_content_offset)
-                        scroll_area_content.update()
+                            new_content_origin_h = self.adjust_content_origin(canvas_size[1], visible_width, content_width, tracking_content_origin[1], mouse_offset_h)
+                            new_content_origin = Geometry.IntPoint(x=new_content_origin_h, y=tracking_content_origin[0])
+                        self.__scroll_area_canvas_item.update_content_origin(new_content_origin)
                         self.update()
         return super().mouse_position_changed(x, y, modifiers)
 

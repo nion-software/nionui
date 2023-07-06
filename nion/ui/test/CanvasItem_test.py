@@ -1358,7 +1358,9 @@ class TestCanvasItemClass(unittest.TestCase):
             # drag the thumb down as far as possible
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=90, y=125), Geometry.IntPoint(x=90, y=500))
             self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=250), size=Geometry.IntSize(width=16, height=250)))
-            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-500), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(Geometry.IntPoint(x=0, y=-500), scroll_area.content_origin)
+            self.assertEqual(Geometry.IntSize(width=100, height=1000), scroll_area.content_size)
 
     def test_scroll_bar_can_adjust_full_range_of_content_when_thumb_is_minimum_size(self) -> None:
         # setup canvas
@@ -1380,7 +1382,9 @@ class TestCanvasItemClass(unittest.TestCase):
             # drag the thumb down as far as possible
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=90, y=8), Geometry.IntPoint(x=90, y=500))
             self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=468), size=Geometry.IntSize(width=16, height=32)))
-            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-29500), size=Geometry.IntSize(width=100, height=30000)))
+            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=30000)))
+            self.assertEqual(Geometry.IntPoint(x=0, y=-29500), scroll_area.content_origin)
+            self.assertEqual(Geometry.IntSize(width=100, height=30000), scroll_area.content_size)
 
     def test_resizing_scroll_area_with_scroll_bar_adjusts_thumb_rect(self) -> None:
         # setup canvas
@@ -1419,15 +1423,19 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item.add_canvas_item(scroll_area)
             canvas_item.add_canvas_item(scroll_bar)
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500), immediate=True)
-            content._set_canvas_origin(Geometry.IntPoint(x=0, y=-500))
+            scroll_area.update_content_origin(Geometry.IntPoint(x=0, y=-500))
             # check assumptions
             self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=250), size=Geometry.IntSize(width=16, height=250)))
-            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-500), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(Geometry.IntPoint(x=0, y=-500), scroll_area.content_origin)
+            self.assertEqual(Geometry.IntSize(width=100, height=1000), scroll_area.content_size)
             # resize the canvas item
             canvas_item.size_changed(100, 750)
             canvas_item.refresh_layout_immediate()
             self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=750 - int(750 * 0.75)), size=Geometry.IntSize(width=16, height=int(750 * 0.75))))
-            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-250), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
+            self.assertEqual(Geometry.IntPoint(x=0, y=-250), scroll_area.content_origin)
+            self.assertEqual(Geometry.IntSize(width=100, height=1000), scroll_area.content_size)
 
     def test_resizing_scroll_area_content_with_adjusts_thumb_rect(self) -> None:
         # setup canvas
@@ -1459,14 +1467,18 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item.add_canvas_item(scroll_area)
         canvas_item.add_canvas_item(scroll_bar)
         canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=500))
-        content._set_canvas_origin(Geometry.IntPoint(x=0, y=-500))
+        scroll_area.update_content_origin(Geometry.IntPoint(x=0, y=-500))
         # check assumptions
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=250), size=Geometry.IntSize(width=16, height=250)))
-        self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-500), size=Geometry.IntSize(width=100, height=1000)))
+        self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=1000)))
+        self.assertEqual(Geometry.IntPoint(x=0, y=-500), scroll_area.content_origin)
+        self.assertEqual(Geometry.IntSize(width=100, height=1000), scroll_area.content_size)
         # resize the content. make sure that it will not let the origin be wrong.
-        content.update_layout(Geometry.IntPoint(x=0, y=-500), Geometry.IntSize(width=100, height=750))
+        content.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=100, height=750))
         self.assertEqual(scroll_bar.thumb_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=int(500*1.0/3+0.5)), size=Geometry.IntSize(width=16, height=int(500*2.0/3))))
-        self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=-250), size=Geometry.IntSize(width=100, height=750)))
+        self.assertEqual(content.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=100, height=750)))
+        self.assertEqual(Geometry.IntPoint(x=0, y=-250), scroll_area.content_origin)
+        self.assertEqual(Geometry.IntSize(width=100, height=750), scroll_area.content_size)
 
     def test_removing_item_from_layout_causes_container_to_relayout(self) -> None:
         ui = TestUI.UserInterface()

@@ -778,15 +778,6 @@ class AbstractCanvasItem:
     def _has_layout(self) -> bool:
         return self.canvas_origin is not None and self.canvas_size is not None
 
-    def _begin_container_layout_changed(self) -> None:
-        pass
-
-    def _finish_container_layout_changed(self) -> None:
-        pass
-
-    def _container_layout_changed(self) -> None:
-        pass
-
     @property
     def canvas_widget(self) -> typing.Optional[UserInterface.CanvasWidget]:
         return self.container.canvas_widget if self.container else None
@@ -1789,9 +1780,6 @@ class CompositionLayoutRenderTrait:
     def is_layer_container(self) -> bool:
         return False
 
-    def _container_layout_changed(self) -> None:
-        pass
-
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         return False
 
@@ -1834,7 +1822,6 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.layout: CanvasItemAbstractLayout = CanvasItemLayout()
         self.__layout_lock = threading.RLock()
         self.__layout_render_trait = layout_render_trait or CompositionLayoutRenderTrait(self)
-        self.__container_layout_changed_count = 0
 
     def close(self) -> None:
         self.__layout_render_trait.close()
@@ -1867,26 +1854,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     @property
     def layer_container(self) -> typing.Optional[CanvasItemComposition]:
         return self if self.__layout_render_trait.is_layer_container else super().layer_container
-
-    def _begin_container_layout_changed(self) -> None:
-        # recursively increase the changed count
-        self.__container_layout_changed_count += 1
-        for canvas_item in self.canvas_items:
-            canvas_item._begin_container_layout_changed()
-
-    def _finish_container_layout_changed(self) -> None:
-        # recursively decrease the changed count
-        self.__container_layout_changed_count -= 1
-        for canvas_item in self.canvas_items:
-            canvas_item._finish_container_layout_changed()
-        # when the change count is zero, call container layout changed.
-        # the effect is this will occur once per composite item. only
-        # layers will actually do something (re-render with new layout).
-        if self.__container_layout_changed_count == 0:
-            self._container_layout_changed()
-
-    def _redraw_container(self) -> None:
-        self.__layout_render_trait._container_layout_changed()
 
     def _prepare_render(self) -> None:
         for canvas_item in self.__canvas_items:
@@ -2206,15 +2173,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
     def is_layer_container(self) -> bool:
         return True
 
-    def _container_layout_changed(self) -> None:
-        # the section drawing code has no layout information; so it's possible for the sections to
-        # overlap, particularly during resizing, resulting in one layer drawing only to be overwritten
-        # by an older layer whose size hasn't been updated. this method is called quickly when the
-        # enclosing container changes layout and helps ensure that all layers in the container are drawn
-        # with the correct size.
-        if self.__layer_drawing_context:
-            self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
-
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         # layout self, but not the children. layout for children goes to thread.
         canvas_size = self._canvas_item_composition._calculate_self_canvas_size(canvas_size)
@@ -2356,10 +2314,6 @@ class LayerCanvasItem(CanvasItemComposition):
 
     def __init__(self) -> None:
         super().__init__(LayerLayoutRenderTrait(self))
-
-    def _container_layout_changed(self) -> None:
-        # override. a layer needs to redraw in the user interface.
-        self._redraw_container()
 
 
 class ScrollAreaLayout(CanvasItemLayout):
@@ -2600,13 +2554,8 @@ class SplitterCanvasItem(CanvasItemComposition):
             del self.__sizings[self.canvas_items.index(canvas_item)]
         super().remove_canvas_item(canvas_item)
 
-    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
-                      canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         """
-        wrap the updates in container layout changes to avoid a waterfall of
-        change messages. this is specific to splitter for now, but it's a general
-        behavior that should eventually wrap all update layout calls.
-
         canvas items that cache their drawing bitmap (layers) need to know as quickly as possible
         that their layout has changed to a new size to avoid partially updated situations where
         their bitmaps overlap and a newer bitmap gets overwritten by a older overlapping bitmap,
@@ -2614,41 +2563,37 @@ class SplitterCanvasItem(CanvasItemComposition):
         this can also be tested by doing a 1x2 split; then 5x4 on the bottom; adding some images
         to the bottom; resizing the 1x2 split; then undo/redo. it helps to run on a slower machine.
         """
-        self._begin_container_layout_changed()
-        try:
+        with self.__lock:
+            canvas_items = copy.copy(self.canvas_items)
+            sizings = copy.deepcopy(self.__sizings)
+        assert len(canvas_items) == len(sizings)
+        if canvas_size:
+            layout = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
+            if self.orientation == "horizontal":
+                for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
+                    canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
+                    canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
+                    canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
+                    assert canvas_item._has_layout
+                for sizing, size in zip(sizings, layout.sizes):
+                    sizing._preferred_height = size
+            else:
+                for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
+                    canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
+                    canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
+                    canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
+                    assert canvas_item._has_layout
+                for sizing, size in zip(sizings, layout.sizes):
+                    sizing._preferred_width = size
             with self.__lock:
-                canvas_items = copy.copy(self.canvas_items)
-                sizings = copy.deepcopy(self.__sizings)
-            assert len(canvas_items) == len(sizings)
-            if canvas_size:
-                layout = SplitterCanvasItem.__calculate_layout(self.orientation, canvas_size, sizings)
-                if self.orientation == "horizontal":
-                    for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
-                        canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
-                        canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
-                        canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
-                        assert canvas_item._has_layout
-                    for sizing, size in zip(sizings, layout.sizes):
-                        sizing._preferred_height = size
-                else:
-                    for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
-                        canvas_item_origin = Geometry.IntPoint(y=0, x=origin)  # origin within the splitter
-                        canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
-                        canvas_item.update_layout(canvas_item_origin, canvas_item_size, immediate=immediate)
-                        assert canvas_item._has_layout
-                    for sizing, size in zip(sizings, layout.sizes):
-                        sizing._preferred_width = size
-                with self.__lock:
-                    self.__actual_sizings = sizings
-                    self.__shadow_canvas_items = canvas_items
-                # instead of calling the canvas item composition, call the one for abstract canvas item.
-                self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
-                # the next update is required because the children will trigger updates; but the updates
-                # might not go all the way up the chain if this splitter has no layout. by now, it will
-                # have a layout, so force an update.
-                self.update()
-        finally:
-            self._finish_container_layout_changed()
+                self.__actual_sizings = sizings
+                self.__shadow_canvas_items = canvas_items
+            # instead of calling the canvas item composition, call the one for abstract canvas item.
+            self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
+            # the next update is required because the children will trigger updates; but the updates
+            # might not go all the way up the chain if this splitter has no layout. by now, it will
+            # have a layout, so force an update.
+            self.update()
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[AbstractCanvasItem]:
         assert self.canvas_origin is not None and self.canvas_size is not None

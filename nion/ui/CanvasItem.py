@@ -34,6 +34,7 @@ from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Observable
 from nion.utils import Process
+from nion.utils import ReferenceCounting
 from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
@@ -692,15 +693,14 @@ class AbstractCanvasItem:
     def __init__(self) -> None:
         super().__init__()
         self.__container: typing.Optional[CanvasItemComposition] = None
-        self.__canvas_size: typing.Optional[Geometry.IntSize] = None
-        self.__canvas_origin: typing.Optional[Geometry.IntPoint] = None
+        self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
+        self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
         self.__sizing = Sizing()
         self.__focused = False
         self.__focusable = False
         self.wants_mouse_events = False
         self.wants_drag_events = False
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
-        self.on_layout_updated: typing.Optional[typing.Callable[[typing.Optional[Geometry.IntPoint], typing.Optional[Geometry.IntSize], bool], None]] = None
         self.__cursor_shape: typing.Optional[str] = None
         self.__tool_tip: typing.Optional[str] = None
         self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
@@ -723,7 +723,6 @@ class AbstractCanvasItem:
             traceback.print_stack()
         self.__container = None
         self.on_focus_changed = None
-        self.on_layout_updated = None
 
     def _description(self) -> str:
         return self.__class__.__name__
@@ -755,23 +754,25 @@ class AbstractCanvasItem:
     @property
     def canvas_size(self) -> typing.Optional[Geometry.IntSize]:
         """ Returns size of canvas_rect (external coordinates). """
-        return self.__canvas_size
+        return self._canvas_size_stream.value
 
     def _set_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
+        old_canvas_size_ = self._canvas_size_stream.value
         canvas_size_ = Geometry.IntSize.make(canvas_size) if canvas_size is not None else None
-        if ((self.__canvas_size is None) != (canvas_size_ is None)) or (self.__canvas_size != canvas_size_):
-            self.__canvas_size = canvas_size_
+        if ((old_canvas_size_ is None) != (canvas_size_ is None)) or (old_canvas_size_ != canvas_size_):
+            self._canvas_size_stream.value = canvas_size_
             self.update()
 
     @property
     def canvas_origin(self) -> typing.Optional[Geometry.IntPoint]:
         """ Returns origin of canvas_rect (external coordinates). """
-        return self.__canvas_origin
+        return self._canvas_origin_stream.value
 
     def _set_canvas_origin(self, canvas_origin: typing.Optional[Geometry.IntPointTuple]) -> None:
+        old_canvas_origin_ = self._canvas_origin_stream.value
         canvas_origin_ = Geometry.IntPoint.make(canvas_origin) if canvas_origin is not None else None
-        if ((self.__canvas_origin is None) != (canvas_origin_ is None)) or (self.__canvas_origin != canvas_origin_):
-            self.__canvas_origin = canvas_origin_
+        if ((old_canvas_origin_ is None) != (canvas_origin_ is None)) or (old_canvas_origin_ != canvas_origin_):
+            self._canvas_origin_stream.value = canvas_origin_
             self.update()
 
     @property
@@ -979,8 +980,6 @@ class AbstractCanvasItem:
         Subclasses can override this method to take action when the size of the canvas item changes, but they should
         typically call super to do the actual layout.
 
-        The on_layout_updated callable will be called with the new canvas_origin and canvas_size.
-
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
@@ -995,8 +994,6 @@ class AbstractCanvasItem:
         """Update the canvas origin and size and call notification methods."""
         self._set_canvas_origin(canvas_origin)
         self._set_canvas_size(self._calculate_self_canvas_size(canvas_size))
-        if callable(self.on_layout_updated):
-            self.on_layout_updated(self.canvas_origin, self.canvas_size, immediate)
 
     def _update_child_layouts(self, canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         pass
@@ -2348,12 +2345,13 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         self.layout = self.__scroll_area_layout
         # the content_updated_event is used by scroll bars to update their size and position.
         self.content_updated_event = Event.Event()
+        # set up listener for canvas size changes
+        self.__canvas_size_changed_action = Stream.ValueStreamAction(self._canvas_size_stream, ReferenceCounting.weak_partial(ScrollAreaCanvasItem.__handle_canvas_size_changed, self))
         # update the content if it was passed in.
         if content:
             self.content = content
 
-    def _set_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
-        super()._set_canvas_size(canvas_size)
+    def __handle_canvas_size_changed(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
         self.update_content_origin(self.content_origin)
 
     @property
@@ -2374,7 +2372,7 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
     @content.setter
     def content(self, content: AbstractCanvasItem) -> None:
         """ Set the content of the scroll area. """
-        content.on_layout_updated = self.__content_layout_updated
+        self.__content_canvas_size_changed_action = Stream.ValueStreamAction(content._canvas_size_stream, ReferenceCounting.weak_partial(ScrollAreaCanvasItem.__content_layout_updated, self))
         self.replace_canvas_items([content])
 
     @property
@@ -2407,12 +2405,12 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
     def layout_sizing(self) -> Sizing:
         return copy.deepcopy(self.sizing)
 
-    def __content_layout_updated(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], immediate: bool = False) -> None:
+    def __content_layout_updated(self, canvas_size: typing.Optional[Geometry.IntSize]) -> None:
         # whenever the content layout changes, this method gets called. adjust the canvas_origin of the content if
         # necessary. pass the canvas_origin, canvas_size of the content. this method is used in the scroll bar canvas
         # item to ensure that the content stays within view and consistent with the scroll bar when the scroll area
         # gets a new layout.
-        if canvas_origin is not None and canvas_size is not None and self._has_layout:
+        if self._has_layout:
             # when the scroll area content layout changes, this method will get called. ensure that the content
             # matches the scroll position.
             self.update_content_origin(self.__content_origin)

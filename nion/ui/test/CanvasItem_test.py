@@ -1128,7 +1128,7 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
             # drag splitter
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
-            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
+            canvas_item.refresh_layout_immediate()
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=576, height=480)))
 
@@ -1222,8 +1222,9 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
             # drag splitters
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=220, y=240), modifiers=CanvasItem.KeyboardModifiers(shift=True))
+            canvas_item.refresh_layout_immediate()
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=426, y=240), Geometry.IntPoint(x=500, y=240), modifiers=CanvasItem.KeyboardModifiers(shift=True))
-            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480), immediate=True)
+            canvas_item.refresh_layout_immediate()
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=220, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=220, y=0), size=Geometry.IntSize(width=500 - 220, height=480)))
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=500, y=0), size=Geometry.IntSize(width=140, height=480)))
@@ -1252,6 +1253,7 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
             # drag splitter
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=0, y=240))
+            canvas_item.refresh_layout_immediate()
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=640 - 64 - 214, height=480)))
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=640 - 214, y=0), size=Geometry.IntSize(width=214, height=480)))
@@ -1280,7 +1282,9 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
             # drag splitter away, then back
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=240, y=240), modifiers=CanvasItem.KeyboardModifiers(shift=True))
+            canvas_item.refresh_layout_immediate()
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=240, y=240), Geometry.IntPoint(x=218, y=240))
+            canvas_item.refresh_layout_immediate()
             self.assertAlmostEqual(splitter.splits[0], 213.0 / 640.0)
             self.assertAlmostEqual(splitter.splits[1], 213.0 / 640.0)
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=213, height=480)))
@@ -1307,8 +1311,10 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
             # drag splitter away, then back
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=300, y=240))
+            canvas_item.refresh_layout_immediate()
             self.assertAlmostEqual(splitter.splits[0], 300.0 / 640.0)
             self.simulate_drag(canvas_widget, Geometry.IntPoint(x=300, y=240), Geometry.IntPoint(x=316, y=240))
+            canvas_item.refresh_layout_immediate()
             self.assertAlmostEqual(splitter.splits[0], 320.0 / 640.0)
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))

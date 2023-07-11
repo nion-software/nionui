@@ -389,7 +389,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def size_to_content(self) -> None:
         """Size the canvas item to the height of the items."""
-        new_sizing = self.copy_sizing()
-        new_sizing._minimum_height = self.__item_height * self.__delegate.item_count
-        new_sizing._maximum_height = self.__item_height * self.__delegate.item_count
+        height = self.__item_height * self.__delegate.item_count
+        new_sizing = self.sizing.with_minimum_height(height).with_maximum_height(height)
         self.update_sizing(new_sizing)

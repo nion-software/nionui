@@ -770,11 +770,11 @@ class ListWidget(UserInterface.Widget):
             # if v_auto_resize is True, ensure the canvas item resizes vertically to its content and the canvas widget
             # resizes vertically to the height of the canvas item content.
 
-            new_sizing = self.__canvas_widget.canvas_item.copy_sizing()
+            new_sizing = self.__canvas_widget.canvas_item.sizing
             content_height = self.__list_canvas_item.sizing.maximum_height
-            new_sizing._minimum_height = content_height
-            new_sizing._preferred_height = content_height
-            new_sizing._maximum_height = content_height
+            new_sizing = new_sizing.with_minimum_height(content_height)
+            new_sizing = new_sizing.with_preferred_height(content_height)
+            new_sizing = new_sizing.with_maximum_height(content_height)
             self.__canvas_widget.canvas_item.update_sizing(new_sizing)
 
             self.__canvas_widget.set_property("min-height", content_height)

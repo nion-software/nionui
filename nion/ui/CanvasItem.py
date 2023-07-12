@@ -861,15 +861,14 @@ class AbstractCanvasItem:
         self._update_self_layout(canvas_origin, canvas_size, immediate=immediate)
         self._update_child_layouts(self.canvas_size, immediate=immediate)
 
-    def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
-        """Subclasses may override to calculate a new canvas size."""
-        return canvas_size
+    def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
+        return lambda c: c
 
     def _update_self_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
                             canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         """Update the canvas origin and size and call notification methods."""
         self._set_canvas_origin(canvas_origin)
-        self._set_canvas_size(self._calculate_self_canvas_size(canvas_size))
+        self._set_canvas_size(self._get_autosizer()(canvas_size))
 
     def _update_child_layouts(self, canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         pass
@@ -2034,7 +2033,7 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
 
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         # layout self, but not the children. layout for children goes to thread.
-        canvas_size = self._canvas_item_composition._calculate_self_canvas_size(canvas_size)
+        canvas_size = self._canvas_item_composition._get_autosizer()(canvas_size)
         self._canvas_item_composition._update_self_layout(canvas_origin, canvas_size)
         self.__trigger_layout()
         return True

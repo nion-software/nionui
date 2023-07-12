@@ -14,6 +14,7 @@ import enum
 # none
 
 # local libraries
+import functools
 import typing
 
 from nion.ui import CanvasItem
@@ -128,35 +129,42 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__wrap = value
         self.refresh_layout()
 
-    def __calculate_layout_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
-        # update the layout based on the current canvas size
-        item_size = self.__calculate_item_size(canvas_size)
-        item_count = self.__delegate.item_count if self.__delegate else 0
-        if self.direction == Direction.Row:
-            items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
-            item_rows = max((item_count + items_per_row - 1) // items_per_row, 1)
-            width = canvas_size.width if self.wrap else item_count * item_size.width
-            canvas_size = Geometry.IntSize(height=item_rows * item_size.height, width=width)
-        else:
-            items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
-            item_columns = max((item_count + items_per_column - 1) // items_per_column, 1)
-            height = canvas_size.height if self.wrap else item_count * item_size.height
-            canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
-        return canvas_size
-
-    def _calculate_self_canvas_size(self, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
-        return self.__calculate_layout_size(canvas_size) if canvas_size else None
-
-    def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
-        if self.wrap:
+    @classmethod
+    def calculate_item_size(cls, canvas_size: Geometry.IntSize, wrap: bool, direction: Direction) -> Geometry.IntSize:
+        if wrap:
             target_size = 80
             item_width = max(60, int(canvas_size.width / max(1, ((canvas_size.width + target_size // 4) // target_size))))
             return Geometry.IntSize(item_width, item_width)
         else:
-            if self.direction == Direction.Row:
+            if direction == Direction.Row:
                 return Geometry.IntSize(canvas_size.height, canvas_size.height)
             else:
                 return Geometry.IntSize(canvas_size.width, canvas_size.width)
+
+    @classmethod
+    def calculate_layout_size(cls, wrap: bool, direction: Direction, item_count: int, canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
+        if not canvas_size:
+            return None
+        # update the layout based on the current canvas size
+        item_size = GridCanvasItem.calculate_item_size(canvas_size, wrap, direction)
+        if direction == Direction.Row:
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if wrap else item_count)
+            item_rows = max((item_count + items_per_row - 1) // items_per_row, 1)
+            width = canvas_size.width if wrap else item_count * item_size.width
+            canvas_size = Geometry.IntSize(height=item_rows * item_size.height, width=width)
+        else:
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if wrap else item_count)
+            item_columns = max((item_count + items_per_column - 1) // items_per_column, 1)
+            height = canvas_size.height if wrap else item_count * item_size.height
+            canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
+        return canvas_size
+
+    def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
+        return functools.partial(GridCanvasItem.calculate_layout_size, self.wrap, self.direction, self.__delegate.item_count if self.__delegate else 0)
+
+    def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
+        item_size = GridCanvasItem.calculate_item_size(canvas_size, self.wrap, self.direction)
+        return item_size if item_size else Geometry.IntSize()
 
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_size = self.canvas_size

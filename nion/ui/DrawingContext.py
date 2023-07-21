@@ -371,7 +371,7 @@ class DrawingContext:
                 imageio.imwrite(png_file, rgba_data[..., (2, 1, 0, 3)], extension=".png", optimize=False, compress_level=1)
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
-                svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
+                svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' style='image-rendering:pixelated' xlink:href='data:image/png;base64,{4}'{5} />"
                 svg += svg_format_str.format(a, b, c, d, png_encoded, transform_str)
             elif command_id == "data":
                 w, h, data, data_id, a, b, c, d, low, high, color_table, color_table_image_id = command_args
@@ -401,7 +401,7 @@ class DrawingContext:
                 imageio.imwrite(png_file, get_rgba_view_from_rgba_data(image), extension=".png", optimize=False, compress_level=1)
                 png_encoded = base64.b64encode(png_file.getvalue()).decode('utf=8')
                 transform_str = " transform='{0}'".format(" ".join(transform)) if len(transform) > 0 else ""
-                svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' xlink:href='data:image/png;base64,{4}'{5} />"
+                svg_format_str = "<image x='{0}' y='{1}' width='{2}' height='{3}' style='image-rendering:pixelated' xlink:href='data:image/png;base64,{4}'{5} />"
                 svg += svg_format_str.format(a, b, c, d, png_encoded, transform_str)
             elif command_id == "stroke":
                 if stroke_style is not None:

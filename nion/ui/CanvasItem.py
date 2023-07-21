@@ -2284,6 +2284,38 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         self.content_updated_event.fire()
         self.update()
 
+    def make_selection_visible(self, min_rect: Geometry.IntRect, max_rect: Geometry.IntRect, adjust_horizontal: bool, adjust_vertical: bool, prefer_min: bool) -> None:
+        canvas_origin = self.canvas_origin
+        canvas_size = self.canvas_size
+        if canvas_origin and canvas_size:
+            content_origin = self.content_origin
+            if content_origin:
+                new_content_origin = content_origin
+                visible_rect = Geometry.IntRect(origin=-content_origin, size=canvas_size)
+                if adjust_vertical:
+                    if prefer_min:
+                        if min_rect.top < visible_rect.top:
+                            new_content_origin = Geometry.IntPoint(y=-min_rect.top, x=new_content_origin.x)
+                        elif min_rect.bottom > visible_rect.bottom:
+                            new_content_origin = Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=new_content_origin.x)
+                    else:
+                        if max_rect.bottom > visible_rect.bottom:
+                            new_content_origin = Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=new_content_origin.x)
+                        elif max_rect.top < visible_rect.top:
+                            new_content_origin = Geometry.IntPoint(y=-max_rect.top, x=new_content_origin.x)
+                if adjust_horizontal:
+                    if prefer_min:
+                        if min_rect.left < visible_rect.left:
+                            new_content_origin = Geometry.IntPoint(y=new_content_origin.y, x=-min_rect.left)
+                        elif min_rect.right > visible_rect.right:
+                            new_content_origin = Geometry.IntPoint(y=new_content_origin.y, x=-min_rect.right + visible_rect.width)
+                    else:
+                        if max_rect.right > visible_rect.right:
+                            new_content_origin = Geometry.IntPoint(y=new_content_origin.y, x=-max_rect.right + visible_rect.width)
+                        elif max_rect.left < visible_rect.left:
+                            new_content_origin = Geometry.IntPoint(y=new_content_origin.y, x=-max_rect.left)
+                self.update_content_origin(new_content_origin)
+
     @property
     def layout_sizing(self) -> Sizing:
         return self.sizing

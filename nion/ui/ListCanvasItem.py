@@ -276,25 +276,9 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 max_index = max(selected_indexes)
                 min_rect = self.__rect_for_index(min_index)
                 max_rect = self.__rect_for_index(max_index)
-                visible_rect = getattr(self.container, "visible_rect", None)
-                canvas_rect = self.canvas_rect
-                if visible_rect and canvas_rect:
-                    canvas_origin = canvas_rect.origin
-                    canvas_size = canvas_rect.size
-                    if style < 0:
-                        if min_rect.top < visible_rect.top:
-                            self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=canvas_origin.x), canvas_size)
-                        elif min_rect.bottom > visible_rect.bottom:
-                            self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=canvas_origin.x),
-                                               canvas_size)
-                    elif style > 0:
-                        if max_rect.bottom > visible_rect.bottom:
-                            self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=canvas_origin.x),
-                                               canvas_size)
-                        elif max_rect.top < visible_rect.top:
-                            self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=canvas_origin.x), canvas_size)
-                    else:
-                        pass  # do nothing. maybe a use case will pop up where this should do something?
+                scroll_area = self.container
+                if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
+                    scroll_area.make_selection_visible(min_rect, max_rect, False, True, style < 0)
 
     def make_selection_visible(self) -> None:
         self.__make_selection_visible(-1)

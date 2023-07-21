@@ -309,33 +309,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                 max_index = max(selected_indexes)
                 min_rect = self.__rect_for_index(min_index)
                 max_rect = self.__rect_for_index(max_index)
-                container = self.container
-                # TODO: typing here is incorrect since container has no "visible_rect" property. assuming scroll area.
-                visible_rect = getattr(container, "visible_rect", Geometry.IntRect.empty_rect())
-                canvas_origin = self.canvas_origin
-                assert canvas_origin
-                if (self.direction == Direction.Row and self.wrap) or (self.direction == Direction.Column and not self.wrap):
-                    if top:
-                        if min_rect.top < visible_rect.top:
-                            self.update_layout(Geometry.IntPoint(y=-min_rect.top, x=canvas_origin.x), self.canvas_size)
-                        elif min_rect.bottom > visible_rect.bottom:
-                            self.update_layout(Geometry.IntPoint(y=-min_rect.bottom + visible_rect.height, x=canvas_origin.x), self.canvas_size)
-                    else:
-                        if max_rect.bottom > visible_rect.bottom:
-                            self.update_layout(Geometry.IntPoint(y=-max_rect.bottom + visible_rect.height, x=canvas_origin.x), self.canvas_size)
-                        elif max_rect.top < visible_rect.top:
-                            self.update_layout(Geometry.IntPoint(y=-max_rect.top, x=canvas_origin.x), self.canvas_size)
-                else:
-                    if top:
-                        if min_rect.left < visible_rect.left:
-                            self.update_layout(Geometry.IntPoint(y=canvas_origin.y, x=-min_rect.left), self.canvas_size)
-                        elif min_rect.right > visible_rect.right:
-                            self.update_layout(Geometry.IntPoint(y=canvas_origin.y, x=-min_rect.right + visible_rect.width), self.canvas_size)
-                    else:
-                        if max_rect.right > visible_rect.right:
-                            self.update_layout(Geometry.IntPoint(y=canvas_origin.y, x=-max_rect.right + visible_rect.width), self.canvas_size)
-                        elif max_rect.left < visible_rect.left:
-                            self.update_layout(Geometry.IntPoint(y=canvas_origin.y, x=-max_rect.left), self.canvas_size)
+                scroll_area = self.container
+                if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
+                    is_vertical = (self.direction == Direction.Row and self.wrap) or (self.direction == Direction.Column and not self.wrap)
+                    scroll_area.make_selection_visible(min_rect, max_rect, not is_vertical, is_vertical, top)
 
     def make_selection_visible(self) -> None:
         self.__make_selection_visible(True)

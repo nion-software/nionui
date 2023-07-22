@@ -694,11 +694,6 @@ class AbstractCanvasItem:
         self.__container = container
 
     @property
-    def layer_container(self) -> typing.Optional[CanvasItemComposition]:
-        """ Return the root container, if any. """
-        return self.__container.layer_container if self.__container else None
-
-    @property
     def root_container(self) -> typing.Optional[RootCanvasItem]:
         """ Return the root container, if any. """
         return self.__container.root_container if self.__container else None
@@ -847,10 +842,6 @@ class AbstractCanvasItem:
         pass
 
     def _prepare_render(self) -> None:
-        """Subclasses may override to prepare for layout and repaint."""
-        self._prepare_render_self()
-
-    def _prepare_render_self(self) -> None:
         """Subclasses may override to prepare for layout and repaint."""
         pass
 
@@ -1655,10 +1646,6 @@ class CompositionLayoutRenderTrait:
     def _needs_layout_for_testing(self) -> bool:
         return False
 
-    @property
-    def is_layer_container(self) -> bool:
-        return False
-
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         return False
 
@@ -1729,10 +1716,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     @property
     def _needs_layout_for_testing(self) -> bool:
         return self.__layout_render_trait._needs_layout_for_testing
-
-    @property
-    def layer_container(self) -> typing.Optional[CanvasItemComposition]:
-        return self if self.__layout_render_trait.is_layer_container else super().layer_container
 
     def _prepare_render(self) -> None:
         for canvas_item in self.__canvas_items:
@@ -2048,10 +2031,6 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
     @property
     def _needs_layout_for_testing(self) -> bool:
         return self.__needs_layout
-
-    @property
-    def is_layer_container(self) -> bool:
-        return True
 
     def _try_update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> bool:
         # layout self, but not the children. layout for children goes to thread.
@@ -3019,19 +2998,15 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
                     canvas_widget.remove_section(section_id)
         super().close()
 
-    @property
-    def is_layer_container(self) -> bool:
-        return True
-
     def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
         if self._canvas_item_composition.canvas_size:
-            # if this is a normal canvas item, tell it's container to layout again.
+            # if this is a normal canvas item, tell its container to layout again.
             # otherwise, if this is the root, just layout the root.
             container = canvas_item.container if canvas_item != self._canvas_item_composition else canvas_item
             if container and container.canvas_size:
                 container.update_layout(container.canvas_origin, container.canvas_size)
             if container == self._canvas_item_composition:
-                # when the root is resized, be sure to update all of the opaque items since layout
+                # when the root is resized, be sure to update all the opaque items since layout
                 # doesn't do it automatically right now.
                 for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
                     canvas_item.update()

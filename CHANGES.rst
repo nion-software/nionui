@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+7.0.0 (2023-08-16)
+------------------
+- Render SVG images with pixelated images.
+- Many changes to layout engine to simplify and make it easier to use.
+
 0.6.11 (2023-06-19)
 -------------------
 - Fix issue with closing application, improve compatibility with Qt 6.5.

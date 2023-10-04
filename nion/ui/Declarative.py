@@ -1014,7 +1014,7 @@ def connect_string_value(widget: UserInterface.Widget, d: UIDescription, handler
     A value means the value for the property is directly contained in the string.
     """
     v = d.get(property)
-    m = re.match("^@binding\((.+)\)$", v if v else "")
+    m = re.match(r"^@binding\((.+)\)$", v if v else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
     if m:
         b = m.group(1)
@@ -1078,7 +1078,7 @@ def connect_reference_value(bindable: typing.Any, d: UIDescription, handler: Han
     """
     binding_name_ = binding_name if binding_name else property
     v = d.get(property)
-    m = re.match("^@binding\((.+)\)$", v if isinstance(v, str) else "")
+    m = re.match(r"^@binding\((.+)\)$", v if isinstance(v, str) else "")
     # print(f"{v}, {m}, {m.group(1) if m else 'NA'}")
     if m:
         b = m.group(1)

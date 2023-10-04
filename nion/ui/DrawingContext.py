@@ -271,7 +271,7 @@ class DrawingContext:
         def parse_color(color_str: str) -> typing.Tuple[str, float]:
             color_str = ''.join(color_str.split())
             if color_str.startswith("rgba"):
-                c = re.split("rgba\((\d+),(\d+),(\d+),([\d.]+)\)", color_str)
+                c = re.split(r"rgba\((\d+),(\d+),(\d+),([\d.]+)\)", color_str)
                 return f"rgb({c[1]}, {c[2]}, {c[3]})", float(c[4])
             return color_str, 1.0
 

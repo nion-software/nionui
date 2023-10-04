@@ -3861,7 +3861,7 @@ class PyQtProxy:
                     stylesheet = "QWidget { font-size: 11px }\n" + stylesheet
                 display_scaling = GetDisplayScaling()
                 while True:
-                    re = QtCore.QRegularExpression("(\\d+)px")
+                    re = QtCore.QRegularExpression(r"(\d+)px")
                     match = re.match(stylesheet)
                     if match.hasMatch():
                         new_size = int(int(match.captured(1)) * display_scaling)

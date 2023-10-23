@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+7.0.1 (2023-10-23)
+------------------
+- Minor changes for Python 3.12 compatibility.
+
 7.0.0 (2023-08-16)
 ------------------
 - Render SVG images with pixelated images.

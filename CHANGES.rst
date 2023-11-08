@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+7.0.2 (UNRELEASED)
+------------------
+- Add support for declarative text browser (with markdown).
+
 7.0.1 (2023-10-23)
 ------------------
 - Minor changes for Python 3.12 compatibility.

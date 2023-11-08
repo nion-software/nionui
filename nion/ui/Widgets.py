@@ -318,7 +318,7 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
         header_row_canvas_item.add_canvas_item(header_right_stretch)
         header_row_sizing_properties = {
             "height": button_height,
-            "size_policy_horizontal": "expanding"
+            "size-policy-horizontal": "expanding"
         }
         header_row_widget = ui.create_canvas_widget(header_row_sizing_properties)
         header_row_widget.canvas_item.add_canvas_item(header_row_canvas_item)

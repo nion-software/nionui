@@ -589,6 +589,35 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
+    def create_text_browser(self, *,
+                            text: typing.Optional[UIIdentifier] = None,
+                            markdown: typing.Optional[UIIdentifier] = None,
+                            name: typing.Optional[UIIdentifier] = None,
+                            on_anchor_clicked: typing.Optional[UICallableIdentifier] = None,
+                            **kwargs: typing.Any) -> UIDescriptionResult:
+        """Create a multi-line text browser UI description with text, name, markdown, options, and events.
+
+        Keyword Args:
+            text: handler reference to text (bindable, required)
+            text: handler reference to markdown (bindable, required)
+            name: handler property in which to store widget (optional)
+            on_anchor_clicked: callback when an anchor is clicked
+
+        Returns:
+            UI description of the text edit
+        """
+        d: UIDescriptionResult = {"type": "text_browser"}
+        if text is not None:
+            d["text"] = text
+        if markdown is not None:
+            d["markdown"] = markdown
+        if name is not None:
+            d["name"] = name
+        if on_anchor_clicked is not None:
+            d["on_anchor_clicked"] = on_anchor_clicked
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_push_button(self, *, text: typing.Optional[UILabel] = None, icon: typing.Optional[UIIdentifier] = None,
                            name: typing.Optional[UIIdentifier] = None,
                            on_clicked: typing.Optional[UICallableIdentifier] = None,
@@ -1439,6 +1468,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         return construct_line_edit(ui, d, finishes, handler)
     elif d_type == "text_edit":
         return construct_text_edit(ui, d, finishes, handler)
+    elif d_type == "text_browser":
+        return construct_text_browser(ui, d, finishes, handler)
     elif d_type == "push_button":
         return construct_push_button(ui, d, handler, finishes)
     elif d_type == "check_box":
@@ -1778,6 +1809,19 @@ def construct_text_edit(ui: UserInterface.UserInterface, d: UIDescription, finis
         connect_event(widget, widget, d, handler, "on_escape_pressed", [])
         connect_event(widget, widget, d, handler, "on_return_pressed", [])
         connect_event(widget, widget, d, handler, "on_text_edited", ["text"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_text_browser(ui: UserInterface.UserInterface, d: UIDescription, finishes: _FinishesListType,
+                           handler: HandlerLike) -> UserInterface.TextBrowserWidget:
+    properties = construct_sizing_properties(d)
+    widget = ui.create_text_browser_widget(properties)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "text", finishes)
+        connect_reference_value(widget, d, handler, "markdown", finishes)
+        connect_event(widget, widget, d, handler, "on_anchor_clicked", ["anchor"])
         connect_attributes(widget, d, handler, finishes)
     return widget
 

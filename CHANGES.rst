@@ -4,6 +4,8 @@ Changelog (nionui)
 7.0.2 (UNRELEASED)
 ------------------
 - Add support for declarative text browser (with markdown).
+- Add support for grid item tool tips.
+- Improve handling of tool tips (hide when mouse leaves canvas item).
 
 7.0.1 (2023-10-23)
 ------------------

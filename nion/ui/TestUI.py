@@ -1003,6 +1003,9 @@ class CanvasWidgetBehavior(WidgetBehavior):
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         pass
 
+    def hide_tool_tip_text(self) -> None:
+        pass
+
 
 class LineEditWidgetBehavior(WidgetBehavior):
 

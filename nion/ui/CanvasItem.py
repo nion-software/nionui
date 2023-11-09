@@ -788,6 +788,12 @@ class AbstractCanvasItem:
     @tool_tip.setter
     def tool_tip(self, value: typing.Optional[str]) -> None:
         self.__tool_tip = value
+        # clear the tool tip when setting to None. this will happen whenever the mouse exits any item, whether it has
+        # a tool tip or not. this may need refinement in the future.
+        if value is None:
+            root_container = self.root_container
+            if root_container:
+                root_container.hide_tool_tip_text()
 
     @property
     def cursor_shape(self) -> typing.Optional[str]:
@@ -3524,6 +3530,9 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self.__canvas_widget.show_tool_tip_text(text, gx, gy)
+
+    def hide_tool_tip_text(self) -> None:
+        self.__canvas_widget.hide_tool_tip_text()
 
 
 class BackgroundCanvasItem(AbstractCanvasItem):

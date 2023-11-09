@@ -1624,6 +1624,9 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self.proxy.ToolTip_show(self.widget, gx, gy, text, 0, 0, 0, 0)
 
+    def hide_tool_tip_text(self) -> None:
+        self.proxy.ToolTip_hide(self.widget)
+
     def mouseEntered(self) -> None:
         if callable(self.on_mouse_entered):
             self.on_mouse_entered()

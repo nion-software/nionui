@@ -50,6 +50,9 @@ class GridCanvasItemDelegate(typing.Protocol):
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         return  # required to avoid being recognized as abstract by mypy
 
+    def item_tool_tip(self, index: int) -> typing.Optional[str]:
+        return None
+
     def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
         return False
 
@@ -161,6 +164,17 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
         return functools.partial(GridCanvasItem.calculate_layout_size, self.wrap, self.direction, self.__delegate.item_count if self.__delegate else 0)
+
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        max_index = self.__delegate.item_count
+        mouse_index = self.__get_item_index_at(x, y)
+        if mouse_index >= 0 and mouse_index < max_index:
+            if self.__delegate:
+                text = self.__delegate.item_tool_tip(mouse_index)
+                if text:
+                    self.show_tool_tip_text(text, gx, gy)
+                    return True
+        return super().handle_tool_tip(x, y, gx, gy)
 
     def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
         item_size = GridCanvasItem.calculate_item_size(canvas_size, self.wrap, self.direction)

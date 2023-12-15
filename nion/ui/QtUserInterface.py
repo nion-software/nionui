@@ -2117,6 +2117,15 @@ class QtWindow(UserInterface.Window):
         w, h = self.proxy.Widget_getWidgetSize(self.native_document_window)
         return Geometry.IntSize(w=w, h=h)
 
+    def logicalDPIChanged(self, dpi: float) -> None:
+        self._handle_logical_dpi_changed(dpi)
+
+    def physicalDPIChanged(self, dpi: float) -> None:
+        self._handle_physical_dpi_changed(dpi)
+
+    def screenChanged(self) -> None:
+        self._handle_screen_changed()
+
 
 class QtDockWidget(UserInterface.DockWidget):
 
@@ -2177,6 +2186,15 @@ class QtDockWidget(UserInterface.DockWidget):
 
     def sizeChanged(self, width: int, height: int) -> None:
         self._handle_size_changed(Geometry.IntSize(width=width, height=height))
+
+    def logicalDPIChanged(self, dpi: float) -> None:
+        self._handle_logical_dpi_changed(dpi)
+
+    def physicalDPIChanged(self, dpi: float) -> None:
+        self._handle_physical_dpi_changed(dpi)
+
+    def screenChanged(self) -> None:
+        self._handle_screen_changed()
 
     def focusIn(self) -> None:
         self._handle_focus_in()

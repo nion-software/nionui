@@ -231,6 +231,7 @@ class Window:
         self.__document_window.on_position_changed = self.position_changed
         self.__document_window.on_refocus_widget = self.refocus_widget
         self.__document_window.on_ui_activity = self._register_ui_activity
+        self.__document_window.on_physical_dpi_changed = self.__physical_dpi_changed
         self.__periodic_queue = Process.TaskQueue()
         self.__periodic_set = Process.TaskSet()
         self.__modal_actions: typing.List[Action] = list()
@@ -533,6 +534,11 @@ class Window:
     @property
     def display_scaling(self) -> float:
         return self.__document_window.display_scaling
+
+    def __physical_dpi_changed(self, physical_dpi: float) -> None:
+        root_widget = self.__document_window.root_widget
+        if root_widget:
+            root_widget.redraw()
 
     def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
         return self.ui.get_font_metrics(font, text)

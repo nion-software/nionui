@@ -662,6 +662,19 @@ class Widget:
     def periodic(self) -> None:
         self._behavior.periodic()
 
+    def redraw(self) -> None:
+        # forces a draw of the widget in response to dpi change. this is not thread safe.
+        # calls all contained widgets to redraw themselves (bottom-up).
+        # then calls _redraw, which is this widget specific method.
+        for contained_widget in self._contained_widgets:
+            contained_widget.redraw()
+        self._redraw()
+
+    def _redraw(self) -> None:
+        # redraw this particular widget. default is to do nothing since the normal container based widgets will
+        # redraw themselves automatically. this will typically be implemented by custom widgets like canvas.
+        pass
+
     def run_pending_keyed_tasks(self) -> None:
         # used for testing
         pending_keyed_tasks = copy.copy(self.__pending_keyed_tasks)
@@ -2730,6 +2743,9 @@ class CanvasWidget(Widget):
                 self.on_mouse_position_changed(*self.position_info)
             self.position_info = None
 
+    def _redraw(self) -> None:
+        self.__canvas_item.redraw()
+
     @property
     def canvas_item(self) -> CanvasItem.CanvasWidgetCanvasItem:
         return self.__canvas_item
@@ -3218,6 +3234,9 @@ class DockWidget:
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_logical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
+        self.on_physical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
+        self.on_screen_changed: typing.Optional[typing.Callable[[], None]] = None
         self.size: typing.Optional[Geometry.IntSize] = None
 
     def close(self) -> None:
@@ -3231,6 +3250,9 @@ class DockWidget:
         self.on_size_changed = None
         self.on_focus_changed = None
         self.on_ui_activity = None
+        self.on_logical_dpi_changed = None
+        self.on_physical_dpi_changed = None
+        self.on_screen_changed = None
 
     def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
@@ -3328,6 +3350,18 @@ class DockWidget:
         if callable(self.on_focus_changed):
             self.on_focus_changed(False)
 
+    def _handle_logical_dpi_changed(self, dpi: float) -> None:
+        if callable(self.on_logical_dpi_changed):
+            self.on_logical_dpi_changed(dpi)
+
+    def _handle_physical_dpi_changed(self, dpi: float) -> None:
+        if callable(self.on_physical_dpi_changed):
+            self.on_physical_dpi_changed(dpi)
+
+    def _handle_screen_changed(self) -> None:
+        if callable(self.on_screen_changed):
+            self.on_screen_changed()
+
 
 class Window:
 
@@ -3352,6 +3386,9 @@ class Window:
         self.on_position_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_refocus_widget: typing.Optional[typing.Callable[[Widget], None]] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
+        self.on_logical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
+        self.on_physical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
+        self.on_screen_changed: typing.Optional[typing.Callable[[], None]] = None
         self.pos_x: typing.Optional[int] = None
         self.pos_y: typing.Optional[int] = None
         self.width: typing.Optional[int] = None
@@ -3392,6 +3429,9 @@ class Window:
         self.on_position_changed = None
         self.on_refocus_widget = None
         self.on_ui_activity = None
+        self.on_logical_dpi_changed = None
+        self.on_physical_dpi_changed = None
+        self.on_screen_changed = None
 
     def request_close(self) -> None:
         raise NotImplementedError()
@@ -3641,6 +3681,18 @@ class Window:
     @property
     def size(self) -> Geometry.IntSize:
         raise NotImplementedError()
+
+    def _handle_logical_dpi_changed(self, dpi: float) -> None:
+        if callable(self.on_logical_dpi_changed):
+            self.on_logical_dpi_changed(dpi)
+
+    def _handle_physical_dpi_changed(self, dpi: float) -> None:
+        if callable(self.on_physical_dpi_changed):
+            self.on_physical_dpi_changed(dpi)
+
+    def _handle_screen_changed(self) -> None:
+        if callable(self.on_screen_changed):
+            self.on_screen_changed()
 
 
 class ToleranceType(enum.IntEnum):

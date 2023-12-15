@@ -958,6 +958,27 @@ class AbstractCanvasItem:
         """
         self._update_with_items()
 
+    def redraw(self) -> None:
+        """Force full redraw of this item and children. Used for resolution changes."""
+        for canvas_item in self.canvas_items:
+            canvas_item.redraw()
+        self._redraw()
+
+    def _redraw(self) -> None:
+        """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
+        self.refresh_layout()
+        self.update()
+
+    def sync_redraw(self) -> None:
+        """Force full redraw of this item and children. Used for resolution changes."""
+        for canvas_item in self.canvas_items:
+            canvas_item.sync_redraw()
+        self._sync_redraw()
+
+    def _sync_redraw(self) -> None:
+        """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
+        pass
+
     def _update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         self._update_count += 1
         self._updated(canvas_items)
@@ -1676,6 +1697,12 @@ class CompositionLayoutRenderTrait:
     def _try_repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> bool:
         return False
 
+    def _redraw(self) -> None:
+        pass
+
+    def _sync_redraw(self) -> None:
+        pass
+
 
 class CanvasItemComposition(AbstractCanvasItem):
     """A composite canvas item comprised of other canvas items.
@@ -1726,6 +1753,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in self.__canvas_items:
             canvas_item._prepare_render()
         super()._prepare_render()
+
+    def _sync_redraw(self) -> None:
+        return self.__layout_render_trait._sync_redraw()
 
     @property
     def canvas_items_count(self) -> int:
@@ -2032,6 +2062,9 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__cancel = True
         self._sync_repaint()
         self.__layer_drawing_context = None
+
+    def _sync_redraw(self) -> None:
+        self._sync_repaint()
 
     @property
     def _needs_layout_for_testing(self) -> bool:
@@ -2989,7 +3022,6 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
 
     def __init__(self, canvas_item_composition: CanvasItemComposition) -> None:
         super().__init__(canvas_item_composition)
-        self.__needs_repaint = False
         self.__section_ids_lock = threading.RLock()
         self.__section_map: typing.Dict[AbstractCanvasItem, int] = dict()
 
@@ -3002,6 +3034,19 @@ class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
                 if canvas_widget:
                     canvas_widget.remove_section(section_id)
         super().close()
+
+    def _redraw(self) -> None:
+        with self.__section_ids_lock:
+            section_map = self.__section_map
+            self.__section_map = dict()
+            for section_id in section_map.values():
+                canvas_widget = self._canvas_item_composition.canvas_widget
+                if canvas_widget:
+                    canvas_widget.remove_section(section_id)
+        for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
+            canvas_item.sync_redraw()
+            canvas_item.refresh_layout()
+            canvas_item.update()
 
     def _try_needs_layout(self, canvas_item: AbstractCanvasItem) -> bool:
         if self._canvas_item_composition.canvas_size:

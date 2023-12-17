@@ -1,8 +1,9 @@
 Changelog (nionui)
 ==================
 
-7.0.2 (UNRELEASED)
+7.0.2 (2023-12-17)
 ------------------
+- Add support for handling screen scaling changes.
 - Add support for declarative text browser (with markdown).
 - Add support for grid item tool tips.
 - Improve handling of tool tips (hide when mouse leaves canvas item).

@@ -3237,6 +3237,7 @@ class DockWidget:
         self.on_logical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
         self.on_physical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
         self.on_screen_changed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_color_scheme_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.size: typing.Optional[Geometry.IntSize] = None
 
     def close(self) -> None:
@@ -3253,6 +3254,7 @@ class DockWidget:
         self.on_logical_dpi_changed = None
         self.on_physical_dpi_changed = None
         self.on_screen_changed = None
+        self.on_color_scheme_changed = None
 
     def _register_ui_activity(self) -> None:
         if callable(self.on_ui_activity):
@@ -3362,6 +3364,10 @@ class DockWidget:
         if callable(self.on_screen_changed):
             self.on_screen_changed()
 
+    def _handle_color_scheme_changed(self, color_scheme: str) -> None:
+        if callable(self.on_color_scheme_changed):
+            self.on_color_scheme_changed(color_scheme)
+
 
 class Window:
 
@@ -3389,6 +3395,7 @@ class Window:
         self.on_logical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
         self.on_physical_dpi_changed: typing.Optional[typing.Callable[[float], None]] = None
         self.on_screen_changed: typing.Optional[typing.Callable[[], None]] = None
+        self.on_color_scheme_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.pos_x: typing.Optional[int] = None
         self.pos_y: typing.Optional[int] = None
         self.width: typing.Optional[int] = None
@@ -3432,6 +3439,7 @@ class Window:
         self.on_logical_dpi_changed = None
         self.on_physical_dpi_changed = None
         self.on_screen_changed = None
+        self.on_color_scheme_changed = None
 
     def request_close(self) -> None:
         raise NotImplementedError()
@@ -3693,6 +3701,10 @@ class Window:
     def _handle_screen_changed(self) -> None:
         if callable(self.on_screen_changed):
             self.on_screen_changed()
+
+    def _handle_color_scheme_changed(self, color_scheme: str) -> None:
+        if callable(self.on_color_scheme_changed):
+            self.on_color_scheme_changed(color_scheme)
 
 
 class ToleranceType(enum.IntEnum):

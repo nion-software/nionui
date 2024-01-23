@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+7.0.3 (UNRELEASED)
+------------------
+- Minor addition for future color scheme change support.
+
 7.0.2 (2023-12-17)
 ------------------
 - Add support for handling screen scaling changes.

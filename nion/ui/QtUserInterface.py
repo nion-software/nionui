@@ -2126,6 +2126,9 @@ class QtWindow(UserInterface.Window):
     def screenChanged(self) -> None:
         self._handle_screen_changed()
 
+    def colorSchemeChanged(self, color_scheme: str) -> None:
+        self._handle_color_scheme_changed(color_scheme)
+
 
 class QtDockWidget(UserInterface.DockWidget):
 
@@ -2195,6 +2198,9 @@ class QtDockWidget(UserInterface.DockWidget):
 
     def screenChanged(self) -> None:
         self._handle_screen_changed()
+
+    def colorSchemeChanged(self, color_scheme: str) -> None:
+        self._handle_color_scheme_changed(color_scheme)
 
     def focusIn(self) -> None:
         self._handle_focus_in()

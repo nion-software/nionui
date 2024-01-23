@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-7.0.3 (UNRELEASED)
+7.0.3 (2024-01-22)
 ------------------
 - Minor addition for future color scheme change support.
 

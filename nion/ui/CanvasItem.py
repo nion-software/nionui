@@ -1730,8 +1730,9 @@ class CanvasItemComposition(AbstractCanvasItem):
                 canvas_item.close()
             # this goes after closing; if this goes before closing, threaded canvas items don't get closed properly
             # since they notify their container (to cull). to reproduce the bug, create a 1x2, then a 4x3 in the bottom.
-            # then close several panels and undo. not sure if this is  the permanent fix or not.
-            self.__canvas_items = typing.cast(typing.Any, None)
+            # then close several panels and undo. not sure if this is  the permanent fix or not. reset to a list rather
+            # than None so that pending uses of canvas_items don't fail.
+            self.__canvas_items = list()
         super().close()
 
     def _description(self) -> str:

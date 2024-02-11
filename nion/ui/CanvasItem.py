@@ -1743,7 +1743,8 @@ class CanvasItemComposition(AbstractCanvasItem):
         return super()._summary(indent) + f" [{len(self.__canvas_items)}]" + "\n" + "\n".join(canvas_item._summary(indent + "  ") for canvas_item in self.__canvas_items)
 
     def _stop_render_behavior(self) -> None:
-        if self.__layout_render_trait:
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if layout_render_trait:
             self.__layout_render_trait._stop_render_behavior()
 
     @property
@@ -1756,7 +1757,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         super()._prepare_render()
 
     def _sync_redraw(self) -> None:
-        return self.__layout_render_trait._sync_redraw()
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if layout_render_trait:
+            self.__layout_render_trait._sync_redraw()
 
     @property
     def canvas_items_count(self) -> int:
@@ -1778,21 +1781,26 @@ class CanvasItemComposition(AbstractCanvasItem):
     def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
                       canvas_size: typing.Optional[Geometry.IntSize], *, immediate: bool = False) -> None:
         """Override from abstract canvas item."""
-        if immediate or not self.__layout_render_trait._try_update_layout(canvas_origin, canvas_size, immediate=immediate):
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or immediate or not layout_render_trait._try_update_layout(canvas_origin, canvas_size, immediate=immediate):
             self._update_layout(canvas_origin, canvas_size, immediate=immediate)
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool = True) -> None:
         # useful for tests
-        self.__layout_render_trait.layout_immediate(canvas_size, force)
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if layout_render_trait:
+            layout_render_trait.layout_immediate(canvas_size, force)
 
     def _update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         # extra check for behavior during closing
-        if self.__layout_render_trait and not self.__layout_render_trait._try_update_with_items(canvas_items):
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_update_with_items(canvas_items):
             super()._update_with_items(canvas_items)
 
     def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         # extra check for behavior during closing
-        if self.__layout_render_trait and not self.__layout_render_trait._try_updated():
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_updated():
             super()._updated(canvas_items)
 
     def _update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint],
@@ -1815,7 +1823,8 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def _needs_layout(self, canvas_item: AbstractCanvasItem) -> None:
         # extra check for behavior during closing
-        if self.__layout_render_trait and not self.__layout_render_trait._try_needs_layout(canvas_item):
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_needs_layout(canvas_item):
             super()._needs_layout(canvas_item)
 
     # override sizing information. let layout provide it.
@@ -1970,17 +1979,19 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.refresh_layout()
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-        if not self.__layout_render_trait._try_repaint_template(drawing_context, immediate):
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_repaint_template(drawing_context, immediate):
             self._repaint_children(drawing_context, immediate=immediate)
             self._repaint(drawing_context)
 
     def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        if self.__layout_render_trait:
-            if not self.__layout_render_trait._try_repaint_if_needed(drawing_context, immediate=immediate):
-                super()._repaint_if_needed(drawing_context, immediate=immediate)
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_repaint_if_needed(drawing_context, immediate=immediate):
+            super()._repaint_if_needed(drawing_context, immediate=immediate)
 
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
-        if not self.__layout_render_trait._try_repaint_immediate(drawing_context, canvas_size):
+        layout_render_trait = self.__layout_render_trait  # only read once to be more thread safe
+        if not layout_render_trait or not layout_render_trait._try_repaint_immediate(drawing_context, canvas_size):
             super().repaint_immediate(drawing_context, canvas_size)
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:

@@ -17,11 +17,10 @@ import numbers
 import operator
 import pathlib
 import threading
+import traceback
+import types
 import typing
 import weakref
-
-# third party libraries
-import numpy
 
 # local libraries
 from nion.ui import Bitmap
@@ -34,7 +33,6 @@ from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
-    from nion.ui import Window as WindowModule
 
 
 def notnone(s: typing.Any) -> str:
@@ -339,6 +337,39 @@ class MimeData(abc.ABC):
         ...
 
 
+class ReportErrorHandlerType(typing.Protocol):
+    def _report_exception(self, e: BaseException, stack_trace: typing.Sequence[str]) -> None: ...
+
+
+class ReportErrorContext:
+    def __init__(self, handler: ReportErrorHandlerType) -> None:
+        self.__handler = handler
+
+    def __enter__(self) -> ReportErrorContext:
+        return self
+
+    def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], e: typing.Optional[BaseException],
+                 tb: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+        if e:
+            self.__handler._report_exception(e, traceback.format_exception(exception_type, e, tb))
+            return True
+        return False
+
+
+def wrap_callback(report_error_handler: ReportErrorHandlerType, fn: typing.Callable[..., typing.Any]) -> typing.Callable[..., typing.Any]:
+    def perform_callback(report_error_handler_ref: weakref.ReferenceType[ReportErrorHandlerType], fn: typing.Callable[..., typing.Any], *args: typing.Any) -> typing.Any:
+        if report_error_handler := report_error_handler_ref():
+            try:
+                return fn(*args)
+            except Exception as e:
+                tb = e.__traceback__
+                assert tb is not None
+                te = traceback.TracebackException(type(e), e, tb.tb_next)
+                report_error_handler._report_exception(e, list(te.format()))
+    return functools.partial(perform_callback, weakref.ref(report_error_handler), fn)
+
+
+
 @dataclasses.dataclass
 class _TaskAndFuture:
     task: typing.Optional[asyncio.Task[None]] = None
@@ -452,7 +483,6 @@ class BindablePropertyHelper(typing.Generic[T]):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                logging.debug(e)
 
         def update_value(bph: typing.Any, event_loop: asyncio.AbstractEventLoop, thread: threading.Thread, value: T) -> None:
             # threadsafe. target setter may be called from a thread.
@@ -563,8 +593,8 @@ class Widget:
             if callable(self.on_focus_changed):
                 self.on_focus_changed(focused)
 
-        self._behavior.on_context_menu_event = handle_context_menu_event
-        self._behavior.on_focus_changed = handle_focus_changed
+        self._behavior.on_context_menu_event = wrap_callback(self, handle_context_menu_event)
+        self._behavior.on_focus_changed = wrap_callback(self, handle_focus_changed)
 
         def set_visible(value: bool) -> None:
             self._behavior.visible = value
@@ -635,6 +665,12 @@ class Widget:
     def _register_ui_activity(self) -> None:
         if self.__root_container:
             self.__root_container._register_ui_activity()
+
+    def _report_exception(self, e: BaseException, stack_trace: typing.Sequence[str]) -> None:
+        if self.__root_container:
+            self.__root_container._report_exception(e, stack_trace)
+        else:
+            logging.error("".join(stack_trace))
 
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
@@ -812,7 +848,8 @@ class Widget:
     def drag(self, mime_data: MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
-        self._behavior.drag(mime_data, Bitmap.promote_bitmap(thumbnail), hot_spot_x, hot_spot_y, drag_finished_fn)
+        with ReportErrorContext(self):
+            self._behavior.drag(mime_data, Bitmap.promote_bitmap(thumbnail), hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return self._behavior.map_to_global(p)
@@ -1035,7 +1072,7 @@ class TabWidget(Widget):
             if callable(self.on_current_index_changed):
                 self.on_current_index_changed(index)
 
-        self._behavior.on_current_index_changed = handle_current_index_changed
+        self._behavior.on_current_index_changed = wrap_callback(self, handle_current_index_changed)
 
         def set_current_index(value: int) -> None:
             self._behavior.current_index = value
@@ -1278,14 +1315,14 @@ class ScrollAreaWidget(Widget):
             if callable(self.on_size_changed):
                 self.on_size_changed(width, height)
 
-        self._behavior.on_size_changed = handle_size_changed
+        self._behavior.on_size_changed = wrap_callback(self, handle_size_changed)
 
         def handle_viewport_changed(viewport: Geometry.RectIntTuple) -> None:
             self.viewport = Geometry.IntRect.make(viewport)
             if callable(self.on_viewport_changed):
                 self.on_viewport_changed(self.viewport)
 
-        self._behavior.on_viewport_changed = handle_viewport_changed
+        self._behavior.on_viewport_changed = wrap_callback(self, handle_viewport_changed)
 
     def close(self) -> None:
         if self.__content:
@@ -1368,7 +1405,7 @@ class ComboBoxWidget(Widget):
             if callable(self.on_current_index_changed):
                 self.on_current_index_changed(self.current_index)
 
-        self._behavior.on_current_text_changed = handle_current_text_changed
+        self._behavior.on_current_text_changed = wrap_callback(self, handle_current_text_changed)
 
         def set_items(items: typing.Sequence[typing.Any]) -> None:
             current_index = self.current_index
@@ -1477,7 +1514,7 @@ class PushButtonWidget(Widget):
             if callable(self.on_clicked):
                 self.on_clicked()
 
-        self._behavior.on_clicked = handle_clicked
+        self._behavior.on_clicked = wrap_callback(self, handle_clicked)
 
         def set_text(value: typing.Optional[str]) -> None:
             self._behavior.text = str(value) if value is not None else None
@@ -1565,7 +1602,7 @@ class RadioButtonWidget(Widget):
             if callable(self.on_clicked):
                 self.on_clicked()
 
-        self._behavior.on_clicked = handle_clicked
+        self._behavior.on_clicked = wrap_callback(self, handle_clicked)
 
         self.text = text
         self.icon = None
@@ -1687,7 +1724,7 @@ class CheckBoxWidget(Widget):
             if callable(self.on_check_state_changed):
                 self.on_check_state_changed(check_state)
 
-        self._behavior.on_check_state_changed = handle_check_state_changed
+        self._behavior.on_check_state_changed = wrap_callback(self, handle_check_state_changed)
 
         self.text = text
         self.check_state = "unchecked"
@@ -1901,25 +1938,25 @@ class SliderWidget(Widget):
             if callable(self.on_value_changed):
                 self.on_value_changed(value)
 
-        self._behavior.on_value_changed = handle_value_changed
+        self._behavior.on_value_changed = wrap_callback(self, handle_value_changed)
 
         def handle_slider_pressed() -> None:
             if callable(self.on_slider_pressed):
                 self.on_slider_pressed()
 
-        self._behavior.on_slider_pressed = handle_slider_pressed
+        self._behavior.on_slider_pressed = wrap_callback(self, handle_slider_pressed)
 
         def handle_slider_released() -> None:
             if callable(self.on_slider_released):
                 self.on_slider_released()
 
-        self._behavior.on_slider_released = handle_slider_released
+        self._behavior.on_slider_released = wrap_callback(self, handle_slider_released)
 
         def handle_slider_moved(value: int) -> None:
             if callable(self.on_slider_moved):
                 self.on_slider_moved(value)
 
-        self._behavior.on_slider_moved = handle_slider_moved
+        self._behavior.on_slider_moved = wrap_callback(self, handle_slider_moved)
 
         self.value = 0
 
@@ -2008,7 +2045,7 @@ class LineEditWidget(Widget):
                 self.on_editing_finished(text)
             self.__last_text = text
 
-        self._behavior.on_editing_finished = handle_editing_finished
+        self._behavior.on_editing_finished = wrap_callback(self, handle_editing_finished)
 
         def handle_escape_pressed() -> bool:
             self.__text_binding_helper.value_changed(self.__last_text)
@@ -2017,7 +2054,7 @@ class LineEditWidget(Widget):
                 return self.on_escape_pressed()
             return False
 
-        self._behavior.on_escape_pressed = handle_escape_pressed
+        self._behavior.on_escape_pressed = wrap_callback(self, handle_escape_pressed)
 
         def handle_return_pressed() -> bool:
             self.__text_binding_helper.value_changed(self.text)
@@ -2026,20 +2063,20 @@ class LineEditWidget(Widget):
                 return self.on_return_pressed()
             return False
 
-        self._behavior.on_return_pressed = handle_return_pressed
+        self._behavior.on_return_pressed = wrap_callback(self, handle_return_pressed)
 
         def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
 
-        self._behavior.on_key_pressed = handle_key_pressed
+        self._behavior.on_key_pressed = wrap_callback(self, handle_key_pressed)
 
         def handle_text_edited(text: str) -> None:
             if callable(self.on_text_edited):
                 self.on_text_edited(text)
 
-        self._behavior.on_text_edited = handle_text_edited
+        self._behavior.on_text_edited = wrap_callback(self, handle_text_edited)
 
         def get_text() -> typing.Optional[str]:
             return self._behavior.text
@@ -2221,35 +2258,35 @@ class TextBrowserWidget(Widget):
             if anchor.startswith("#"):
                 self.scroll_to_anchor(anchor)
 
-        self._behavior.on_anchor_clicked = handle_anchor_clicked
+        self._behavior.on_anchor_clicked = wrap_callback(self, handle_anchor_clicked)
 
         def handle_load_image_resource(name: str) -> typing.Optional[DrawingContext.RGBA32Type]:
             if callable(self.on_load_image_resource):
                 return self.on_load_image_resource(name)
             return None
 
-        self._behavior.on_load_image_resource = handle_load_image_resource
+        self._behavior.on_load_image_resource = wrap_callback(self, handle_load_image_resource)
 
         def handle_escape_pressed() -> bool:
             if callable(self.on_escape_pressed):
                 return self.on_escape_pressed()
             return False
 
-        self._behavior.on_escape_pressed = handle_escape_pressed
+        self._behavior.on_escape_pressed = wrap_callback(self, handle_escape_pressed)
 
         def handle_return_pressed() -> bool:
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()
             return False
 
-        self._behavior.on_return_pressed = handle_return_pressed
+        self._behavior.on_return_pressed = wrap_callback(self, handle_return_pressed)
 
         def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
 
-        self._behavior.on_key_pressed = handle_key_pressed
+        self._behavior.on_key_pressed = wrap_callback(self, handle_key_pressed)
 
         def set_markdown(value: typing.Optional[str]) -> None:
             self._behavior.set_markdown(str(value) if value is not None else str())
@@ -2335,13 +2372,13 @@ class TextEditWidget(Widget):
             if callable(self.on_cursor_position_changed):
                 self.on_cursor_position_changed(cursor_position)
 
-        self._behavior.on_cursor_position_changed = handle_cursor_position_changed
+        self._behavior.on_cursor_position_changed = wrap_callback(self, handle_cursor_position_changed)
 
         def handle_selection_changed(selection: Selection) -> None:
             if callable(self.on_selection_changed):
                 self.on_selection_changed(selection)
 
-        self._behavior.on_selection_changed = handle_selection_changed
+        self._behavior.on_selection_changed = wrap_callback(self, handle_selection_changed)
 
         def handle_text_changed(text: typing.Optional[str]) -> None:
             self.__text_binding_helper.value_changed(text)
@@ -2350,28 +2387,28 @@ class TextEditWidget(Widget):
             if callable(self.on_text_edited):
                 self.on_text_edited(text)
 
-        self._behavior.on_text_changed = handle_text_changed
+        self._behavior.on_text_changed = wrap_callback(self, handle_text_changed)
 
         def handle_escape_pressed() -> bool:
             if callable(self.on_escape_pressed):
                 return self.on_escape_pressed()
             return False
 
-        self._behavior.on_escape_pressed = handle_escape_pressed
+        self._behavior.on_escape_pressed = wrap_callback(self, handle_escape_pressed)
 
         def handle_return_pressed() -> bool:
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()
             return False
 
-        self._behavior.on_return_pressed = handle_return_pressed
+        self._behavior.on_return_pressed = wrap_callback(self, handle_return_pressed)
 
         def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
 
-        self._behavior.on_key_pressed = handle_key_pressed
+        self._behavior.on_key_pressed = wrap_callback(self, handle_key_pressed)
 
         def handle_insert_mime_data(mime_data: MimeData) -> None:
             if callable(self.on_insert_mime_data):
@@ -2380,7 +2417,7 @@ class TextEditWidget(Widget):
                 text = mime_data.data_as_string("text/plain")
                 self.insert_text(text)
 
-        self._behavior.on_insert_mime_data = handle_insert_mime_data
+        self._behavior.on_insert_mime_data = wrap_callback(self, handle_insert_mime_data)
 
         def set_text(value: typing.Optional[str]) -> None:
             self._behavior.text = str(value) if value is not None else str()
@@ -2566,50 +2603,45 @@ class CanvasWidget(Widget):
             if callable(self.on_mouse_entered):
                 self.on_mouse_entered()
 
-        self._behavior.on_mouse_entered = handle_mouse_entered
+        self._behavior.on_mouse_entered = wrap_callback(self, handle_mouse_entered)
 
         def handle_mouse_exited() -> None:
             if callable(self.on_mouse_exited):
                 self.on_mouse_exited()
-                # when the mouse exits, position info may still be pending
-                # since it is serviced during periodic. clear it here so
-                # nothing else gets processed. the mouse has already exited.
-                self.position_info = None
+            # when the mouse exits, position info may still be pending
+            # since it is serviced during periodic. clear it here so
+            # nothing else gets processed. the mouse has already exited.
+            self.position_info = None
 
-        self._behavior.on_mouse_exited = handle_mouse_exited
+        self._behavior.on_mouse_exited = wrap_callback(self, handle_mouse_exited)
 
         def handle_mouse_clicked(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_clicked):
                 return self.on_mouse_clicked(x, y, modifiers)
             return False
 
-        self._behavior.on_mouse_clicked = handle_mouse_clicked
+        self._behavior.on_mouse_clicked = wrap_callback(self, handle_mouse_clicked)
 
         def handle_mouse_double_clicked(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
-            try:
-                if callable(self.on_mouse_double_clicked):
-                    return self.on_mouse_double_clicked(x, y, modifiers)
-                return False
-            except Exception as e:
-                import traceback
-                traceback.print_exc()
-                return False
+            if callable(self.on_mouse_double_clicked):
+                return self.on_mouse_double_clicked(x, y, modifiers)
+            return False
 
-        self._behavior.on_mouse_double_clicked = handle_mouse_double_clicked
+        self._behavior.on_mouse_double_clicked = wrap_callback(self, handle_mouse_double_clicked)
 
         def handle_mouse_pressed(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_pressed):
                 return self.on_mouse_pressed(x, y, modifiers)
             return False
 
-        self._behavior.on_mouse_pressed = handle_mouse_pressed
+        self._behavior.on_mouse_pressed = wrap_callback(self, handle_mouse_pressed)
 
         def handle_mouse_released(x: int, y: int, modifiers: KeyboardModifiers) -> bool:
             if callable(self.on_mouse_released):
                 return self.on_mouse_released(x, y, modifiers)
             return False
 
-        self._behavior.on_mouse_released = handle_mouse_released
+        self._behavior.on_mouse_released = wrap_callback(self, handle_mouse_released)
 
         def handle_mouse_position_changed(x: int, y: int, modifiers: KeyboardModifiers) -> None:
             # mouse tracking takes priority over timer events in newer
@@ -2617,20 +2649,20 @@ class CanvasWidget(Widget):
             # gets called regularly.
             self.position_info = x, y, modifiers
 
-        self._behavior.on_mouse_position_changed = handle_mouse_position_changed
+        self._behavior.on_mouse_position_changed = wrap_callback(self, handle_mouse_position_changed)
 
         def handle_grabbed_mouse_position_changed(dx: int, dy: int, modifiers: KeyboardModifiers) -> None:
             if callable(self.on_grabbed_mouse_position_changed):
                 self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
 
-        self._behavior.on_grabbed_mouse_position_changed = handle_grabbed_mouse_position_changed
+        self._behavior.on_grabbed_mouse_position_changed = wrap_callback(self, handle_grabbed_mouse_position_changed)
 
         def handle_wheel_changed(x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
             if callable(self.on_wheel_changed):
                 return self.on_wheel_changed(x, y, dx, dy, is_horizontal)
             return False
 
-        self._behavior.on_wheel_changed = handle_wheel_changed
+        self._behavior.on_wheel_changed = wrap_callback(self, handle_wheel_changed)
 
         def handle_size_changed(width: int, height: int) -> None:
             self.width = width
@@ -2638,63 +2670,63 @@ class CanvasWidget(Widget):
             if callable(self.on_size_changed):
                 self.on_size_changed(width, height)
 
-        self._behavior.on_size_changed = handle_size_changed
+        self._behavior.on_size_changed = wrap_callback(self, handle_size_changed)
 
         def handle_key_pressed(key: Key) -> bool:
             if callable(self.on_key_pressed):
                 return self.on_key_pressed(key)
             return False
 
-        self._behavior.on_key_pressed = handle_key_pressed
+        self._behavior.on_key_pressed = wrap_callback(self, handle_key_pressed)
 
         def handle_key_released(key: Key) -> bool:
             if callable(self.on_key_released):
                 return self.on_key_released(key)
             return False
 
-        self._behavior.on_key_released = handle_key_released
+        self._behavior.on_key_released = wrap_callback(self, handle_key_released)
 
         def handle_drag_enter(mime_data: MimeData) -> str:
             if callable(self.on_drag_enter):
                 return self.on_drag_enter(mime_data)
             return "ignore"
 
-        self._behavior.on_drag_enter = handle_drag_enter
+        self._behavior.on_drag_enter = wrap_callback(self, handle_drag_enter)
 
         def handle_drag_leave() -> str:
             if callable(self.on_drag_leave):
                 return self.on_drag_leave()
             return "ignore"
 
-        self._behavior.on_drag_leave = handle_drag_leave
+        self._behavior.on_drag_leave = wrap_callback(self, handle_drag_leave)
 
         def handle_drag_move(mime_data: MimeData, x: int, y: int) -> str:
             if callable(self.on_drag_move):
                 return self.on_drag_move(mime_data, x, y)
             return "ignore"
 
-        self._behavior.on_drag_move = handle_drag_move
+        self._behavior.on_drag_move = wrap_callback(self, handle_drag_move)
 
         def handle_drop(mime_data: MimeData, x: int, y: int) -> str:
             if callable(self.on_drop):
                 return self.on_drop(mime_data, x, y)
             return "ignore"
 
-        self._behavior.on_drop = handle_drop
+        self._behavior.on_drop = wrap_callback(self, handle_drop)
 
         def handle_tool_tip(x: int, y: int, gx: int, gy: int) -> bool:
             if callable(self.on_tool_tip):
                 return self.on_tool_tip(x, y, gx, gy)
             return False
 
-        self._behavior.on_tool_tip = handle_tool_tip
+        self._behavior.on_tool_tip = wrap_callback(self, handle_tool_tip)
 
         def handle_pan_gesture(delta_x: int, delta_y: int) -> bool:
             if callable(self.on_pan_gesture):
                 return self.on_pan_gesture(delta_x, delta_y)
             return False
 
-        self._behavior.on_pan_gesture = handle_pan_gesture
+        self._behavior.on_pan_gesture = wrap_callback(self, handle_pan_gesture)
 
         self.__canvas_item = self._behavior._create_composition_canvas_item(self, layout_render)
         self._behavior._set_canvas_item(self.__canvas_item)
@@ -3012,6 +3044,9 @@ class MenuAction:
         if callable(self.on_ui_activity):
             self.on_ui_activity()
 
+    def _report_exception(self, e: BaseException, stack_trace: typing.Sequence[str]) -> None:
+        logging.error("".join(stack_trace))
+
     @property
     def title(self) -> str:
         raise NotImplementedError()
@@ -3041,13 +3076,10 @@ class MenuAction:
         # in the caller. it is placed here because it may eliminate duplicated code.
         # if there is a reason to hoist this to the caller at some point, this should be considered
         # a relatively arbitrary decision that it is here.
-        try:
+        with ReportErrorContext(self):
             self._register_ui_activity()
             if callable(self.on_triggered):
                 self.on_triggered()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
 
     def create(self, document_window: Window, title: str, key_sequence: typing.Optional[str], role: typing.Optional[str]) -> None:
         raise NotImplementedError()
@@ -3448,6 +3480,9 @@ class Window:
         if callable(self.on_ui_activity):
             self.on_ui_activity()
 
+    def _report_exception(self, e: BaseException, stack_trace: typing.Sequence[str]) -> None:
+        logging.error("".join(stack_trace))
+
     # attach the root widget to this window
     # the root widget must respond to _set_root_container
     def attach(self, root_widget: Widget) -> None:
@@ -3594,14 +3629,11 @@ class Window:
         # in the caller. it is placed here because it may eliminate duplicated code.
         # if there is a reason to hoist this to the caller at some point, this should be considered
         # a relatively arbitrary decision that it is here.
-        try:
+        with ReportErrorContext(self):
             if self.root_widget:
                 self.root_widget.periodic()
             if self.on_periodic:
                 self.on_periodic()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
 
     def _handle_about_to_show(self) -> None:
         if self.on_about_to_show:

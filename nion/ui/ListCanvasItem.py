@@ -96,7 +96,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, delegate: ListCanvasItemDelegate, selection: Selection.IndexedSelection, item_height: int = 80) -> None:
         super().__init__()
         # store parameters
-        self.__delegate = delegate
+        self.__delegate: typing.Optional[ListCanvasItemDelegate] = delegate
         self.__selection = selection
         self.__selection_changed_listener = self.__selection.changed_event.listen(self.update)
         # configure super
@@ -119,10 +119,11 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         super().close()
 
     def detach_delegate(self) -> None:
-        self.__delegate = typing.cast(typing.Any, None)
+        self.__delegate = None
 
     def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
-        item_count = self.__delegate.item_count if self.__delegate else 0
+        delegate = self.__delegate
+        item_count = delegate.item_count if delegate else 0
         height = item_count * self.__item_height
 
         def calculate_size(canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
@@ -131,18 +132,20 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         return calculate_size
 
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
-        max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        max_index = delegate.item_count if delegate else 0
         mouse_index = y // self.__item_height
         if mouse_index >= 0 and mouse_index < max_index:
-            if self.__delegate:
-                text = self.__delegate.item_tool_tip(mouse_index)
+            if delegate:
+                text = delegate.item_tool_tip(mouse_index)
                 if text:
                     self.show_tool_tip_text(text, gx, gy)
                     return True
         return super().handle_tool_tip(x, y, gx, gy)
 
     def __calculate_layout_height(self) -> int:
-        item_count = self.__delegate.item_count if self.__delegate else 0
+        delegate = self.__delegate
+        item_count = delegate.item_count if delegate else 0
         return item_count * self.__item_height
 
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
@@ -156,12 +159,13 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, visible_rect: Geometry.IntRect) -> None:
         canvas_bounds = self.canvas_bounds
-        if self.__delegate and canvas_bounds:
+        delegate = self.__delegate
+        if delegate and canvas_bounds:
             item_width = canvas_bounds.width
             item_height = self.__item_height
 
             with drawing_context.saver():
-                items = self.__delegate.items
+                items = delegate.items
                 max_index = len(items)
                 top_visible_row = visible_rect.top // item_height
                 bottom_visible_row = visible_rect.bottom // item_height
@@ -177,7 +181,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                                     drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
                                     drawing_context.fill_style = "#3875D6" if self.focused else "#DDD"
                                     drawing_context.fill()
-                            self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
+                            delegate.paint_item(drawing_context, items[index], rect, is_selected)
                             if index == self.__drop_index:
                                 with drawing_context.saver():
                                     drop_border_width = 2.5
@@ -194,39 +198,40 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             self._repaint_visible(drawing_context, canvas_bounds)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        if self.__delegate:
-            max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        if delegate:
+            max_index = delegate.item_count
             mouse_index = y // self.__item_height
             if mouse_index >= 0 and mouse_index < max_index:
                 if not self.__selection.contains(mouse_index):
                     self.__selection.set(mouse_index)
-                if self.__delegate:
-                    return self.__delegate.context_menu_event(mouse_index, x, y, gx, gy)
+                return delegate.context_menu_event(mouse_index, x, y, gx, gy)
             else:
-                if self.__delegate:
-                    return self.__delegate.context_menu_event(None, x, y, gx, gy)
+                return delegate.context_menu_event(None, x, y, gx, gy)
         return False
 
     def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        max_index = delegate.item_count if delegate else 0
         mouse_index = y // self.__item_height
         if mouse_index >= 0 and mouse_index < max_index:
             if not self.__selection.contains(mouse_index):
                 self.__selection.set(mouse_index)
-            if self.__delegate:
-                return self.__delegate.item_selected(mouse_index)
+            if delegate:
+                return delegate.item_selected(mouse_index)
         return super().mouse_double_clicked(x, y, modifiers)
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.__delegate:
+        delegate = self.__delegate
+        if delegate:
             mouse_index = y // self.__item_height
-            max_index = self.__delegate.item_count
+            max_index = delegate.item_count
             if mouse_index >= 0 and mouse_index < max_index:
                 self.__mouse_index = mouse_index
                 self.__mouse_pressed = True
                 handled = False
-                if self.__delegate:
-                    handled = self.__delegate.mouse_pressed_in_item(mouse_index, Geometry.IntPoint(y=y - mouse_index * self.__item_height, x=x), modifiers)
+                if delegate:
+                    handled = delegate.mouse_pressed_in_item(mouse_index, Geometry.IntPoint(y=y - mouse_index * self.__item_height, x=x), modifiers)
                     if handled:
                         self.__mouse_index = None  # prevent selection handling
                 if not handled and not modifiers.shift and not modifiers.control:
@@ -236,11 +241,12 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         return super().mouse_pressed(x, y, modifiers)
 
     def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers, do_select: bool) -> None:
-        if self.__delegate and self.__mouse_pressed and do_select:
+        delegate = self.__delegate
+        if delegate and self.__mouse_pressed and do_select:
             # double check whether mouse_released has been called explicitly as part of a drag.
             # see https://bugreports.qt.io/browse/QTBUG-40733
             mouse_index = self.__mouse_index
-            max_index = self.__delegate.item_count
+            max_index = delegate.item_count
             if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
                 if modifiers.shift:
                     self.__selection.extend(mouse_index)
@@ -264,11 +270,12 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             point_f = Geometry.FloatPoint(y=y, x=x)
             if not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
                 self.__mouse_dragging = True
-                if self.__delegate:
+                delegate = self.__delegate
+                if delegate:
                     root_container = self.root_container
                     if root_container:
                         root_container.bypass_request_focus()
-                    self.__delegate.drag_started(self.__mouse_index, x, y, modifiers)
+                    delegate.drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
                 return True
@@ -290,22 +297,23 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__make_selection_visible(-1)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
-        if self.__delegate:
-            if self.__delegate.key_pressed(key):
+        delegate = self.__delegate
+        if delegate:
+            if delegate.key_pressed(key):
                 return True
             if key.is_delete:
                 return self.handle_delete()
             if key.is_enter_or_return:
                 indexes = self.__selection.indexes
                 if len(indexes) == 1:
-                    return self.__delegate.item_selected(list(indexes)[0])
+                    return delegate.item_selected(list(indexes)[0])
             if key.is_up_arrow:
                 new_index = None
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
                     new_index = max(min(indexes) - 1, 0)
-                elif self.__delegate.item_count > 0:
-                    new_index = self.__delegate.item_count - 1
+                elif delegate.item_count > 0:
+                    new_index = delegate.item_count - 1
                 if new_index is not None:
                     if key.modifiers.shift:
                         self.__selection.extend(new_index)
@@ -317,8 +325,8 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 new_index = None
                 indexes = self.__selection.indexes
                 if len(indexes) > 0:
-                    new_index = min(max(indexes) + 1, self.__delegate.item_count - 1)
-                elif self.__delegate.item_count > 0:
+                    new_index = min(max(indexes) + 1, delegate.item_count - 1)
+                elif delegate.item_count > 0:
                     new_index = 0
                 if new_index is not None:
                     if key.modifiers.shift:
@@ -336,12 +344,13 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         mouse_index = y // self.__item_height
-        max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        max_index = delegate.item_count if delegate else 0
         drop_index = None
         if mouse_index >= 0 and mouse_index < max_index:
             drop_index = mouse_index
-            if self.__delegate:
-                if not self.__delegate.item_can_drop_mime_data(mime_data, "move", drop_index):
+            if delegate:
+                if not delegate.item_can_drop_mime_data(mime_data, "move", drop_index):
                     drop_index = None
             else:
                 drop_index = None
@@ -362,23 +371,28 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         self.__drop_index = None
         self.update()
         if drop_index is not None:
-            if self.__delegate:
-                return self.__delegate.item_drop_mime_data(mime_data, "move", drop_index)
+            delegate = self.__delegate
+            if delegate:
+                return delegate.item_drop_mime_data(mime_data, "move", drop_index)
         return "ignore"
 
     def handle_select_all(self) -> bool:
-        if self.__delegate:
-            self.__selection.set_multiple(set(range(self.__delegate.item_count)))
+        delegate = self.__delegate
+        if delegate:
+            self.__selection.set_multiple(set(range(delegate.item_count)))
             return True
         return False
 
     def handle_delete(self) -> bool:
-        if self.__delegate:
-            self.__delegate.delete_pressed()
+        delegate = self.__delegate
+        if delegate:
+            delegate.delete_pressed()
         return True
 
     def size_to_content(self) -> None:
         """Size the canvas item to the height of the items."""
-        height = self.__item_height * self.__delegate.item_count
-        new_sizing = self.sizing.with_minimum_height(height).with_maximum_height(height)
-        self.update_sizing(new_sizing)
+        delegate = self.__delegate
+        if delegate:
+            height = self.__item_height * delegate.item_count
+            new_sizing = self.sizing.with_minimum_height(height).with_maximum_height(height)
+            self.update_sizing(new_sizing)

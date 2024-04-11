@@ -90,7 +90,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                  direction: Direction = Direction.Row, wrap: bool = True) -> None:
         super().__init__()
         # store parameters
-        self.__delegate = delegate
+        self.__delegate: typing.Optional[GridCanvasItemDelegate] = delegate
         self.__selection = selection
         self.__selection_changed_listener = self.__selection.changed_event.listen(self.update)
         # configure super
@@ -111,7 +111,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         super().close()
 
     def detach_delegate(self) -> None:
-        self.__delegate = typing.cast(typing.Any, None)
+        self.__delegate = None
 
     @property
     def direction(self) -> Direction:
@@ -163,14 +163,16 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         return canvas_size
 
     def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
-        return functools.partial(GridCanvasItem.calculate_layout_size, self.wrap, self.direction, self.__delegate.item_count if self.__delegate else 0)
+        delegate = self.__delegate
+        return functools.partial(GridCanvasItem.calculate_layout_size, self.wrap, self.direction, delegate.item_count if delegate else 0)
 
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
-        max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        max_index = delegate.item_count if delegate else 0
         mouse_index = self.__get_item_index_at(x, y)
         if mouse_index >= 0 and mouse_index < max_index:
-            if self.__delegate:
-                text = self.__delegate.item_tool_tip(mouse_index)
+            if delegate:
+                text = delegate.item_tool_tip(mouse_index)
                 if text:
                     self.show_tool_tip_text(text, gx, gy)
                     return True
@@ -184,7 +186,8 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_size = self.canvas_size
         if canvas_size:
             item_size = self.__calculate_item_size(canvas_size)
-            item_count = self.__delegate.item_count if self.__delegate else 0
+            delegate = self.__delegate
+            item_count = delegate.item_count if delegate else 0
             items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
             items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
             if self.direction == Direction.Row:
@@ -198,9 +201,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, visible_rect: Geometry.IntRect) -> None:
         canvas_size = self.canvas_size
-        if self.__delegate and canvas_size and canvas_size.height > 0 and canvas_size.width > 0:
+        delegate = self.__delegate
+        if delegate and canvas_size and canvas_size.height > 0 and canvas_size.width > 0:
             item_size = self.__calculate_item_size(canvas_size)
-            items = self.__delegate.items if self.__delegate else list()
+            items = delegate.items if delegate else list()
             item_count = len(items)
             items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
             items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
@@ -227,7 +231,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
                                         drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
                                         drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
                                         drawing_context.fill()
-                                self.__delegate.paint_item(drawing_context, items[index], rect, is_selected)
+                                delegate.paint_item(drawing_context, items[index], rect, is_selected)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         canvas_bounds = self.canvas_bounds
@@ -235,22 +239,24 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             self._repaint_visible(drawing_context, canvas_bounds)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        if self.__delegate:
+        delegate = self.__delegate
+        if delegate:
             mouse_index = self.__get_item_index_at(x, y)
-            max_index = self.__delegate.item_count
+            max_index = delegate.item_count
             if mouse_index >= 0 and mouse_index < max_index:
                 if not self.__selection.contains(mouse_index):
                     self.__selection.set(mouse_index)
-                return self.__delegate.context_menu_event(mouse_index, x, y, gx, gy)
+                return delegate.context_menu_event(mouse_index, x, y, gx, gy)
             else:
-                return self.__delegate.context_menu_event(None, x, y, gx, gy)
+                return delegate.context_menu_event(None, x, y, gx, gy)
         return False
 
     def __get_item_index_at(self, x: int, y: int) -> int:
         canvas_size = self.canvas_size
         if canvas_size:
             item_size = self.__calculate_item_size(canvas_size)
-            item_count = self.__delegate.item_count if self.__delegate else 0
+            delegate = self.__delegate
+            item_count = delegate.item_count if delegate else 0
             items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
             items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
             mouse_row = y // item_size.height
@@ -263,9 +269,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         return 0
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.__delegate:
+        delegate = self.__delegate
+        if delegate:
             mouse_index = self.__get_item_index_at(x, y)
-            max_index = self.__delegate.item_count
+            max_index = delegate.item_count
             if mouse_index >= 0 and mouse_index < max_index:
                 self.__mouse_index = mouse_index
                 self.__mouse_pressed = True
@@ -277,11 +284,12 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         return False
 
     def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers, do_select: bool) -> None:
-        if self.__delegate and self.__mouse_pressed and do_select:
+        delegate = self.__delegate
+        if delegate and self.__mouse_pressed and do_select:
             # double check whether mouse_released has been called explicitly as part of a drag.
             # see https://bugreports.qt.io/browse/QTBUG-40733
             mouse_index = self.__mouse_index
-            max_index = self.__delegate.item_count
+            max_index = delegate.item_count
             if mouse_index is not None and mouse_index >= 0 and mouse_index < max_index:
                 if modifiers.shift:
                     self.__selection.extend(mouse_index)
@@ -305,11 +313,12 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             point_f = Geometry.FloatPoint(y=y, x=x)
             if not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
                 self.__mouse_dragging = True
-                if self.__delegate:
+                delegate = self.__delegate
+                if delegate:
                     root_container = self.root_container
                     if root_container:
                         root_container.bypass_request_focus()
-                    self.__delegate.drag_started(self.__mouse_index, x, y, modifiers)
+                    delegate.drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
                 return True
@@ -317,9 +326,10 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         mouse_index = self.__get_item_index_at(x, y)
-        max_index = self.__delegate.item_count
+        delegate = self.__delegate
+        max_index = delegate.item_count if delegate else 0
         if mouse_index >= 0 and mouse_index < max_index:
-            if self.__delegate.mouse_double_clicked(mouse_index, x, y, modifiers):
+            if delegate and delegate.mouse_double_clicked(mouse_index, x, y, modifiers):
                 return True
         return super().mouse_double_clicked(x, y, modifiers)
 
@@ -343,43 +353,47 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         canvas_size = self.canvas_size
         assert canvas_size
         item_size = self.__calculate_item_size(canvas_size)
-        item_count = self.__delegate.item_count if self.__delegate else 0
+        delegate = self.__delegate
+        item_count = delegate.item_count if delegate else 0
         items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
         items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
-        if self.__delegate:
-            if self.__delegate.key_pressed(key):
+        if delegate:
+            if delegate.key_pressed(key):
                 return True
             if key.is_delete:
-                self.__delegate.delete_pressed()
+                delegate.delete_pressed()
                 return True
             if key.is_up_arrow:
                 amount = items_per_row if self.direction == Direction.Row else 1
-                self.__selection.select_backward(self.__delegate.item_count, False, amount)
+                self.__selection.select_backward(delegate.item_count, False, amount)
                 self.__make_selection_visible(top=True)
                 return True
             if key.is_down_arrow:
                 amount = items_per_row if self.direction == Direction.Row else 1
-                self.__selection.select_forward(self.__delegate.item_count, False, amount)
+                self.__selection.select_forward(delegate.item_count, False, amount)
                 self.__make_selection_visible(top=False)
                 return True
             if key.is_left_arrow:
                 amount = 1 if self.direction == Direction.Row else items_per_column
-                self.__selection.select_backward(self.__delegate.item_count, False, amount)
+                self.__selection.select_backward(delegate.item_count, False, amount)
                 self.__make_selection_visible(top=True)
                 return True
             if key.is_right_arrow:
                 amount = 1 if self.direction == Direction.Row else items_per_column
-                self.__selection.select_forward(self.__delegate.item_count, False, amount)
+                self.__selection.select_forward(delegate.item_count, False, amount)
                 self.__make_selection_visible(top=False)
                 return True
         return super().key_pressed(key)
 
     def handle_select_all(self) -> bool:
-        if self.__delegate:
-            self.__selection.set_multiple(set(range(self.__delegate.item_count)))
+        delegate = self.__delegate
+        if delegate:
+            self.__selection.set_multiple(set(range(delegate.item_count)))
             return True
         return False
 
     def handle_delete(self) -> bool:
-        self.__delegate.delete_pressed()
+        delegate = self.__delegate
+        if delegate:
+            delegate.delete_pressed()
         return True

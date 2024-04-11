@@ -7,6 +7,7 @@ from __future__ import annotations
 # standard libraries
 import binascii
 import copy
+import logging
 import os
 import pathlib
 import pickle
@@ -2147,6 +2148,9 @@ class QtDockWidget(UserInterface.DockWidget):
         self.proxy.DocumentWindow_removeDockWidget(self.__native_document_window, self.native_dock_widget)
         self.native_dock_widget = None
         self.proxy = None
+
+    def _report_exception(self, e: BaseException, stack_trace: typing.Sequence[str]) -> None:
+        logging.error("".join(stack_trace))
 
     @property
     def does_retain_focus(self) -> bool:

@@ -948,7 +948,7 @@ class TextPushButtonWidget(UserInterface.Widget):
         text_button_canvas_widget.canvas_item.add_canvas_item(text_button_canvas_item)
         # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
         root_container = text_button_canvas_item.root_container
-        if root_container:
+        if root_container and root_container.canvas_widget:
             text_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
         column_widget.add(text_button_canvas_widget)
@@ -1125,7 +1125,7 @@ class ColorPushButtonWidget(UserInterface.Widget):
         color_button_canvas_widget.canvas_item.add_canvas_item(color_button_canvas_item)
         # ugh. this is a partially working stop-gap when a canvas item is in a widget it will not get mouse exited reliably
         root_container = color_button_canvas_item.root_container
-        if root_container:
+        if root_container and root_container.canvas_widget:
             color_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
         self.__color_button_canvas_item = color_button_canvas_item

@@ -1733,8 +1733,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.__layout_render_trait = layout_render_trait or CompositionLayoutRenderTrait(self)
 
     def close(self) -> None:
-        self.__layout_render_trait.close()
-        self.__layout_render_trait = typing.cast(typing.Any, None)
+        if self.__layout_render_trait:
+            self.__layout_render_trait.close()
+            self.__layout_render_trait = typing.cast(typing.Any, None)
         with self.__layout_lock:
             canvas_items = self.canvas_items
             for canvas_item in canvas_items:

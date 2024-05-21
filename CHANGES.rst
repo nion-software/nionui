@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+7.0.4 (UNRELEASED)
+------------------
+- Add support for pyside6 (alternate Qt 6.7 frontend) as a successor to pyside2.
+
 7.0.3 (2024-01-22)
 ------------------
 - Minor addition for future color scheme change support.

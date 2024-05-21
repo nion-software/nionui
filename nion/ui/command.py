@@ -84,7 +84,7 @@ def main() -> None:
 
     success = False
 
-    # next attempt to launch using pyside2
+    # next attempt to launch using pyside6
     try:
         from PySide6 import QtCore
         success = True

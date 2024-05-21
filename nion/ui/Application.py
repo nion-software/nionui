@@ -256,7 +256,7 @@ def make_ui(bootstrap_args: typing.Mapping[str, typing.Any]) -> UserInterface.Us
         from nion.ui import QtUserInterface
         proxy = bootstrap_args["proxy"]
         return QtUserInterface.QtUserInterface(proxy)
-    elif "pyqt" in bootstrap_args:
+    elif "qt" in bootstrap_args:
         from nion.ui import QtUserInterface
         from nion.ui import PyQtProxy
         return QtUserInterface.QtUserInterface(PyQtProxy.PyQtProxy())  # type: ignore

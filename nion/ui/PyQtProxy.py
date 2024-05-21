@@ -13,16 +13,10 @@ import time
 import typing
 
 # third party libraries
-if 'PyQt5' in sys.modules:
-    from PyQt5 import QtCore
-    from PyQt5 import QtGui
-    from PyQt5 import QtWidgets
-    from PyQt5.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
-else:
-    from PySide2 import QtCore
-    from PySide2 import QtGui
-    from PySide2 import QtWidgets
-    from PySide2.QtCore import Signal, Slot
+from PySide6 import QtCore
+from PySide6 import QtGui
+from PySide6 import QtWidgets
+from PySide6.QtCore import Signal, Slot
 
 if typing.TYPE_CHECKING:
     from nion.ui import QtUserInterface
@@ -40,6 +34,7 @@ g_stylesheet = None
 
 _QtObject = typing.Any
 
+DEFAULT_RENDER_HINTS = QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing
 
 def GetDirectory(path: str) -> str:
     info = QtCore.QFileInfo(QtCore.QDir.current(), path)
@@ -104,7 +99,7 @@ def GetExistingDirectory(parent: QtWidgets.QWidget, caption: str, dir: str, sele
     # create a qt dialog
     dialog = QtWidgets.QFileDialog(parent, caption, WorkingDirectory(dir))
     dialog.selectFile(InitialSelection(dir))
-    dialog.setFileMode(QtWidgets.QFileDialog.DirectoryOnly)  # also QtWidgets.QFileDialog.Directory
+    dialog.setFileMode(QtWidgets.QFileDialog.Directory)  # also QtWidgets.QFileDialog.Directory
     if dialog.exec_() == QtWidgets.QDialog.Accepted:
         selected_directory_ref[0] = dialog.directory()
         return dialog.selectedFiles()[0]
@@ -181,7 +176,7 @@ class PyApplication(QtWidgets.QApplication):
             self.application.stop()
 
 
-class PyAction(QtWidgets.QAction):
+class PyAction(QtGui.QAction):
 
     def __init__(self, parent: QtWidgets.QWidget):
         super().__init__(parent)
@@ -330,7 +325,7 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
         if event.type() == QtCore.QEvent.KeyPress:
             if self.object:
                 try:
-                    if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
+                    if self.object.keyPressed(event.text(), event.key(), event.modifiers().value):
                         event.accept()
                         return
                 except Exception as e:
@@ -342,7 +337,7 @@ class PyDocumentWindow(QtWidgets.QMainWindow):
         if event.type() == QtCore.QEvent.KeyRelease:
             if self.object:
                 try:
-                    if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
+                    if self.object.keyReleased(event.text(), event.key(), event.modifiers().value):
                         event.accept()
                         return
                 except Exception as e:
@@ -356,6 +351,33 @@ class DockWidget(QtWidgets.QDockWidget):
     def __init__(self, title: str, parent: QtWidgets.QWidget):
         super().__init__(title, parent)
         self.object = None
+
+    def closeEvent(self, close_event: QtGui.QCloseEvent) -> None:
+        super().closeEvent(close_event)
+        if self.object:
+            try:
+                self.object.willClose()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+
+    def hideEvent(self, hide_event: QtGui.QHideEvent) -> None:
+        super().hideEvent(hide_event)
+        if self.object:
+            try:
+                self.object.willHide()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+
+    def showEvent(self, show_event: QtGui.QShowEvent) -> None:
+        super().showEvent(show_event)
+        if self.object:
+            try:
+                self.object.willShow()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -559,13 +581,87 @@ class PyLineEdit(QtWidgets.QLineEdit):
             else:
                 if self.object:
                     try:
-                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
+                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers().value):
                             key_event.accept()
                             return
                     except Exception as e:
                         import traceback
                         traceback.print_exc()
         super().keyPressEvent(key_event)
+
+
+class PyTextBrowser(QtWidgets.QTextBrowser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.object = None
+        self.setOpenLinks(False)
+        self.setOpenExternalLinks(True)
+        self.anchorClicked.connect(self.__anchor_clicked)
+
+    def loadResource(self, type: int, name: str) -> typing.Any:
+        if self.object:
+            if type == QtWidgets.QTextDocument.ImageResource:
+                result = self.object.loadImageResource(name)
+                if result:
+                    return imageFromRGBA(result)
+        return super().loadResource(type, name)
+
+    def keyPressEvent(self, key_event: QtGui.QKeyEvent) -> None:
+        if key_event.type() == QtCore.QEvent.KeyPress:
+            if key_event.key() == QtCore.Qt.Key_Escape:
+                if self.object:
+                    try:
+                        if self.object.escapePressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+            elif key_event.key() == QtCore.Qt.Key_Return or key_event.key() == QtCore.Qt.Key_Enter:
+                if self.object:
+                    try:
+                        if self.object.returnPressed():
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+            else:
+                if self.object:
+                    try:
+                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers().value):
+                            key_event.accept()
+                            return
+                    except Exception as e:
+                        import traceback
+                        traceback.print_exc()
+        super().keyPressEvent(key_event)
+
+    def focusInEvent(self, event) -> None:
+        if self.object:
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        if self.object:
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        super().focusOutEvent(event)
+
+    def __anchor_clicked(self, url: QtCore.QUrl) -> None:
+        if self.object:
+            try:
+                self.object.anchorClicked(url.toString())
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
 
 
 class PyTextEdit(QtWidgets.QTextEdit):
@@ -626,7 +722,7 @@ class PyTextEdit(QtWidgets.QTextEdit):
             else:
                 if self.object:
                     try:
-                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers()):
+                        if self.object.keyPressed(key_event.text(), key_event.key(), key_event.modifiers().value):
                             key_event.accept()
                             return
                     except Exception as e:
@@ -805,7 +901,7 @@ class TreeWidget(QtWidgets.QTreeView):
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.type() == QtCore.QEvent.KeyPress:
-            if self.__handle_key(event.text(), event.key(), int(event.modifiers())):
+            if self.__handle_key(event.text(), event.key(), event.modifiers().value):
                 return
         super().keyPressEvent(event)
 
@@ -1232,7 +1328,7 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
                 family += current
     family_list.append(family.strip())
 
-    families = [f.lower() for f in QtGui.QFontDatabase().families()]
+    families = [f.lower() for f in QtGui.QFontDatabase.families()]
     for family in family_list:
         if family in families:
             font.setFamily(family)
@@ -1247,6 +1343,21 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
     font.setStyleStrategy(QtGui.QFont.PreferAntialias)
 
     return font
+
+
+def ParseColorString(color_string: str) -> QtGui.QColor:
+    color = QtGui.QColor()
+    re1 = QtCore.QRegularExpression("^rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+\\.\\d+)\\)$")
+    re2 = QtCore.QRegularExpression("^rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)$")
+    match1 = re1.match(color_string)
+    match2 = re2.match(color_string)
+    if match1.hasMatch():
+        color = QtGui.QColor(int(match1.captured(1)), int(match1.captured(2)), int(match1.captured(3)), int(float(match1.captured(4)) * 255))
+    elif match2.hasMatch():
+        color = QtGui.QColor(int(match2.captured(1)), int(match2.captured(2)), int(match2.captured(3)))
+    else:
+        color = QtGui.QColor(color_string)
+    return color
 
 
 def imageFromRGBA(array: numpy.ndarray) -> QtGui.QImage:
@@ -1584,16 +1695,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             painter.fillPath(path, brush)
         elif cmd == "fillStyle":
             color_arg = args[0].strip()
-            re1 = QtCore.QRegExp("^rgba\\(([0-9]+),\\s*([0-9]+),\\s*([0-9]+),\\s*([0-9.]+)\\)$")
-            re2 = QtCore.QRegExp("^rgb\\(([0-9]+),\\s*([0-9]+),\\s*([0-9]+)\\)$")
-            pos1 = re1.indexIn(color_arg)
-            pos2 = re2.indexIn(color_arg)
-            if pos1 > -1:
-                fill_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), int(float(re1.cap(4)) * 255))
-            elif pos2 > -1:
-                fill_color = QtGui.QColor(int(re2.cap(1)), int(re2.cap(2)), int(re2.cap(3)))
-            else:
-                fill_color = QtGui.QColor(color_arg)
+            fill_color = ParseColorString(color_arg)
             fill_gradient = -1
         elif cmd == "fillStyleGradient":
             fill_gradient = args[0]
@@ -1601,7 +1703,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             text = args[0]
             text_pos = QtCore.QPointF(args[1] * display_scaling, args[2] * display_scaling)
             fm = QtGui.QFontMetrics(text_font)
-            text_width = fm.width(text)
+            text_width = fm.horizontalAdvance(text)
             if text_align == 2 or text_align == 5:  # end or right
                 text_pos.setX(text_pos.x() - text_width)
             elif text_align == 4:  # center
@@ -1655,16 +1757,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 text_baseline = 6
         elif cmd == "strokeStyle":
             color_arg = args[0].strip()
-            re1 = QtCore.QRegExp("^rgba\\(([0-9]+),\\s*([0-9]+),\\s*([0-9]+),\\s*([0-9.]+)\\)$")
-            re2 = QtCore.QRegExp("^rgb\\(([0-9]+),\\s*([0-9]+),\\s*([0-9]+)\\)$")
-            pos1 = re1.indexIn(color_arg)
-            pos2 = re2.indexIn(color_arg)
-            if pos1 > -1:
-                line_color = QtGui.QColor(int(re1.cap(1)), int(re1.cap(2)), int(re1.cap(3)), int(float(re1.cap(4)) * 255))
-            elif pos2 > -1:
-                line_color = QtGui.QColor(int(re2.cap(1)), int(re2.cap(2)), int(re2.cap(3)))
-            else:
-                line_color = QtGui.QColor(color_arg)
+            line_color = ParseColorString(color_arg)
         elif cmd == "lineDash":
             line_dash = args[0]
         elif cmd == "lineWidth":
@@ -1704,7 +1797,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             text_pos = QtCore.QPointF(12, 12)
             text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
             fm = QtGui.QFontMetrics(text_font)
-            text_width = fm.width(text)
+            text_width = fm.horizontalAdvance(text)
             text_ascent = fm.ascent()
             text_height = fm.height()
             background = QtGui.QPainterPath()
@@ -1732,7 +1825,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                     layer_image = QtGui.QImage(layer_rect.size(), QtGui.QImage.Format_ARGB32)
                     layer_image.fill(QtGui.QColor(0,0,0,0))
                     painter = QtGui.QPainter(layer_image)
-                    painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                    painter.setRenderHints(DEFAULT_RENDER_HINTS)
                     painter.translate(layer_rect.left(), layer_rect.top())
             layers_used.add(layer_id)
         elif cmd == "end_layer":
@@ -1791,7 +1884,6 @@ class PyCanvas(QtWidgets.QWidget):
         self.object = None
         self.__pressed = False
         self.__grab_mouse_count = 0
-        self.__known_dts: typing.Dict[str, _QtObject] = dict()
         self.__commands_mutex = QtCore.QMutex()
         self.__sections: typing.Dict[int, PyCanvas.CanvasSection] = dict()
         self.__last_pos = QtCore.QPoint()
@@ -1862,7 +1954,7 @@ class PyCanvas(QtWidgets.QWidget):
             painter = QtGui.QPainter()
             painter.begin(image)
             try:
-                painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                painter.setRenderHints(DEFAULT_RENDER_HINTS)
                 rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache, section_id=section_id)
             finally:
                 painter.end()
@@ -1891,17 +1983,15 @@ class PyCanvas(QtWidgets.QWidget):
                 if image and image_rect.intersects(event.rect()):
                     painter.drawImage(image_rect.topLeft(), image)
 
-                known_dts = self.__known_dts
-                self.__known_dts.clear()
-
                 for rendered_timestamp in rendered_timestamps:
                     painter.save()
-                    painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing | QtGui.QPainter.HighQualityAntialiasing)
+                    painter.setRenderHints(DEFAULT_RENDER_HINTS)
                     dt = rendered_timestamp.timestamp
-                    utc = known_dts.get(dt, QtCore.QDateTime.currentDateTimeUtc())
-                    self.__known_dts[dt] = utc
-                    millisecondsDiff = dt.msecsTo(utc)
+                    millisecondsDiff = dt.msecsTo(QtCore.QDateTime.currentDateTimeUtc())
+                    latency_min = 1000
                     latency_average = 0
+                    latency_max = 0
+                    latency_std_dev = 0
                     if rendered_timestamp.section_id > 0:
                         with QtCore.QMutexLocker(self.__commands_mutex):
                             section = self.__sections[rendered_timestamp.section_id]
@@ -1911,13 +2001,20 @@ class PyCanvas(QtWidgets.QWidget):
                                 section.latencies.pop(0)
                             for latency in section.latencies:
                                 latency_average += latency
+                                latency_min = min(latency_min, latency)
+                                latency_max = max(latency_max, latency)
+                            latency_average_f = latency_average / len(section.latencies)
                             latency_average //= len(section.latencies)
-                    text = "Latency " + str(millisecondsDiff)
+                            sum_of_squares = 0
+                            for latency in section.latencies:
+                                sum_of_squares += (latency - latency_average_f) * (latency - latency_average_f)
+                            latency_std_dev = math.sqrt(sum_of_squares / len(section.latencies))
+                    text = "Latency " + f"{millisecondsDiff:0.4f}"
                     if latency_average > 0:
-                        text += " [" + str(latency_average) + "]"
+                        text += ": " + f"{latency_average:0.3f}" + " ± " + f"{latency_std_dev:0.3f}" + "[" + f"{latency_min:0.3f}" + " - " + f"{latency_max:0.3f}" + "]"
                     text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
                     fm = QtGui.QFontMetrics(text_font)
-                    text_width = fm.width(text)
+                    text_width = fm.horizontalAdvance(text)
                     text_ascent = fm.ascent()
                     text_height = fm.height()
                     text_pos = QtCore.QPointF(12, 12 + text_height + 16)
@@ -1955,7 +2052,7 @@ class PyCanvas(QtWidgets.QWidget):
                 traceback.print_exc()
         return super().event(event)
 
-    def enterEvent(self, event: QtCore.QEvent) -> None:
+    def enterEvent(self, event: QtCore.QEnterEvent) -> None:
         if self.object:
             try:
                 self.object.mouseEntered()
@@ -1975,7 +2072,7 @@ class PyCanvas(QtWidgets.QWidget):
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
             try:
-                self.object.mousePressed(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                self.object.mousePressed(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -1986,14 +2083,14 @@ class PyCanvas(QtWidgets.QWidget):
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
             try:
-                self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                self.object.mouseReleased(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
             self.__pressed = False
             if (event.pos() - self.__last_pos).manhattanLength() < 6 * display_scaling:
                 try:
-                    self.object.mouseClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                    self.object.mouseClicked(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -2002,7 +2099,7 @@ class PyCanvas(QtWidgets.QWidget):
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
             try:
-                self.object.mouseDoubleClicked(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                self.object.mouseDoubleClicked(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -2014,13 +2111,13 @@ class PyCanvas(QtWidgets.QWidget):
             if self.__grab_mouse_count > 0:
                 delta = event.pos() - self.__grab_reference_point
                 try:
-                    self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers())
+                    self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers().value)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
 
             try:
-                self.object.mousePositionChanged(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                self.object.mousePositionChanged(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -2028,7 +2125,7 @@ class PyCanvas(QtWidgets.QWidget):
             # handle case of not getting mouse released event after drag.
             if self.__pressed and (event.buttons() & QtCore.Qt.LeftButton == 0):
                 try:
-                    self.object.mouseReleased(event.x() // display_scaling, event.y() // display_scaling, event.modifiers())
+                    self.object.mouseReleased(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
@@ -2037,11 +2134,11 @@ class PyCanvas(QtWidgets.QWidget):
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
         if self.object:
             wheel_event = event
-            is_horizontal = wheel_event.angleDelta().x() != 0
+            is_horizontal = abs(wheel_event.angleDelta().x()) > abs(wheel_event.angleDelta().y())
             delta = wheel_event.angleDelta() if wheel_event.pixelDelta().isNull() else wheel_event.pixelDelta()
             display_scaling = GetDisplayScaling()
             try:
-                self.object.wheelChanged(wheel_event.x() // display_scaling, wheel_event.y() // display_scaling, delta.x() / display_scaling, delta.y() // display_scaling, is_horizontal)
+                self.object.wheelChanged(wheel_event.angleDelta().x() // display_scaling, wheel_event.angleDelta().y() // display_scaling, delta.x() / display_scaling, delta.y() // display_scaling, is_horizontal)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
@@ -2060,7 +2157,7 @@ class PyCanvas(QtWidgets.QWidget):
         if event.type() == QtCore.QEvent.KeyPress:
             if self.object:
                 try:
-                    if self.object.keyPressed(event.text(), event.key(), event.modifiers()):
+                    if self.object.keyPressed(event.text(), event.key(), event.modifiers().value):
                         event.accept()
                         return
                 except Exception as e:
@@ -2072,7 +2169,7 @@ class PyCanvas(QtWidgets.QWidget):
         if event.type() == QtCore.QEvent.KeyRelease:
             if self.object:
                 try:
-                    if self.object.keyReleased(event.text(), event.key(), event.modifiers()):
+                    if self.object.keyReleased(event.text(), event.key(), event.modifiers().value):
                         event.accept()
                         return
                 except Exception as e:
@@ -2344,13 +2441,13 @@ class PyQtProxy:
 
         if role:
             if role == "preferences":
-                action.setMenuRole(QtWidgets.QAction.PreferencesRole)
+                action.setMenuRole(QtGui.QAction.PreferencesRole)
             elif role == "about":
-                action.setMenuRole(QtWidgets.QAction.AboutRole)
+                action.setMenuRole(QtGui.QAction.AboutRole)
             elif role == "application":
-                action.setMenuRole(QtWidgets.QAction.ApplicationSpecificRole)
+                action.setMenuRole(QtGui.QAction.ApplicationSpecificRole)
             elif role == "quit":
-                action.setMenuRole(QtWidgets.QAction.QuitRole)
+                action.setMenuRole(QtGui.QAction.QuitRole)
 
         return action
 
@@ -2400,7 +2497,7 @@ class PyQtProxy:
     def Application_getKeyboardModifiers(self, query: bool) -> int:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
-        return app.queryKeyboardModifiers() if query else app.keyboardModifiers()
+        return app.queryKeyboardModifiers().value if query else app.keyboardModifiers().value
 
     def ButtonGroup_addButton(self, button_group: PyButtonGroup, radio_button: PyRadioButton, button_id: int) -> None:
         global app
@@ -2539,7 +2636,7 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert check_box is not None
-        return ["unchecked", "partial", "checked"][check_box.checkState()]
+        return ["unchecked", "partial", "checked"][check_box.checkState().value]
 
     def CheckBox_getIsTristate(self, check_box: PyCheckBox) -> bool:
         global app
@@ -2636,7 +2733,7 @@ class PyQtProxy:
         display_scaling = GetDisplayScaling()
         font = ParseFontString(font_str, display_scaling)
         font_metrics = QtGui.QFontMetrics(font)
-        return font_metrics.width(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
+        return font_metrics.horizontalAdvance(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
 
     def Core_getQtVersion(self) -> str:
         return QtCore.qVersion()
@@ -2739,7 +2836,7 @@ class PyQtProxy:
             "all": QtCore.Qt.AllDockWidgetAreas,
             "none": QtCore.Qt.NoDockWidgetArea,
         }
-        allowed_positions_mask = 0
+        allowed_positions_mask = QtCore.Qt.NoDockWidgetArea
         for allowed_position in allowed_positions:
             allowed_positions_mask |= mapping[allowed_position]
         allowed_positions_mask = QtCore.Qt.DockWidgetAreas(allowed_positions_mask)
@@ -2929,7 +3026,7 @@ class PyQtProxy:
             "input-transparent": QtCore.Qt.WindowTransparentForInput,
             "no-focus": QtCore.Qt.WindowDoesNotAcceptFocus,
         }
-        window_flags = 0
+        window_flags = QtCore.Qt.Widget
         for style in styles:
             window_flags |= style_mapping.get(style, 0)
         document_window.setWindowFlags(window_flags)
@@ -3450,6 +3547,59 @@ class PyQtProxy:
         assert tab_widget is not None
         tab_widget.setCurrentIndex(index)
 
+    def TextBrowser_connect(self, text_browser: PyTextBrowser, object) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        assert object is not None
+        text_browser.object = object
+
+    def TextBrowser_scrollToAnchor(self, text_browser: PyTextBrowser, anchor: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        text_browser.scrollToAnchor(anchor)
+
+    def TextBrowser_setHtml(self, text_browser: PyTextBrowser, html: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        text_browser.setHtml(html)
+
+    def TextBrowser_setMarkdown(self, text_browser: PyTextBrowser, markdown: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        text_browser.setMarkdown(markdown)
+
+    def TextBrowser_setText(self, text_browser: PyTextBrowser, text: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        text_browser.setPlainText(text)
+
+    def TextBrowser_setTextBackgroundColor(self, text_browser: PyTextBrowser, r: int, g: int, b: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        palette = text_browser.palette()
+        palette.setColor(QtGui.QPalette.Base, QtGui.QColor(r, g, b))
+        text_browser.setPalette(palette)
+
+    def TextBrowser_setTextColor(self, text_browser: PyTextBrowser, r: int, g: int, b: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        text_browser.setTextColor(QtGui.QColor(r, g, b))
+
+    def TextBrowser_setTextFont(self, text_browser: PyTextBrowser, font_str: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_browser is not None
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
+        text_browser.setFont(font)
+
     def TextEdit_appendText(self, text_edit: PyTextEdit, text: str) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
@@ -3584,7 +3734,7 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert text_edit is not None
         bf = text_edit.textCursor().blockFormat()
-        bf.setLineHeight(int(proportional_line_height * 100), QtGui.QTextBlockFormat.ProportionalHeight)
+        bf.setLineHeight(float(proportional_line_height * 100), 1)  # QtGui.QTextBlockFormat.ProportionalHeight
         text_edit.textCursor().setBlockFormat(bf)
 
     def TextEdit_setText(self, text_edit: PyTextEdit, text: str) -> None:
@@ -3621,7 +3771,7 @@ class PyQtProxy:
         assert text_edit is not None
         text_edit.setWordWrapMode(QtGui.QTextOption.WrapMode(["none", "word", "manual", "anywhere", "optional"].index(wrap_mode)))
 
-    def ToolTip_hide(self) -> None:
+    def ToolTip_hide(self, widget: QtWidgets.QWidget) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         QtWidgets.QToolTip.hideText()
@@ -3934,6 +4084,9 @@ class PyQtProxy:
         elif intrinsic_id == "lineedit":
             line_edit = PyLineEdit()
             return line_edit
+        elif intrinsic_id == "textbrowser":
+            text_browser = PyTextBrowser()
+            return text_browser
         elif intrinsic_id == "textedit":
             text_edit = PyTextEdit()
             return text_edit
@@ -4032,6 +4185,7 @@ class PyQtProxy:
         palette = widget.palette()
         if role == "background":
             palette.setColor(widget.backgroundRole(), QtGui.QColor(r, g, b, a))
+            widget.setAutoFillBackground(r != 0 or g != 0 or b != 0 or a != 0)
         widget.setPalette(palette)
 
     def Widget_setToolTip(self, widget: QtWidgets.QWidget, tool_tip: str) -> None:

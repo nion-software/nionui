@@ -68,7 +68,7 @@ def bootstrap_main(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Opt
     if len(args) >= 0:
         main_fn = main_fn or load_module_local()
     if main_fn:
-        return main_fn(args, {"pyqt": None}), None
+        return main_fn(args, {"qt": None}), None
     return None, "main"
 
 
@@ -84,22 +84,15 @@ def main() -> None:
 
     success = False
 
-    # next attempt to launch using pyqt
-    try:
-        from PyQt5 import QtCore
-        success = True
-    except ImportError:
-        pass
-
     # next attempt to launch using pyside2
     try:
-        from PySide2 import QtCore
+        from PySide6 import QtCore
         success = True
     except ImportError:
         pass
 
     if not success:
-        print("Please install either pyqt or PySide2 using pip or conda or use nionui-tool to launch.")
+        print("Please install 'pyside6' using pip or conda; or use nionui-tool to launch.")
 
     if success:
         app, error = bootstrap_main(sys.argv)

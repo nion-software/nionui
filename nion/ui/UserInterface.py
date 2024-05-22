@@ -2776,6 +2776,7 @@ class CanvasWidget(Widget):
             self.position_info = None
 
     def _redraw(self) -> None:
+        self.__canvas_item.refresh_layout()
         self.__canvas_item.redraw()
 
     @property

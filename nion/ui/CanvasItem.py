@@ -903,15 +903,18 @@ class AbstractCanvasItem:
     def _update_child_item_layout(self, child_item: AbstractCanvasItem) -> None:
         """Update the layout of a child item. Container subclasses should override.
 
-        Default implementation is to assume child does not change this items layout and lay out the children again.
+        Default implementation is to update the child layouts with the existing canvas size. Then, only if layout sizing
+        has changed, pass the update to the container.
 
         Protected method (should not be called by clients).
         """
-        container_canvas_item = self.__container
-        if container_canvas_item:
-            container_canvas_item._update_child_item_layout(self)
-        elif self.canvas_size:
+        layout_sizing = self.layout_sizing
+        if self.canvas_size:
             self._update_child_layouts(self.canvas_size)
+        if layout_sizing != self.layout_sizing:
+            container_canvas_item = self.__container
+            if container_canvas_item:
+                container_canvas_item._update_child_item_layout(self)
 
     @property
     def visible(self) -> bool:

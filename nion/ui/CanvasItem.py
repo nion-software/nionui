@@ -581,6 +581,7 @@ class AbstractCanvasItem:
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
         self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
         self.__sizing = Sizing(SizingData())
+        self.__last_layout_sizing: typing.Optional[Sizing] = None
         self.__focused = False
         self.__focusable = False
         self.wants_mouse_events = False
@@ -908,13 +909,13 @@ class AbstractCanvasItem:
 
         Protected method (should not be called by clients).
         """
-        layout_sizing = self.layout_sizing
         if self.canvas_size:
             self._update_child_layouts(self.canvas_size)
-        if layout_sizing != self.layout_sizing:
+        if self.__last_layout_sizing != self.layout_sizing:
             container_canvas_item = self.__container
             if container_canvas_item:
                 container_canvas_item._update_child_item_layout(self)
+            self.__last_layout_sizing = self.layout_sizing
 
     @property
     def visible(self) -> bool:

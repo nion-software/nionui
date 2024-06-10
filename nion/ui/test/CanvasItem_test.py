@@ -135,6 +135,25 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(canvas_item.canvas_items[0].canvas_origin, Geometry.IntPoint(x=80, y=0))
         self.assertEqual(canvas_item.canvas_items[0].canvas_size, Geometry.IntSize(width=480, height=480))
 
+    def test_layout_when_child_sizing_changed(self) -> None:
+        canvas_item = CanvasItem.CanvasItemComposition()
+        canvas_item.layout = CanvasItem.CanvasItemColumnLayout()
+        child_canvas = CanvasItem.CanvasItemComposition()
+        child_canvas.layout = CanvasItem.CanvasItemRowLayout()
+        cc_canvas = CanvasItem.EmptyCanvasItem()
+        cc_canvas.update_sizing(child_canvas.sizing.with_minimum_height(0).with_preferred_height(0))
+        child_canvas.add_canvas_item(cc_canvas)
+        canvas_item.add_stretch()
+        canvas_item.add_canvas_item(child_canvas)
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+        canvas_origin = child_canvas.canvas_origin
+        assert canvas_origin
+        self.assertEqual(240, canvas_origin.y)
+        cc_canvas.update_sizing(child_canvas.sizing.with_maximum_height(8))
+        canvas_origin = child_canvas.canvas_origin
+        assert canvas_origin
+        self.assertEqual(472, canvas_origin.y)
+
     def test_composition_layout_sizing_includes_margins_but_not_spacing(self) -> None:
         # test row layout
         canvas_item = CanvasItem.CanvasItemComposition()

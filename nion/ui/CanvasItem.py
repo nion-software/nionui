@@ -1814,7 +1814,23 @@ class CanvasItemComposition(AbstractCanvasItem):
             if self.__canvas_items is not None:
                 assert canvas_size is not None
                 canvas_size = Geometry.IntSize.make(canvas_size)
-                self.layout.layout(Geometry.IntPoint(), canvas_size, self.visible_canvas_items)
+                visible_canvas_items = self.visible_canvas_items
+                self.layout.layout(Geometry.IntPoint(), canvas_size, visible_canvas_items)
+                # layout will loop through the visible canvas items and the canvas items may have inconsistent layout
+                # (overlaps) during the loop. when repaint is triggered on individual items during the loop,
+                # it may result in the drawing overlapped items or missing space between items. to clean this up at
+                # the end of layout, request a repaint from all items. this is a hack to avoid putting a lock in
+                # place. this is reproducible on fast drawing systems (M1 Mac) by putting an image in the top left of
+                # a 2x2 layout and then slowly dragging the horizontal or vertical splitter until it snaps into the
+                # middle. during the snap, the drawing is inconsistent. for example, when dragging the horizontal
+                # splitter up and down, the empty panel at the bottom may request a repaint while the image at the
+                # top left has not yet been resized. a fast repaint will draw the image overlapped with the empty
+                # panel. the empty panel will think it has successfully updated and won't draw again. then the image
+                # panel will get resized and draw at its correct size. the empty panel will be left with remnants of
+                # the overlapped image. this needs design in the layout system to only draw or only update consistent
+                # layouts. this is a hack solution.
+                for canvas_item in visible_canvas_items:
+                    canvas_item.update()
 
     # override sizing information. let layout provide it.
     @property

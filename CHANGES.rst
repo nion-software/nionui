@@ -1,7 +1,7 @@
 Changelog (nionui)
 ==================
 
-7.1.0 (2024-06-12)
+7.1.1 (2024-06-14)
 ------------------
 - Add support for pyside6 (alternate Qt 6.7 frontend) as a successor to pyside2.
 - Refactor canvas item layout code to be non-threaded. Deprecate prepare_render method.

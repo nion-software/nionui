@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+7.2.0 (UNRELEASED)
+------------------
+- Add support for text alignment in labels.
+
 7.1.1 (2024-06-14)
 ------------------
 - Add support for pyside6 (alternate Qt 6.7 frontend) as a successor to pyside2.

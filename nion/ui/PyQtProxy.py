@@ -158,6 +158,23 @@ def ParseSizePolicy(policy_str: str, policy: QtWidgets.QSizePolicy.Policy) -> Qt
         return policy
 
 
+def ParseAlignment(alignment: str) -> QtCore.Qt.AlignmentFlag:
+    return {
+        "left": QtCore.Qt.AlignLeft,
+        "right": QtCore.Qt.AlignRight,
+        "hcenter": QtCore.Qt.AlignHCenter,
+        "justify": QtCore.Qt.AlignJustify,
+        "top": QtCore.Qt.AlignTop,
+        "bottom": QtCore.Qt.AlignBottom,
+        "vcenter": QtCore.Qt.AlignVCenter,
+        "baseline": QtCore.Qt.AlignBaseline,
+        "center": QtCore.Qt.AlignCenter,
+        "absolute": QtCore.Qt.AlignAbsolute,
+        "leading": QtCore.Qt.AlignLeading,
+        "trailing": QtCore.Qt.AlignTrailing
+    }.get(alignment, QtCore.Qt.AlignmentFlag(0))
+
+
 class PyApplication(QtWidgets.QApplication):
 
     def __init__(self, application, args):
@@ -3164,6 +3181,18 @@ class PyQtProxy:
         assert item_model is not None
         item_model.endRemoveRowsInParent()
 
+    def Label_setTextAlignmentHorizontal(self, label: QtWidgets.QLabel, alignment: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert label is not None
+        label.setAlignment((label.alignment() & ~QtCore.Qt.AlignHorizontal_Mask) | ParseAlignment(alignment))
+
+    def Label_setTextAlignmentVertical(self, label: QtWidgets.QLabel, alignment: str) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert label is not None
+        label.setAlignment((label.alignment() & ~QtCore.Qt.AlignVertical_Mask) | ParseAlignment(alignment))
+
     def Label_setText(self, label: QtWidgets.QLabel, text: str) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
@@ -3967,20 +3996,10 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert widget is not None
-        alignment_value = {
-            "left": QtCore.Qt.AlignLeft,
-            "right": QtCore.Qt.AlignRight,
-            "hcenter": QtCore.Qt.AlignHCenter,
-            "justify": QtCore.Qt.AlignJustify,
-            "top": QtCore.Qt.AlignTop,
-            "bottom": QtCore.Qt.AlignBottom,
-            "vcenter": QtCore.Qt.AlignVCenter,
-            "center": QtCore.Qt.AlignCenter,
-        }.get(alignment, QtCore.Qt.AlignmentFlag(0))
         stretch = 0  # hard coded
         box_layout = widget.layout()
         assert box_layout is not None
-        box_layout.insertWidget(index, child_widget, stretch, alignment_value)
+        box_layout.insertWidget(index, child_widget, stretch, ParseAlignment(alignment))
         if fill:
             child_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         # force re-layout

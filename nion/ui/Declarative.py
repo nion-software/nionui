@@ -107,6 +107,8 @@ class DeclarativeUI:
             "size_policy_horizontal",
             "size_policy_vertical",
             "tool_tip",
+            "text_alignment_horizontal",
+            "text_alignment_vertical",
             "color",
             "font",
             "background_color",
@@ -1869,6 +1871,8 @@ def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, hand
         connect_string_value(widget, d, handler, "text", finishes)
         connect_name(widget, d, handler)
         connect_attributes(widget, d, handler, finishes)
+        connect_reference_value(widget, d, handler, "text_alignment_horizontal", finishes, binding_name="text_alignment_horizontal", value_type=str)
+        connect_reference_value(widget, d, handler, "text_alignment_vertical", finishes, binding_name="text_alignment_vertical", value_type=str)
         connect_reference_value(widget, d, handler, "color", finishes, binding_name="text_color", value_type=str)
         connect_reference_value(widget, d, handler, "font", finishes, binding_name="text_font", value_type=str)
         connect_reference_value(widget, d, handler, "word_wrap", finishes, value_type=bool)

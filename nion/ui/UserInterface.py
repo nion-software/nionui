@@ -1799,6 +1799,8 @@ class CheckBoxWidget(Widget):
 class LabelWidgetBehavior(WidgetBehavior, typing.Protocol):
     text: typing.Optional[str]
     word_wrap: bool
+    def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None: ...
+    def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None: ...
     def set_text_color(self, value: typing.Optional[str]) -> None: ...
     def set_text_font(self, value: typing.Optional[str]) -> None: ...
 
@@ -1811,6 +1813,12 @@ class LabelWidget(Widget):
         def set_text(value: typing.Optional[str]) -> None:
             self._behavior.text = str(value) if value is not None else str()
 
+        def set_text_alignment_horizontal(value: typing.Optional[str]) -> None:
+            self._behavior.set_text_alignment_horizontal(str(value) if value is not None else None)
+
+        def set_text_alignment_vertical(value: typing.Optional[str]) -> None:
+            self._behavior.set_text_alignment_vertical(str(value) if value is not None else None)
+
         def set_text_font(value: typing.Optional[str]) -> None:
             self._behavior.set_text_font(str(value) if value is not None else None)
 
@@ -1818,10 +1826,14 @@ class LabelWidget(Widget):
             self._behavior.set_text_color(str(value) if value is not None else None)
 
         self.__text_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text)
+        self.__text_alignment_horizontal_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_alignment_horizontal)
+        self.__text_alignment_vertical_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_alignment_vertical)
         self.__text_font_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_font)
         self.__text_color_binding_helper = BindablePropertyHelper[typing.Optional[str]](None, set_text_color)
 
         self.text = text
+        self.text_alignment_horizontal = None
+        self.text_alignment_vertical = None
         self.text_font = None
         self.text_color = "black"
         self.background_color = None
@@ -1829,6 +1841,10 @@ class LabelWidget(Widget):
     def close(self) -> None:
         self.__text_binding_helper.close()
         self.__text_binding_helper = typing.cast(typing.Any, None)
+        self.__text_alignment_horizontal_binding_helper.close()
+        self.__text_alignment_horizontal_binding_helper = typing.cast(typing.Any, None)
+        self.__text_alignment_vertical_binding_helper.close()
+        self.__text_alignment_vertical_binding_helper = typing.cast(typing.Any, None)
         self.__text_font_binding_helper.close()
         self.__text_font_binding_helper = typing.cast(typing.Any, None)
         self.__text_color_binding_helper.close()
@@ -1846,6 +1862,22 @@ class LabelWidget(Widget):
     @text.setter
     def text(self, text: typing.Optional[str]) -> None:
         self.__text_binding_helper.value = text
+
+    @property
+    def text_alignment_horizontal(self) -> typing.Optional[str]:
+        return self.__text_alignment_horizontal_binding_helper.value
+
+    @text_alignment_horizontal.setter
+    def text_alignment_horizontal(self, value: typing.Optional[str]) -> None:
+        self.__text_alignment_horizontal_binding_helper.value = value
+
+    @property
+    def text_alignment_vertical(self) -> typing.Optional[str]:
+        return self.__text_alignment_vertical_binding_helper.value
+
+    @text_alignment_vertical.setter
+    def text_alignment_vertical(self, value: typing.Optional[str]) -> None:
+        self.__text_alignment_vertical_binding_helper.value = value
 
     @property
     def text_color(self) -> typing.Optional[str]:
@@ -1876,6 +1908,18 @@ class LabelWidget(Widget):
 
     def unbind_text(self) -> None:
         self.__text_binding_helper.unbind_value()
+
+    def bind_text_alignment_horizontal(self, binding: Binding.Binding) -> None:
+        self.__text_alignment_horizontal_binding_helper.bind_value(binding)
+
+    def unbind_text_alignment_horizontal(self) -> None:
+        self.__text_alignment_horizontal_binding_helper.unbind_value()
+
+    def bind_text_alignment_vertical(self, binding: Binding.Binding) -> None:
+        self.__text_alignment_vertical_binding_helper.bind_value(binding)
+
+    def unbind_text_alignment_vertical(self) -> None:
+        self.__text_alignment_vertical_binding_helper.unbind_value()
 
     def bind_text_font(self, binding: Binding.Binding) -> None:
         self.__text_font_binding_helper.bind_value(binding)

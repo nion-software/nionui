@@ -891,6 +891,12 @@ class LabelWidgetBehavior(WidgetBehavior):
         self.text: typing.Optional[str] = None
         self.word_wrap = False
 
+    def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None:
+        pass
+
     def set_text_color(self, color: typing.Optional[str]) -> None:
         pass
 

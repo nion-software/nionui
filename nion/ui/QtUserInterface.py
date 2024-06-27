@@ -1132,6 +1132,14 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
         self.__text = text if text else ""
         self.proxy.Label_setText(self.widget, self.__text)
 
+    def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None:
+        if self.proxy.has_method("Label_setTextAlignmentHorizontal"):
+            self.proxy.Label_setTextAlignmentHorizontal(self.widget, alignment)
+
+    def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None:
+        if self.proxy.has_method("Label_setTextAlignmentVertical"):
+            self.proxy.Label_setTextAlignmentVertical(self.widget, alignment)
+
     def set_text_color(self, color: typing.Optional[str]) -> None:
         self.proxy.Label_setTextColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))
 

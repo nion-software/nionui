@@ -511,6 +511,8 @@ class SectionWidget(UserInterface.Widget):
     The section is composed of a title in bold and then content.
     """
 
+    _starting_expand_state_map: dict[str, bool] = {}
+
     def __init__(self, ui: UserInterface.UserInterface, section_title: str, section: UserInterface.Widget, section_id: typing.Optional[str] = None) -> None:
         section_widget = ui.create_column_widget()
         super().__init__(CompositeWidgetBehavior(section_widget))
@@ -545,6 +547,8 @@ class SectionWidget(UserInterface.Widget):
             section_content_column.visible = expanded or False
             if initialized and section_id:
                 ui.set_persistent_string(section_id, "true" if twist_down_canvas_item.checked else "false")
+            if expanded is not None:
+                SectionWidget.set_starting_expanded_state(self.title, expanded)
 
         def toggle() -> None:
             self.expanded = not twist_down_canvas_item.checked
@@ -564,7 +568,7 @@ class SectionWidget(UserInterface.Widget):
         self.__expanded_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[bool]](None, set_expanded)
 
         self.title = section_title
-        self.expanded = True
+        self.expanded = SectionWidget.get_starting_expanded_state(section_title) # Defaulting to not expanded
 
         initialized = True
 
@@ -602,6 +606,21 @@ class SectionWidget(UserInterface.Widget):
 
     def unbind_expanded(self) -> None:
         self.__expanded_binding_helper.unbind_value()
+
+    @staticmethod
+    def get_starting_expanded_state(key: str) -> bool:
+        if key in SectionWidget._starting_expand_state_map:
+            return SectionWidget._starting_expand_state_map[key]
+        else:
+            return False
+
+    @staticmethod
+    def set_starting_expanded_state(key: str, state: bool) -> None:
+        SectionWidget._starting_expand_state_map[key] = state
+
+    @staticmethod
+    def clear_starting_expanded_state_map() -> None:
+        SectionWidget._starting_expand_state_map.clear()
 
 
 class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):

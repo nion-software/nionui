@@ -4760,6 +4760,7 @@ class TimestampCanvasItem(AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.__timestamp: typing.Optional[datetime.datetime] = None
+        self.__used_timestamp: typing.Optional[datetime.datetime] = None
 
     @property
     def timestamp(self) -> typing.Optional[datetime.datetime]:
@@ -4768,11 +4769,15 @@ class TimestampCanvasItem(AbstractCanvasItem):
     @timestamp.setter
     def timestamp(self, value: typing.Optional[datetime.datetime]) -> None:
         self.__timestamp = value
-        # self.update()
+        self.__used_timestamp = value
 
     def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        if self.__timestamp:
-            drawing_context.timestamp(self.__timestamp.isoformat())
+        if self.__used_timestamp:
+            drawing_context.timestamp(self.__used_timestamp.isoformat())
+            self.__used_timestamp = None
+        elif self.__timestamp:
+            # tell host to use last timestamp it knows about.
+            drawing_context.timestamp("last")
         super()._repaint_if_needed(drawing_context)
 
 

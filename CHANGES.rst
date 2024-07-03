@@ -4,6 +4,7 @@ Changelog (nionui)
 7.2.0 (UNRELEASED)
 ------------------
 - Add support for text alignment in labels.
+- Add create_persistent_bool_model for persistent bool storage.
 
 7.1.1 (2024-06-14)
 ------------------

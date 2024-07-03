@@ -3826,7 +3826,7 @@ class FloatPersistentModel(Model.PropertyModel[float]):
     def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[float] = None):
         self.__storage_key = storage_key
         self.__ui = ui
-        value_str = self.__ui.get_persistent_string(self.__storage_key, None)
+        value_str = self.__ui.get_persistent_string(self.__storage_key, str(value))
         value = Converter.FloatToStringConverter(pass_none=True).convert_back(value_str)
         super().__init__(value)
 
@@ -3834,6 +3834,23 @@ class FloatPersistentModel(Model.PropertyModel[float]):
         super()._set_value(value)
         if value is not None:
             self.__ui.set_persistent_string(self.__storage_key, str(value))
+        else:
+            self.__ui.remove_persistent_key(self.__storage_key)
+
+
+class BoolPersistentModel(Model.PropertyModel[bool]):
+    def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[bool] = None):
+        self.__storage_key = storage_key
+        self.__ui = ui
+        value_str = self.__ui.get_persistent_string(self.__storage_key, "true" if value else "false")
+        value = Converter.BoolToStringConverter().convert_back(value_str)
+        super().__init__(value)
+
+    def _set_value(self, value: typing.Optional[bool]) -> None:
+        super()._set_value(value)
+        value_str = Converter.BoolToStringConverter().convert(value)
+        if value_str:
+            self.__ui.set_persistent_string(self.__storage_key, value_str)
         else:
             self.__ui.remove_persistent_key(self.__storage_key)
 
@@ -4042,6 +4059,9 @@ class UserInterface(abc.ABC):
 
     def create_persistent_float_model(self, key: str, default_value: typing.Optional[float] = None) -> Model.PropertyModel[float]:
         return FloatPersistentModel(self, key, default_value)
+
+    def create_persistent_bool_model(self, key: str, default_value: typing.Optional[bool] = None) -> Model.PropertyModel[bool]:
+        return BoolPersistentModel(self, key, default_value)
 
     # clipboard
 

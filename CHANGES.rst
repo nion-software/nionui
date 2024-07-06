@@ -5,6 +5,7 @@ Changelog (nionui)
 ------------------
 - Add support for text alignment in labels.
 - Add create_persistent_bool_model for persistent bool storage.
+- Add support for timestamp_ns for display timing measurements.
 
 7.1.1 (2024-06-14)
 ------------------

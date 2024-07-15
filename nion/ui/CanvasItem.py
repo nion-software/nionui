@@ -13,6 +13,8 @@ import dataclasses
 import datetime
 import enum
 import functools
+import time
+
 import imageio.v3 as imageio
 import logging
 import operator
@@ -4759,23 +4761,24 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
 class TimestampCanvasItem(AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
-        self.__timestamp: typing.Optional[datetime.datetime] = None
-        self.__used_timestamp: typing.Optional[datetime.datetime] = None
+        self.timestamp: typing.Optional[datetime.datetime] = None
+        self.__timestamp_ns = 0
+        self.__used_timestamp_ns = 0
 
     @property
-    def timestamp(self) -> typing.Optional[datetime.datetime]:
-        return self.__timestamp
+    def timestamp_ns(self) -> int:
+        return self.__timestamp_ns
 
-    @timestamp.setter
-    def timestamp(self, value: typing.Optional[datetime.datetime]) -> None:
-        self.__timestamp = value
-        self.__used_timestamp = value
+    @timestamp_ns.setter
+    def timestamp_ns(self, value: int) -> None:
+        self.__timestamp_ns = value
+        self.__used_timestamp_ns = value
 
     def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        if self.__used_timestamp:
-            drawing_context.timestamp(self.__used_timestamp.isoformat())
-            self.__used_timestamp = None
-        elif self.__timestamp:
+        if self.__used_timestamp_ns:
+            drawing_context.timestamp(str(self.__used_timestamp_ns))
+            self.__used_timestamp = 0
+        elif self.__timestamp_ns:
             # tell host to use last timestamp it knows about.
             drawing_context.timestamp("last")
         super()._repaint_if_needed(drawing_context)

@@ -507,11 +507,16 @@ class PyComboBox(QtWidgets.QComboBox):
 
     # override the scroll wheel handler in QComboBox
     def wheelEvent(self, event: QtCore.QWheelEvent):
-        # If we are not expanded, ignore the scroll wheel event
-        if not self.view().isVisible():
-            event.ignore()
-        else:
+        if self.isExpanded():
             super().wheelEvent(event)
+        else:
+            event.ignore()
+
+    def isExpanded(self) -> bool:
+        view = self.view()
+        if view is None:
+            return False  # It can't be expanded if it doesn't exist
+        return view.isVisible()
 
 
 class PySlider(QtWidgets.QSlider):

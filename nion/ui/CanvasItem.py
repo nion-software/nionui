@@ -583,7 +583,7 @@ class AbstractCanvasItem:
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
         self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
         self.__sizing = Sizing(SizingData())
-        self.__last_layout_sizing: typing.Optional[Sizing] = None
+        self.__layout_count = 0
         self.__focused = False
         self.__focusable = False
         self.wants_mouse_events = False
@@ -862,7 +862,6 @@ class AbstractCanvasItem:
 
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
-
         did_layout_change = False
 
         # update canvas origin and canvas size.
@@ -874,7 +873,7 @@ class AbstractCanvasItem:
             did_layout_change = True
             self._set_canvas_size(canvas_auto_size)
 
-        # always update child layouts, which will only be updated if they have changed.
+        # update child layouts, which will only be updated if they have changed.
         self._update_child_layouts(self.canvas_size)
 
         # update layout_count, used for testing.
@@ -894,30 +893,45 @@ class AbstractCanvasItem:
         """Immediate re-layout the item. Deprecated. Use refresh_layout instead."""
         self.refresh_layout()
 
+    def _begin_layout(self) -> None:
+        container_canvas_item = self.__container
+        if container_canvas_item:
+            container_canvas_item._begin_layout()
+        else:
+            self.__layout_count += 1
+
+    def _end_layout(self) -> None:
+        container_canvas_item = self.__container
+        if container_canvas_item:
+            container_canvas_item._end_layout()
+        else:
+            self.__layout_count -= 1
+            if self.__layout_count == 0:
+                if canvas_size := self.canvas_size:
+                    self.update_layout(self.canvas_origin, canvas_size)
+
+    class LayoutContextManager:
+        def __init__(self, canvas_item: AbstractCanvasItem) -> None:
+            self.__canvas_item = canvas_item
+
+        def __enter__(self) -> AbstractCanvasItem.LayoutContextManager:
+            self.__canvas_item._begin_layout()
+            return self
+
+        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]], value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
+            self.__canvas_item._end_layout()
+            return None
+
+    def layout_context(self) -> LayoutContextManager:
+        return self.LayoutContextManager(self)
+
     def refresh_layout(self) -> None:
         """Refresh the layout of this canvas item by asking container to layout again.
 
         Thread-safe.
         """
-        container_canvas_item = self.__container
-        if container_canvas_item:
-            container_canvas_item._update_child_item_layout(self)
-
-    def _update_child_item_layout(self, child_item: AbstractCanvasItem) -> None:
-        """Update the layout of a child item. Container subclasses should override.
-
-        Default implementation is to update the child layouts with the existing canvas size. Then, only if layout sizing
-        has changed, pass the update to the container.
-
-        Protected method (should not be called by clients).
-        """
-        if self.canvas_size:
-            self._update_child_layouts(self.canvas_size)
-        if self.__last_layout_sizing != self.layout_sizing:
-            container_canvas_item = self.__container
-            if container_canvas_item:
-                container_canvas_item._update_child_item_layout(self)
-            self.__last_layout_sizing = self.layout_sizing
+        self._begin_layout()
+        self._end_layout()
 
     @property
     def visible(self) -> bool:
@@ -927,7 +941,8 @@ class AbstractCanvasItem:
     def visible(self, value: bool) -> None:
         if self.__visible != value:
             self.__visible = value
-            self.refresh_layout()
+            if container := self.container:
+                container.refresh_layout()
 
     @property
     def is_visible(self) -> bool:
@@ -969,7 +984,8 @@ class AbstractCanvasItem:
     def update_sizing(self, new_sizing: Sizing) -> None:
         if new_sizing != self.sizing:
             self.__sizing = new_sizing
-            self.refresh_layout()
+            if container := self.container:
+                container.refresh_layout()
 
     def update(self) -> None:
         """Mark canvas item as needing a display update.
@@ -1769,10 +1785,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     def size_to_content(self) -> None:
         # I'm not sure if this is the right implementation. It works for now.
         self.update_sizing(self.layout.get_sizing(self.visible_canvas_items))
-
-    def canvas_item_layout_sizing_changed(self, canvas_item: AbstractCanvasItem) -> None:
-        """ Contained canvas items call this when their layout_sizing changes. """
-        self.refresh_layout()
 
     def _insert_canvas_item_direct(self, before_index: int, canvas_item: AbstractCanvasItem,
                                    pos: typing.Optional[Geometry.IntPoint] = None) -> None:
@@ -3013,8 +3025,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__drag_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
         self.__grab_canvas_item: typing.Optional[MouseTrackingCanvasItem.TrackingCanvasItem] = None
         self._set_canvas_origin(Geometry.IntPoint())
-        # used for checking that refresh layout is not called from within a layout update
-        self.__update_child_item_layout_count = 0
 
     def close(self) -> None:
         # shut down the repaint thread first
@@ -3077,23 +3087,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         RootCanvasItem.next_section_id += 1
 
         return RootCanvasWidgetSection(self, RootCanvasItem.next_section_id)
-
-    def refresh_layout(self) -> None:
-        if self.canvas_size:
-            self.update_layout(self.canvas_origin, self.canvas_size)
-
-    def _update_child_item_layout(self, child_item: AbstractCanvasItem) -> None:
-        if self.__update_child_item_layout_count:
-            logging.debug("update_child_item_layout called from within a layout update")
-            import traceback
-            traceback.print_stack()
-            return
-        self.__update_child_item_layout_count += 1
-        try:
-            if self.canvas_size:
-                self._update_child_layouts(self.canvas_size)
-        finally:
-            self.__update_child_item_layout_count -= 1
 
     @property
     def root_container(self) -> typing.Optional[RootCanvasItem]:

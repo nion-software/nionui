@@ -3423,11 +3423,19 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
     def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         result = False
         if self.__mouse_canvas_item:
-            if self.__request_focus_canvas_item:
-                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
-                self.__request_focus_canvas_item = typing.cast(typing.Any, None)
+            selection_mode = True
+            if (self.__mouse_canvas_item and
+                    hasattr(self.__mouse_canvas_item, 'delegate') and
+                    self.__mouse_canvas_item.delegate.tool_mode and
+                    self.__mouse_canvas_item.delegate.tool_mode != 'pointer'):
+                selection_mode = False
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
+            if (not result or selection_mode) and self.__request_focus_canvas_item:
+                #  If canvas handler doesn't handle (returns false) or we are in selection mode
+                #  and have a request_focus_item then call the request_focus_item on the canvas
+                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
+                self.__request_focus_canvas_item = typing.cast(typing.Any, None)
             self.__mouse_canvas_item = None
             self.__mouse_position_changed(x, y, modifiers)
         self._adjust_ui_interaction(-1)

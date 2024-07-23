@@ -446,7 +446,6 @@ class PyRadioButton(QtWidgets.QRadioButton):
     def __init__(self) -> None:
         super().__init__()
         self.object = None
-        self.setAutoExclusive(False)
         self.clicked.connect(self.__clicked)
 
     def __clicked(self):

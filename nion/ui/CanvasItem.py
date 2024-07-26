@@ -1960,14 +1960,29 @@ class CanvasItemComposition(AbstractCanvasItem):
         for canvas_item in canvas_items:
             self.add_canvas_item(canvas_item)
 
+    def _will_wrap_child_canvas_item(self) -> typing.Any:
+        return None
+
+    def _did_wrap_child_canvas_item(self, state: typing.Any) -> typing.Any:
+        pass
+
+    def _will_unwrap_child_canvas_item(self) -> typing.Any:
+        return None
+
+    def _did_unwrap_child_canvas_item(self, state: typing.Any) -> typing.Any:
+        pass
+
     def wrap_canvas_item(self, canvas_item: AbstractCanvasItem, canvas_item_container: CanvasItemComposition) -> None:
         """ Replace the given canvas item with the container and move the canvas item into the container. """
+        wrap_state = self._will_wrap_child_canvas_item()
         canvas_origin = canvas_item.canvas_origin
         canvas_size = canvas_item.canvas_size
         index = self.__canvas_items.index(canvas_item)
         # remove the existing canvas item, but without closing it.
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
+        canvas_item._set_canvas_size(None)
+        canvas_item._set_canvas_origin(None)
         self._remove_canvas_item_direct(canvas_item)
         # insert the canvas item container
         # self.insert_canvas_item(index, canvas_item_container)  # this would adjust splitters. don't do it.
@@ -1979,6 +1994,8 @@ class CanvasItemComposition(AbstractCanvasItem):
             canvas_item_container._set_canvas_origin(canvas_origin)
             canvas_item_container._set_canvas_size(canvas_size)
             canvas_item._set_canvas_origin(Geometry.IntPoint())
+        # allow subclasses to restore state
+        self._did_wrap_child_canvas_item(wrap_state)
         self.refresh_layout()
 
     def unwrap_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
@@ -1987,18 +2004,25 @@ class CanvasItemComposition(AbstractCanvasItem):
         assert container
         assert len(container.canvas_items) == 1
         assert container.canvas_items[0] == canvas_item
+        self_container = self.container
+        assert self_container
+        wrap_state = self_container._will_unwrap_child_canvas_item()
         enclosing_container = container.container
         assert enclosing_container
         index = enclosing_container.canvas_items.index(container)
         # remove the existing canvas item from the container, but without closing it.
         container.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
+        canvas_item._set_canvas_size(None)
+        canvas_item._set_canvas_origin(None)
         container._remove_canvas_item_direct(canvas_item)
         # remove container from enclosing container
         enclosing_container._remove_canvas_item_direct(container)
         # insert canvas item into the enclosing container
         # enclosing_container.insert_canvas_item(index, canvas_item)  # this would adjust splitters. don't do it.
         enclosing_container._insert_canvas_item_direct(index, canvas_item)
+        # allow subclasses to restore state
+        self_container._did_unwrap_child_canvas_item(wrap_state)
         # update the layout if origin and size already known
         self.refresh_layout()
 
@@ -2449,6 +2473,14 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.on_splits_will_change: typing.Optional[typing.Callable[[], None]] = None
         self.on_splits_changed: typing.Optional[typing.Callable[[], None]] = None
 
+    def _description(self) -> str:
+        return super()._description() + f" {self.orientation} {self.splits}"
+
+    # for debugging
+    # def _summary(self, indent: typing.Optional[str] = None) -> str:
+    #     indent = indent or str()
+    #     return indent + self._description() + f"+0x{id(self):x}" + " [" + str(self.canvas_rect) + "]" + " (" + str(self.sizing) + ")"
+
     @classmethod
     def calculate_layout(self, orientation: str, canvas_size: Geometry.IntSize, sizings: typing.Sequence[Sizing]) -> ConstraintResultType:
         if orientation == "horizontal":
@@ -2527,6 +2559,18 @@ class SplitterCanvasItem(CanvasItemComposition):
                 if canvas_item.canvas_origin and abs(x - canvas_item.canvas_origin.x) < 6:
                     return [self]
         return super().canvas_items_at_point(x, y)
+
+    def _will_wrap_child_canvas_item(self) -> typing.Any:
+        return self.splits
+
+    def _did_wrap_child_canvas_item(self, state: typing.Any) -> typing.Any:
+        self.splits = typing.cast(typing.Sequence[float], state)
+
+    def _will_unwrap_child_canvas_item(self) -> typing.Any:
+        return self.splits
+
+    def _did_unwrap_child_canvas_item(self, state: typing.Any) -> typing.Any:
+        self.splits = typing.cast(typing.Sequence[float], state)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         super()._repaint(drawing_context)

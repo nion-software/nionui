@@ -1902,7 +1902,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_item._inserted(self)
         # tell the layout about the canvas item. layout does not occur here.
         self.layout.add_canvas_item(canvas_item, pos)
-        # trigger layout.
+        # trigger layout of both this item and the container.
+        if container := self.container:
+            container.refresh_layout()
         self.refresh_layout()
         self.update()
         return canvas_item
@@ -1934,6 +1936,9 @@ class CanvasItemComposition(AbstractCanvasItem):
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
         self._remove_canvas_item_direct(canvas_item)
+        # trigger layout of both this item and the container.
+        if container := self.container:
+            container.refresh_layout()
         self.refresh_layout()
         self.update()
 

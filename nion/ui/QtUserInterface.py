@@ -1659,10 +1659,10 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         if callable(self.on_mouse_pressed):
             self.on_mouse_pressed(x, y, QtKeyboardModifiers(raw_modifiers))
 
-    def mouseReleased(self, x: int, y: int, raw_modifiers: int) -> None:
+    def mouseReleased(self, x: int, y: int, raw_modifiers: int) -> bool:
         self._register_ui_activity()
         if callable(self.on_mouse_released):
-            self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
+            return  self.on_mouse_released(x, y, QtKeyboardModifiers(raw_modifiers))
 
     def mousePositionChanged(self, x: int, y: int, raw_modifiers: int) -> None:
         if callable(self.on_mouse_position_changed):

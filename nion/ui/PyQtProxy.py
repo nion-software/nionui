@@ -2112,7 +2112,9 @@ class PyCanvas(QtWidgets.QWidget):
         if self.object and event.button() == QtCore.Qt.LeftButton:
             display_scaling = GetDisplayScaling()
             try:
-                self.object.mouseReleased(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
+                result = self.object.mouseReleased(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
+                if result:
+                    event.accept()
             except Exception as e:
                 import traceback
                 traceback.print_exc()

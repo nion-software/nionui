@@ -17,7 +17,7 @@ import typing
 import weakref
 
 # third party libraries
-# none
+import numpy
 
 # local libraries
 from nion.ui import Bitmap
@@ -29,7 +29,6 @@ from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
-    from nion.ui import Window
 
 
 _QtProxy = typing.Any
@@ -2429,10 +2428,12 @@ class QtUserInterface(UserInterface.UserInterface):
     # misc
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
+        image_array = numpy.empty((height, width), dtype=numpy.uint32)
         if hasattr(self.proxy, "Canvas_draw_binary"):
-            return typing.cast(typing.Optional[DrawingContext.RGBA32Type], self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), width, height)))
+            self.proxy.DrawingContext_paintRGBAToImage_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), image_array)
         else:
-            return typing.cast(typing.Optional[DrawingContext.RGBA32Type], self.proxy.decode_data(self.proxy.DrawingContext_paintRGBA(self.proxy.convert_drawing_commands(drawing_context.commands), width, height)))
+            self.proxy.DrawingContext_paintRGBAToImage(self.proxy.convert_drawing_commands(drawing_context.commands), image_array)
+        return image_array
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterface.FontMetrics:
         return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font_str, text)))

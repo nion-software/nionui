@@ -3117,7 +3117,8 @@ class PyQtProxy:
             drawing_commands.append(CanvasDrawingCommand(command[0], command[1:]))
         drawing_context.paintCommands(drawing_commands)
 
-    def DrawingContext_paintRGBA(self, commands: list, width: int, height: int) -> typing.Optional[numpy.ndarray]:
+    def DrawingContext_paintRGBAToImage(self, commands: list, target: numpy.ndarray) -> None:
+        height, width = target.shape[0], target.shape[1]
         image = QtGui.QImage(width, height, QtGui.QImage.Format_ARGB32)
         image.fill(QtGui.QColor(0,0,0,0))
         image_cache: typing.Dict[int, PaintImageCacheEntry] = dict()
@@ -3133,10 +3134,10 @@ class PyQtProxy:
         if image.format() != QtGui.QImage.Format_ARGB32_Premultiplied:
             image = image.convertToFormat(QtGui.QImage.Format_ARGB32_Premultiplied)
             b = image.bits()
-            # sip.voidptr must know size to support python buffer interface
+            # sip.voidptr must know the size to support python buffer interface
             if hasattr(b, "setsize"):
                 b.setsize(image.size().width() * image.size().height() * 4)
-            return numpy.copy(numpy.frombuffer(b, numpy.uint32).reshape((image.size().height(), image.size().width())))
+            target[:] = numpy.frombuffer(b, numpy.uint32).reshape((image.size().height(), image.size().width()))
         return None
 
     def GroupBoxWidget_setTitle(self, group_box: QtWidgets.QGroupBox, title: str) -> None:

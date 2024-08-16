@@ -9,10 +9,13 @@ import asyncio
 import enum
 import functools
 import gettext
+import json
 import logging
+import os
 import pathlib
 import typing
 import weakref
+import webbrowser
 
 # local libraries
 from nion.utils import Event
@@ -900,6 +903,79 @@ class AboutBoxAction(Action):
         return ActionResult(ActionStatus.FINISHED)
 
 
+class ShowKeybindCheatsheetAction(Action):
+    action_id = "application.show_keybind_cheatsheet"
+    action_name = _("Keybind Cheatsheet...")
+    action_role = "help"
+
+    def execute(self, context: ActionContext) -> ActionResult:
+        raise NotImplementedError()
+
+    def invoke(self, context: ActionContext) -> ActionResult:
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        json_file_path = os.path.join(current_dir, "..", "..", "..", "nionswift", "nion", "swift", "resources", "key_config.json")
+        json_file_path = os.path.normpath(json_file_path)
+        if os.path.exists(json_file_path):
+            self.create_keybind_cheatsheet(json_file_path)
+        return ActionResult(ActionStatus.FINISHED)
+
+    def create_keybind_cheatsheet(self, json_file_path: str) -> None:
+        with open(json_file_path, 'r') as file:
+            keybinds = json.load(file)
+        html_content = """
+        <html>
+        <head>
+            <title>Keybind Cheatsheet</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 20px; }
+                h1 { text-align: center; }
+                h2 { margin-top: 30px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                th, td { padding: 10px; text-align: left; border: 1px solid #dddddd; }
+                th { background-color: #f2f2f2; width: 40%; }
+                td { width: 40%; }
+                th:nth-child(2), td:nth-child(2) { width: 60%; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
+            </style>
+        </head>
+        <body>
+            <h1>Keybind Cheatsheet</h1>
+        """
+        context_dict: typing.Dict[str, typing.List[typing.Tuple[str, str]]] = {}
+        for action, contexts in keybinds.items():
+            for context, keybind in contexts.items():
+                if context not in context_dict:
+                    context_dict[context] = []
+                context_dict[context].append((action, keybind))
+        for context, actions in context_dict.items():
+            html_content += f"<h2>{context}</h2>"
+            html_content += """
+            <table>
+                <tr>
+                    <th>Action</th>
+                    <th>Keybind</th>
+                </tr>
+            """
+            for action, keybind in actions:
+                if isinstance(keybind, list):
+                    keybind = ', '.join(keybind)
+                html_content += f"""
+                <tr>
+                    <td>{action}</td>
+                    <td>{keybind}</td>
+                </tr>
+                """
+            html_content += "</table>"
+        html_content += """
+        </body>
+        </html>
+        """
+        html_file_path = 'keybind_cheatsheet.html'
+        with open(html_file_path, 'w') as html_file:
+            html_file.write(html_content)
+        webbrowser.open('file://' + os.path.realpath(html_file_path))
+
+
 class BringToFrontAction(Action):
     action_id = "window.bring_to_front"
     action_name = _("Bring to Front")
@@ -1100,6 +1176,7 @@ class ZoomAction(Action):
         return hasattr(context.window, "handle_zoom")
 
 
+register_action(ShowKeybindCheatsheetAction())
 register_action(AboutBoxAction())
 register_action(BringToFrontAction())
 register_action(CloseWindowAction())

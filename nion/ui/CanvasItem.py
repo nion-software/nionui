@@ -13,7 +13,6 @@ import dataclasses
 import datetime
 import enum
 import functools
-import time
 
 import imageio.v3 as imageio
 import logging
@@ -557,6 +556,55 @@ def visible_canvas_item(canvas_item: typing.Optional[LayoutItem]) -> typing.Opti
     return canvas_item if canvas_item and canvas_item.is_visible else None
 
 
+class ComposerCacheItem(typing.Protocol):
+    def key(self) -> typing.Any: ...
+    def calculate(self) -> typing.Any: ...
+
+
+@dataclasses.dataclass(frozen=True)
+class CacheValue:
+    value: typing.Any
+
+
+class ComposerCache:
+    def __init__(self) -> None:
+        self.__cache = dict[typing.Any, weakref.ReferenceType[CacheValue]]()
+
+    def get_cache_value(self, cache_item: ComposerCacheItem) -> CacheValue:
+        cache_item_key = cache_item.key()
+        cache_value_ref = self.__cache.get(cache_item_key)
+        cache_value = cache_value_ref() if cache_value_ref else None
+        if cache_value is None:
+            value = cache_item.calculate()
+            cache_value = CacheValue(value)
+            self.__cache[cache_item_key] = weakref.ref(cache_value)
+
+            def finalize(cache: dict[typing.Any, weakref.ReferenceType[CacheValue]], cache_item_key: typing.Any) -> None:
+                cache.pop(cache_item_key, None)
+
+            weakref.finalize(cache_value, finalize, self.__cache, cache_item_key)
+        return cache_value
+
+
+class BaseComposer:
+    def __init__(self, is_visible: bool, layout_sizing: Sizing, cache: ComposerCache) -> None:
+        self.__is_visible = is_visible
+        self.__layout_sizing = layout_sizing
+        self.__drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
+        self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
+        self.__cache = cache
+
+    def repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
+        if not self.__drawing_context or self.__canvas_bounds != canvas_bounds:
+            self.__drawing_context = DrawingContext.DrawingContext()
+            self.__canvas_bounds = canvas_bounds
+            self._repaint(self.__drawing_context, canvas_bounds, self.__cache)
+        drawing_context.add(self.__drawing_context)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        raise NotImplementedError()
+
+
 class AbstractCanvasItem:
     """An item drawn on a canvas supporting mouse and keyboard actions.
 
@@ -598,8 +646,10 @@ class AbstractCanvasItem:
     canvas bounds.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cache: typing.Optional[ComposerCache] = None) -> None:
         super().__init__()
+        self.__composer: typing.Optional[BaseComposer] = None
+        self.__cache = cache or ComposerCache()
         self.__container: typing.Optional[CanvasItemComposition] = None
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
         self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
@@ -1008,6 +1058,7 @@ class AbstractCanvasItem:
         The canvas item will be repainted by the root canvas item.
         """
         self._update_count += 1
+        self._invalidate_composer()
         self._updated()
 
     def redraw(self) -> None:
@@ -1027,6 +1078,21 @@ class AbstractCanvasItem:
         if container := self.__container:
             container.update()
 
+    def _get_composer_cache(self) -> ComposerCache:
+        return self.__cache
+
+    def _invalidate_composer(self) -> None:
+        self.__composer = None
+
+    def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        if not self.__composer:
+            self.__composer = self._get_composer(cache)
+            # assert self.__composer, f"missing composer for {type(self)}"
+        return self.__composer
+
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return None
+
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item to the drawing context.
 
@@ -1038,6 +1104,10 @@ class AbstractCanvasItem:
         """
         assert self.canvas_size is not None
         self._repaint_count += 1
+        composer = self.get_composer(self._get_composer_cache())
+        canvas_rect = self.canvas_rect
+        if composer and canvas_rect:
+            composer.repaint(drawing_context, canvas_rect)
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         """A wrapper method for _repaint.

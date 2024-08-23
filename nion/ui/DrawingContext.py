@@ -603,6 +603,9 @@ class DrawingContext:
     def draw_image(self, img: RGBA32Type, x: float, y: float, width: float, height: float) -> None:
         # img should be rgba pack, uint32
         assert img.dtype == numpy.uint32
+        # The numpy-2 compatible nionui-tool takes an object which has the bytearray interface. The hdf5 dataset does
+        # not - so convert it to a numpy array. The conversion should be a no-op if	the image is already a numpy array.
+        img = numpy.asarray(img, numpy.uint32)
         with DrawingContext.__image_id_lock:
             DrawingContext.__image_id += 1
             image_id = DrawingContext.__image_id
@@ -614,6 +617,9 @@ class DrawingContext:
     def draw_data(self, img: GrayscaleF32Type, x: float, y: float, width: float, height: float, low: float, high: float, color_map_data: typing.Optional[RGBA32Type]) -> None:
         # img should be float
         assert img.dtype == numpy.float32
+        # The numpy-2 compatible nionui-tool takes an object which has the bytearray interface. The hdf5 dataset does
+        # not - so convert it to a numpy array. The conversion should be a no-op if	the image is already a numpy array.
+        img = numpy.asarray(img, numpy.float32)
         with DrawingContext.__image_id_lock:
             DrawingContext.__image_id += 1
             image_id = DrawingContext.__image_id

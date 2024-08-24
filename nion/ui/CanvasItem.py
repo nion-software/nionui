@@ -979,7 +979,7 @@ class AbstractCanvasItem:
         The canvas item will be repainted by the root canvas item.
         """
         self._update_count += 1
-        self._updated(list())
+        self._updated()
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""
@@ -991,22 +991,13 @@ class AbstractCanvasItem:
         """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
         self.update()
 
-    def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
+    def _updated(self) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
         self.__pending_update = True
-        self._update_container(canvas_items)
-
-    def _update_container(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
-        # if not in the middle of a nested update, and if this canvas item has
-        # a layout, update the container.
-        # thread-safe
         container = self.__container
         if container and self._has_layout:
-            canvas_items = list(canvas_items) if canvas_items else list()
-            canvas_items.append(self)
-            container._update_count += 1
-            container._updated(canvas_items)
+            container.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item to the drawing context.
@@ -1044,8 +1035,11 @@ class AbstractCanvasItem:
     def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # when the thread finishes the repaint, this method gets called. the normal container update
         # has not been called yet since the repaint wasn't finished until now. this method performs
-        # the container update.
-        self._update_container()
+        # the container update. it does not call the regular update again because that would re-invalidate
+        # this canvas item itself and cause another repaint.
+        container = self.__container
+        if container:
+            container.update()
 
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         self.update_layout(Geometry.IntPoint(), canvas_size)
@@ -2036,7 +2030,7 @@ class LayerCanvasItem(CanvasItemComposition):
                 self.__repaint_one_future = LayerCanvasItem._executor.submit(self.__repaint_layer)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)
 
-    def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
+    def _updated(self) -> None:
         # thread-safe
         with self.__layer_thread_condition:
             self.__needs_repaint = True
@@ -2047,7 +2041,7 @@ class LayerCanvasItem(CanvasItemComposition):
         # is finished. if the thread is suppressed (typically during testing), use the regular flow.
         if self._layer_thread_suppress:
             # pass through updates in the thread is suppressed, so that updates actually occur.
-            super()._updated(canvas_items)
+            super()._updated()
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         if immediate:

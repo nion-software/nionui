@@ -991,16 +991,6 @@ class AbstractCanvasItem:
         """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
         self.update()
 
-    def sync_redraw(self) -> None:
-        """Force full redraw of this item and children. Used for resolution changes."""
-        for canvas_item in self.canvas_items:
-            canvas_item.sync_redraw()
-        self._sync_redraw()
-
-    def _sync_redraw(self) -> None:
-        """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
-        pass
-
     def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
@@ -2013,20 +2003,13 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__canvas_widget_section_ref: typing.Optional[CanvasWidgetSection] = None
 
     def close(self) -> None:
-        self._sync_repaint()
+        self._stop_render_behavior()
         if self.__canvas_widget_section_ref:
             self.__canvas_widget_section_ref = None
         super().close()
 
     def _stop_render_behavior(self) -> None:
         self.__cancel = True
-        self._sync_repaint()
-        self.__layer_drawing_context = None
-
-    def _sync_redraw(self) -> None:
-        self._sync_repaint()
-
-    def _sync_repaint(self) -> None:
         done_event = threading.Event()
         with self.__layer_thread_condition:
             if self.__repaint_one_future:
@@ -2038,6 +2021,7 @@ class LayerCanvasItem(CanvasItemComposition):
             else:
                 done_event.set()
         done_event.wait()
+        self.__layer_drawing_context = None
 
     # Python 3.9: Optional[concurrent.futures.Future[Any]]
     def __repaint_done(self, future: typing.Any) -> None:

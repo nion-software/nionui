@@ -979,7 +979,8 @@ class AbstractCanvasItem:
 
         The canvas item will be repainted by the root canvas item.
         """
-        self._update_with_items()
+        self._update_count += 1
+        self._updated(list())
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""
@@ -1001,11 +1002,6 @@ class AbstractCanvasItem:
         """Force full redraw of this item. Used for resolution changes. Subclasses may override."""
         pass
 
-    def _update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
-        # thread-safe
-        self._update_count += 1
-        self._updated(canvas_items)
-
     def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
@@ -1020,7 +1016,8 @@ class AbstractCanvasItem:
         if container and self._has_layout:
             canvas_items = list(canvas_items) if canvas_items else list()
             canvas_items.append(self)
-            container._update_with_items(canvas_items)
+            container._update_count += 1
+            container._updated(canvas_items)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item to the drawing context.
@@ -1698,10 +1695,6 @@ class CompositionLayoutRenderTrait:
     def _stop_render_behavior(self) -> None:
         pass
 
-    def _try_update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> bool:
-        # thread-safe
-        return False
-
     def _try_updated(self) -> bool:
         # thread-safe
         return False
@@ -1800,12 +1793,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool = True) -> None:
         self._prepare_render()
         self.update_layout(Geometry.IntPoint(), canvas_size)
-
-    def _update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
-        # thread-safe
-        layout_render_trait = self.__layout_render_trait  # only read once to be more thread-safe
-        if not layout_render_trait or not layout_render_trait._try_update_with_items(canvas_items):
-            super()._update_with_items(canvas_items)
 
     def _updated(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> None:
         # thread-safe
@@ -2118,9 +2105,12 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
         self.__layer_thread_condition = threading.Condition()
         # Python 3.9+: Optional[concurrent.futures.Future[Any]]
         self.__repaint_one_future: typing.Optional[typing.Any] = None
+        self.__canvas_widget_section_ref: typing.Optional[CanvasWidgetSection] = None
 
     def close(self) -> None:
         self._sync_repaint()
+        if self.__canvas_widget_section_ref:
+            self.__canvas_widget_section_ref = None
         super().close()
 
     def _stop_render_behavior(self) -> None:
@@ -2209,22 +2199,36 @@ class LayerLayoutRenderTrait(CompositionLayoutRenderTrait):
             needs_repaint = self.__needs_repaint
             self.__needs_repaint = False
         if not self.__cancel and needs_repaint:
-            if self._canvas_item_composition._has_layout:
+            canvas_item_composition = self._canvas_item_composition
+            if canvas_item_composition._has_layout:
                 try:
                     with Process.audit("repaint_layer"):
-                        self._canvas_item_composition._prepare_render()
+                        canvas_item_composition._prepare_render()
                         # layout or repaint that occurs during prepare render should be handled
                         # but not trigger another repaint after this one.
                         with self.__layer_thread_condition:
                             self.__needs_repaint = False
                         drawing_context = DrawingContext.DrawingContext()
-                        self._canvas_item_composition._repaint_children(drawing_context)
-                        self._canvas_item_composition._repaint_cache(drawing_context)
+                        canvas_item_composition._repaint_children(drawing_context)
+                        canvas_item_composition._repaint_cache(drawing_context)
                         with self.__layer_lock:
                             self.__layer_seed += 1
                             self.__layer_drawing_context = drawing_context
                         if not self.__cancel:
-                            self._canvas_item_composition._repaint_finished(self.__layer_drawing_context)
+                            canvas_rect = canvas_item_composition.canvas_rect
+                            root_container = canvas_item_composition.root_container if canvas_item_composition else None
+                            if canvas_item_composition.is_root_opaque and isinstance(root_container, CanvasWidgetCanvasItem) and canvas_rect:
+                                if not self.__canvas_widget_section_ref:
+                                    # create a section ref, which allows direct drawing for top level opaque items.
+                                    # the section is automatically deallocated (via finalize) when the last python
+                                    # reference to the section is released.
+                                    self.__canvas_widget_section_ref = root_container.get_section_ref()
+                                # draw top level opaque item directly. ensure the proper canvas rect.
+                                assert self.__canvas_widget_section_ref
+                                canvas_rect = Geometry.IntRect(origin=canvas_item_composition.map_to_root_container(Geometry.IntPoint()), size=canvas_rect.size)
+                                self.__canvas_widget_section_ref.draw(self.__layer_drawing_context, canvas_rect)
+                            else:
+                                canvas_item_composition._repaint_finished(self.__layer_drawing_context)
                 except Exception as e:
                     import traceback
                     logging.debug("CanvasItem Render Error: %s", e)
@@ -3057,75 +3061,10 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         return super().mouse_position_changed(x, y, modifiers)
 
 
-class RootLayoutRenderTrait(CompositionLayoutRenderTrait):
+class CanvasWidgetSection:
 
-    next_section_id = 0
-
-    def __init__(self, canvas_item_composition: CanvasItemComposition) -> None:
-        super().__init__(canvas_item_composition)
-        self.__section_ids_lock = threading.RLock()
-        self.__section_map: typing.Dict[AbstractCanvasItem, int] = dict()
-        self.__layout_lock = threading.RLock()
-
-    def close(self) -> None:
-        with self.__section_ids_lock:
-            section_map = self.__section_map
-            self.__section_map = dict()
-            for section_id in section_map.values():
-                canvas_widget = self._canvas_item_composition.canvas_widget
-                if canvas_widget:
-                    canvas_widget.remove_section(section_id)
-        super().close()
-
-    def _redraw(self) -> None:
-        with self.__section_ids_lock:
-            section_map = self.__section_map
-            self.__section_map = dict()
-            for section_id in section_map.values():
-                canvas_widget = self._canvas_item_composition.canvas_widget
-                if canvas_widget:
-                    canvas_widget.remove_section(section_id)
-        for canvas_item in self._canvas_item_composition.get_root_opaque_canvas_items():
-            canvas_item.sync_redraw()
-            canvas_item.refresh_layout()
-            canvas_item.update()
-
-    def _try_update_with_items(self, canvas_items: typing.Optional[typing.Sequence[AbstractCanvasItem]] = None) -> bool:
-        # thread-safe
-        drawing_context = DrawingContext.DrawingContext()
-        if self._canvas_item_composition._has_layout and self._canvas_item_composition.canvas_widget and canvas_items:
-            for canvas_item in canvas_items:
-                if canvas_item.is_root_opaque:
-                    self._canvas_item_composition._update_count += 1
-                    canvas_size = canvas_item.canvas_size
-                    if canvas_size:
-                        canvas_rect = Geometry.IntRect(canvas_item.map_to_root_container(Geometry.IntPoint(0, 0)), canvas_size)
-                        canvas_item._repaint_template(drawing_context, immediate=False)
-                        drawing_context.translate(-canvas_rect.left, -canvas_rect.top)
-                        with self.__section_ids_lock:
-                            section_id = self.__section_map.get(canvas_item, None)
-                            if not section_id:
-                                RootLayoutRenderTrait.next_section_id += 1
-                                section_id = RootLayoutRenderTrait.next_section_id
-                                self.__section_map[canvas_item] = section_id
-                        self._canvas_item_composition.canvas_widget.draw_section(section_id, drawing_context, canvas_rect)
-                    # break
-        self.__cull_unused_sections()
-        return True
-
-    def __cull_unused_sections(self) -> None:
-        canvas_items = self._canvas_item_composition.get_root_opaque_canvas_items()
-        with self.__section_ids_lock:
-            section_map = self.__section_map
-            self.__section_map = dict()
-            for canvas_item in canvas_items:
-                section_id = section_map.pop(canvas_item, None)
-                if section_id:
-                    self.__section_map[canvas_item] = section_id
-        for section_id in section_map.values():
-            canvas_widget = self._canvas_item_composition.canvas_widget
-            if canvas_widget:
-                canvas_widget.remove_section(section_id)
+    def draw(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        raise NotImplementedError()
 
 
 class CanvasWidgetCanvasItem(CanvasItemComposition):
@@ -3142,9 +3081,11 @@ class CanvasWidgetCanvasItem(CanvasItemComposition):
     @abc.abstractmethod
     def size_changed(self, width: int, height: int) -> None: ...
 
+    @abc.abstractmethod
+    def get_section_ref(self) -> CanvasWidgetSection: ...
+
 
 RootLayoutRender = "root"
-DefaultLayoutRender: typing.Optional[str] = None
 
 
 class RootCanvasItem(CanvasWidgetCanvasItem):
@@ -3161,8 +3102,10 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
     root canvas item's hierarchy.
     """
 
-    def __init__(self, canvas_widget: UserInterface.CanvasWidget, *, layout_render: typing.Optional[str] = DefaultLayoutRender) -> None:
-        super().__init__(RootLayoutRenderTrait(self) if layout_render == RootLayoutRender and _threaded_rendering_enabled else LayerLayoutRenderTrait(self))
+    next_section_id = 0
+
+    def __init__(self, canvas_widget: UserInterface.CanvasWidget, **kwargs: typing.Any) -> None:
+        super().__init__(LayerLayoutRenderTrait(self))
         self.__canvas_widget = canvas_widget
         self.__canvas_widget.on_size_changed = self.size_changed
         self.__canvas_widget.on_mouse_clicked = self.__mouse_clicked
@@ -3236,6 +3179,33 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self.__canvas_widget.draw(drawing_context)
+
+    def get_section_ref(self) -> CanvasWidgetSection:
+        """Return a section ref object for direct top level drawing.
+
+        The section can be removed for efficiency by eliminating all references to the section ref.
+        """
+
+        class RootCanvasWidgetSection(CanvasWidgetSection):
+            def __init__(self, root_canvas_item: RootCanvasItem, section_id: int) -> None:
+                self.__root_canvas_item_ref = weakref.ref(root_canvas_item)
+                self._section_id = section_id
+
+                def finalize(root_canvas_item_ref: weakref.ReferenceType[RootCanvasItem]) -> None:
+                    root_canvas_item = root_canvas_item_ref()
+                    if root_canvas_item:
+                        root_canvas_item.canvas_widget.remove_section(section_id)
+
+                weakref.finalize(self, finalize, self.__root_canvas_item_ref)
+
+            def draw(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+                root_canvas_item = self.__root_canvas_item_ref()
+                if root_canvas_item:
+                    root_canvas_item.canvas_widget.draw_section(self._section_id, drawing_context, canvas_rect)
+
+        RootCanvasItem.next_section_id += 1
+
+        return RootCanvasWidgetSection(self, RootCanvasItem.next_section_id)
 
     def refresh_layout(self) -> None:
         if self.canvas_size:

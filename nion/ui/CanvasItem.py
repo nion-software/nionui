@@ -584,7 +584,6 @@ class AbstractCanvasItem:
         self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
         self.__sizing = Sizing(SizingData())
         self.__last_layout_sizing: typing.Optional[Sizing] = None
-        self.__last_repaint_canvas_rect: typing.Optional[Geometry.IntRect] = None
         self.__focused = False
         self.__focusable = False
         self.wants_mouse_events = False
@@ -1037,10 +1036,6 @@ class AbstractCanvasItem:
         Callers should always call this method instead of _repaint directly. This helps keep the _repaint
         implementations simple and easy to understand.
         """
-        self._repaint_cache(drawing_context)
-
-    def _repaint_cache(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        self.__last_repaint_canvas_rect = self.canvas_rect
         self._repaint(drawing_context)
 
     def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
@@ -1065,13 +1060,6 @@ class AbstractCanvasItem:
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         self.update_layout(Geometry.IntPoint(), canvas_size)
         self._repaint_template(drawing_context, immediate=True)
-
-    def update_if_repaint_cache_invalid(self) -> None:
-        for canvas_item in self.canvas_items:
-            canvas_item.update_if_repaint_cache_invalid()
-        if self.is_visible and self.__last_repaint_canvas_rect != self.canvas_rect:
-            # print(f"update_if_repaint_cache_invalid {type(self)} {self.__last_repaint_canvas_rect=} {self.canvas_rect=}")
-            self.update()
 
     def _draw_background(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Draw the background. Subclasses can call this."""
@@ -1760,21 +1748,6 @@ class CanvasItemComposition(AbstractCanvasItem):
                 canvas_size = Geometry.IntSize.make(canvas_size)
                 visible_canvas_items = self.visible_canvas_items
                 self.layout.layout(Geometry.IntPoint(), canvas_size, visible_canvas_items)
-                # layout will loop through the visible canvas items and the canvas items may have inconsistent layout
-                # (overlaps) during the loop. when repaint is triggered on individual items during the loop,
-                # it may result in the drawing overlapped items or missing space between items. to clean this up at
-                # the end of layout, request a repaint from items where the last paint differs from the canvas rect.
-                # this is a hack to avoid putting a lock in place. this is reproducible on fast drawing systems (M1
-                # Mac) by putting an image in the top left of a 2x2 layout and then slowly dragging the horizontal or
-                # vertical splitter until it snaps into the middle. during the snap, the drawing is inconsistent. for
-                # example, when dragging the horizontal splitter up and down, the empty panel at the bottom may
-                # request a repaint while the image at the top left has not yet been resized. a fast repaint will
-                # draw the image overlapped with the empty panel. the empty panel will think it has successfully
-                # updated and won't draw again. then the image panel will get resized and draw at its correct size.
-                # the empty panel will be left with remnants of the overlapped image. this needs design in the layout
-                # system to only draw or only update consistent layouts. this is a hack solution until a separate
-                # layout tree is passed to repaint.
-                self.update_if_repaint_cache_invalid()
 
     # override sizing information. let layout provide it.
     @property
@@ -1963,7 +1936,7 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         self._repaint_children(drawing_context, immediate=immediate)
-        self._repaint_cache(drawing_context)
+        self._repaint(drawing_context)
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
         """Paint items from back to front."""
@@ -2118,7 +2091,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self._layer_thread_suppress = True
         self.update_layout(Geometry.IntPoint(), canvas_size)
         self._repaint_children(drawing_context, immediate=True)
-        self._repaint_cache(drawing_context)
+        self._repaint(drawing_context)
         self._layer_thread_suppress = layer_thread_suppress
         self._removed(None)
 
@@ -2137,7 +2110,7 @@ class LayerCanvasItem(CanvasItemComposition):
                             self.__needs_repaint = False
                         drawing_context = DrawingContext.DrawingContext()
                         self._repaint_children(drawing_context)
-                        self._repaint_cache(drawing_context)
+                        self._repaint(drawing_context)
                         with self.__layer_lock:
                             self.__layer_seed += 1
                             self.__layer_drawing_context = drawing_context

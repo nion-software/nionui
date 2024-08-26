@@ -587,22 +587,57 @@ class ComposerCache:
 
 
 class BaseComposer:
-    def __init__(self, is_visible: bool, layout_sizing: Sizing, cache: ComposerCache) -> None:
-        self.__is_visible = is_visible
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache) -> None:
+        self.__canvas_item_ref = weakref.ref(canvas_item)
         self.__layout_sizing = layout_sizing
         self.__drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__cache = cache
 
     def repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
-        if not self.__drawing_context or self.__canvas_bounds != canvas_bounds:
+        if not self.__drawing_context:
             self.__drawing_context = DrawingContext.DrawingContext()
-            self.__canvas_bounds = canvas_bounds
             self._repaint(self.__drawing_context, canvas_bounds, self.__cache)
+            canvas_item = self.__canvas_item_ref()
+            if canvas_item:
+                canvas_item._update_layout_from_composer(canvas_bounds)
         drawing_context.add(self.__drawing_context)
+
+    @property
+    def _canvas_item(self) -> AbstractCanvasItem:
+        canvas_item = self.__canvas_item_ref()
+        assert canvas_item
+        return canvas_item
+
+    @property
+    def _canvas_bounds(self) -> Geometry.IntRect:
+        assert self.__canvas_bounds
+        return self.__canvas_bounds
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         raise NotImplementedError()
+
+    @property
+    def is_visible(self) -> bool:
+        return True
+
+    @property
+    def layout_sizing(self) -> Sizing:
+        return self.__layout_sizing
+
+    @property
+    def _has_layout(self) -> bool:
+        return self.__canvas_bounds is not None
+
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
+        canvas_bounds = Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0))
+        if self.__canvas_bounds != canvas_bounds:
+            self.__canvas_bounds = canvas_bounds
+            self.__drawing_context = None
+            self._update_layout(canvas_bounds)
+
+    def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
+        pass
 
 
 class AbstractCanvasItem:
@@ -1108,6 +1143,18 @@ class AbstractCanvasItem:
         canvas_rect = self.canvas_rect
         if composer and canvas_rect:
             composer.repaint(drawing_context, canvas_rect)
+
+    def _update_layout_from_composer(self, canvas_bounds: Geometry.IntRect) -> None:
+        did_layout_change = False
+        old_canvas_origin_ = self._canvas_origin_stream.value
+        if (old_canvas_origin_ is None) or (old_canvas_origin_ != canvas_bounds.origin):
+            self._canvas_origin_stream.value = canvas_bounds.origin
+            did_layout_change = True
+        old_canvas_size_ = self._canvas_size_stream.value
+        if (old_canvas_size_ is None) or (old_canvas_size_ != canvas_bounds.size):
+            self._canvas_size_stream.value = canvas_bounds.size
+            did_layout_change = True
+        self._layout_count += 1 if did_layout_change else 0
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         """A wrapper method for _repaint.
@@ -1763,6 +1810,50 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         return Sizing(sizing_data)
 
 
+class CanvasItemCompositionComposer(BaseComposer):
+    def __init__(self,
+                 canvas_item: AbstractCanvasItem,
+                 layout_sizing: Sizing,
+                 composer_cache: ComposerCache,
+                 layout: CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__layout = layout
+        self.__child_composers = child_composers
+        self.__background_color = background_color
+        self.__border_color = border_color
+
+    def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
+        self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        self.__draw_background(drawing_context, canvas_bounds, self.__background_color)
+        self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            for child_composer in self.__child_composers:
+                child_composer.repaint(drawing_context, child_composer._canvas_bounds)
+        self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
+
+    def __draw_background(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        if background_color:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.fill_style = background_color
+                drawing_context.fill()
+
+    def __draw_border(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, border_color: typing.Optional[str]) -> None:
+        if border_color:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.stroke_style = border_color
+                drawing_context.stroke()
+
+
 class CanvasItemComposition(AbstractCanvasItem):
     """A composite canvas item comprised of other canvas items.
 
@@ -2020,6 +2111,16 @@ class CanvasItemComposition(AbstractCanvasItem):
         self_container._did_unwrap_child_canvas_item(wrap_state)
         # update the layout if origin and size already known
         self.refresh_layout()
+
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        child_composers = list[BaseComposer]()
+        for canvas_item in self.visible_canvas_items:
+            composer = canvas_item.get_composer(composer_cache)
+            if composer:
+                child_composers.append(composer)
+            else:
+                return None
+        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
         self._repaint_children(drawing_context, immediate=immediate)
@@ -3807,6 +3908,18 @@ class Cell(CellLike):
                 drawing_context.stroke()
 
 
+class CellCanvasItemComposer(BaseComposer):
+
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, cell: CellLike, style: typing.Set[str]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__cell = cell
+        self.__style = style
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        with drawing_context.saver():
+            self.__cell.paint_cell(drawing_context, canvas_bounds.to_float_rect(), self.__style)
+
+
 class CellCanvasItem(AbstractCanvasItem):
 
     """ Canvas item to draw and respond to user events for a cell.
@@ -3964,11 +4077,10 @@ class CellCanvasItem(AbstractCanvasItem):
         new_sizing = new_sizing.with_fixed_height(new_size.height + (padding.height * 2 if new_size.height else 0))
         self.update_sizing(new_sizing)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        rect = self.canvas_bounds
-        if self.__cell and rect is not None:
-            with drawing_context.saver():
-                self.__cell.paint_cell(drawing_context, rect.to_float_rect(), self.style)
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        if cell := self.cell:
+            return CellCanvasItemComposer(self, self.layout_sizing, composer_cache, cell, self.style)
+        return None
 
 
 class TextButtonCell(Cell):
@@ -4590,12 +4702,20 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         super()._repaint(drawing_context)
 
 
+class EmptyCanvasItemComposer(BaseComposer):
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        pass
+
+
 class EmptyCanvasItem(CellCanvasItem):
     """ Canvas item to act as a placeholder (spacer or stretch). """
 
     def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, border: typing.Optional[CellBorder] = None) -> None:
         super().__init__()
         self.cell = Cell(background_color, border)
+
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
 
 class RadioButtonGroup:

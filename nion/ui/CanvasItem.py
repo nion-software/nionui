@@ -4499,6 +4499,73 @@ class StaticTextCanvasItem(TextCanvasItem):
         self.text_font = value
 
 
+class CheckBoxCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache,
+                    check_state: str, enabled: bool, mouse_inside: bool, mouse_pressed: bool,
+                    text: str, text_color: str, text_disabled_color: str, font: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__check_state = check_state
+        self.__enabled = enabled
+        self.__mouse_inside = mouse_inside
+        self.__mouse_pressed = mouse_pressed
+        self.__text = text
+        self.__text_color = text_color
+        self.__text_disabled_color = text_disabled_color
+        self.__font = font
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        canvas_size = canvas_bounds.size
+        check_state = self.__check_state
+        enabled = self.__enabled
+        mouse_inside = self.__mouse_inside
+        mouse_pressed = self.__mouse_pressed
+        font = self.__font
+        text_color = self.__text_color
+        text_disabled_color = self.__text_disabled_color
+        text = self.__text
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            tx = 4 + 14 + 4
+            cx = 4 + 7
+            cy = canvas_size.height * 0.5
+            size = 14
+            size_half = 7
+            drawing_context.round_rect(4, cy - size_half, size, size, 4.0)
+            if check_state in ("checked", "partial"):
+                drawing_context.fill_style = "#FFF"
+                drawing_context.fill()
+            if enabled and mouse_inside and mouse_pressed:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
+                drawing_context.fill()
+            elif enabled and mouse_inside:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
+                drawing_context.fill()
+            drawing_context.stroke_style = "#000"
+            drawing_context.line_width = 1.0
+            drawing_context.stroke()
+            if check_state == "checked":
+                drawing_context.begin_path()
+                drawing_context.move_to(cx - 3, cy - 2)
+                drawing_context.line_to(cx + 0, cy + 2)
+                drawing_context.line_to(cx + 8, cy - 9)
+                drawing_context.stroke_style = "#000"
+                drawing_context.line_width = 2.0
+                drawing_context.stroke()
+            elif check_state == "partial":
+                drawing_context.begin_path()
+                drawing_context.move_to(cx - 5, cy)
+                drawing_context.line_to(cx + 5, cy)
+                drawing_context.stroke_style = "#000"
+                drawing_context.line_width = 2.0
+                drawing_context.stroke()
+            drawing_context.font = font
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = text_color if enabled else text_disabled_color
+            drawing_context.fill_text(text, tx, cy + 1)
+
+
 class CheckBoxCanvasItem(AbstractCanvasItem):
 
     def __init__(self, text: typing.Optional[str] = None) -> None:
@@ -4656,50 +4723,8 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         new_sizing = new_sizing.with_fixed_height(font_metrics.height + 2 * vertical_padding)
         self.update_sizing(new_sizing)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                tx = 4 + 14 + 4
-                cx = 4 + 7
-                cy = canvas_size.height * 0.5
-                size = 14
-                size_half = 7
-                drawing_context.round_rect(4, cy - size_half, size, size, 4.0)
-                if self.check_state in ("checked", "partial"):
-                    drawing_context.fill_style = "#FFF"
-                    drawing_context.fill()
-                if self.enabled and self.__mouse_inside and self.__mouse_pressed:
-                    drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
-                    drawing_context.fill()
-                elif self.enabled and self.__mouse_inside:
-                    drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
-                    drawing_context.fill()
-                drawing_context.stroke_style = "#000"
-                drawing_context.line_width = 1.0
-                drawing_context.stroke()
-                if self.check_state == "checked":
-                    drawing_context.begin_path()
-                    drawing_context.move_to(cx - 3, cy - 2)
-                    drawing_context.line_to(cx + 0, cy + 2)
-                    drawing_context.line_to(cx + 8, cy - 9)
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.line_width = 2.0
-                    drawing_context.stroke()
-                elif self.check_state == "partial":
-                    drawing_context.begin_path()
-                    drawing_context.move_to(cx - 5, cy)
-                    drawing_context.line_to(cx + 5, cy)
-                    drawing_context.stroke_style = "#000"
-                    drawing_context.line_width = 2.0
-                    drawing_context.stroke()
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'left'
-                drawing_context.text_baseline = 'middle'
-                drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
-                drawing_context.fill_text(self.__text, tx, cy + 1)
-        super()._repaint(drawing_context)
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return CheckBoxCanvasItemComposer(self, self.layout_sizing, composer_cache, self.check_state, self.enabled, self.__mouse_inside, self.__mouse_pressed, self.__text, self.__text_color, self.__text_disabled_color, self.__font)
 
 
 class EmptyCanvasItemComposer(BaseComposer):

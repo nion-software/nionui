@@ -2120,6 +2120,9 @@ class CanvasItemComposition(AbstractCanvasItem):
                 child_composers.append(composer)
             else:
                 return None
+        return self._get_composition_composer(child_composers, composer_cache)
+
+    def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
         return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
 
     def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
@@ -2505,18 +2508,17 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
 
 
 class SplitterLayout(CanvasItemLayout):
-    def __init__(self, orientation: str) -> None:
-        super().__init__()
+    def __init__(self, orientation: str, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None, sizings: typing.Optional[typing.Sequence[Sizing]] = None) -> None:
+        super().__init__(margins, spacing)
         self.__orientation = orientation
-        self.__sizings: typing.List[Sizing] = list()
+        self.__sizings = list(sizings) if sizings else list[Sizing]()
 
     @property
     def sizings(self) -> typing.Sequence[Sizing]:
         return self.__sizings
 
-    @sizings.setter
-    def sizings(self, value: typing.Sequence[Sizing]) -> None:
-        self.__sizings = list(value)
+    def with_sizings(self, sizings: typing.Sequence[Sizing]) -> SplitterLayout:
+        return SplitterLayout(self.__orientation, self.margins, self.spacing, sizings)
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         sizings = self.sizings
@@ -2535,6 +2537,38 @@ class SplitterLayout(CanvasItemLayout):
                     canvas_item_size = Geometry.IntSize(height=canvas_size.height, width=size)
                     canvas_item.update_layout(canvas_item_origin, canvas_item_size)
                     assert canvas_item._has_layout
+
+
+class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: AbstractCanvasItem,
+                 layout_sizing: Sizing,
+                 composer_cache: ComposerCache,
+                 layout: CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str],
+                 orientation: str) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__child_composers = child_composers
+        self.__orientation = orientation
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        super()._repaint(drawing_context, canvas_bounds, composer_cache)
+        # this section is only to draw the splitter lines.
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            for child_composer in self.__child_composers[1:]:
+                child_canvas_origin = child_composer._canvas_bounds.origin
+                if self.__orientation == "horizontal":
+                    drawing_context.move_to(canvas_bounds.left, child_canvas_origin.y)
+                    drawing_context.line_to(canvas_bounds.right, child_canvas_origin.y)
+                else:
+                    drawing_context.move_to(child_canvas_origin.x, canvas_bounds.top)
+                    drawing_context.line_to(child_canvas_origin.x, canvas_bounds.bottom)
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = "#666"
+            drawing_context.stroke()
 
 
 class SplitterCanvasItem(CanvasItemComposition):
@@ -2608,8 +2642,9 @@ class SplitterCanvasItem(CanvasItemComposition):
                 sizings[index] = sizing.with_preferred_width(split)
         with self.__lock:
             self.__sizings = sizings
-            self.__splitter_layout.sizings = self.__sizings
-        self.refresh_layout()
+            self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+            self.layout = self.__splitter_layout
+        self.update()
 
     def _insert_canvas_item_x(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
         sizing_data = SizingData()
@@ -2623,14 +2658,18 @@ class SplitterCanvasItem(CanvasItemComposition):
                 sizing_data.minimum_width = 0.1
         with self.__lock:
             self.__sizings.insert(before_index, Sizing(sizing_data))
-            self.__splitter_layout.sizings = self.__sizings
+            self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+            self.layout = self.__splitter_layout
         super()._insert_canvas_item_x(before_index, canvas_item)
+        self.update()
 
     def _remove_canvas_item_direct(self, canvas_item: AbstractCanvasItem) -> None:
         with self.__lock:
             del self.__sizings[self.canvas_items.index(canvas_item)]
-            self.__splitter_layout.sizings = self.__sizings
+            self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+            self.layout = self.__splitter_layout
         super()._remove_canvas_item_direct(canvas_item)
+        self.update()
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[AbstractCanvasItem]:
         if self.orientation == "horizontal":
@@ -2655,24 +2694,8 @@ class SplitterCanvasItem(CanvasItemComposition):
     def _did_unwrap_child_canvas_item(self, state: typing.Any) -> typing.Any:
         self.splits = typing.cast(typing.Sequence[float], state)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        super()._repaint(drawing_context)
-        canvas_bounds = self.canvas_bounds
-        assert canvas_bounds is not None
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            for canvas_item in self.canvas_items[1:]:  # don't check the '0' origin
-                child_canvas_origin = canvas_item.canvas_origin
-                if child_canvas_origin:
-                    if self.orientation == "horizontal":
-                        drawing_context.move_to(canvas_bounds.left, child_canvas_origin.y)
-                        drawing_context.line_to(canvas_bounds.right, child_canvas_origin.y)
-                    else:
-                        drawing_context.move_to(child_canvas_origin.x, canvas_bounds.top)
-                        drawing_context.line_to(child_canvas_origin.x, canvas_bounds.bottom)
-            drawing_context.line_width = 0.5
-            drawing_context.stroke_style = "#666"
-            drawing_context.stroke()
+    def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
+        return SplitterCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__splitter_layout, child_composers, self.background_color, self.border_color, self.orientation)
 
     def __hit_test(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> typing.Tuple[str, int, int]:
         if self._has_layout:
@@ -2716,8 +2739,9 @@ class SplitterCanvasItem(CanvasItemComposition):
             # update the layout
             with self.__lock:
                 self.__sizings = new_sizings
-                self.__splitter_layout.sizings = self.__sizings
-            self.refresh_layout()
+                self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+                self.layout = self.__splitter_layout
+            self.update()
             return True
         return super().mouse_pressed(x, y, modifiers)
 
@@ -2741,8 +2765,9 @@ class SplitterCanvasItem(CanvasItemComposition):
             new_sizings.append(Sizing(sizing_data))
         with self.__lock:
             self.__sizings = new_sizings
-            self.__splitter_layout.sizings = self.__sizings
-        self.refresh_layout()
+            self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+            self.layout = self.__splitter_layout
+        self.update()
         if callable(self.on_splits_changed):
             self.on_splits_changed()
         return True
@@ -2782,8 +2807,9 @@ class SplitterCanvasItem(CanvasItemComposition):
                     new_sizings[self.__tracking_start_index + 1] = new_sizings[self.__tracking_start_index + 1].with_preferred_width(tracking_start_preferred_next - offset)
             with self.__lock:
                 self.__sizings = new_sizings
-                self.__splitter_layout.sizings = self.__sizings
-            self.refresh_layout()
+                self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
+                self.layout = self.__splitter_layout
+            self.update()
             return True
         else:
             control, _, _ = self.__hit_test(x, y, modifiers)

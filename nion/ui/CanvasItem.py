@@ -1032,8 +1032,7 @@ class AbstractCanvasItem:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
         self.__pending_update = True
-        container = self.__container
-        if container and self._has_layout:
+        if container := self.__container:
             container.update()
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:

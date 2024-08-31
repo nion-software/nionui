@@ -460,6 +460,27 @@ class Sizing:
             return int(min(self.maximum_height, maximum_height))
         return int(maximum_height)
 
+    def get_preferred_width(self) -> typing.Union[int, float]:
+        if self.preferred_width:
+            return self.preferred_width
+        if self.maximum_width:
+            return self.maximum_width
+        if self.minimum_width:
+            return self.minimum_width
+        return 0
+
+    def get_preferred_height(self) -> typing.Union[int, float]:
+        if self.preferred_height:
+            return self.preferred_height
+        if self.maximum_height:
+            return self.maximum_height
+        if self.minimum_height:
+            return self.minimum_height
+        return 0
+
+    def get_preferred_size(self) -> Geometry.IntSize:
+        return Geometry.IntSize(int(self.get_preferred_height()), int(self.get_preferred_width()))
+
 
 class KeyboardModifiers:
     def __init__(self, shift: bool = False, control: bool = False, alt: bool = False, meta: bool = False, keypad: bool = False) -> None:
@@ -2150,7 +2171,7 @@ class ScrollAreaLayout(CanvasItemLayout):
         content = canvas_items[0] if canvas_items else None
         if content:
             if not content._has_layout:
-                self.update_canvas_item_layout(Geometry.IntPoint(), canvas_size, content)
+                self.update_canvas_item_layout(Geometry.IntPoint(), content.layout_sizing.get_preferred_size(), content)
             elif self.auto_resize_contents:
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
 

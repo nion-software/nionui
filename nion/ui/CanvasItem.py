@@ -5,7 +5,6 @@ from __future__ import annotations
 
 # standard libraries
 import abc
-import collections
 import concurrent.futures
 import contextlib
 import copy
@@ -552,7 +551,11 @@ class KeyboardModifiers:
         return self.control
 
 
-def visible_canvas_item(canvas_item: typing.Optional[LayoutItem]) -> typing.Optional[LayoutItem]:
+def visible_layout_sizing_item(canvas_item: typing.Optional[LayoutSizingItem]) -> typing.Optional[LayoutSizingItem]:
+    return canvas_item if canvas_item and canvas_item.is_visible else None
+
+
+def visible_layout_item(canvas_item: typing.Optional[LayoutItem]) -> typing.Optional[LayoutItem]:
     return canvas_item if canvas_item and canvas_item.is_visible else None
 
 
@@ -1373,6 +1376,15 @@ class LayoutItem(typing.Protocol):
     def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None: ...
 
 
+class LayoutSizingItem(typing.Protocol):
+
+    @property
+    def is_visible(self) -> bool: raise NotImplementedError()
+
+    @property
+    def layout_sizing(self) -> Sizing: raise NotImplementedError()
+
+
 class CanvasItemAbstractLayout:
 
     """
@@ -1445,7 +1457,7 @@ class CanvasItemAbstractLayout:
         elif clear_if_missing:
             setattr(sizing_data, property, None)
 
-    def _get_overlap_sizing(self, canvas_items: typing.Sequence[typing.Optional[LayoutItem]]) -> Sizing:
+    def _get_overlap_sizing(self, canvas_items: typing.Sequence[typing.Optional[LayoutSizingItem]]) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is stacked/overlapping.
             Does not include spacing or margins.
@@ -1474,7 +1486,7 @@ class CanvasItemAbstractLayout:
             sizing_data.preferred_height = None
         return Sizing(sizing_data)
 
-    def _get_column_sizing(self, canvas_items: typing.Sequence[LayoutItem])-> Sizing:
+    def _get_column_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem])-> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
@@ -1500,7 +1512,7 @@ class CanvasItemAbstractLayout:
             sizing_data.maximum_height = None
         return Sizing(sizing_data)
 
-    def _get_row_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def _get_row_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         """
             A commonly used sizing method to determine the preferred/min/max assuming everything is a column.
             Does not include spacing or margins.
@@ -1542,14 +1554,14 @@ class CanvasItemAbstractLayout:
             sizing_data.preferred_height += self.margins.top + self.margins.bottom + y_spacing
         return sizing_data
 
-    def add_canvas_item(self, canvas_item: LayoutItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
+    def add_canvas_item(self, canvas_item: typing.Any, pos: typing.Optional[Geometry.IntPoint]) -> None:
         """
             Subclasses may override this method to get position specific information when a canvas item is added to
             the layout.
         """
         pass
 
-    def remove_canvas_item(self, canvas_item: LayoutItem) -> None:
+    def remove_canvas_item(self, canvas_item: typing.Any) -> None:
         """
             Subclasses may override this method to clean up position specific information when a canvas item is removed
             from the layout.
@@ -1560,7 +1572,7 @@ class CanvasItemAbstractLayout:
         """ Subclasses must override this method to layout canvas item. """
         raise NotImplementedError()
 
-    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         """
             Return the sizing object for this layout. Includes spacing and margins.
 
@@ -1590,7 +1602,7 @@ class CanvasItemLayout(CanvasItemAbstractLayout):
         for canvas_item in canvas_items:
             self.update_canvas_item_layout(canvas_origin, canvas_size, canvas_item)
 
-    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         return Sizing(self._adjust_sizing(self._get_overlap_sizing(canvas_items).sizing_data, 0, 0))
 
     def create_spacing_item(self, spacing: int) -> AbstractCanvasItem:
@@ -1626,7 +1638,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
             x_positions = [round(canvas_origin.x + self.margins.left + (available_width - width) * 0.5) for width in widths]
         self.layout_canvas_items(x_positions, column_layout.origins, widths, column_layout.sizes, canvas_items)
 
-    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         return Sizing(self._adjust_sizing(self._get_column_sizing(canvas_items).sizing_data, 0, self.spacing * (len(canvas_items) - 1)))
 
     def create_spacing_item(self, spacing: int) -> AbstractCanvasItem:
@@ -1665,7 +1677,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
             y_positions = [round(canvas_origin.y + self.margins.top + (available_height - height) // 2) for height in heights]
         self.layout_canvas_items(row_layout.origins, y_positions, row_layout.sizes, heights, canvas_items)
 
-    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         return Sizing(self._adjust_sizing(self._get_row_sizing(canvas_items).sizing_data, self.spacing * (len(canvas_items) - 1), 0))
 
     def create_spacing_item(self, spacing: int) -> AbstractCanvasItem:
@@ -1698,24 +1710,31 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # columns stores the canvas items in a grid. canvas items keeps track of the order in which they're added or
         # removed. this allows for finding the associated index of a canvas item in the layout so that the layout can
         # use the list of layout items passed in to layout or get_sizing.
-        self.__columns: typing.List[typing.List[typing.Optional[LayoutItem]]] = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
-        self.__canvas_items: typing.List[LayoutItem] = list()
+        self.__columns: typing.List[typing.List[typing.Optional[typing.Any]]] = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
+        self.__canvas_items: typing.List[typing.Any] = list()
 
-    def add_canvas_item(self, canvas_item: LayoutItem, pos: typing.Optional[Geometry.IntPoint]) -> None:
+    def add_canvas_item(self, canvas_item: typing.Any, pos: typing.Optional[Geometry.IntPoint]) -> None:
         assert pos
         assert pos.x >= 0 and pos.x < self.__size.width
         assert pos.y >= 0 and pos.y < self.__size.height
         self.__columns[pos.x][pos.y] = canvas_item
         self.__canvas_items.append(canvas_item)
 
-    def remove_canvas_item(self, canvas_item: LayoutItem) -> None:
+    def remove_canvas_item(self, canvas_item: typing.Any) -> None:
         for x in range(self.__size.width):
             for y in range(self.__size.height):
                 if self.__columns[x][y] == canvas_item:
                     self.__columns[x][y] = None
         self.__canvas_items.remove(canvas_item)
 
-    def __layout_item_at(self, canvas_items: typing.List[LayoutItem], x: int, y: int) -> typing.Optional[LayoutItem]:
+    def __layout_sizing_item_at(self, canvas_items: typing.Sequence[LayoutSizingItem], x: int, y: int) -> typing.Optional[LayoutSizingItem]:
+        canvas_item = self.__columns[x][y]
+        if canvas_item is not None:
+            index = self.__canvas_items.index(canvas_item)
+            return canvas_items[index]
+        return None
+
+    def __layout_item_at(self, canvas_items: typing.Sequence[LayoutItem], x: int, y: int) -> typing.Optional[LayoutItem]:
         canvas_item = self.__columns[x][y]
         if canvas_item is not None:
             index = self.__canvas_items.index(canvas_item)
@@ -1732,7 +1751,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         content_width = canvas_size.width - self.margins.left - self.margins.right - self.spacing * spacing_count
         constraints = list()
         for x in range(self.__size.width):
-            sizing = self._get_overlap_sizing([visible_canvas_item(self.__layout_item_at(canvas_items, x, y)) for y in range(self.__size.height)])
+            sizing = self._get_overlap_sizing([visible_layout_sizing_item(self.__layout_item_at(canvas_items, x, y)) for y in range(self.__size.height)])
             constraints.append(sizing.get_width_constraint(content_width))
         # run the layout engine
         row_layout = constraint_solve(content_left, content_width, constraints, self.spacing)
@@ -1744,7 +1763,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         content_height = canvas_size.height - self.margins.top - self.margins.bottom - self.spacing * spacing_count
         constraints = list()
         for y in range(self.__size.height):
-            sizing = self._get_overlap_sizing([visible_canvas_item(self.__layout_item_at(canvas_items, x, y)) for x in range(self.__size.width)])
+            sizing = self._get_overlap_sizing([visible_layout_sizing_item(self.__layout_item_at(canvas_items, x, y)) for x in range(self.__size.width)])
             constraints.append(sizing.get_height_constraint(content_height))
         # run the layout engine
         column_layout = constraint_solve(content_top, content_height, constraints, self.spacing)
@@ -1756,7 +1775,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         combined_canvas_items = list()
         for x in range(self.__size.width):
             for y in range(self.__size.height):
-                canvas_item = visible_canvas_item(self.__layout_item_at(canvas_items, x, y))
+                canvas_item = visible_layout_item(self.__layout_item_at(canvas_items, x, y))
                 if canvas_item is not None:
                     combined_xs.append(row_layout.origins[x])
                     combined_ys.append(column_layout.origins[y])
@@ -1765,7 +1784,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
                     combined_canvas_items.append(canvas_item)
         self.layout_canvas_items(combined_xs, combined_ys, combined_widths, combined_heights, combined_canvas_items)
 
-    def get_sizing(self, canvas_items: typing.Sequence[LayoutItem]) -> Sizing:
+    def get_sizing(self, canvas_items: typing.Sequence[LayoutSizingItem]) -> Sizing:
         """
             Calculate the sizing for the grid. Treat columns and rows independently.
 
@@ -1779,7 +1798,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # the widths
         canvas_item_sizings = list()
         for x in range(self.__size.width):
-            canvas_items_ = [visible_canvas_item(self.__layout_item_at(canvas_items, x, y)) for y in range(self.__size.height)]
+            canvas_items_ = [visible_layout_sizing_item(self.__layout_sizing_item_at(canvas_items, x, y)) for y in range(self.__size.height)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items_))
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing_data, canvas_item_sizing, "preferred_width", operator.add)
@@ -1788,7 +1807,7 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         # the heights
         canvas_item_sizings = list()
         for y in range(self.__size.height):
-            canvas_items_ = [visible_canvas_item(self.__layout_item_at(canvas_items, x, y)) for x in range(self.__size.width)]
+            canvas_items_ = [visible_layout_sizing_item(self.__layout_sizing_item_at(canvas_items, x, y)) for x in range(self.__size.width)]
             canvas_item_sizings.append(self._get_overlap_sizing(canvas_items_))
         for canvas_item_sizing in canvas_item_sizings:
             self._combine_sizing_property(sizing_data, canvas_item_sizing, "preferred_height", operator.add)
@@ -1831,11 +1850,14 @@ class CanvasItemCompositionComposer(BaseComposer):
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         self.__draw_background(drawing_context, canvas_bounds, self.__background_color)
         self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
+        self._repaint_children(drawing_context, canvas_bounds, self.__child_composers)
+        self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
+
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
         with drawing_context.saver():
             drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-            for child_composer in self.__child_composers:
+            for child_composer in child_composers:
                 child_composer.repaint(drawing_context, child_composer._canvas_bounds)
-        self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
 
     def __draw_background(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if background_color:
@@ -2334,6 +2356,27 @@ class ScrollAreaLayout(CanvasItemLayout):
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
 
 
+class ScrollAreaCanvasItemComposer(CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: AbstractCanvasItem,
+                 layout_sizing: Sizing,
+                 composer_cache: ComposerCache,
+                 layout: CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str],
+                 content_origin: Geometry.IntPoint) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__content_origin = content_origin
+
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
+        with drawing_context.saver():
+            content_origin = self.__content_origin
+            drawing_context.clip_rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.translate(content_origin.x, content_origin.y)
+            super()._repaint_children(drawing_context, canvas_bounds, child_composers)
+
+
 class ScrollAreaCanvasItem(CanvasItemComposition):
     """A scroll area canvas item with content.
 
@@ -2398,15 +2441,19 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         # for testing.
         return Geometry.IntRect(origin=self.content_origin, size=self.content_size or Geometry.IntSize())
 
-    def update_content_origin(self, new_content_origin: Geometry.IntPoint) -> None:
+    def update_content_origin(self, new_content_origin: Geometry.IntPoint) -> bool:
         """Update the content origin, restricting it to a valid range."""
         content_size = self.content_size or Geometry.IntSize()
         canvas_size = self.canvas_size or Geometry.IntSize()
         cx = max(-(content_size.width - canvas_size.width), min(0, new_content_origin.x)) if content_size.width > canvas_size.width else 0
         cy = max(-(content_size.height - canvas_size.height), min(0, new_content_origin.y)) if content_size.height > canvas_size.height else 0
-        self.__content_origin = Geometry.IntPoint(x=cx, y=cy)
-        self.content_updated_event.fire()
-        self.update()
+        content_origin = Geometry.IntPoint(x=cx, y=cy)
+        if self.__content_origin != content_origin:
+            self.__content_origin = content_origin
+            self.content_updated_event.fire()
+            self.update()
+            return True
+        return False
 
     def make_selection_visible(self, min_rect: Geometry.IntRect, max_rect: Geometry.IntRect, adjust_horizontal: bool, adjust_vertical: bool, prefer_min: bool) -> None:
         canvas_origin = self.canvas_origin
@@ -2454,19 +2501,8 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
             # matches the scroll position.
             self.update_content_origin(self.__content_origin)
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        # paint the children with the content origin and a clip rect.
-        with drawing_context.saver():
-            canvas_origin = self.canvas_origin
-            canvas_size = self.canvas_size
-            if canvas_origin and canvas_size:
-                drawing_context.clip_rect(canvas_origin.x, canvas_origin.y, canvas_size.width, canvas_size.height)
-                content = self.content
-                content_origin = self.content_origin
-                if content and content_origin:
-                    drawing_context.translate(content_origin.x, content_origin.y)
-                    visible_rect = Geometry.IntRect(origin=-content_origin, size=canvas_size)
-                    content._repaint_visible(drawing_context, visible_rect)
+    def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
+        return ScrollAreaCanvasItemComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color, self.__content_origin)
 
     def map_to_container(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         return super().map_to_container(p + self.content_origin)
@@ -2935,12 +2971,132 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         self.value_change_stream.end()
 
 
-PositionLength = collections.namedtuple("PositionLength", ["position", "length"])
+@dataclasses.dataclass
+class PositionLength:
+    position: int
+    length: int
+
+
+def get_thumb_position_and_length(canvas_length: int, visible_length: int, content_length: int, content_offset: int) -> PositionLength:
+    """
+        Return the thumb position and length as a tuple of ints.
+
+        The canvas_length is the size of the canvas of the scroll bar.
+
+        The visible_length is the size of the visible area of the scroll area.
+
+        The content_length is the size of the content of the scroll area.
+
+        The content_offset is the position of the content within the scroll area. It
+        will always be negative or zero.
+    """
+    # the scroll_range defines the maximum negative value of the content_offset.
+    scroll_range = max(content_length - visible_length, 0)
+    # content_offset should be negative, but not more negative than the scroll_range.
+    content_offset = max(-scroll_range, min(0, content_offset))
+    # assert content_offset <= 0 and content_offset >= -scroll_range
+    # the length of the thumb is the visible_length multiplied by the ratio of
+    # visible_length to the content_length. however, a minimum height is enforced
+    # so that the user can always grab it. if the thumb is invisible (the content_length
+    # is less than or equal to the visible_length) then the thumb will have a length of zero.
+    if content_length > visible_length:
+        thumb_length = int(canvas_length * (float(visible_length) / content_length))
+        thumb_length = max(thumb_length, 32)
+        # the position of the thumb is the content_offset over the content_length multiplied by
+        # the free-range of the thumb which is the canvas_length minus the thumb_length.
+        thumb_position = int((canvas_length - thumb_length) * (float(-content_offset) / scroll_range))
+    else:
+        thumb_length = 0
+        thumb_position = 0
+    return PositionLength(thumb_position, thumb_length)
+
+
+def get_thumb_rect(canvas_size: Geometry.IntSize, orientation: Orientation, content_rect: Geometry.IntRect) -> Geometry.IntRect:
+    # return the thumb rect for the given canvas_size
+    index = 0 if orientation == Orientation.Vertical else 1
+    scroll_area_content_origin = content_rect.origin
+    scroll_area_content_size = content_rect.size
+    if scroll_area_content_size.width and scroll_area_content_size.height:
+        visible_length = canvas_size[index]
+        content_length = scroll_area_content_size[index]
+        content_offset = scroll_area_content_origin[index]
+        thumb_position_length = get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
+        if orientation == Orientation.Vertical:
+            thumb_origin = Geometry.IntPoint(x=0, y=thumb_position_length.position)
+            thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_position_length.length)
+        else:
+            thumb_origin = Geometry.IntPoint(x=thumb_position_length.position, y=0)
+            thumb_size = Geometry.IntSize(width=thumb_position_length.length, height=canvas_size.height)
+        return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
+    return Geometry.IntRect.empty_rect()
+
+
+class ScrollBarCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, orientation: Orientation, content_rect: Geometry.IntRect, is_tracking: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__orientation = orientation
+        self.__content_rect = content_rect
+        self.__is_tracking = is_tracking
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        # canvas size, thumb rect
+        orientation = self.__orientation
+        is_tracking = self.__is_tracking
+        thumb_rect = get_thumb_rect(canvas_bounds.size, self.__orientation, self.__content_rect)
+        # draw it
+        with drawing_context.saver():
+            # draw the border of the scroll bar
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            if orientation == Orientation.Vertical:
+                gradient = drawing_context.create_linear_gradient(canvas_bounds.width, canvas_bounds.height, 0, 0, canvas_bounds.width, 0)
+            else:
+                gradient = drawing_context.create_linear_gradient(canvas_bounds.width, canvas_bounds.height, 0, 0, 0, canvas_bounds.height)
+            gradient.add_color_stop(0.0, "#F2F2F2")
+            gradient.add_color_stop(0.35, "#FDFDFD")
+            gradient.add_color_stop(0.65, "#FDFDFD")
+            gradient.add_color_stop(1.0, "#F2F2F2")
+            drawing_context.fill_style = gradient
+            drawing_context.fill()
+            # draw the thumb, if any
+            if thumb_rect.height > 0 and thumb_rect.width > 0:
+                with drawing_context.saver():
+                    drawing_context.begin_path()
+                    if orientation == Orientation.Vertical:
+                        drawing_context.move_to(thumb_rect.width - 8, thumb_rect.top + 6)
+                        drawing_context.line_to(thumb_rect.width - 8, thumb_rect.bottom - 6)
+                    else:
+                        drawing_context.move_to(thumb_rect.left + 6, thumb_rect.height - 8)
+                        drawing_context.line_to(thumb_rect.right - 6, thumb_rect.height - 8)
+                    drawing_context.line_width = 8.0
+                    drawing_context.line_cap = "round"
+                    drawing_context.stroke_style = "#888" if is_tracking else "#CCC"
+                    drawing_context.stroke()
+            # draw inside edge
+            drawing_context.begin_path()
+            drawing_context.move_to(0, 0)
+            if orientation == Orientation.Vertical:
+                drawing_context.line_to(0, canvas_bounds.height)
+            else:
+                drawing_context.line_to(canvas_bounds.width, 0)
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = "#E3E3E3"
+            drawing_context.stroke()
+            # draw outside
+            drawing_context.begin_path()
+            if orientation == Orientation.Vertical:
+                drawing_context.move_to(canvas_bounds.width, 0)
+            else:
+                drawing_context.move_to(0, canvas_bounds.height)
+            drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+            drawing_context.line_width = 0.5
+            drawing_context.stroke_style = "#999999"
+            drawing_context.stroke()
 
 
 class ScrollBarCanvasItem(AbstractCanvasItem):
-
-    """ A scroll bar for a scroll area. """
+    """A scroll bar for a scroll area."""
 
     def __init__(self, scroll_area_canvas_item: ScrollAreaCanvasItem, orientation: typing.Optional[Orientation] = None) -> None:
         super().__init__()
@@ -2960,126 +3116,29 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         self.__scroll_area_canvas_item_content_updated_listener = typing.cast(typing.Any, None)
         super().close()
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # canvas size, thumb rect
-        canvas_size = self.canvas_size
-        thumb_rect = self.thumb_rect
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return ScrollBarCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__orientation, self.__scroll_area_canvas_item._content_rect, self.__tracking)
 
-        if canvas_size:
-            # draw it
-            with drawing_context.saver():
-                # draw the border of the scroll bar
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                if self.__orientation == Orientation.Vertical:
-                    gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, canvas_size.width, 0)
-                else:
-                    gradient = drawing_context.create_linear_gradient(canvas_size.width, canvas_size.height, 0, 0, 0, canvas_size.height)
-                gradient.add_color_stop(0.0, "#F2F2F2")
-                gradient.add_color_stop(0.35, "#FDFDFD")
-                gradient.add_color_stop(0.65, "#FDFDFD")
-                gradient.add_color_stop(1.0, "#F2F2F2")
-                drawing_context.fill_style = gradient
-                drawing_context.fill()
-                # draw the thumb, if any
-                if thumb_rect.height > 0 and thumb_rect.width > 0:
-                    with drawing_context.saver():
-                        drawing_context.begin_path()
-                        if self.__orientation == Orientation.Vertical:
-                            drawing_context.move_to(thumb_rect.width - 8, thumb_rect.top + 6)
-                            drawing_context.line_to(thumb_rect.width - 8, thumb_rect.bottom - 6)
-                        else:
-                            drawing_context.move_to(thumb_rect.left + 6, thumb_rect.height - 8)
-                            drawing_context.line_to(thumb_rect.right - 6, thumb_rect.height - 8)
-                        drawing_context.line_width = 8.0
-                        drawing_context.line_cap = "round"
-                        drawing_context.stroke_style = "#888" if self.__tracking else "#CCC"
-                        drawing_context.stroke()
-                # draw inside edge
-                drawing_context.begin_path()
-                drawing_context.move_to(0, 0)
-                if self.__orientation == Orientation.Vertical:
-                    drawing_context.line_to(0, canvas_size.height)
-                else:
-                    drawing_context.line_to(canvas_size.width, 0)
-                drawing_context.line_width = 0.5
-                drawing_context.stroke_style = "#E3E3E3"
-                drawing_context.stroke()
-                # draw outside
-                drawing_context.begin_path()
-                if self.__orientation == Orientation.Vertical:
-                    drawing_context.move_to(canvas_size.width, 0)
-                else:
-                    drawing_context.move_to(0, canvas_size.height)
-                drawing_context.line_to(canvas_size.width, canvas_size.height)
-                drawing_context.line_width = 0.5
-                drawing_context.stroke_style = "#999999"
-                drawing_context.stroke()
-
-    def get_thumb_position_and_length(self, canvas_length: int, visible_length: int, content_length: int, content_offset: int) -> PositionLength:
-        """
-            Return the thumb position and length as a tuple of ints.
-
-            The canvas_length is the size of the canvas of the scroll bar.
-
-            The visible_length is the size of the visible area of the scroll area.
-
-            The content_length is the size of the content of the scroll area.
-
-            The content_offset is the position of the content within the scroll area. It
-            will always be negative or zero.
-        """
-        # the scroll_range defines the maximum negative value of the content_offset.
-        scroll_range = max(content_length - visible_length, 0)
-        # content_offset should be negative, but not more negative than the scroll_range.
-        content_offset = max(-scroll_range, min(0, content_offset))
-        # assert content_offset <= 0 and content_offset >= -scroll_range
-        # the length of the thumb is the visible_length multiplied by the ratio of
-        # visible_length to the content_length. however, a minimum height is enforced
-        # so that the user can always grab it. if the thumb is invisible (the content_length
-        # is less than or equal to the visible_length) then the thumb will have a length of zero.
-        if content_length > visible_length:
-            thumb_length = int(canvas_length * (float(visible_length) / content_length))
-            thumb_length = max(thumb_length, 32)
-            # the position of the thumb is the content_offset over the content_length multiplied by
-            # the free-range of the thumb which is the canvas_length minus the thumb_length.
-            thumb_position = int((canvas_length - thumb_length) * (float(-content_offset) / scroll_range))
-        else:
-            thumb_length = 0
-            thumb_position = 0
-        return PositionLength(thumb_position, thumb_length)
+    def __change_tracking(self, tracking: bool) -> None:
+        if self.__tracking != tracking:
+            self.__tracking = tracking
+            self.update()
 
     @property
     def thumb_rect(self) -> Geometry.IntRect:
         # return the thumb rect for the given canvas_size
         canvas_size = self.canvas_size
         if canvas_size:
-            index = 0 if self.__orientation == Orientation.Vertical else 1
-            scroll_area_canvas_size = self.__scroll_area_canvas_item.canvas_size
-            scroll_area_content_origin = self.__scroll_area_canvas_item.content_origin
-            scroll_area_content_size = self.__scroll_area_canvas_item.content_size
-            if scroll_area_content_size and scroll_area_canvas_size:
-                visible_length = scroll_area_canvas_size[index]
-                content_length = scroll_area_content_size[index]
-                content_offset = scroll_area_content_origin[index]
-                thumb_position, thumb_length = self.get_thumb_position_and_length(canvas_size[index], visible_length, content_length, content_offset)
-                if self.__orientation == Orientation.Vertical:
-                    thumb_origin = Geometry.IntPoint(x=0, y=thumb_position)
-                    thumb_size = Geometry.IntSize(width=canvas_size.width, height=thumb_length)
-                else:
-                    thumb_origin = Geometry.IntPoint(x=thumb_position, y=0)
-                    thumb_size = Geometry.IntSize(width=thumb_length, height=canvas_size.height)
-                return Geometry.IntRect(origin=thumb_origin, size=thumb_size)
+            return get_thumb_rect(canvas_size, self.__orientation, self.__scroll_area_canvas_item._content_rect)
         return Geometry.IntRect.empty_rect()
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         thumb_rect = self.thumb_rect
         pos = Geometry.IntPoint(x=x, y=y)
         if thumb_rect.contains_point(pos):
-            self.__tracking = True
+            self.__change_tracking(True)
             self.__tracking_start = pos
             self.__tracking_content_origin = self.__scroll_area_canvas_item.content_origin or Geometry.IntPoint()
-            self.update()
             return True
         elif self.__orientation == Orientation.Vertical and y < thumb_rect.top:
             self.__adjust_thumb(-1)
@@ -3096,8 +3155,7 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__tracking = False
-        self.update()
+        self.__change_tracking(False)
         return super().mouse_released(x, y, modifiers)
 
     def __adjust_thumb(self, amount: float) -> None:
@@ -3130,8 +3188,8 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
             The mouse_offset is the offset of the mouse.
         """
         scroll_range = max(content_length - visible_length, 0)
-        _, thumb_length = self.get_thumb_position_and_length(canvas_length, visible_length, content_length, content_origin)
-        offset_rel = int(scroll_range * float(mouse_offset) / (canvas_length - thumb_length))
+        thumb_position_length = get_thumb_position_and_length(canvas_length, visible_length, content_length, content_origin)
+        offset_rel = int(scroll_range * float(mouse_offset) / (canvas_length - thumb_position_length.length))
         return max(min(content_origin - offset_rel, 0), -scroll_range)
 
     def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
@@ -3156,8 +3214,8 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
                             content_width = scroll_area_content_canvas_size[1]
                             new_content_origin_h = self.adjust_content_origin(canvas_size[1], visible_width, content_width, tracking_content_origin[1], mouse_offset_h)
                             new_content_origin = Geometry.IntPoint(x=new_content_origin_h, y=tracking_content_origin[0])
-                        self.__scroll_area_canvas_item.update_content_origin(new_content_origin)
-                        self.update()
+                        if self.__scroll_area_canvas_item.update_content_origin(new_content_origin):
+                            self.update()
         return super().mouse_position_changed(x, y, modifiers)
 
 

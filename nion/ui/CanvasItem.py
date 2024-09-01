@@ -868,14 +868,6 @@ class AbstractCanvasItem:
         """Subclasses may override to know when removed from a container."""
         pass
 
-    def prepare_render(self) -> None:
-        """Subclasses may override to prepare for layout and repaint. DEPRECATED see _prepare_render."""
-        pass
-
-    def _prepare_render(self) -> None:
-        """Subclasses may override to prepare for layout and repaint."""
-        pass
-
     def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
         """Update the layout with a new canvas_origin and canvas_size. Update child layouts, too.
 
@@ -1740,11 +1732,6 @@ class CanvasItemComposition(AbstractCanvasItem):
         else:
             return super()._summary(indent) + f" [{len(self.__canvas_items)}]"
 
-    def _prepare_render(self) -> None:
-        for canvas_item in self.__canvas_items:
-            canvas_item._prepare_render()
-        super()._prepare_render()
-
     @property
     def canvas_items_count(self) -> int:
         """Return count of canvas items managed by this composition."""
@@ -1763,7 +1750,6 @@ class CanvasItemComposition(AbstractCanvasItem):
         return list()
 
     def layout_immediate(self, canvas_size: Geometry.IntSize, force: bool = True) -> None:
-        self._prepare_render()
         self.update_layout(Geometry.IntPoint(), canvas_size)
 
     def _update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
@@ -2128,7 +2114,6 @@ class LayerCanvasItem(CanvasItemComposition):
             if self._has_layout:
                 try:
                     with Process.audit("repaint_layer"):
-                        self._prepare_render()
                         # layout or repaint that occurs during prepare render should be handled
                         # but not trigger another repaint after this one.
                         with self.__layer_thread_condition:

@@ -598,13 +598,17 @@ class BaseComposer:
         self.__cache = cache
 
     def repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
-        if not self.__drawing_context:
-            self.__drawing_context = DrawingContext.DrawingContext()
-            self._repaint(self.__drawing_context, canvas_bounds, self.__cache)
+        # if layout is changed, update it. it may clear the drawing context.
+        self.update_layout(canvas_bounds.origin, canvas_bounds.size)
+        existing_draw_context = self.__drawing_context
+        if not existing_draw_context:
+            existing_draw_context = DrawingContext.DrawingContext()
+            self._repaint(existing_draw_context, canvas_bounds, self.__cache)
             canvas_item = self.__canvas_item_ref()
             if canvas_item:
-                canvas_item._update_layout_from_composer(canvas_bounds)
-        drawing_context.add(self.__drawing_context)
+                canvas_item._update_repaint_count_from_composer()
+        drawing_context.add(existing_draw_context)
+        self.__drawing_context = existing_draw_context
 
     @property
     def _canvas_item(self) -> AbstractCanvasItem:
@@ -638,6 +642,9 @@ class BaseComposer:
             self.__canvas_bounds = canvas_bounds
             self.__drawing_context = None
             self._update_layout(canvas_bounds)
+        canvas_item = self.__canvas_item_ref()
+        if canvas_item:
+            canvas_item._update_layout_from_composer(canvas_bounds)
 
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         pass
@@ -1131,6 +1138,11 @@ class AbstractCanvasItem:
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         return None
 
+    def update_layout_using_composer(self, canvas_size: Geometry.IntSize) -> None:
+        composer = self.get_composer(self._get_composer_cache())
+        if composer:
+            composer.update_layout(Geometry.IntPoint(), canvas_size)
+
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item to the drawing context.
 
@@ -1141,11 +1153,13 @@ class AbstractCanvasItem:
         The drawing should take place within the canvas_bounds.
         """
         assert self.canvas_size is not None
-        self._repaint_count += 1
         composer = self.get_composer(self._get_composer_cache())
         canvas_rect = self.canvas_rect
         if composer and canvas_rect:
             composer.repaint(drawing_context, canvas_rect)
+
+    def _update_repaint_count_from_composer(self) -> None:
+        self._repaint_count += 1
 
     def _update_layout_from_composer(self, canvas_bounds: Geometry.IntRect) -> None:
         did_layout_change = False
@@ -1849,7 +1863,6 @@ class CanvasItemCompositionComposer(BaseComposer):
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         self.__draw_background(drawing_context, canvas_bounds, self.__background_color)
-        self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
         self._repaint_children(drawing_context, canvas_bounds, self.__child_composers)
         self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
 
@@ -2296,8 +2309,9 @@ class LayerCanvasItem(CanvasItemComposition):
         self._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
         self._layer_thread_suppress = True
-        self.update_layout(Geometry.IntPoint(), canvas_size)
-        self._repaint_children(drawing_context, immediate=True)
+        # repaint assumes that the canvas item being repainted already has a canvas rect.
+        # to ensure it does, call _update_layout here.
+        self.update_layout_using_composer(canvas_size)
         self._repaint(drawing_context)
         self._layer_thread_suppress = layer_thread_suppress
         self._removed(None)
@@ -2315,7 +2329,6 @@ class LayerCanvasItem(CanvasItemComposition):
                         with self.__layer_thread_condition:
                             self.__needs_repaint = False
                         drawing_context = DrawingContext.DrawingContext()
-                        self._repaint_children(drawing_context)
                         self._repaint(drawing_context)
                         with self.__layer_lock:
                             self.__layer_seed += 1

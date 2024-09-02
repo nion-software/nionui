@@ -18,6 +18,7 @@ import functools
 import typing
 
 from nion.ui import CanvasItem
+from nion.ui.CanvasItem import BaseComposer, ComposerCache
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
@@ -67,6 +68,89 @@ class GridCanvasItemDelegate(typing.Protocol):
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         return  # required to avoid being recognized as abstract by mypy
+
+
+class GridCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 delegate: GridCanvasItemDelegate,
+                 direction: Direction,
+                 wrap: bool,
+                 selection: Selection.IndexedSelection,
+                 focused: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__delegate = delegate
+        self.__direction = direction
+        self.__wrap = wrap
+        self.__selection = selection
+        self.__focused = focused
+
+    def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
+        canvas_size = canvas_bounds.size
+        item_count = self.__delegate.item_count
+        direction = self.__direction
+        wrap = self.__wrap
+        # update the layout based on the current canvas size
+        item_size = GridCanvasItem.calculate_item_size(canvas_size, wrap, direction)
+        if direction == Direction.Row:
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if wrap else item_count)
+            item_rows = max((item_count + items_per_row - 1) // items_per_row, 1)
+            width = canvas_size.width if wrap else item_count * item_size.width
+            canvas_size = Geometry.IntSize(height=item_rows * item_size.height, width=width)
+        else:
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if wrap else item_count)
+            item_columns = max((item_count + items_per_column - 1) // items_per_column, 1)
+            height = canvas_size.height if wrap else item_count * item_size.height
+            canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
+        return Geometry.IntRect(canvas_bounds.origin, canvas_size)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        canvas_size = canvas_bounds.size
+        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_bounds.size)
+        delegate = self.__delegate
+        wrap = self.__wrap
+        direction = self.__direction
+        selection = self.__selection
+        focused = self.__focused
+        if canvas_size.height > 0 and canvas_size.width > 0:
+            item_size = self.__calculate_item_size(canvas_size)
+            items = delegate.items if delegate else list()
+            item_count = len(items)
+            items_per_row = max(1, int(canvas_size.width / item_size.width) if wrap else item_count)
+            items_per_column = max(1, int(canvas_size.height / item_size.height) if wrap else item_count)
+
+            with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                top_visible_row = visible_rect.top // item_size.height
+                bottom_visible_row = visible_rect.bottom // item_size.height + 1
+                left_visible_column = visible_rect.left // item_size.width
+                right_visible_column = visible_rect.right // item_size.width + (0 if wrap else 1)
+                for row in range(top_visible_row, bottom_visible_row):
+                    for column in range(left_visible_column, right_visible_column):
+                        if direction == Direction.Row:
+                            index = row * items_per_row + column
+                        else:
+                            index = row + column * items_per_column
+                        if 0 <= index < item_count:
+                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
+                                                    size=Geometry.IntSize(width=item_size.width, height=item_size.height))
+                            if rect.intersects_rect(visible_rect):
+                                is_selected = selection.contains(index)
+                                if is_selected:
+                                    with drawing_context.saver():
+                                        drawing_context.begin_path()
+                                        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                                        drawing_context.fill_style = "#3875D6" if focused else "#BBB"
+                                        drawing_context.fill()
+                                delegate.paint_item(drawing_context, items[index], rect, is_selected)
+
+    def __calculate_item_size(self, canvas_size: Geometry.IntSize) -> Geometry.IntSize:
+        direction = self.__direction
+        wrap = self.__wrap
+        item_size = GridCanvasItem.calculate_item_size(canvas_size, wrap, direction)
+        return item_size if item_size else Geometry.IntSize()
 
 
 class GridCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -120,7 +204,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
     @direction.setter
     def direction(self, value: Direction) -> None:
         self.__direction = value
-        self.refresh_layout()
+        self.update()
 
     @property
     def wrap(self) -> bool:
@@ -130,7 +214,7 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         self._set_canvas_origin(Geometry.IntPoint())
         self._set_canvas_size(canvas_size)
         self.__wrap = value
-        self.refresh_layout()
+        self.update()
 
     @classmethod
     def calculate_item_size(cls, canvas_size: Geometry.IntSize, wrap: bool, direction: Direction) -> Geometry.IntSize:
@@ -199,44 +283,9 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             return Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width), size=Geometry.IntSize(width=item_size.width, height=item_size.height))
         return Geometry.IntRect.empty_rect()
 
-    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, visible_rect: Geometry.IntRect) -> None:
-        canvas_size = self.canvas_size
-        delegate = self.__delegate
-        if delegate and canvas_size and canvas_size.height > 0 and canvas_size.width > 0:
-            item_size = self.__calculate_item_size(canvas_size)
-            items = delegate.items if delegate else list()
-            item_count = len(items)
-            items_per_row = max(1, int(canvas_size.width / item_size.width) if self.wrap else item_count)
-            items_per_column = max(1, int(canvas_size.height / item_size.height) if self.wrap else item_count)
-
-            with drawing_context.saver():
-                top_visible_row = visible_rect.top // item_size.height
-                bottom_visible_row = visible_rect.bottom // item_size.height
-                left_visible_column = visible_rect.left // item_size.width
-                right_visible_column = visible_rect.right // item_size.width
-                for row in range(top_visible_row, bottom_visible_row + 1):
-                    for column in range(left_visible_column, right_visible_column + 1):
-                        if self.direction == Direction.Row:
-                            index = row * items_per_row + column
-                        else:
-                            index = row + column * items_per_column
-                        if 0 <= index < item_count:
-                            rect = Geometry.IntRect(origin=Geometry.IntPoint(y=row * item_size.height, x=column * item_size.width),
-                                                    size=Geometry.IntSize(width=item_size.width, height=item_size.height))
-                            if rect.intersects_rect(visible_rect):
-                                is_selected = self.__selection.contains(index)
-                                if is_selected:
-                                    with drawing_context.saver():
-                                        drawing_context.begin_path()
-                                        drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-                                        drawing_context.fill_style = "#3875D6" if self.focused else "#BBB"
-                                        drawing_context.fill()
-                                delegate.paint_item(drawing_context, items[index], rect, is_selected)
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds:
-            self._repaint_visible(drawing_context, canvas_bounds)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        assert self.__delegate
+        return GridCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__delegate, self.direction, self.wrap, self.__selection, self.focused)
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         delegate = self.__delegate

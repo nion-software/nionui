@@ -638,6 +638,7 @@ class BaseComposer:
 
     def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
         canvas_bounds = Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0))
+        canvas_bounds = self._adjust_canvas_bounds(canvas_bounds)
         if self.__canvas_bounds != canvas_bounds:
             self.__canvas_bounds = canvas_bounds
             self.__drawing_context = None
@@ -645,6 +646,9 @@ class BaseComposer:
         canvas_item = self.__canvas_item_ref()
         if canvas_item:
             canvas_item._update_layout_from_composer(canvas_bounds)
+
+    def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
+        return canvas_bounds
 
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         pass

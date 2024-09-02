@@ -2871,13 +2871,50 @@ class SplitterCanvasItem(CanvasItemComposition):
             return super().mouse_position_changed(x, y, modifiers)
 
 
+SLIDER_THUMB_WIDTH = 8
+SLIDER_THUMB_HEIGHT = 16
+SLIDER_BAR_OFFSET = 1
+SLIDER_BAR_HEIGHT = 4
+
+
+def get_slider_bar_rect(canvas_size: typing.Optional[Geometry.IntSize]) -> Geometry.FloatRect:
+    if canvas_size:
+        bar_width = canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_BAR_HEIGHT / 2, SLIDER_BAR_OFFSET + SLIDER_THUMB_WIDTH / 2, SLIDER_BAR_HEIGHT, bar_width)
+    return Geometry.FloatRect.empty_rect()
+
+def get_slider_thumb_rect(canvas_size: typing.Optional[Geometry.IntSize], value: float) -> Geometry.IntRect:
+    if canvas_size:
+        bar_width = canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+        # use tracking value to avoid thumb jumping around while dragging, which occurs when value gets integerized and set.
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_THUMB_HEIGHT / 2, value * bar_width + SLIDER_BAR_OFFSET, SLIDER_THUMB_HEIGHT, SLIDER_THUMB_WIDTH).to_int_rect()
+    return Geometry.IntRect.empty_rect()
+
+
+class SliderCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, value: float) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__value = value
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        thumb_rect = get_slider_thumb_rect(canvas_bounds.size, self.__value)
+        bar_rect = get_slider_bar_rect(canvas_bounds.size)
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            drawing_context.rect(bar_rect.left, bar_rect.top, bar_rect.width, bar_rect.height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.stroke_style = "#888"
+            drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.rect(thumb_rect.left, thumb_rect.top, thumb_rect.width, thumb_rect.height)
+            drawing_context.fill_style = "#007AD8"
+            drawing_context.fill()
+
+
 class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
     """Slider."""
-    thumb_width = 8
-    thumb_height = 16
-    bar_offset = 1
-    bar_height = 4
-
     def __init__(self) -> None:
         super().__init__()
         self.wants_mouse_events = True
@@ -2906,45 +2943,12 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             self.update()
             self.notify_property_changed("value")
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        thumb_rect = self.__get_thumb_rect()
-        bar_rect = self.__get_bar_rect()
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.rect(bar_rect.left, bar_rect.top, bar_rect.width, bar_rect.height)
-            drawing_context.fill_style = "#CCC"
-            drawing_context.fill()
-            drawing_context.stroke_style = "#888"
-            drawing_context.stroke()
-            drawing_context.begin_path()
-            drawing_context.rect(thumb_rect.left, thumb_rect.top, thumb_rect.width, thumb_rect.height)
-            drawing_context.fill_style = "#007AD8"
-            drawing_context.fill()
-
-    def __get_bar_rect(self) -> Geometry.FloatRect:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            thumb_width = self.thumb_width
-            bar_offset = self.bar_offset
-            bar_width = canvas_size.width - thumb_width - bar_offset * 2
-            bar_height = self.bar_height
-            return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - bar_height / 2, bar_offset + thumb_width / 2, bar_height, bar_width)
-        return Geometry.FloatRect.empty_rect()
-
-    def __get_thumb_rect(self) -> Geometry.IntRect:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            thumb_width = self.thumb_width
-            thumb_height = self.thumb_height
-            bar_offset = self.bar_offset
-            bar_width = canvas_size.width - thumb_width - bar_offset * 2
-            # use tracking value to avoid thumb jumping around while dragging, which occurs when value gets integerized and set.
-            value = self.value if not self.__tracking else self.__tracking_value
-            return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - thumb_height / 2, value * bar_width + bar_offset, thumb_height, thumb_width).to_int_rect()
-        return Geometry.IntRect.empty_rect()
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        value = self.value if not self.__tracking else self.__tracking_value
+        return SliderCanvasItemComposer(self, self.layout_sizing, composer_cache, value)
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        thumb_rect = self.__get_thumb_rect()
+        thumb_rect = get_slider_thumb_rect(self.canvas_size, self.value)
         pos = Geometry.IntPoint(x=x, y=y)
         if thumb_rect.inset(-2, -2).contains_point(pos):
             self.__tracking = True
@@ -2972,7 +2976,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
     def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.__tracking:
             pos = Geometry.FloatPoint(x=x, y=y)
-            bar_rect = self.__get_bar_rect()
+            bar_rect = get_slider_bar_rect(self.canvas_size)
             value = (pos.x - bar_rect.left) / bar_rect.width
             self.__tracking_value = max(0.0, min(1.0, value))
             self.value = value
@@ -3747,25 +3751,27 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__canvas_widget.hide_tool_tip_text()
 
 
+class BackgroundCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, composer_cache: ComposerCache, background_color: typing.Union[str, DrawingContext.LinearGradient]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__background_color = background_color
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.fill_style = self.__background_color
+            drawing_context.fill()
+
+
 class BackgroundCanvasItem(AbstractCanvasItem):
-
     """ Canvas item to draw background_color. """
-
     def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None) -> None:
         super().__init__()
-        self.background_color = background_color or "#888"
+        self.background_color = background_color
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # canvas size
-        canvas_size = self.canvas_size
-        if canvas_size:
-            canvas_width = canvas_size[1]
-            canvas_height = canvas_size[0]
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_width, canvas_height)
-                drawing_context.fill_style = self.background_color
-                drawing_context.fill()
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return BackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.background_color or "#888")
 
 
 @dataclasses.dataclass
@@ -4876,41 +4882,95 @@ class RadioButtonGroup:
             button.checked = index == self.__current_index
 
 
+class DrawCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, composer_cache: ComposerCache, drawing_fn: typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__drawing_fn = drawing_fn
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            self.__drawing_fn(drawing_context, canvas_bounds.size)
+
+
 class DrawCanvasItem(AbstractCanvasItem):
     def __init__(self, drawing_fn: typing.Callable[[DrawingContext.DrawingContext, Geometry.IntSize], None]) -> None:
         super().__init__()
         self.__drawing_fn = drawing_fn
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            self.__drawing_fn(drawing_context, canvas_size)
-        super()._repaint(drawing_context)
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return DrawCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__drawing_fn)
+
+
+class DividerCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, composer_cache: ComposerCache, orientation: str, color: str) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__orientation = orientation
+        self.__color = color
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        with drawing_context.saver():
+            if self.__orientation == "vertical":
+                drawing_context.move_to(canvas_bounds.center.x, canvas_bounds.top)
+                drawing_context.line_to(canvas_bounds.center.x, canvas_bounds.bottom)
+            else:
+                drawing_context.move_to(canvas_bounds.left, canvas_bounds.center.y)
+                drawing_context.line_to(canvas_bounds.right, canvas_bounds.center.y)
+            drawing_context.stroke_style = self.__color
+            drawing_context.stroke()
 
 
 class DividerCanvasItem(AbstractCanvasItem):
     def __init__(self, *, orientation: typing.Optional[str] = None, color: typing.Optional[str] = None):
         super().__init__()
         self.__orientation = orientation or "vertical"
-        if orientation == "vertical":
+        if self.__orientation == "vertical":
             self.update_sizing(self.sizing.with_fixed_width(2))
         else:
             self.update_sizing(self.sizing.with_fixed_height(2))
         self.__color = color or "#CCC"
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_size = self.canvas_size
-        if canvas_size:
-            with drawing_context.saver():
-                if self.__orientation == "vertical":
-                    drawing_context.move_to(1, 0)
-                    drawing_context.line_to(1, canvas_size.height)
-                else:
-                    drawing_context.move_to(0, 1)
-                    drawing_context.line_to(canvas_size.width, 1)
-                drawing_context.stroke_style = self.__color
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return DividerCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__orientation, self.__color)
+
+
+class ProgressBarCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, progress: float) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__progress = progress
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        progress = self.__progress
+        canvas_size = canvas_bounds.size
+        canvas_bounds_center = canvas_bounds.center
+        with drawing_context.saver():
+            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.begin_path()
+            drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
+            drawing_context.close_path()
+            drawing_context.stroke_style = "#CCC"
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.stroke()
+            if canvas_size.width * progress >= 1:
+                drawing_context.begin_path()
+                drawing_context.rect(0, 0, canvas_size.width * progress, canvas_size.height)
+                drawing_context.close_path()
+                drawing_context.stroke_style = "#6AB"
+                drawing_context.fill_style = "#6AB"
+                drawing_context.fill()
                 drawing_context.stroke()
-        super()._repaint(drawing_context)
+            if canvas_size.height >= 16 and canvas_size.width * progress >= 50:  # TODO: use font metrics to find length of text
+                progress_text = str(round(progress * 100)) + "%"
+                drawing_context.begin_path()
+                drawing_context.font = "12px sans-serif"
+                drawing_context.text_align = 'center'
+                drawing_context.text_baseline = 'middle'
+                drawing_context.fill_style = "#fff"
+                drawing_context.line_width = 2
+                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress - 19, canvas_bounds_center.y + 1)
+                drawing_context.fill()
+                drawing_context.close_path()
 
 
 class ProgressBarCanvasItem(AbstractCanvasItem):
@@ -4919,6 +4979,9 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
         self.__enabled = True
         self.__progress = 0.0  # 0.0 to 1.0
         self.update_sizing(self.sizing.with_fixed_height(4))
+
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return ProgressBarCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__progress)
 
     @property
     def enabled(self) -> bool:
@@ -4937,40 +5000,6 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
     def progress(self, value: float) -> None:
         self.__progress = min(max(value, 0.0), 1.0)
         self.update()
-
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds:
-            canvas_size = canvas_bounds.size
-            canvas_bounds_center = canvas_bounds.center
-            with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
-                drawing_context.close_path()
-                drawing_context.stroke_style = "#CCC"
-                drawing_context.fill_style = "#CCC"
-                drawing_context.fill()
-                drawing_context.stroke()
-                if canvas_size.width * self.progress >= 1:
-                    drawing_context.begin_path()
-                    drawing_context.rect(0, 0, canvas_size.width * self.progress, canvas_size.height)
-                    drawing_context.close_path()
-                    drawing_context.stroke_style = "#6AB"
-                    drawing_context.fill_style = "#6AB"
-                    drawing_context.fill()
-                    drawing_context.stroke()
-                if canvas_size.height >= 16 and canvas_size.width * self.progress >= 50: # TODO: use font metrics to find length of text
-                    progress_text = str(round(self.progress * 100)) + "%"
-                    drawing_context.begin_path()
-                    drawing_context.font = "12px sans-serif"
-                    drawing_context.text_align = 'center'
-                    drawing_context.text_baseline = 'middle'
-                    drawing_context.fill_style = "#fff"
-                    drawing_context.line_width = 2
-                    drawing_context.fill_text(progress_text, (canvas_size.width - 6) * self.progress - 19, canvas_bounds_center.y + 1)
-                    drawing_context.fill()
-                    drawing_context.close_path()
-        super()._repaint(drawing_context)
 
 
 class TimestampCanvasItem(AbstractCanvasItem):

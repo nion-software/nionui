@@ -42,7 +42,7 @@ class TestCanvasItemClass(unittest.TestCase):
             # add item
             widget.items = ["abc"]
             # check that column was laid out again
-            canvas_item.layout_immediate(Geometry.IntSize(width=300, height=200), force=False)
+            canvas_item.layout_immediate(Geometry.IntSize(width=300, height=200))
             scroll_canvas_rect = scroll_area_canvas_item.canvas_rect or Geometry.IntRect.empty_rect()
             scroll_content = scroll_area_canvas_item.content
             assert scroll_content

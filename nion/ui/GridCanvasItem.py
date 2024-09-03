@@ -246,10 +246,6 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
             canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
         return canvas_size
 
-    def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
-        delegate = self.__delegate
-        return functools.partial(GridCanvasItem.calculate_layout_size, self.wrap, self.direction, delegate.item_count if delegate else 0)
-
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
         delegate = self.__delegate
         max_index = delegate.item_count if delegate else 0

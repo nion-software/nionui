@@ -184,16 +184,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
     def detach_delegate(self) -> None:
         self.__delegate = None
 
-    def _get_autosizer(self) -> typing.Callable[[typing.Optional[Geometry.IntSize]], typing.Optional[Geometry.IntSize]]:
-        delegate = self.__delegate
-        item_count = delegate.item_count if delegate else 0
-        height = item_count * self.__item_height
-
-        def calculate_size(canvas_size: typing.Optional[Geometry.IntSize]) -> typing.Optional[Geometry.IntSize]:
-            return Geometry.IntSize(height=height, width=canvas_size.width) if canvas_size else None
-
-        return calculate_size
-
     def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
         delegate = self.__delegate
         max_index = delegate.item_count if delegate else 0

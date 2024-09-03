@@ -212,6 +212,7 @@ class TestCanvasItemClass(unittest.TestCase):
         assert canvas_origin
         self.assertEqual(240, canvas_origin.y)
         cc_canvas.update_sizing(child_canvas.sizing.with_maximum_height(8))
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
         canvas_origin = child_canvas.canvas_origin
         assert canvas_origin
         self.assertEqual(472, canvas_origin.y)
@@ -1770,6 +1771,7 @@ class TestCanvasItemClass(unittest.TestCase):
             # add a row and ensure only siblings are layed out
             test_canvas_item1a = TestCanvasItem()
             inner_composition.add_canvas_item(test_canvas_item1a)
+            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
             # check the repaint counts were all incremented
             self.assertEqual(outer_layer_layout_count, outer_layer._layout_count)
             self.assertEqual(inner_composition_layout_count, inner_composition._layout_count)

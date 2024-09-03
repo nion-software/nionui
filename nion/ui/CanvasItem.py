@@ -5006,6 +5006,19 @@ class ProgressBarCanvasItem(AbstractCanvasItem):
         self.update()
 
 
+class TimestampCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, timestamp_str: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__timestamp_str = timestamp_str
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        timestamp_str = self.__timestamp_str
+        if timestamp_str:
+            with drawing_context.saver():
+                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.timestamp(timestamp_str)
+
+
 class TimestampCanvasItem(AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
@@ -5019,17 +5032,20 @@ class TimestampCanvasItem(AbstractCanvasItem):
 
     @timestamp_ns.setter
     def timestamp_ns(self, value: int) -> None:
-        self.__timestamp_ns = value
-        self.__used_timestamp_ns = value
+        if value != self.__timestamp_ns or value != self.__used_timestamp_ns:
+            self.__timestamp_ns = value
+            self.__used_timestamp_ns = value
+            self._invalidate_composer()
 
-    def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        timestamp_str = str()
         if self.__used_timestamp_ns:
-            drawing_context.timestamp(str(self.__used_timestamp_ns))
+            timestamp_str = str(self.__used_timestamp_ns)
             self.__used_timestamp = 0
         elif self.__timestamp_ns:
             # tell host to use last timestamp it knows about.
-            drawing_context.timestamp("last")
-        super()._repaint_if_needed(drawing_context)
+            timestamp_str = "last"
+        return TimestampCanvasItemComposer(self, self.layout_sizing, composer_cache, timestamp_str)
 
 
 def load_rgba_data_from_bytes(b: typing.ByteString, format: typing.Optional[str] = None) -> typing.Optional[DrawingContext.RGBA32Type]:

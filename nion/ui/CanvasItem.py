@@ -2050,6 +2050,12 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
         return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
 
+    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
+        # repaint assumes that the canvas item being repainted already has a canvas rect.
+        # to ensure it does, call _update_layout here.
+        self.update_layout_using_composer(Geometry.IntRect(Geometry.IntPoint(), canvas_size))
+        self._repaint(drawing_context)
+
     def _canvas_items_at_point(self, visible_canvas_items: typing.Sequence[AbstractCanvasItem], x: int, y: int) -> typing.List[AbstractCanvasItem]:
         """Returns list of canvas items under x, y, ordered from back to front."""
         canvas_items: typing.List[AbstractCanvasItem] = []

@@ -690,9 +690,6 @@ class AbstractCanvasItem:
     Update is the mechanism by which the container is notified that one of its child canvas items needs updating.
     The update message will ultimately end up at the root container at which point the root container will trigger a
     repaint on a thread.
-
-    Subclasses should override _repaint or _repaint_visible to implement drawing. Drawing should take place within the
-    canvas bounds.
     """
 
     def __init__(self, cache: typing.Optional[ComposerCache] = None) -> None:
@@ -716,8 +713,6 @@ class AbstractCanvasItem:
         self.__visible = True
         self.__enabled = True
         self.__thread = threading.current_thread()
-        self.__pending_update = True
-        self.__repaint_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
@@ -1058,7 +1053,6 @@ class AbstractCanvasItem:
     def _updated(self) -> None:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
-        self.__pending_update = True
         if container := self.__container:
             container.update()
 
@@ -1112,27 +1106,6 @@ class AbstractCanvasItem:
             did_layout_change = True
         self._layout_count += 1 if did_layout_change else 0
 
-    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-        """A wrapper method for _repaint.
-
-        Callers should always call this method instead of _repaint directly. This helps keep the _repaint
-        implementations simple and easy to understand.
-        """
-        self._repaint(drawing_context)
-
-    def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        # Repaint if no cached version of the last paint is available.
-        # If no cached drawing context is available, regular _repaint is used to make a new one which is then cached.
-        # The cached drawing context is typically cleared during the update method.
-        # Subclasses will typically not need to override this method, except in special cases.
-        pending_update, self.__pending_update = self.__pending_update, False
-        if pending_update:
-            repaint_drawing_context = DrawingContext.DrawingContext()
-            self._repaint_template(repaint_drawing_context, immediate)
-            self.__repaint_drawing_context = repaint_drawing_context
-        if self.__repaint_drawing_context:
-            drawing_context.add(self.__repaint_drawing_context)
-
     def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # when the thread finishes the repaint, this method gets called. the normal container update
         # has not been called yet since the repaint wasn't finished until now. this method performs
@@ -1141,10 +1114,6 @@ class AbstractCanvasItem:
         container = self.__container
         if container:
             container.update()
-
-    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
-        self.update_layout(Geometry.IntPoint(), canvas_size)
-        self._repaint_template(drawing_context, immediate=True)
 
     def _draw_background(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Draw the background. Subclasses can call this."""
@@ -1169,20 +1138,6 @@ class AbstractCanvasItem:
                     drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
                     drawing_context.stroke_style = border_color
                     drawing_context.stroke()
-
-    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, visible_rect: Geometry.IntRect) -> None:
-        """
-            Repaint the canvas item to the drawing context within the visible area.
-
-            Subclasses can override this method to paint.
-
-            This method will be called on a thread.
-
-            The drawing should take place within the canvas_bounds.
-
-            The default implementation calls _repaint(drawing_context)
-        """
-        self._repaint_if_needed(drawing_context)
 
     def canvas_item_at_point(self, x: int, y: int) -> typing.Optional[AbstractCanvasItem]:
         canvas_items = self.canvas_items_at_point(x, y)
@@ -2075,22 +2030,6 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
         return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
 
-    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-        self._repaint_children(drawing_context, immediate=immediate)
-        self._repaint(drawing_context)
-
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        """Paint items from back to front."""
-        self._draw_background(drawing_context)
-        for canvas_item in self.visible_canvas_items:
-            if canvas_item._has_layout:
-                with drawing_context.saver():
-                    canvas_item_rect = canvas_item.canvas_rect
-                    if canvas_item_rect:
-                        drawing_context.translate(canvas_item_rect.left, canvas_item_rect.top)
-                        canvas_item._repaint_if_needed(drawing_context, immediate=immediate)
-        self._draw_border(drawing_context)
-
     def _canvas_items_at_point(self, visible_canvas_items: typing.Sequence[AbstractCanvasItem], x: int, y: int) -> typing.List[AbstractCanvasItem]:
         """Returns list of canvas items under x, y, ordered from back to front."""
         canvas_items: typing.List[AbstractCanvasItem] = []
@@ -2132,17 +2071,10 @@ _threaded_rendering_enabled = True
 class LayerCanvasItem(CanvasItemComposition):
     """A composite canvas item that does layout and repainting in a thread."""
 
-    _layer_id = 0
-
     _executor = concurrent.futures.ThreadPoolExecutor()
 
     def __init__(self) -> None:
         super().__init__()
-        LayerCanvasItem._layer_id += 1
-        self.__layer_id = LayerCanvasItem._layer_id
-        self.__layer_lock = threading.RLock()
-        self.__layer_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
-        self.__layer_seed = 0
         self.__executing = False
         self.__cancel = False
         self.__needs_repaint = False
@@ -2172,7 +2104,6 @@ class LayerCanvasItem(CanvasItemComposition):
             else:
                 done_event.set()
         done_event.wait()
-        self.__layer_drawing_context = None
 
     # Python 3.9: Optional[concurrent.futures.Future[Any]]
     def __repaint_done(self, future: typing.Any) -> None:
@@ -2200,26 +2131,6 @@ class LayerCanvasItem(CanvasItemComposition):
             # pass through updates in the thread is suppressed, so that updates actually occur.
             super()._updated()
 
-    def _repaint_template(self, drawing_context: DrawingContext.DrawingContext, immediate: bool) -> None:
-        if immediate:
-            canvas_size = self.canvas_size
-            if canvas_size:
-                self.repaint_immediate(drawing_context, canvas_size)
-        else:
-            with self.__layer_lock:
-                layer_drawing_context = self.__layer_drawing_context
-                layer_seed = self.__layer_seed
-            canvas_size = self.canvas_size
-            if canvas_size:
-                drawing_context.begin_layer(self.__layer_id, layer_seed, 0, 0, *tuple(canvas_size))
-                if layer_drawing_context:
-                    drawing_context.add(layer_drawing_context)
-                drawing_context.end_layer(self.__layer_id, layer_seed, 0, 0, *tuple(canvas_size))
-
-    def _repaint_if_needed(self, drawing_context: DrawingContext.DrawingContext, *, immediate: bool = False) -> None:
-        # If the render behavior is a layer, it will have its own cached drawing context. Use it.
-        self._repaint_template(drawing_context, immediate)
-
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         self._inserted(None)
         layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
@@ -2245,9 +2156,6 @@ class LayerCanvasItem(CanvasItemComposition):
                             self.__needs_repaint = False
                         drawing_context = DrawingContext.DrawingContext()
                         self._repaint(drawing_context)
-                        with self.__layer_lock:
-                            self.__layer_seed += 1
-                            self.__layer_drawing_context = drawing_context
                         if not self.__cancel:
                             canvas_rect = self.canvas_rect
                             root_container = self.root_container if self else None
@@ -2260,9 +2168,9 @@ class LayerCanvasItem(CanvasItemComposition):
                                 # draw top level opaque item directly. ensure the proper canvas rect.
                                 assert self.__canvas_widget_section_ref
                                 canvas_rect = Geometry.IntRect(origin=self.map_to_root_container(Geometry.IntPoint()), size=canvas_rect.size)
-                                self.__canvas_widget_section_ref.draw(self.__layer_drawing_context, canvas_rect)
+                                self.__canvas_widget_section_ref.draw(drawing_context, canvas_rect)
                             else:
-                                self._repaint_finished(self.__layer_drawing_context)
+                                self._repaint_finished(drawing_context)
                 except Exception as e:
                     import traceback
                     logging.debug("CanvasItem Render Error: %s", e)

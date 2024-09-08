@@ -12,10 +12,10 @@ import dataclasses
 import datetime
 import enum
 import functools
-
 import imageio.v3 as imageio
 import logging
 import operator
+import random
 import sys
 import threading
 import types
@@ -604,11 +604,26 @@ class BaseComposer:
         if not existing_draw_context:
             existing_draw_context = DrawingContext.DrawingContext()
             self._repaint(existing_draw_context, canvas_bounds, self.__cache)
+            self._draw_unique_marker(existing_draw_context, canvas_bounds)
             canvas_item = self.__canvas_item_ref()
             if canvas_item:
                 canvas_item._update_repaint_count_from_composer()
         drawing_context.add(existing_draw_context)
         self.__drawing_context = existing_draw_context
+
+    # used for debugging
+    def _draw_unique_marker(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
+        MARKER_SIZE: typing.Final[int] = 3
+        draw_unique_marker = self._canvas_item._draw_unique_marker or _g_draw_unique_marker
+        if draw_unique_marker and canvas_bounds.width > MARKER_SIZE * 2 and canvas_bounds.height > MARKER_SIZE * 2:
+            colors = list(Color.svg_color_map.values())
+            for oy in (0, MARKER_SIZE):
+                for ox in (0, MARKER_SIZE):
+                    with drawing_context.saver():
+                        drawing_context.begin_path()
+                        drawing_context.rect(ox, oy, MARKER_SIZE, MARKER_SIZE)
+                        drawing_context.fill_style = random.choice(colors)
+                        drawing_context.fill()
 
     @property
     def _canvas_item(self) -> AbstractCanvasItem:
@@ -652,6 +667,9 @@ class BaseComposer:
 
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         pass
+
+
+_g_draw_unique_marker = False
 
 
 class AbstractCanvasItem:
@@ -718,6 +736,7 @@ class AbstractCanvasItem:
         self._repaint_count = 0
         self._layout_count = 0
         self.is_root_opaque = False
+        self._draw_unique_marker = False
 
     def close(self) -> None:
         """ Close the canvas object. """
@@ -1759,6 +1778,7 @@ class CanvasItemCompositionComposer(BaseComposer):
         self.__draw_background(drawing_context, canvas_bounds, self.__background_color)
         self._repaint_children(drawing_context, canvas_bounds, self.__child_composers)
         self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
+        self._draw_unique_marker(drawing_context, canvas_bounds)
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
         with drawing_context.saver():

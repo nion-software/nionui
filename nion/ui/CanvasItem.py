@@ -2206,10 +2206,10 @@ class ScrollAreaLayout(CanvasItemLayout):
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         content = canvas_items[0] if canvas_items else None
         if content:
-            if not content._has_layout:
-                self.update_canvas_item_layout(Geometry.IntPoint(), content.layout_sizing.get_preferred_size(), content)
-            elif self.auto_resize_contents:
+            if self.auto_resize_contents:
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
+            elif not content._has_layout:
+                self.update_canvas_item_layout(Geometry.IntPoint(), content.layout_sizing.get_preferred_size(), content)
 
 
 class ScrollAreaCanvasItemComposer(CanvasItemCompositionComposer):

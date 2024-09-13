@@ -1055,9 +1055,10 @@ class AbstractCanvasItem:
 
         The canvas item will be repainted by the root canvas item.
         """
-        self._update_count += 1
-        self._invalidate_composer()
-        self._updated()
+        if self.is_visible:
+            self._update_count += 1
+            self._invalidate_composer()
+            self._updated()
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""

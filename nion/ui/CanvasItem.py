@@ -18,6 +18,7 @@ import operator
 import random
 import sys
 import threading
+import time
 import types
 import typing
 import warnings
@@ -605,11 +606,15 @@ class BaseComposer:
             existing_draw_context = DrawingContext.DrawingContext()
             self._repaint(existing_draw_context, canvas_bounds, self.__cache)
             self._draw_unique_marker(existing_draw_context, canvas_bounds)
-            canvas_item = self.__canvas_item_ref()
-            if canvas_item:
-                canvas_item._update_repaint_count_from_composer()
+            self._update_repaint_count()
         drawing_context.add(existing_draw_context)
         self.__drawing_context = existing_draw_context
+
+    def _update_repaint_count(self) -> None:
+        # this is overridable to allow class DrawingContextCanvasItemComposer to accurately update the repaint count.
+        canvas_item = self.__canvas_item_ref()
+        if canvas_item:
+            canvas_item._update_repaint_count_from_composer()
 
     # used for debugging
     def _draw_unique_marker(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
@@ -990,6 +995,15 @@ class AbstractCanvasItem:
         """
         self.update_layout_using_composer(Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0)))
 
+    def update_layout_immediate(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
+        """Update the layout with a new canvas_origin and canvas_size. Update child layouts, too.
+
+        canvas_origin and canvas_size are the external bounds.
+
+        The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
+        """
+        self.update_layout_using_composer_immediate(Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0)))
+
     def refresh_layout_immediate(self) -> None:
         """Immediate re-layout the item. Deprecated. Use refresh_layout instead."""
         canvas_rect = self.canvas_rect
@@ -1083,6 +1097,16 @@ class AbstractCanvasItem:
         self.__composer = None
 
     def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        """Return the composer for this canvas item. Subclasses should not override.
+
+        The layer canvas item is special in that it will not have a composer when called
+        from the container. This is because the layer canvas item runs its layout on a thread
+        and draws itself directly in the root container. The layer canvas item uses the
+        _get_composer_inner function to get its composer when it is ready to draw.
+        """
+        return self._get_composer_inner(cache)
+
+    def _get_composer_inner(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
         if not self.__composer:
             self.__composer = self._get_composer(cache)
             # assert self.__composer, f"missing composer for {type(self)}"
@@ -1091,8 +1115,16 @@ class AbstractCanvasItem:
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         return None
 
+    def get_composer_immediate(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        return self.get_composer(composer_cache)
+
     def update_layout_using_composer(self, canvas_rect: Geometry.IntRect) -> None:
         composer = self.get_composer(self._get_composer_cache())
+        if composer:
+            composer.update_layout(canvas_rect.origin, canvas_rect.size)
+
+    def update_layout_using_composer_immediate(self, canvas_rect: Geometry.IntRect) -> None:
+        composer = self.get_composer_immediate(self._get_composer_cache())
         if composer:
             composer.update_layout(canvas_rect.origin, canvas_rect.size)
 
@@ -1125,15 +1157,11 @@ class AbstractCanvasItem:
             self._canvas_size_stream.value = canvas_bounds.size
             did_layout_change = True
         self._layout_count += 1 if did_layout_change else 0
+        if did_layout_change:
+            self._layout_changed()
 
-    def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        # when the thread finishes the repaint, this method gets called. the normal container update
-        # has not been called yet since the repaint wasn't finished until now. this method performs
-        # the container update. it does not call the regular update again because that would re-invalidate
-        # this canvas item itself and cause another repaint.
-        container = self.__container
-        if container:
-            container.update()
+    def _layout_changed(self) -> None:
+        pass
 
     def _draw_background(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Draw the background. Subclasses can call this."""
@@ -2051,6 +2079,16 @@ class CanvasItemComposition(AbstractCanvasItem):
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
         return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
 
+    def get_composer_immediate(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        child_composers = list[BaseComposer]()
+        for canvas_item in self.visible_canvas_items:
+            composer = canvas_item.get_composer_immediate(composer_cache)
+            if composer:
+                child_composers.append(composer)
+            else:
+                return None
+        return self._get_composition_composer(child_composers, composer_cache)
+
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         # repaint assumes that the canvas item being repainted already has a canvas rect.
         # to ensure it does, call _update_layout here.
@@ -2092,6 +2130,23 @@ class CanvasItemComposition(AbstractCanvasItem):
         return False
 
 
+class DrawingContextCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, drawing_context: typing.Optional[DrawingContext.DrawingContext]) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__drawing_context = drawing_context
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        if self.__drawing_context:
+            with drawing_context.saver():
+                # drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.add(self.__drawing_context)
+
+    def _update_repaint_count(self) -> None:
+        # override this to prevent the repaint count from being updated since this is a passthrough for the layer
+        # and doesn't represent a real repaint.
+        pass
+
+
 _threaded_rendering_enabled = True
 
 
@@ -2105,8 +2160,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__executing = False
         self.__cancel = False
         self.__needs_repaint = False
-        self.__pending_layout_canvas_items = list[AbstractCanvasItem]()
-        self._layer_thread_suppress = not _threaded_rendering_enabled  # for testing
+        self.__layer_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
         self.__layer_thread_condition = threading.Condition()
         # Python 3.9+: Optional[concurrent.futures.Future[Any]]
         self.__repaint_one_future: typing.Optional[typing.Any] = None
@@ -2145,29 +2199,70 @@ class LayerCanvasItem(CanvasItemComposition):
                 self.__repaint_one_future = LayerCanvasItem._executor.submit(self.__repaint_layer)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)
 
+    def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        # when the thread finishes the repaint, this method gets called. the normal container update
+        # has not been called yet since the repaint wasn't finished until now. this method performs
+        # the container update. it does not call the regular update again because that would re-invalidate
+        # this canvas item itself and cause another repaint.
+        self.__layer_drawing_context = drawing_context
+        self._invalidate_composer()
+        super()._updated()
+
     def _updated(self) -> None:
         # thread-safe
         with self.__layer_thread_condition:
             self.__needs_repaint = True
-            if not self._layer_thread_suppress:
+            if _threaded_rendering_enabled:
                 self.__queue_repaint()
         # normally, this method would mark a pending update and forward the update to the container;
         # however with the layer, since drawing occurs on a thread, this must occur after the thread
         # is finished. if the thread is suppressed (typically during testing), use the regular flow.
-        if self._layer_thread_suppress:
+        if not _threaded_rendering_enabled:
             # pass through updates in the thread is suppressed, so that updates actually occur.
             super()._updated()
 
+    def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        if self.__layer_drawing_context:
+            return DrawingContextCanvasItemComposer(self, self.layout_sizing, cache, self.__layer_drawing_context)
+        else:
+            return EmptyCanvasItemComposer(self, self.layout_sizing, cache)
+
+    def _layout_changed(self) -> None:
+        self._updated()
+
+    def _repaint_layer_inner(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        assert self.canvas_size is not None
+        composer = self._get_composer_inner(self._get_composer_cache())
+        canvas_rect = self.canvas_rect
+        if composer and canvas_rect:
+            composer.repaint(drawing_context, canvas_rect)
+
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
-        self._inserted(None)
-        layer_thread_suppress, self._layer_thread_suppress = self._layer_thread_suppress, True
-        self._layer_thread_suppress = True
         # repaint assumes that the canvas item being repainted already has a canvas rect.
         # to ensure it does, call _update_layout here.
-        self.update_layout_using_composer(Geometry.IntRect(Geometry.IntPoint(), canvas_size))
-        self._repaint(drawing_context)
-        self._layer_thread_suppress = layer_thread_suppress
-        self._removed(None)
+        composer = self.get_composer_immediate(self._get_composer_cache())
+        if composer:
+            # the "immediate" composer has composer for all children, including those of any layers in the hierarchy,
+            # so it can be used to repaint immediate.
+            composer.update_layout(Geometry.IntPoint(), canvas_size)
+            if canvas_rect := self.canvas_rect:
+                composer.repaint(drawing_context, canvas_rect)
+
+    def __map_origin_to_root_container(self) -> typing.Optional[Geometry.IntPoint]:
+        """ Map the point to the coordinates of the root container.
+
+        This is different from default implementation in that it returns None if it fails.
+        """
+        p = Geometry.IntPoint()
+        canvas_item: typing.Optional[AbstractCanvasItem] = self
+        while canvas_item:  # handle case where last canvas item was root
+            canvas_item_origin = canvas_item.canvas_origin
+            if canvas_item_origin is not None:  # handle case where canvas item is not root but has no parent
+                p = canvas_item.map_to_container(p)
+                canvas_item = canvas_item.container
+            else:
+                return None
+        return p
 
     def __repaint_layer(self) -> None:
         with self.__layer_thread_condition:
@@ -2181,22 +2276,39 @@ class LayerCanvasItem(CanvasItemComposition):
                         # but not trigger another repaint after this one.
                         with self.__layer_thread_condition:
                             self.__needs_repaint = False
+                        canvas_rect = self.canvas_rect
+                        root_container = self.root_container
+                        canvas_widget = typing.cast(CanvasWidgetCanvasItem, root_container) if isinstance(root_container, CanvasWidgetCanvasItem) else None
                         drawing_context = DrawingContext.DrawingContext()
-                        self._repaint(drawing_context)
+                        is_root_opaque = self.is_root_opaque
+                        if is_root_opaque and canvas_widget and canvas_rect:
+                            # if direct drawing is used, configure the drawing context to draw directly to the canvas
+                            # widget section at the location 0,0.
+                            drawing_context.translate(-canvas_rect.left, -canvas_rect.top)
+                        self._repaint_layer_inner(drawing_context)
                         if not self.__cancel:
-                            canvas_rect = self.canvas_rect
-                            root_container = self.root_container if self else None
-                            if self.is_root_opaque and isinstance(root_container, CanvasWidgetCanvasItem) and canvas_rect:
+                            if is_root_opaque and canvas_widget and canvas_rect:
+                                # if direct drawing is used, draw the drawing context to the canvas widget section.
                                 if not self.__canvas_widget_section_ref:
                                     # create a section ref, which allows direct drawing for top level opaque items.
                                     # the section is automatically deallocated (via finalize) when the last python
                                     # reference to the section is released.
-                                    self.__canvas_widget_section_ref = root_container.get_section_ref()
+                                    self.__canvas_widget_section_ref = canvas_widget.get_section_ref()
                                 # draw top level opaque item directly. ensure the proper canvas rect.
                                 assert self.__canvas_widget_section_ref
-                                canvas_rect = Geometry.IntRect(origin=self.map_to_root_container(Geometry.IntPoint()), size=canvas_rect.size)
+                                # get the canvas origin; but wait until the root container is ready.
+                                # this layout may occur faster than the root layout.
+                                canvas_origin = self.__map_origin_to_root_container()
+                                while not canvas_origin:
+                                    time.sleep(0.01)
+                                    canvas_origin = self.__map_origin_to_root_container()
+                                canvas_rect = Geometry.IntRect(origin=canvas_origin, size=canvas_rect.size)
                                 self.__canvas_widget_section_ref.draw(drawing_context, canvas_rect)
                             else:
+                                # if this is a normal layer that is not top level opaque, then the drawing context
+                                # is saved and the container is asked to update after which it will return a composer
+                                # with the drawing context. if this is a root layer, then the drawing context is
+                                # directly updated to the canvas widget.
                                 self._repaint_finished(drawing_context)
                 except Exception as e:
                     import traceback
@@ -3199,6 +3311,17 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         super().close()
         # culling will require the canvas widget; clear it here (after close) so that it is availahle.
         self.__canvas_widget = typing.cast(typing.Any, None)
+
+    def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        # layer overrides this; need to override here to implement it as it would be implemented in the parent class
+        # of the layer.
+        return self._get_composer_inner(cache)
+
+    def _repaint_layer_inner(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        # layer introduces this; need to override here so that root items use regular repaint and not the non-root
+        # layer painting. items under non-root layer have layout specific to the layer, but root children can use
+        # regular layout.
+        super()._repaint(drawing_context)
 
     def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
         self.__canvas_widget.draw(drawing_context)

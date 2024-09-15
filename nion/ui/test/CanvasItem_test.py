@@ -1688,9 +1688,9 @@ class TestCanvasItemClass(unittest.TestCase):
             outer_layer.add_canvas_item(inner_composition)
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
-            # update the outer layer with the initial size
-            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
-            # sleep a short time to allow thread to run
+            # update the outer layer with the initial size. this will run immediately.
+            outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            # wait for any thread repainting to finish
             time.sleep(0.05)
             # save the repaint counts
             outer_layer_repaint_count = outer_layer._repaint_count
@@ -1698,7 +1698,7 @@ class TestCanvasItemClass(unittest.TestCase):
             test_canvas_item_repaint_count = test_canvas_item._repaint_count
             # update the canvas item and make sure everyone repaints
             test_canvas_item.update()
-            # sleep a short time to allow thread to run
+            # wait for any thread repainting to finish
             time.sleep(0.05)
             # check the repaint counts were all incremented
             self.assertEqual(outer_layer_repaint_count + 1, outer_layer._repaint_count)
@@ -1731,14 +1731,16 @@ class TestCanvasItemClass(unittest.TestCase):
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
             # update the outer layer with the initial size
-            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            # wait for any thread repainting to finish
+            time.sleep(0.05)
             # save the layout counts
             outer_layer_layout_count = outer_layer._layout_count
             inner_composition_layout_count = inner_composition._layout_count
             inner_layer_layout_count = inner_layer._layout_count
             test_canvas_item_layout_count = test_canvas_item._layout_count
             # update the canvas item and make sure all descendents update layout once
-            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=720, height=540))
+            outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=720, height=540))
             # check the repaint counts were all incremented
             self.assertEqual(outer_layer_layout_count + 1, outer_layer._layout_count)
             self.assertEqual(inner_composition_layout_count + 1, inner_composition._layout_count)
@@ -1761,7 +1763,9 @@ class TestCanvasItemClass(unittest.TestCase):
             outer_layer.add_canvas_item(inner_composition)
             outer_layer.add_canvas_item(inner_composition2)
             # update the outer layer with the initial size
-            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            # wait for any thread repainting to finish
+            time.sleep(0.05)
             # save the layout counts
             outer_layer_layout_count = outer_layer._layout_count
             inner_composition_layout_count = inner_composition._layout_count
@@ -1771,7 +1775,9 @@ class TestCanvasItemClass(unittest.TestCase):
             # add a row and ensure only siblings are layed out
             test_canvas_item1a = TestCanvasItem()
             inner_composition.add_canvas_item(test_canvas_item1a)
-            outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
+            # wait for any thread repainting to finish
+            time.sleep(0.05)
             # check the repaint counts were all incremented
             self.assertEqual(outer_layer_layout_count, outer_layer._layout_count)
             self.assertEqual(inner_composition_layout_count, inner_composition._layout_count)

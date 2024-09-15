@@ -188,9 +188,25 @@ def start(ui: UserInterface.UserInterface) -> bool:
     control_row.add_stretch()
 
     splitter = CanvasItem.SplitterCanvasItem()
-    splitter.update_sizing(splitter.sizing.with_fixed_height(40))
-    splitter.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Left"))
-    splitter.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Right"))
+    splitter.update_sizing(splitter.sizing.with_fixed_height(60))
+    splitter_left = CanvasItem.SplitterCanvasItem(orientation="horizontal")
+    splitter_right = CanvasItem.SplitterCanvasItem(orientation="horizontal")
+    layer_left_top = CanvasItem.LayerCanvasItem()
+    # layer_left_top.is_root_opaque = True
+    layer_left_top.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Left Top"))
+    layer_left_bottom = CanvasItem.LayerCanvasItem()
+    layer_left_bottom.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Left Bottom"))
+    layer_right_top = CanvasItem.LayerCanvasItem()
+    layer_right_top.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Right Top"))
+    layer_right_bottom = CanvasItem.LayerCanvasItem()
+    # layer_right_bottom.is_root_opaque = True
+    layer_right_bottom.add_canvas_item(CanvasItem.StaticTextCanvasItem("Splitter Right Bottom"))
+    splitter_left.add_canvas_item(layer_left_top)
+    splitter_left.add_canvas_item(layer_left_bottom)
+    splitter_right.add_canvas_item(layer_right_top)
+    splitter_right.add_canvas_item(layer_right_bottom)
+    splitter.add_canvas_item(splitter_left)
+    splitter.add_canvas_item(splitter_right)
     splitter_row = CanvasItem.CanvasItemComposition()
     splitter_row.layout = CanvasItem.CanvasItemRowLayout()
     splitter_row.add_canvas_item(splitter)
@@ -245,6 +261,8 @@ def start(ui: UserInterface.UserInterface) -> bool:
 
     def do_something() -> None:
         pass  # useful for debugging layout.
+        # splitter.canvas_items[1].update()
+        # splitter.canvas_items[1].canvas_items[0].text = "X"
 
     button_canvas_item.on_clicked = do_something
 

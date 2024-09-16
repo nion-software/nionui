@@ -604,8 +604,11 @@ class BaseComposer:
         existing_draw_context = self.__drawing_context
         if not existing_draw_context:
             existing_draw_context = DrawingContext.DrawingContext()
-            self._repaint(existing_draw_context, canvas_bounds, self.__cache)
-            self._draw_unique_marker(existing_draw_context, canvas_bounds)
+            try:
+                self._repaint(existing_draw_context, canvas_bounds, self.__cache)
+                self._draw_unique_marker(existing_draw_context, canvas_bounds)
+            except Exception as e:
+                logging.exception("Error in composer repaint {type(self)} {e}")
             self._update_repaint_count()
         drawing_context.add(existing_draw_context)
         self.__drawing_context = existing_draw_context
@@ -619,7 +622,8 @@ class BaseComposer:
     # used for debugging
     def _draw_unique_marker(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
         MARKER_SIZE: typing.Final[int] = 3
-        draw_unique_marker = self._canvas_item._draw_unique_marker or _g_draw_unique_marker
+        canvas_item = self.__canvas_item_ref()
+        draw_unique_marker = (canvas_item and canvas_item._draw_unique_marker) or _g_draw_unique_marker
         if draw_unique_marker and canvas_bounds.width > MARKER_SIZE * 2 and canvas_bounds.height > MARKER_SIZE * 2:
             colors = list(Color.svg_color_map.values())
             for oy in (0, MARKER_SIZE):

@@ -102,7 +102,7 @@ class TreeCanvasItem(CanvasItem.CanvasItemComposition):
                 def twist_down_clicked(toggle_value_path: _ValuePath) -> None:
                     self.__toggle_is_expanded(toggle_value_path)
 
-                twist_down_canvas_item.on_button_clicked = functools.partial(twist_down_clicked, tree_item.value_path)
+                twist_down_canvas_item.on_clicked = functools.partial(twist_down_clicked, tree_item.value_path)
                 item_row.add_canvas_item(twist_down_canvas_item)
             else:
                 item_row.add_spacing(indent_size)

@@ -2190,9 +2190,9 @@ class LayerCanvasItem(CanvasItemComposition):
         super().__init__()
         self.__executing = False
         self.__cancel = False
-        self.__needs_repaint = False
+        self.__needs_repaint = False  # keep track of repaint requests that arrive during an existing repaint
         self.__layer_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
-        self.__layer_thread_condition = threading.Condition()
+        self.__layer_thread_lock = threading.RLock()
         self.__repaint_one_future: typing.Optional[concurrent.futures.Future[typing.Any]] = None
         self.__canvas_widget_section_ref: typing.Optional[CanvasWidgetSection] = None
 
@@ -2205,7 +2205,7 @@ class LayerCanvasItem(CanvasItemComposition):
     def _stop_render_behavior(self) -> None:
         self.__cancel = True
         done_event = threading.Event()
-        with self.__layer_thread_condition:
+        with self.__layer_thread_lock:
             if self.__repaint_one_future:
                 def repaint_done(future: typing.Optional[concurrent.futures.Future[typing.Any]]) -> None:
                     done_event.set()
@@ -2216,18 +2216,21 @@ class LayerCanvasItem(CanvasItemComposition):
         done_event.wait()
 
     def __repaint_done(self, future: typing.Optional[concurrent.futures.Future[typing.Any]]) -> None:
-        with self.__layer_thread_condition:
+        with self.__layer_thread_lock:
             self.__repaint_one_future = None
             if self.__needs_repaint:
                 self.__queue_repaint()
 
     def __queue_repaint(self) -> None:
-        with self.__layer_thread_condition:
+        with self.__layer_thread_lock:
             # this will not launch another repaint layer if one is already running. updates will stack up and
             # be processed at the end of the current update in repaint done.
             if not self.__cancel and not self.__repaint_one_future:
+                self.__needs_repaint = False
                 self.__repaint_one_future = LayerCanvasItem._executor.submit(self.__repaint_layer)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)
+            else:
+                self.__needs_repaint = True
 
     def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # when the thread finishes the repaint, this method gets called. the normal container update
@@ -2240,8 +2243,7 @@ class LayerCanvasItem(CanvasItemComposition):
 
     def _updated(self) -> None:
         # thread-safe
-        with self.__layer_thread_condition:
-            self.__needs_repaint = True
+        with self.__layer_thread_lock:
             if _threaded_rendering_enabled:
                 self.__queue_repaint()
         # normally, this method would mark a pending update and forward the update to the container;
@@ -2295,17 +2297,10 @@ class LayerCanvasItem(CanvasItemComposition):
         return p
 
     def __repaint_layer(self) -> None:
-        with self.__layer_thread_condition:
-            needs_repaint = self.__needs_repaint
-            self.__needs_repaint = False
-        if not self.__cancel and needs_repaint:
+        if not self.__cancel:
             if self._has_layout:
                 try:
                     with Process.audit("repaint_layer"):
-                        # layout or repaint that occurs during prepare render should be handled
-                        # but not trigger another repaint after this one.
-                        with self.__layer_thread_condition:
-                            self.__needs_repaint = False
                         canvas_rect = self.canvas_rect
                         root_container = self.root_container
                         canvas_widget = typing.cast(CanvasWidgetCanvasItem, root_container) if isinstance(root_container, CanvasWidgetCanvasItem) else None

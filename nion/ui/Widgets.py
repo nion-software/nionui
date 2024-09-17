@@ -552,7 +552,7 @@ class SectionWidget(UserInterface.Widget):
         section_open = ui.get_persistent_string(section_id, "true") == "true" if section_id else True
         twist_down_canvas_item.checked = section_open
         section_content_column.visible = section_open
-        twist_down_canvas_item.on_button_clicked = toggle
+        twist_down_canvas_item.on_clicked = toggle
 
         self.section_title_row = section_title_row
         self.__twist_down_canvas_item = twist_down_canvas_item

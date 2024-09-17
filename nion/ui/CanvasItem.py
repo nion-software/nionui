@@ -4081,8 +4081,13 @@ class CellCanvasItem(AbstractCanvasItem):
         self.__cell_update_event_listener: typing.Optional[Event.EventListener] = None
         self.cell = cell
         self.style: typing.Set[str] = set()
+        # on_button_clicked is deprecated; use on_clicked instead
+        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
     def close(self) -> None:
+        self.on_button_clicked = None
+        self.on_clicked = None
         self.cell = None
         super().close()
 
@@ -4218,6 +4223,40 @@ class CellCanvasItem(AbstractCanvasItem):
             return CellCanvasItemComposer(self, self.layout_sizing, composer_cache, cell, self.style)
         return None
 
+    def mouse_entered(self) -> bool:
+        if self.wants_mouse_events:
+            self._mouse_inside = True
+            return True
+        return super().mouse_entered()
+
+    def mouse_exited(self) -> bool:
+        if self.wants_mouse_events:
+            self._mouse_inside = False
+            return True
+        return super().mouse_exited()
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.wants_mouse_events:
+            self._mouse_pressed = True
+            return True
+        return super().mouse_pressed(x, y, modifiers)
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.wants_mouse_events:
+            self._mouse_pressed = False
+            return True
+        return super().mouse_released(x, y, modifiers)
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.wants_mouse_events:
+            if self.enabled:
+                if callable(self.on_button_clicked):
+                    self.on_button_clicked()
+                if callable(self.on_clicked):
+                    self.on_clicked()
+            return True
+        return super().mouse_clicked(x, y, modifiers)
+
 
 class TextButtonCell(Cell):
 
@@ -4336,38 +4375,6 @@ class TextButtonCanvasItem(TextCanvasItem):
                  border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
         super().__init__(text, background_color, border_color, padding)
         self.wants_mouse_events = True
-        # on_button_clicked is deprecated; use on_clicked instead
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        self.on_clicked = None
-        super().close()
-
-    def mouse_entered(self) -> bool:
-        self._mouse_inside = True
-        return super().mouse_entered()
-
-    def mouse_exited(self) -> bool:
-        self._mouse_inside = False
-        return super().mouse_exited()
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = True
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = False
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if self.on_button_clicked:
-                self.on_button_clicked()
-            if self.on_clicked:
-                self.on_clicked()
-        return True
 
 
 class TwistDownCell(Cell):
@@ -4407,36 +4414,8 @@ class TwistDownCell(Cell):
 class TwistDownCanvasItem(CellCanvasItem):
 
     def __init__(self) -> None:
-        super().__init__()
-        self.cell = TwistDownCell()
+        super().__init__(TwistDownCell())
         self.wants_mouse_events = True
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        super().close()
-
-    def mouse_entered(self) -> bool:
-        self._mouse_inside = True
-        return True
-
-    def mouse_exited(self) -> bool:
-        self._mouse_inside = False
-        return True
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = True
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = False
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if callable(self.on_button_clicked):
-                self.on_button_clicked()
-        return True
 
 
 class BitmapCell(Cell):
@@ -4591,33 +4570,6 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
         bitmap = Bitmap.promote_bitmap(bitmap)
         super().__init__(bitmap=bitmap, background_color=background_color, border_color=border_color, padding=padding)
         self.wants_mouse_events = True
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
-
-    def close(self) -> None:
-        self.on_button_clicked = None
-        super().close()
-
-    def mouse_entered(self) -> bool:
-        self._mouse_inside = True
-        return True
-
-    def mouse_exited(self) -> bool:
-        self._mouse_inside = False
-        return True
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = True
-        return True
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._mouse_pressed = False
-        return True
-
-    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.enabled:
-            if callable(self.on_button_clicked):
-                self.on_button_clicked()
-        return True
 
 
 class StaticTextCanvasItem(TextCanvasItem):

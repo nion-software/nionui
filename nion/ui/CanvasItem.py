@@ -740,6 +740,8 @@ class AbstractCanvasItem:
         self.__visible = True
         self.__enabled = True
         self.__thread = threading.current_thread()
+        self.__update_lock = threading.RLock()
+        self.__update_level = 0  # used for deferred updating
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
@@ -1066,7 +1068,25 @@ class AbstractCanvasItem:
             self.__sizing = new_sizing
             self.update()
 
-    def update(self) -> None:
+    def _begin_batch_update(self) -> None:
+        with self.__update_lock:
+            self.__update_level += 1
+
+    def _end_batch_update(self) -> None:
+        with self.__update_lock:
+            self.__update_level -= 1
+            if self.__update_level == 0:
+                self._update()
+
+    @contextlib.contextmanager
+    def batch_update(self) -> typing.Iterator[typing.Any]:
+        self._begin_batch_update()
+        try:
+            yield
+        finally:
+           self._end_batch_update()
+
+    def _update(self) -> None:
         """Mark canvas item as needing a display update.
 
         Thread-safe.
@@ -1077,6 +1097,10 @@ class AbstractCanvasItem:
             self._update_count += 1
             self._invalidate_composer()
             self._updated()
+
+    def update(self) -> None:
+        with self.batch_update():
+            pass
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""

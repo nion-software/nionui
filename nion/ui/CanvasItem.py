@@ -721,6 +721,7 @@ class AbstractCanvasItem:
 
     def __init__(self, cache: typing.Optional[ComposerCache] = None) -> None:
         super().__init__()
+        self.__composer_lock = threading.RLock()
         self.__composer: typing.Optional[BaseComposer] = None
         self.__cache = cache or ComposerCache()
         self.__container: typing.Optional[CanvasItemComposition] = None
@@ -1122,7 +1123,10 @@ class AbstractCanvasItem:
         return self.__cache
 
     def _invalidate_composer(self) -> None:
-        self.__composer = None
+        # avoid the race condition where the composer gets set in _get_composer_inner immediately after
+        # being cleared here and no further updates occur, resulting in an incorrect composer.
+        with self.__composer_lock:
+            self.__composer = None
 
     def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
         """Return the composer for this canvas item. Subclasses should not override.
@@ -1135,9 +1139,10 @@ class AbstractCanvasItem:
         return self._get_composer_inner(cache)
 
     def _get_composer_inner(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
-        if not self.__composer:
-            self.__composer = self._get_composer(cache)
-            # assert self.__composer, f"missing composer for {type(self)}"
+        with self.__composer_lock:
+            if not self.__composer:
+                self.__composer = self._get_composer(cache)
+                # assert self.__composer, f"missing composer for {type(self)}"
         return self.__composer
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:

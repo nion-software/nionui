@@ -1359,6 +1359,9 @@ class CanvasItemAbstractLayout:
         self.margins = margins if margins is not None else Geometry.Margins(0, 0, 0, 0)
         self.spacing = spacing if spacing else 0
 
+    def copy(self) -> CanvasItemAbstractLayout:
+        raise NotImplementedError()
+
     def calculate_row_layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize,
                              canvas_items: typing.Sequence[LayoutItem]) -> ConstraintResultType:
         """ Use constraint_solve to return the positions of canvas items as if they are in a row. """
@@ -1558,6 +1561,9 @@ class CanvasItemLayout(CanvasItemAbstractLayout):
     def __init__(self, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None) -> None:
         super().__init__(margins, spacing)
 
+    def copy(self) -> CanvasItemAbstractLayout:
+        return CanvasItemLayout(self.margins, self.spacing)
+
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         for canvas_item in canvas_items:
             self.update_canvas_item_layout(canvas_origin, canvas_size, canvas_item)
@@ -1584,6 +1590,9 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
                  alignment: typing.Optional[str] = None) -> None:
         super().__init__(margins, spacing)
         self.alignment = alignment
+
+    def copy(self) -> CanvasItemAbstractLayout:
+        return CanvasItemColumnLayout(self.margins, self.spacing, self.alignment)
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         # calculate the vertical placement
@@ -1625,6 +1634,9 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
         super().__init__(margins, spacing)
         self.alignment = alignment
 
+    def copy(self) -> CanvasItemAbstractLayout:
+        return CanvasItemRowLayout(self.margins, self.spacing, self.alignment)
+
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         row_layout = self.calculate_row_layout(canvas_origin, canvas_size, canvas_items)
         heights = [canvas_item.layout_sizing.get_unrestrained_height(canvas_size.height - self.margins.top - self.margins.bottom) for canvas_item in canvas_items]
@@ -1663,15 +1675,30 @@ class CanvasItemGridLayout(CanvasItemAbstractLayout):
         parameter.
     """
 
-    def __init__(self, size: Geometry.IntSize, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None) -> None:
+    def __init__(self, size: Geometry.IntSize, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None, columns: typing.Optional[typing.List[typing.List[typing.Optional[typing.Any]]]] = None, canvas_items: typing.Optional[typing.List[typing.Any]] = None) -> None:
         super().__init__(margins, spacing)
         assert size.width > 0 and size.height > 0
         self.__size = size
         # columns stores the canvas items in a grid. canvas items keeps track of the order in which they're added or
         # removed. this allows for finding the associated index of a canvas item in the layout so that the layout can
         # use the list of layout items passed in to layout or get_sizing.
-        self.__columns: typing.List[typing.List[typing.Optional[typing.Any]]] = [[None for _ in range(self.__size.height)] for _ in range(self.__size.width)]
-        self.__canvas_items: typing.List[typing.Any] = list()
+        self.__columns = [[None for _ in range(size.height)] for _ in range(size.width)]
+        if columns is not None and canvas_items is not None:
+            self.__canvas_items = list(canvas_items)
+            for row in range(size.height):
+                for column in range(size.width):
+                    old_canvas_item = columns[column][row]
+                    if old_canvas_item:
+                        index = canvas_items.index(columns[column][row])
+                        self.__columns[column][row] = self.__canvas_items[index]
+                    else:
+                        self.__columns[column][row] = None
+        else:
+            self.__columns = [[None for _ in range(size.height)] for _ in range(size.width)]
+            self.__canvas_items = list()
+
+    def copy(self) -> CanvasItemAbstractLayout:
+        return CanvasItemGridLayout(self.__size, self.margins, self.spacing, self.__columns, self.__canvas_items)
 
     def add_canvas_item(self, canvas_item: typing.Any, pos: typing.Optional[Geometry.IntPoint]) -> None:
         assert pos
@@ -2081,7 +2108,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self._get_composition_composer(child_composers, composer_cache)
 
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
-        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color)
+        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color)
 
     def get_composer_immediate(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         child_composers = list[BaseComposer]()
@@ -2322,9 +2349,12 @@ class LayerCanvasItem(CanvasItemComposition):
 
 
 class ScrollAreaLayout(CanvasItemLayout):
-    def __init__(self) -> None:
+    def __init__(self, auto_resize_contents: bool = False) -> None:
         super().__init__()
-        self.auto_resize_contents = False
+        self.auto_resize_contents = auto_resize_contents
+
+    def copy(self) -> CanvasItemAbstractLayout:
+        return ScrollAreaLayout(self.auto_resize_contents)
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[LayoutItem]) -> None:
         content = canvas_items[0] if canvas_items else None
@@ -2527,6 +2557,9 @@ class SplitterLayout(CanvasItemLayout):
         super().__init__(margins, spacing)
         self.__orientation = orientation
         self.__sizings = list(sizings) if sizings else list[Sizing]()
+
+    def copy(self) -> CanvasItemAbstractLayout:
+        return SplitterLayout(self.__orientation, self.margins, self.spacing, self.__sizings)
 
     @property
     def sizings(self) -> typing.Sequence[Sizing]:

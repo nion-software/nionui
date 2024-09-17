@@ -2193,8 +2193,7 @@ class LayerCanvasItem(CanvasItemComposition):
         self.__needs_repaint = False
         self.__layer_drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
         self.__layer_thread_condition = threading.Condition()
-        # Python 3.9+: Optional[concurrent.futures.Future[Any]]
-        self.__repaint_one_future: typing.Optional[typing.Any] = None
+        self.__repaint_one_future: typing.Optional[concurrent.futures.Future[typing.Any]] = None
         self.__canvas_widget_section_ref: typing.Optional[CanvasWidgetSection] = None
 
     def close(self) -> None:
@@ -2208,8 +2207,7 @@ class LayerCanvasItem(CanvasItemComposition):
         done_event = threading.Event()
         with self.__layer_thread_condition:
             if self.__repaint_one_future:
-                # Python 3.9: Optional[concurrent.futures.Future[Any]]
-                def repaint_done(future: typing.Any) -> None:
+                def repaint_done(future: typing.Optional[concurrent.futures.Future[typing.Any]]) -> None:
                     done_event.set()
 
                 self.__repaint_one_future.add_done_callback(repaint_done)
@@ -2217,8 +2215,7 @@ class LayerCanvasItem(CanvasItemComposition):
                 done_event.set()
         done_event.wait()
 
-    # Python 3.9: Optional[concurrent.futures.Future[Any]]
-    def __repaint_done(self, future: typing.Any) -> None:
+    def __repaint_done(self, future: typing.Optional[concurrent.futures.Future[typing.Any]]) -> None:
         with self.__layer_thread_condition:
             self.__repaint_one_future = None
             if self.__needs_repaint:
@@ -2226,6 +2223,8 @@ class LayerCanvasItem(CanvasItemComposition):
 
     def __queue_repaint(self) -> None:
         with self.__layer_thread_condition:
+            # this will not launch another repaint layer if one is already running. updates will stack up and
+            # be processed at the end of the current update in repaint done.
             if not self.__cancel and not self.__repaint_one_future:
                 self.__repaint_one_future = LayerCanvasItem._executor.submit(self.__repaint_layer)
                 self.__repaint_one_future.add_done_callback(self.__repaint_done)

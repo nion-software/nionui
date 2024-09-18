@@ -608,7 +608,7 @@ class BaseComposer:
                 self._repaint(existing_draw_context, canvas_bounds, self.__cache)
                 self._draw_unique_marker(existing_draw_context, canvas_bounds)
             except Exception as e:
-                logging.exception("Error in composer repaint {type(self)} {e}")
+                logging.exception(f"Error in composer repaint {type(self)} {e}")
             self._update_repaint_count()
         drawing_context.add(existing_draw_context)
         self.__drawing_context = existing_draw_context

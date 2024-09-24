@@ -1,5 +1,105 @@
 """
-    CanvasItem module contains classes related to canvas items.
+CanvasItem module contains classes related to canvas items.
+
+OVERVIEW
+
+User interface consists of high-level widgets, usually provided by the host application, and low-level canvas items. 
+The canvas items are designed to be lightweight and efficient, and they are used for graphics and other visual 
+elements not provided by widgets.
+
+Canvas items are typically created and put into a container to form a tree of canvas items. Canvas items fall into 
+two main categories: composite and non-composite. Composite canvas items are containers for other canvas items, 
+while non-composite canvas items are the leaf nodes of the canvas item tree. Both are derived from the 
+AbstractCanvasItem base class.
+
+The root canvas item in the tree is usually attached to a high level CanvasWidget and receives mouse and keyboard
+events via that widget and passes them down through the tree. The root canvas item is also used for sending rendering
+drawing commands to the host via the canvas widget.
+
+The root canvas item is a subclass of a special type of canvas item called a layer, which executes layout and 
+painting on a thread. The canvas item tree can be configured so that the root canvas item is composed of layers that
+draw directly to the canvas widget from their thread; or it can be configured so that the root canvas draws to the 
+canvas widget. When comprised of layers, the root canvas item can be split into drawing disjoint areas,
+called sections, each in its own thread for performance.
+
+Each layer canvas item also manages a thread for rendering and is responsible for sending drawing commands to the 
+CanvasWidget. Layers acting as sections use the CanvasWidget.draw_section method; whereas root canvas item uses the 
+CanvasWidget.draw method.
+
+Each canvas item is responsible for maintaining its state, including visibility, sizing preferences, visual properties,
+and contents. Each canvas item is also responsible for supplying a composer object representing the canvas item for
+layout and drawing.
+
+The composer object represents a snapshot of its canvas item and handles layout and rendering. It is immutable and 
+safe to use in threads. Like the canvas items, the composers will be organized into a composer tree that will match 
+the hierarchy of the canvas item tree.
+
+When a canvas item needs an update, it will mark itself as needing a new composer and then request a repaint from its 
+container. When it moves up the tree to a layer container, it will trigger a repaint on the layer's thread. The 
+thread will ask for its layer's composer, layout the composer, and paint the composer. When the painting is finished, 
+the thread will send the drawing commands to the CanvasWidget.
+
+An update can be triggered by layout changes, sizing preference changes, property changes, content changes, and more.
+
+Layout occurs on a thread using composers. However, sometimes the canvas item needs to know about its layout,
+such as for hit testing. So whenever the layout is painted, the painting thread will inform the canvas item of its
+latest position and size via the _update_layout_from_composer method.
+
+CANVAS ITEMS
+
+- AbstractCanvasItem
+- CanvasItemComposition (see COMPOSITE CANVAS ITEMS and LAYOUTS below)
+- DrawingContextCanvasItem
+- SliderCanvasItem
+- ScrollBarCanvasItem
+- BackgroundCanvasItem
+- CellCanvasItem (see CELL STYLE CANVAS ITEMS below)
+- CheckBoxCanvasItem
+- EmptyCanvasItem
+- DrawCanvasItem
+- DividerCanvasItem
+- ProgressBarCanvasItem
+- TimestampCanvasItem
+
+COMPOSITE CANVAS ITEMS
+
+- LayerCanvasItem
+- RootCanvasItem (special type of LayerCanvasItem)
+- ScrollAreaCanvasItem
+- SplitterCanvasItem
+
+LAYOUTS
+
+- CanvasItemAbstractLayout
+- CanvasItemLayout (overlapping)
+- CanvasItemColumnLayout, CanvasItemRowLayout
+- CanvasItemGridLayout
+- CanvasItemScrollAreaLayout (used only for ScrollAreaCanvasItem)
+- CanvasItemSplitterLayout (used only for SplitterCanvasItem)
+
+CELL STYLE CANVAS ITEMS
+
+- TextCanvasItem
+- TwistDownCanvasItem
+- BitmapCanvasItem
+- StaticTextCanvasItem
+
+GLOSSARY
+
+"widget" is a high level UI element supplied by the host application.
+
+"canvas item" is a low level UI element supplied by the UI library.
+
+"composer" is an immutable object representing a canvas item for layout and drawing.
+
+"layout" is the process of determining the size and position of each canvas item in the tree.
+
+"painting" is the process of creating a list of drawing commands representing the canvas items.
+
+"rendering" is the process of turning the drawing commands into a bitmap.
+
+"blitting" is the process of copying the bitmap to the screen.
+
 """
 from __future__ import annotations
 

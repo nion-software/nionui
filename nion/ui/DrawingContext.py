@@ -242,6 +242,7 @@ class DrawingContext:
 
     def to_svg(self, size: Geometry.IntSize, viewbox: Geometry.IntRect) -> str:
         svg = ""
+        style = "text { font-family: sans-serif; }"
         defs = ""
         path = ""
         next_clip_id = 1
@@ -500,6 +501,7 @@ class DrawingContext:
                                                                                                             size.height,
                                                                                                             viewbox_str,
                                                                                                             xmlns)
+        result += "<style>" + style + "</style>"
         result += "<defs>" + defs + "</defs>"
         result += svg
         result += "</svg>"

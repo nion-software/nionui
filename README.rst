@@ -35,3 +35,15 @@ To run the UI demo app, use the following command (application identifier is 'ni
 .. code-block::
 
     python -m nionui nionui_examples.ui_demo
+
+To run the Canvas demo app, use the following command (application identifier is 'nionui_examples.canvas_demo'):
+
+.. code-block::
+
+    python -m nionui nionui_examples.canvas_demo
+
+To run Nion Swift, use the following command (application identifier is 'nionswift'):
+
+.. code-block::
+
+    python -m nionui nionswift

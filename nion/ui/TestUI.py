@@ -1254,10 +1254,15 @@ class DocumentWindow(UserInterfaceModule.Window):
         pass
 
     def _get_focus_widget(self) -> typing.Optional[UserInterfaceModule.Widget]:
-        return None
-        # wrong type. disabling.
-        # global focused_widget
-        # return focused_widget
+        def match_native_widget(widget: typing.Optional[UserInterfaceModule.Widget]) -> typing.Optional[UserInterfaceModule.Widget]:
+            if widget and widget.focused:
+                return widget
+            for child_widget in (widget._contained_widgets if widget else list()):
+                matched_widget = match_native_widget(child_widget)
+                if matched_widget:
+                    return matched_widget
+            return None
+        return match_native_widget(self.root_widget)
 
 
 class DockWidget(UserInterfaceModule.DockWidget):

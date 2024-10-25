@@ -1710,7 +1710,7 @@ class TestCanvasItemClass(unittest.TestCase):
         outer_layer = CanvasItem.LayerCanvasItem()
         with contextlib.closing(outer_layer):
             test_canvas_item = TestCanvasItem()
-            test_canvas_item.repaint_delay = 0.05
+            test_canvas_item.repaint_delay = 0.1
             outer_layer.add_canvas_item(test_canvas_item)
             # update the outer layer with the initial size
             outer_layer.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))

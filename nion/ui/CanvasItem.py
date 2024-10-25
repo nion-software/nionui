@@ -1126,6 +1126,13 @@ class AbstractCanvasItem:
         if self.__visible != value:
             self.__visible = value
             self.update()
+            # the regular update path will only invalidate the composer and call _updated
+            # if the item is visible. if we just set it to not visible, we need to call it
+            # here to get things to update properly. hack. one place where this would show
+            # up is in the line plot legend being set between none and top-right.
+            if not self.__visible:
+                self._invalidate_composer()
+                self._updated()
 
     @property
     def is_visible(self) -> bool:

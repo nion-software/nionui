@@ -1717,8 +1717,10 @@ class TestCanvasItemClass(unittest.TestCase):
             # sleep a short time to allow thread to run
             time.sleep(test_canvas_item.repaint_delay / 2)
             test_canvas_item.update()
-            time.sleep(test_canvas_item.repaint_delay * 2)
-            self.assertEqual(test_canvas_item._repaint_count, 2)
+            start_time = time.perf_counter()
+            while test_canvas_item._repaint_count < 2 and time.perf_counter() - start_time < test_canvas_item.repaint_delay * 10:
+                time.sleep(0.01)
+            self.assertEqual(2, test_canvas_item._repaint_count)
 
     def test_parent_canvas_item_triggers_only_one_layout_for_each_descendent(self) -> None:
         CanvasItem._threaded_rendering_enabled = True

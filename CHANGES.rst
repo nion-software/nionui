@@ -1,11 +1,18 @@
 Changelog (nionui)
 ==================
 
-7.2.0 (UNRELEASED)
+8.0.0 (2024-10-26)
 ------------------
+- Rework canvas item layout/paint architecture for improved performance.
+- Add a nionui module for easier launching.
 - Add support for text alignment in labels.
 - Add create_persistent_bool_model for persistent bool storage.
 - Add support for timestamp_ns for display timing measurements.
+- Change ComboBox to stop scrolling when not expanded.
+- Use modifiers at mouse click rather than mouse release for modifying focus.
+- Update for numpy 2.
+- Add Python 3.13 support. Drop Python 3.9, 3.10 support.
+- Add canvas item demo code.
 
 7.1.1 (2024-06-14)
 ------------------

@@ -3442,6 +3442,8 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__mouse_canvas_item: typing.Optional[AbstractCanvasItem] = None  # not None when the mouse is pressed
         self.__mouse_tracking = False
         self.__mouse_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
+        self.__request_focus_canvas_item: typing.Optional[AbstractCanvasItem] = None
+        self.__request_focus_modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None  # modifiers at the time of mouse press
         self.__drag_tracking = False
         self.__drag_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
         self.__grab_canvas_item: typing.Optional[MouseTrackingCanvasItem.TrackingCanvasItem] = None
@@ -3732,6 +3734,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             self.__mouse_canvas_item = self.__mouse_tracking_canvas_item
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
             self.__request_focus_canvas_item = self.__mouse_canvas_item
+            self.__request_focus_modifiers = modifiers
             return self.__mouse_canvas_item.mouse_pressed(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
 
@@ -3739,8 +3742,14 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         result = False
         if self.__mouse_canvas_item:
             if self.__request_focus_canvas_item:
-                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
-                self.__request_focus_canvas_item = typing.cast(typing.Any, None)
+                # pass the modifiers at the time of the mouse press to request focus. this avoids issues where
+                # the user clicks to start a drag operation such as creating a rectangle and then holds shift
+                # to modify that drag operation, i.e. shift to make rectangle square. if this code is reached,
+                # it means no tool has claimed the mouse released operation and so focus should be requested, but
+                # the request focus should only utilize the modifiers down at the start of the operation.
+                assert self.__request_focus_modifiers  # this is the result of a mouse click, so should always be set
+                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), self.__request_focus_modifiers)
+                self.__request_focus_canvas_item = None
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
             self.__mouse_canvas_item = None
@@ -3749,7 +3758,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         return result
 
     def bypass_request_focus(self) -> None:
-        self.__request_focus_canvas_item = typing.cast(typing.Any, None)
+        self.__request_focus_canvas_item = None
 
     def __mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         if not self.__mouse_tracking:

@@ -1100,6 +1100,7 @@ class AbstractCanvasItem:
 
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
+        # TEST ONLY
         self.update_layout_using_composer(Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0)))
 
     def update_layout_immediate(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
@@ -1109,10 +1110,12 @@ class AbstractCanvasItem:
 
         The canvas_origin and canvas_size properties are valid after calling this method and _has_layout is True.
         """
+        # TEST ONLY
         self.update_layout_using_composer_immediate(Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0)))
 
     def refresh_layout_immediate(self) -> None:
         """Immediate re-layout the item. Deprecated. Use refresh_layout instead."""
+        # TEST ONLY
         canvas_rect = self.canvas_rect
         assert canvas_rect
         self.update_layout_using_composer_immediate(canvas_rect)
@@ -1264,6 +1267,7 @@ class AbstractCanvasItem:
             composer.update_layout(canvas_rect.origin, canvas_rect.size)
 
     def update_layout_using_composer_immediate(self, canvas_rect: Geometry.IntRect) -> None:
+        # TEST ONLY
         composer = self.get_composer_immediate(self._get_composer_cache())
         if composer:
             composer.update_layout(canvas_rect.origin, canvas_rect.size)
@@ -2056,6 +2060,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return list()
 
     def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
+        # TEST ONLY
         self.update_layout_immediate(Geometry.IntPoint(), canvas_size)
 
     # override sizing information. let layout provide it.

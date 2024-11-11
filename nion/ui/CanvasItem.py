@@ -3919,26 +3919,41 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
 
 class BackgroundCanvasItemComposer(BaseComposer):
-    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, composer_cache: ComposerCache, background_color: typing.Union[str, DrawingContext.LinearGradient]) -> None:
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, composer_cache: ComposerCache, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         super().__init__(canvas_item, layout_sizing, composer_cache)
         self.__background_color = background_color
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
-        with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
-            drawing_context.fill_style = self.__background_color
-            drawing_context.fill()
+        if self.__background_color:
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.fill_style = self.__background_color
+                drawing_context.fill()
 
 
 class BackgroundCanvasItem(AbstractCanvasItem):
-    """ Canvas item to draw background_color. """
-    def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None) -> None:
+    """ Canvas item to draw background_color.
+
+    The fallback color is used if the background color is None. The fallback color may also be None, in which case
+    nothing is drawn. However, for backwards compatibility, the default fallback color is gray.
+    """
+    def __init__(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None, fallback_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "#888") -> None:
         super().__init__()
-        self.background_color = background_color
+        self.__background_color = background_color
+        self.__fallback_color = fallback_color
+
+    @property
+    def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
+        return self.__background_color
+
+    @background_color.setter
+    def background_color(self, value: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.__background_color = value
+        self.update()
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
-        return BackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.background_color or "#888")
+        return BackgroundCanvasItemComposer(self, self.layout_sizing, composer_cache, self.background_color or self.__fallback_color)
 
 
 @dataclasses.dataclass

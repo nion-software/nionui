@@ -3504,6 +3504,26 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         # of the layer.
         return self._get_composer_inner(cache)
 
+    def _update_layout_from_composer(self, canvas_bounds: Geometry.IntRect) -> None:
+        # for the root canvas item, the size is determined from the canvas widget. a race condition can occur when
+        # the canvas widget changes size and triggers a layout and then during layout another size change occurs.
+        # when the layout finishes, it will call this method and normally update the size of the canvas item,
+        # overriding the second size change. to avoid this, we do not update the size from the composer.
+        # for backwards compatibility with tests, also override the test-only methods below and explicitly
+        # call the super method that has been bypassed here.
+        pass
+
+    def update_layout(self, canvas_origin: typing.Optional[Geometry.IntPoint], canvas_size: typing.Optional[Geometry.IntSize]) -> None:
+        # TEST ONLY
+        canvas_rect = Geometry.IntRect(canvas_origin or (0, 0), canvas_size or (0, 0))
+        self.update_layout_using_composer(canvas_rect)
+        super()._update_layout_from_composer(canvas_rect)
+
+    def update_layout_using_composer_immediate(self, canvas_rect: Geometry.IntRect) -> None:
+        # TEST ONLY
+        super().update_layout_using_composer_immediate(canvas_rect)
+        super()._update_layout_from_composer(canvas_rect)
+
     def _repaint_layer_inner(self, drawing_context: DrawingContext.DrawingContext) -> None:
         # layer introduces this; need to override here so that root items use regular repaint and not the non-root
         # layer painting. items under non-root layer have layout specific to the layer, but root children can use
@@ -3590,11 +3610,9 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def size_changed(self, width: int, height: int) -> None:
         """ Called when size changes. """
-        # logging.debug("{} {} x {}".format(id(self), width, height))
         if width > 0 and height > 0:
             self._set_canvas_origin(Geometry.IntPoint())
             self._set_canvas_size(Geometry.IntSize(height=height, width=width))
-            self.update()
 
     @property
     def focused_item(self) -> typing.Optional[AbstractCanvasItem]:

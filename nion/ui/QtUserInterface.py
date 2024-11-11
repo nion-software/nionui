@@ -2108,6 +2108,8 @@ class QtWindow(UserInterface.Window):
         return geometry, state
 
     def sizeChanged(self, width: int, height: int) -> None:
+        # NOTE: most size-related changes are handled directly in the widget that changes size,
+        # primarily the canvas widget and the scroll area widget.
         self._register_ui_activity()
         self._handle_size_changed(width, height)
 
@@ -2199,6 +2201,8 @@ class QtDockWidget(UserInterface.DockWidget):
         self._handle_show()
 
     def sizeChanged(self, width: int, height: int) -> None:
+        # NOTE: most size-related changes are handled directly in the widget that changes size,
+        # primarily the canvas widget and the scroll area widget.
         self._handle_size_changed(Geometry.IntSize(width=width, height=height))
 
     def logicalDPIChanged(self, dpi: float) -> None:

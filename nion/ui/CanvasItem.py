@@ -4976,9 +4976,6 @@ class EmptyCanvasItem(CellCanvasItem):
         super().__init__()
         self.cell = Cell(background_color, border)
 
-    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
-        return EmptyCanvasItemComposer(self, self.layout_sizing, composer_cache)
-
 
 class RadioButtonGroup:
 

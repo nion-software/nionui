@@ -1,6 +1,7 @@
 # standard libraries
 import functools
 import gettext
+
 import numpy
 import random
 import typing
@@ -19,6 +20,9 @@ from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.utils import Geometry
+from nion.utils import ListModel
+from nion.utils import Model
+from nion.utils import ReferenceCounting
 from nion.utils import Selection
 
 _ = gettext.gettext
@@ -98,50 +102,56 @@ class GridCanvasItemDelegate(GridCanvasItem.GridCanvasItemDelegate):
         pass
 
 
-class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
-    def __init__(self) -> None:
-        self.on_item_selected: typing.Optional[typing.Callable[[int], None]] = None
-        self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
+class ListItemCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, composer_cache: CanvasItem.ComposerCache, is_selected: bool) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache)
+        self.__is_selected = is_selected
 
-    @property
-    def items(self) -> typing.Sequence[typing.Any]:
-        return [1, 2, 3, 4]
-
-    @items.setter
-    def items(self, value: typing.Sequence[typing.Any]) -> None:
-        raise NotImplementedError()
-
-    @property
-    def item_count(self) -> int:
-        return 4
-
-    def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        pass
-
-    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
-        color = "yellow" if is_selected else "green"
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        is_selected = self.__is_selected
+        rect = canvas_rect - canvas_rect.origin
         with drawing_context.saver():
-            drawing_context.begin_path()
-            drawing_context.move_to(rect.left, rect.top)
-            drawing_context.line_to(rect.right, rect.bottom)
-            drawing_context.move_to(rect.right, rect.top)
-            drawing_context.line_to(rect.left, rect.bottom)
-            if not is_selected:
-                drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
-            drawing_context.stroke_style = color
-            drawing_context.stroke()
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            color = "yellow" if is_selected else "green"
+            with drawing_context.saver():
+                drawing_context.begin_path()
+                drawing_context.move_to(rect.left, rect.top)
+                drawing_context.line_to(rect.right, rect.bottom)
+                drawing_context.move_to(rect.right, rect.top)
+                drawing_context.line_to(rect.left, rect.bottom)
+                if not is_selected:
+                    drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+                drawing_context.stroke_style = color
+                drawing_context.stroke()
 
-            drawing_context.font = "12px"
-            drawing_context.text_baseline = "middle"
-            drawing_context.text_align = "center"
-            drawing_context.fill_style = color
-            drawing_context.fill_text(str(random.randint(100,999)), rect.center.x, rect.center.y)
+                drawing_context.font = "12px"
+                drawing_context.text_baseline = "middle"
+                drawing_context.text_align = "center"
+                drawing_context.fill_style = color
+                drawing_context.fill_text(str(random.randint(100, 999)), rect.center.x, rect.center.y)
+
+
+class ListItemCanvasItem(CanvasItem.AbstractCanvasItem):
+    def __init__(self, item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> None:
+        super().__init__()
+        self.__item = item
+        self.__is_selected_model = is_selected_model
+        self.__is_selected_model_property_changed_event_listener = is_selected_model.property_changed_event.listen(ReferenceCounting.weak_partial(ListItemCanvasItem.__is_selected_changed, self))
+
+    def __is_selected_changed(self, key: str) -> None:
+        if key == "value":
+            self.update()
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return ListItemCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__is_selected_model.value or False)
 
 
 app: typing.Optional[Application.BaseApplication] = None
 
 
 def start(ui: UserInterface.UserInterface) -> bool:
+    CanvasItem._g_draw_unique_marker = True
+
     window = Window.Window(ui, app)
     root_widget = ui.create_column_widget(properties={"min-width": 640, "min-height": 480})
     content_column = ui.create_column_widget()
@@ -236,8 +246,9 @@ def start(ui: UserInterface.UserInterface) -> bool:
     grid_canvas_item = GridCanvasItem.GridCanvasItem(grid_canvas_item_delegate, selection)
     grid_canvas_item.update_sizing(grid_canvas_item.sizing.with_fixed_height(200))
 
-    list_canvas_item_delegate = ListCanvasItemDelegate()
-    list_canvas_item = ListCanvasItem.ListCanvasItem(list_canvas_item_delegate, selection, item_height=48)
+    list_model = ListModel.ListModel[int]()
+    list_model.items = [1, 2, 3, 4]
+    list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, selection, ListItemCanvasItem, ListCanvasItem.ListCanvasItem2Delegate(), item_height=48)
     list_canvas_item.update_sizing(list_canvas_item.sizing.with_fixed_height(200))
 
     grid_list_row = CanvasItem.CanvasItemComposition()

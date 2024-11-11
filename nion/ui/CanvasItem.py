@@ -313,16 +313,23 @@ def constraint_solve(canvas_origin: int, canvas_size: int, canvas_item_constrain
     return ConstraintResultType(origins, sizes)
 
 
+class SizingEnum(enum.Enum):
+    UNRESTRAINED = 0
+
+
+SizingSpecifierType = int | float | SizingEnum | None
+
+
 @dataclasses.dataclass
 class SizingData:
-    preferred_width: typing.Optional[typing.Union[int, float]] = None
-    preferred_height: typing.Optional[typing.Union[int, float]] = None
+    preferred_width: SizingSpecifierType = None
+    preferred_height: SizingSpecifierType = None
     preferred_aspect_ratio: typing.Optional[float] = None
-    minimum_width: typing.Optional[typing.Union[int, float]] = None
-    minimum_height: typing.Optional[typing.Union[int, float]] = None
+    minimum_width: SizingSpecifierType = None
+    minimum_height: SizingSpecifierType = None
     minimum_aspect_ratio: typing.Optional[float] = None
-    maximum_width: typing.Optional[typing.Union[int, float]] = None
-    maximum_height: typing.Optional[typing.Union[int, float]] = None
+    maximum_width: SizingSpecifierType = None
+    maximum_height: SizingSpecifierType = None
     maximum_aspect_ratio: typing.Optional[float] = None
     collapsible: bool = False
 
@@ -365,23 +372,31 @@ class Sizing:
         return copy.copy(self.__sizing_data)
 
     @property
-    def preferred_width(self) -> typing.Optional[typing.Union[int, float]]:
+    def preferred_width(self) -> SizingSpecifierType:
         return self.__sizing_data.preferred_width
 
     @property
-    def preferred_height(self) -> typing.Optional[typing.Union[int, float]]:
+    def preferred_width_int(self) -> int:
+        return round(self.__sizing_data.preferred_width) if isinstance(self.__sizing_data.preferred_width, (int, float)) else 0
+
+    @property
+    def preferred_height(self) -> SizingSpecifierType:
         return self.__sizing_data.preferred_height
+
+    @property
+    def preferred_height_int(self) -> int:
+        return round(self.__sizing_data.preferred_height) if isinstance(self.__sizing_data.preferred_height, (int, float)) else 0
 
     @property
     def preferred_aspect_ratio(self) -> typing.Optional[float]:
         return self.__sizing_data.preferred_aspect_ratio
 
     @property
-    def minimum_width(self) -> typing.Optional[typing.Union[int, float]]:
+    def minimum_width(self) -> SizingSpecifierType:
         return self.__sizing_data.minimum_width
 
     @property
-    def minimum_height(self) -> typing.Optional[typing.Union[int, float]]:
+    def minimum_height(self) -> SizingSpecifierType:
         return self.__sizing_data.minimum_height
 
     @property
@@ -389,11 +404,11 @@ class Sizing:
         return self.__sizing_data.minimum_aspect_ratio
 
     @property
-    def maximum_width(self) -> typing.Optional[typing.Union[int, float]]:
+    def maximum_width(self) -> SizingSpecifierType:
         return self.__sizing_data.maximum_width
 
     @property
-    def maximum_height(self) -> typing.Optional[typing.Union[int, float]]:
+    def maximum_height(self) -> SizingSpecifierType:
         return self.__sizing_data.maximum_height
 
     @property
@@ -404,12 +419,12 @@ class Sizing:
     def collapsible(self) -> bool:
         return self.__sizing_data.collapsible
 
-    def with_preferred_width(self, width: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_preferred_width(self, width: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.preferred_width = width
         return Sizing(sizing_data)
 
-    def with_preferred_height(self, height: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_preferred_height(self, height: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.preferred_height = height
         return Sizing(sizing_data)
@@ -419,12 +434,12 @@ class Sizing:
         sizing_data.preferred_aspect_ratio = aspect_ratio
         return Sizing(sizing_data)
 
-    def with_minimum_width(self, width: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_minimum_width(self, width: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.minimum_width = width
         return Sizing(sizing_data)
 
-    def with_minimum_height(self, height: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_minimum_height(self, height: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.minimum_height = height
         return Sizing(sizing_data)
@@ -434,12 +449,12 @@ class Sizing:
         sizing_data.minimum_aspect_ratio = aspect_ratio
         return Sizing(sizing_data)
 
-    def with_maximum_width(self, width: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_maximum_width(self, width: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.maximum_width = width
         return Sizing(sizing_data)
 
-    def with_maximum_height(self, height: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_maximum_height(self, height: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.maximum_height = height
         return Sizing(sizing_data)
@@ -468,14 +483,14 @@ class Sizing:
         sizing_data.maximum_width = None
         return Sizing(sizing_data)
 
-    def with_fixed_height(self, height: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_fixed_height(self, height: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.preferred_height = height
         sizing_data.minimum_height = height
         sizing_data.maximum_height = height
         return Sizing(sizing_data)
 
-    def with_fixed_width(self, width: typing.Optional[typing.Union[int, float]]) -> Sizing:
+    def with_fixed_width(self, width: SizingSpecifierType) -> Sizing:
         sizing_data = self.sizing_data
         sizing_data.preferred_width = width
         sizing_data.minimum_width = width
@@ -496,21 +511,21 @@ class Sizing:
     def get_width_constraint(self, width: typing.Union[int, float]) -> Constraint:
         """ Create and return a new width Constraint object made from this sizing object. """
         constraint = Constraint()
-        if self.minimum_width is not None:
+        if self.minimum_width is not None and not isinstance(self.minimum_width, SizingEnum):
             if isinstance(self.minimum_width, float) and self.minimum_width <= 1.0:
                 constraint.minimum = int(width * self.minimum_width)
             else:
                 constraint.minimum = int(self.minimum_width)
         else:
             constraint.minimum = 0
-        if self.maximum_width is not None:
+        if self.maximum_width is not None and not isinstance(self.maximum_width, SizingEnum):
             if isinstance(self.maximum_width, float) and self.maximum_width <= 1.0:
                 constraint.maximum = int(width * self.maximum_width)
             else:
                 constraint.maximum = int(self.maximum_width)
         else:
             constraint.maximum = MAX_VALUE
-        if self.preferred_width is not None:
+        if self.preferred_width is not None and not isinstance(self.preferred_width, SizingEnum):
             if isinstance(self.preferred_width, float) and self.preferred_width <= 1.0:
                 constraint.preferred = int(width * self.preferred_width)
             else:
@@ -522,21 +537,21 @@ class Sizing:
     def get_height_constraint(self, height: typing.Union[int, float]) -> Constraint:
         """ Create and return a new height Constraint object made from this sizing object. """
         constraint = Constraint()
-        if self.minimum_height is not None:
+        if self.minimum_height is not None and not isinstance(self.minimum_height, SizingEnum):
             if isinstance(self.minimum_height, float) and self.minimum_height <= 1.0:
                 constraint.minimum = int(height * self.minimum_height)
             else:
                 constraint.minimum = int(self.minimum_height)
         else:
             constraint.minimum = 0
-        if self.maximum_height is not None:
+        if self.maximum_height is not None and not isinstance(self.maximum_height, SizingEnum):
             if isinstance(self.maximum_height, float) and self.maximum_height <= 1.0:
                 constraint.maximum = int(height * self.maximum_height)
             else:
                 constraint.maximum = int(self.maximum_height)
         else:
             constraint.maximum = MAX_VALUE
-        if self.preferred_height is not None:
+        if self.preferred_height is not None and not isinstance(self.preferred_height, SizingEnum):
             if isinstance(self.preferred_height, float) and self.preferred_height <= 1.0:
                 constraint.preferred = int(height * self.preferred_height)
             else:
@@ -546,14 +561,14 @@ class Sizing:
         return constraint
 
     def get_unrestrained_width(self, maximum_width: typing.Union[int, float]) -> int:
-        if self.maximum_width is not None:
+        if self.maximum_width is not None and not isinstance(self.maximum_width, SizingEnum):
             if isinstance(self.maximum_width, float) and self.maximum_width < 1.0:
                 return int(self.maximum_width * maximum_width)
             return int(min(self.maximum_width, maximum_width))
         return int(maximum_width)
 
     def get_unrestrained_height(self, maximum_height: typing.Union[int, float]) -> int:
-        if self.maximum_height is not None:
+        if self.maximum_height is not None and not isinstance(self.maximum_height, SizingEnum):
             if isinstance(self.maximum_height, float) and self.maximum_height < 1.0:
                 return int(self.maximum_height * maximum_height)
             return int(min(self.maximum_height, maximum_height))
@@ -561,20 +576,20 @@ class Sizing:
 
     def get_preferred_width(self) -> typing.Union[int, float]:
         if self.preferred_width:
-            return self.preferred_width
+            return self.preferred_width if not isinstance(self.preferred_width, SizingEnum) else 0
         if self.maximum_width:
-            return self.maximum_width
+            return self.maximum_width if not isinstance(self.maximum_width, SizingEnum) else 0
         if self.minimum_width:
-            return self.minimum_width
+            return self.minimum_width if not isinstance(self.minimum_width, SizingEnum) else 0
         return 0
 
     def get_preferred_height(self) -> typing.Union[int, float]:
         if self.preferred_height:
-            return self.preferred_height
+            return self.preferred_height if not isinstance(self.preferred_height, SizingEnum) else 0
         if self.maximum_height:
-            return self.maximum_height
+            return self.maximum_height if not isinstance(self.maximum_height, SizingEnum) else 0
         if self.minimum_height:
-            return self.minimum_height
+            return self.minimum_height if not isinstance(self.minimum_height, SizingEnum) else 0
         return 0
 
     def get_preferred_size(self) -> Geometry.IntSize:
@@ -1643,17 +1658,17 @@ class CanvasItemAbstractLayout:
 
     def _adjust_sizing(self, sizing_data: SizingData, x_spacing: int, y_spacing: int) -> SizingData:
         """ Adjust the sizing object by adding margins and spacing. Spacing is total, not per item. """
-        if sizing_data.minimum_width is not None:
+        if sizing_data.minimum_width is not None and not isinstance(sizing_data.minimum_width, SizingEnum):
             sizing_data.minimum_width += self.margins.left + self.margins.right + x_spacing
-        if sizing_data.maximum_width is not None:
+        if sizing_data.maximum_width is not None and not isinstance(sizing_data.maximum_width, SizingEnum):
             sizing_data.maximum_width += self.margins.left + self.margins.right + x_spacing
-        if sizing_data.preferred_width is not None:
+        if sizing_data.preferred_width is not None and not isinstance(sizing_data.preferred_width, SizingEnum):
             sizing_data.preferred_width += self.margins.left + self.margins.right + x_spacing
-        if sizing_data.minimum_height is not None:
+        if sizing_data.minimum_height is not None and not isinstance(sizing_data.minimum_height, SizingEnum):
             sizing_data.minimum_height += self.margins.top + self.margins.bottom + y_spacing
-        if sizing_data.maximum_height is not None:
+        if sizing_data.maximum_height is not None and not isinstance(sizing_data.maximum_height, SizingEnum):
             sizing_data.maximum_height += self.margins.top + self.margins.bottom + y_spacing
-        if sizing_data.preferred_height is not None:
+        if sizing_data.preferred_height is not None and not isinstance(sizing_data.preferred_height, SizingEnum):
             sizing_data.preferred_height += self.margins.top + self.margins.bottom + y_spacing
         return sizing_data
 
@@ -2070,17 +2085,17 @@ class CanvasItemComposition(AbstractCanvasItem):
         layout_sizing = self.layout.get_sizing(self.visible_canvas_items)
         layout_sizing_data = layout_sizing.sizing_data
         if sizing.minimum_width is not None:
-            layout_sizing_data.minimum_width = sizing.minimum_width
+            layout_sizing_data.minimum_width = sizing.minimum_width if isinstance(sizing.minimum_width, (int, float)) else None
         if sizing.maximum_width is not None:
-            layout_sizing_data.maximum_width = sizing.maximum_width
+            layout_sizing_data.maximum_width = sizing.maximum_width if isinstance(sizing.maximum_width, (int, float)) else None
         if sizing.preferred_width is not None:
-            layout_sizing_data.preferred_width = sizing.preferred_width
+            layout_sizing_data.preferred_width = sizing.preferred_width if isinstance(sizing.preferred_width, (int, float)) else None
         if sizing.minimum_height is not None:
-            layout_sizing_data.minimum_height = sizing.minimum_height
+            layout_sizing_data.minimum_height = sizing.minimum_height if isinstance(sizing.minimum_height, (int, float)) else None
         if sizing.maximum_height is not None:
-            layout_sizing_data.maximum_height = sizing.maximum_height
+            layout_sizing_data.maximum_height = sizing.maximum_height if isinstance(sizing.maximum_height, (int, float)) else None
         if sizing.preferred_height is not None:
-            layout_sizing_data.preferred_height = sizing.preferred_height
+            layout_sizing_data.preferred_height = sizing.preferred_height if isinstance(sizing.preferred_height, (int, float)) else None
         if sizing.minimum_aspect_ratio is not None:
             layout_sizing_data.minimum_aspect_ratio = sizing.minimum_aspect_ratio
         if sizing.maximum_aspect_ratio is not None:

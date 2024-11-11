@@ -246,8 +246,8 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=int(self.__text_button_canvas_item.sizing.preferred_width or 0),
-                                                  height=int(self.__text_button_canvas_item.sizing.preferred_height or 0)))
+            self.on_size_changed(Geometry.IntSize(width=self.__text_button_canvas_item.sizing.preferred_width_int,
+                                                  height=self.__text_button_canvas_item.sizing.preferred_height_int))
 
     def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         self.__text_button_canvas_item.visible = False
@@ -258,8 +258,8 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
-                                                  height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0)))
+            self.on_size_changed(Geometry.IntSize(width=self.__icon_button_canvas_item.sizing.preferred_width_int,
+                                                  height=self.__icon_button_canvas_item.sizing.preferred_height_int))
 
     def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
@@ -334,7 +334,7 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
         button_canvas_item = CanvasItem.TextButtonCanvasItem("X")
         button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
         button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__button_height = int(button_canvas_item.sizing.preferred_height or 0.0)
+        self.__button_height = button_canvas_item.sizing.preferred_height_int
 
     @property
     def widget_source(self) -> WidgetSource:

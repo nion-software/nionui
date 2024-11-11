@@ -2497,7 +2497,12 @@ class ScrollAreaLayout(CanvasItemLayout):
             if self.auto_resize_contents:
                 self.update_canvas_item_layout(canvas_origin, canvas_size, content)
             elif not content._has_layout:
-                self.update_canvas_item_layout(Geometry.IntPoint(), content.layout_sizing.get_preferred_size(), content)
+                preferred_size = content.layout_sizing.get_preferred_size()
+                if not preferred_size.width:
+                    preferred_size = Geometry.IntSize(width=canvas_size.width, height=preferred_size.height)
+                if not preferred_size.height:
+                    preferred_size = Geometry.IntSize(width=preferred_size.width, height=canvas_size.height)
+                self.update_canvas_item_layout(canvas_origin, preferred_size, content)
 
 
 class ScrollAreaCanvasItemComposer(CanvasItemCompositionComposer):
@@ -2544,9 +2549,14 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         # update the content if it was passed in.
         if content:
             self.content = content
+        self.__handle_canvas_size_changed(self.canvas_size)
 
     def __handle_canvas_size_changed(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
-        self.update_content_origin(self.content_origin)
+        # if update_content_origin returns False, the content_updated_event was not fired and update was
+        # not performed. However, since the size changed, those need to be done.
+        if not self.update_content_origin(self.content_origin):
+            self.content_updated_event.fire()
+            self.update()
 
     @property
     def auto_resize_contents(self) -> bool:
@@ -2557,6 +2567,7 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
     def auto_resize_contents(self, value: bool) -> None:
         """Set whether the content should be resized when the scroll area is resized."""
         self.__scroll_area_layout.auto_resize_contents = value
+        self.update()
 
     @property
     def content(self) -> typing.Optional[AbstractCanvasItem]:
@@ -2643,7 +2654,9 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         if self._has_layout:
             # when the scroll area content layout changes, this method will get called. ensure that the content
             # matches the scroll position.
-            self.update_content_origin(self.__content_origin)
+            if not self.update_content_origin(self.__content_origin):
+                self.content_updated_event.fire()
+                self.update()
 
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
         return ScrollAreaCanvasItemComposer(self, self.layout_sizing, composer_cache, self.layout, child_composers, self.background_color, self.border_color, self.__content_origin)

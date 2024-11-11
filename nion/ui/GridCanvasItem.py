@@ -106,9 +106,9 @@ class GridCanvasItemComposer(CanvasItem.BaseComposer):
             canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
         return Geometry.IntRect(canvas_bounds.origin, canvas_size)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
-        canvas_size = canvas_bounds.size
-        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_bounds.size)
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        canvas_size = canvas_rect.size
+        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_rect.size)
         delegate = self.__delegate
         wrap = self.__wrap
         direction = self.__direction
@@ -122,7 +122,7 @@ class GridCanvasItemComposer(CanvasItem.BaseComposer):
             items_per_column = max(1, int(canvas_size.height / item_size.height) if wrap else item_count)
 
             with drawing_context.saver():
-                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.translate(canvas_rect.left, canvas_rect.top)
                 top_visible_row = visible_rect.top // item_size.height
                 bottom_visible_row = visible_rect.bottom // item_size.height + 1
                 left_visible_column = visible_rect.left // item_size.width

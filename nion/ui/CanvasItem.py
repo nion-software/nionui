@@ -710,23 +710,26 @@ class BaseComposer:
         self.__canvas_item_ref = weakref.ref(canvas_item)
         self.__layout_sizing = layout_sizing
         self.__drawing_context: typing.Optional[DrawingContext.DrawingContext] = None
+        self.__actual_visible_rect: typing.Optional[Geometry.IntRect] = None
         self.__canvas_bounds: typing.Optional[Geometry.IntRect] = None
         self.__cache = cache
 
-    def repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
+    def repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect) -> None:
         # if layout is changed, update it. it may clear the drawing context.
-        self.update_layout(canvas_bounds.origin, canvas_bounds.size)
+        self.update_layout(canvas_rect.origin, canvas_rect.size)
+        actual_visible_rect = visible_rect.intersect(canvas_rect)
         existing_draw_context = self.__drawing_context
-        if not existing_draw_context:
+        if not existing_draw_context or self.__actual_visible_rect != actual_visible_rect:
             existing_draw_context = DrawingContext.DrawingContext()
             try:
-                self._repaint(existing_draw_context, canvas_bounds, self.__cache)
-                self._draw_unique_marker(existing_draw_context, canvas_bounds)
+                self._repaint_visible(existing_draw_context, canvas_rect, visible_rect, self.__cache)
+                self._draw_unique_marker(existing_draw_context, canvas_rect)
             except Exception as e:
                 logging.exception(f"Error in composer repaint {type(self)} {e}")
             self._update_repaint_count()
         drawing_context.add(existing_draw_context)
         self.__drawing_context = existing_draw_context
+        self.__actual_visible_rect = actual_visible_rect
 
     def _update_repaint_count(self) -> None:
         # this is overridable to allow class DrawingContextCanvasItemComposer to accurately update the repaint count.
@@ -760,7 +763,10 @@ class BaseComposer:
         assert self.__canvas_bounds
         return self.__canvas_bounds
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        self._repaint(drawing_context, canvas_rect, composer_cache)
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         raise NotImplementedError()
 
     @property
@@ -1290,7 +1296,8 @@ class AbstractCanvasItem:
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:
         """Repaint the canvas item to the drawing context.
 
-        Subclasses should override this method to paint.
+        Subclasses should override this method to paint. Non-composite canvas items can ignore the visible_rect
+        parameter. It is only being used when a composite item is repainting its children.
 
         This method will be called on a thread.
 
@@ -1300,7 +1307,7 @@ class AbstractCanvasItem:
         composer = self.get_composer(self._get_composer_cache())
         canvas_rect = self.canvas_rect
         if composer and canvas_rect:
-            composer.repaint(drawing_context, canvas_rect)
+            composer.repaint(drawing_context, canvas_rect, canvas_rect)
 
     def _update_repaint_count_from_composer(self) -> None:
         self._repaint_count += 1
@@ -1989,17 +1996,20 @@ class CanvasItemCompositionComposer(BaseComposer):
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
-        self.__draw_background(drawing_context, canvas_bounds, self.__background_color)
-        self._repaint_children(drawing_context, canvas_bounds, self.__child_composers)
-        self.__draw_border(drawing_context, canvas_bounds, self.__border_color)
-        self._draw_unique_marker(drawing_context, canvas_bounds)
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        self.__draw_background(drawing_context, canvas_rect, self.__background_color)
+        self._repaint_children(drawing_context, canvas_rect, visible_rect, self.__child_composers)
+        self.__draw_border(drawing_context, canvas_rect, self.__border_color)
+        self._draw_unique_marker(drawing_context, canvas_rect)
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            visible_rect -= canvas_rect.origin
             for child_composer in child_composers:
-                child_composer.repaint(drawing_context, child_composer._canvas_bounds)
+                child_canvas_rect = child_composer._canvas_bounds
+                if visible_rect.intersects_rect(child_canvas_rect):
+                    child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
 
     def __draw_background(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if background_color:
@@ -2279,7 +2289,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         # repaint assumes that the canvas item being repainted already has a canvas rect.
         # to ensure it does, call _update_layout here.
-        self.update_layout_using_composer(Geometry.IntRect(Geometry.IntPoint(), canvas_size))
+        canvas_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_size)
+        self.update_layout_using_composer(canvas_rect)
         self._repaint(drawing_context)
 
     def _canvas_items_at_point(self, visible_canvas_items: typing.Sequence[AbstractCanvasItem], x: int, y: int) -> typing.List[AbstractCanvasItem]:
@@ -2322,7 +2333,7 @@ class DrawingContextCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, cache)
         self.__drawing_context = drawing_context
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         if self.__drawing_context:
             with drawing_context.saver():
                 # drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
@@ -2423,7 +2434,7 @@ class LayerCanvasItem(CanvasItemComposition):
         composer = self._get_composer_inner(self._get_composer_cache())
         canvas_rect = self.canvas_rect
         if composer and canvas_rect:
-            composer.repaint(drawing_context, canvas_rect)
+            composer.repaint(drawing_context, canvas_rect, canvas_rect)
 
     def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
         # repaint assumes that the canvas item being repainted already has a canvas rect.
@@ -2434,7 +2445,7 @@ class LayerCanvasItem(CanvasItemComposition):
             # so it can be used to repaint immediate.
             composer.update_layout(Geometry.IntPoint(), canvas_size)
             if canvas_rect := self.canvas_rect:
-                composer.repaint(drawing_context, canvas_rect)
+                composer.repaint(drawing_context, canvas_rect, canvas_rect)
 
     def __map_origin_to_root_container(self) -> typing.Optional[Geometry.IntPoint]:
         """ Map the point to the coordinates of the root container.
@@ -2533,12 +2544,11 @@ class ScrollAreaCanvasItemComposer(CanvasItemCompositionComposer):
         super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
         self.__content_origin = content_origin
 
-    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
         with drawing_context.saver():
             content_origin = self.__content_origin
-            drawing_context.clip_rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
-            drawing_context.translate(content_origin.x, content_origin.y)
-            super()._repaint_children(drawing_context, canvas_bounds, child_composers)
+            drawing_context.clip_rect(canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
+            super()._repaint_children(drawing_context, canvas_rect + content_origin, visible_rect, child_composers)
 
 
 class ScrollAreaCanvasItem(CanvasItemComposition):
@@ -2764,19 +2774,19 @@ class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
         self.__child_composers = child_composers
         self.__orientation = orientation
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
-        super()._repaint(drawing_context, canvas_bounds, composer_cache)
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        super()._repaint_visible(drawing_context, canvas_rect, visible_rect, composer_cache)
         # this section is only to draw the splitter lines.
         with drawing_context.saver():
             drawing_context.begin_path()
             for child_composer in self.__child_composers[1:]:
                 child_canvas_origin = child_composer._canvas_bounds.origin
                 if self.__orientation == "horizontal":
-                    drawing_context.move_to(canvas_bounds.left, child_canvas_origin.y)
-                    drawing_context.line_to(canvas_bounds.right, child_canvas_origin.y)
+                    drawing_context.move_to(canvas_rect.left, child_canvas_origin.y)
+                    drawing_context.line_to(canvas_rect.right, child_canvas_origin.y)
                 else:
-                    drawing_context.move_to(child_canvas_origin.x, canvas_bounds.top)
-                    drawing_context.line_to(child_canvas_origin.x, canvas_bounds.bottom)
+                    drawing_context.move_to(child_canvas_origin.x, canvas_rect.top)
+                    drawing_context.line_to(child_canvas_origin.x, canvas_rect.bottom)
             drawing_context.line_width = 0.5
             drawing_context.stroke_style = "#666"
             drawing_context.stroke()
@@ -3058,11 +3068,11 @@ class SliderCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, cache)
         self.__value = value
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
-        thumb_rect = get_slider_thumb_rect(canvas_bounds.size, self.__value)
-        bar_rect = get_slider_bar_rect(canvas_bounds.size)
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        thumb_rect = get_slider_thumb_rect(canvas_rect.size, self.__value)
+        bar_rect = get_slider_bar_rect(canvas_rect.size)
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
             drawing_context.begin_path()
             drawing_context.rect(bar_rect.left, bar_rect.top, bar_rect.width, bar_rect.height)
             drawing_context.fill_style = "#CCC"
@@ -3217,21 +3227,21 @@ class ScrollBarCanvasItemComposer(BaseComposer):
         self.__content_rect = content_rect
         self.__is_tracking = is_tracking
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         # canvas size, thumb rect
         orientation = self.__orientation
         is_tracking = self.__is_tracking
-        thumb_rect = get_thumb_rect(canvas_bounds.size, self.__orientation, self.__content_rect)
+        thumb_rect = get_thumb_rect(canvas_rect.size, self.__orientation, self.__content_rect)
         # draw it
         with drawing_context.saver():
             # draw the border of the scroll bar
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
             drawing_context.begin_path()
-            drawing_context.rect(0, 0, canvas_bounds.width, canvas_bounds.height)
+            drawing_context.rect(0, 0, canvas_rect.width, canvas_rect.height)
             if orientation == Orientation.Vertical:
-                gradient = drawing_context.create_linear_gradient(canvas_bounds.width, canvas_bounds.height, 0, 0, canvas_bounds.width, 0)
+                gradient = drawing_context.create_linear_gradient(canvas_rect.width, canvas_rect.height, 0, 0, canvas_rect.width, 0)
             else:
-                gradient = drawing_context.create_linear_gradient(canvas_bounds.width, canvas_bounds.height, 0, 0, 0, canvas_bounds.height)
+                gradient = drawing_context.create_linear_gradient(canvas_rect.width, canvas_rect.height, 0, 0, 0, canvas_rect.height)
             gradient.add_color_stop(0.0, "#F2F2F2")
             gradient.add_color_stop(0.35, "#FDFDFD")
             gradient.add_color_stop(0.65, "#FDFDFD")
@@ -3256,19 +3266,19 @@ class ScrollBarCanvasItemComposer(BaseComposer):
             drawing_context.begin_path()
             drawing_context.move_to(0, 0)
             if orientation == Orientation.Vertical:
-                drawing_context.line_to(0, canvas_bounds.height)
+                drawing_context.line_to(0, canvas_rect.height)
             else:
-                drawing_context.line_to(canvas_bounds.width, 0)
+                drawing_context.line_to(canvas_rect.width, 0)
             drawing_context.line_width = 0.5
             drawing_context.stroke_style = "#E3E3E3"
             drawing_context.stroke()
             # draw outside
             drawing_context.begin_path()
             if orientation == Orientation.Vertical:
-                drawing_context.move_to(canvas_bounds.width, 0)
+                drawing_context.move_to(canvas_rect.width, 0)
             else:
-                drawing_context.move_to(0, canvas_bounds.height)
-            drawing_context.line_to(canvas_bounds.width, canvas_bounds.height)
+                drawing_context.move_to(0, canvas_rect.height)
+            drawing_context.line_to(canvas_rect.width, canvas_rect.height)
             drawing_context.line_width = 0.5
             drawing_context.stroke_style = "#999999"
             drawing_context.stroke()
@@ -3956,11 +3966,11 @@ class BackgroundCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, composer_cache)
         self.__background_color = background_color
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         if self.__background_color:
             with drawing_context.saver():
                 drawing_context.begin_path()
-                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                drawing_context.rect(canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
                 drawing_context.fill_style = self.__background_color
                 drawing_context.fill()
 
@@ -4233,9 +4243,9 @@ class CellCanvasItemComposer(BaseComposer):
         self.__cell = cell
         self.__style = style
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         with drawing_context.saver():
-            self.__cell.paint_cell(drawing_context, canvas_bounds.to_float_rect(), self.__style)
+            self.__cell.paint_cell(drawing_context, canvas_rect.to_float_rect(), self.__style)
 
 
 class CellCanvasItem(AbstractCanvasItem):
@@ -4783,8 +4793,8 @@ class CheckBoxCanvasItemComposer(BaseComposer):
         self.__text_disabled_color = text_disabled_color
         self.__font = font
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
-        canvas_size = canvas_bounds.size
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        canvas_size = canvas_rect.size
         check_state = self.__check_state
         enabled = self.__enabled
         mouse_inside = self.__mouse_inside
@@ -4794,7 +4804,7 @@ class CheckBoxCanvasItemComposer(BaseComposer):
         text_disabled_color = self.__text_disabled_color
         text = self.__text
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
             drawing_context.begin_path()
             tx = 4 + 14 + 4
             cx = 4 + 7
@@ -4998,7 +5008,7 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
 
 
 class EmptyCanvasItemComposer(BaseComposer):
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         pass
 
 
@@ -5051,10 +5061,10 @@ class DrawCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, composer_cache)
         self.__drawing_fn = drawing_fn
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
-            self.__drawing_fn(drawing_context, canvas_bounds.size)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            self.__drawing_fn(drawing_context, canvas_rect.size)
 
 
 class DrawCanvasItem(AbstractCanvasItem):
@@ -5072,14 +5082,14 @@ class DividerCanvasItemComposer(BaseComposer):
         self.__orientation = orientation
         self.__color = color
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         with drawing_context.saver():
             if self.__orientation == "vertical":
-                drawing_context.move_to(canvas_bounds.center.x, canvas_bounds.top)
-                drawing_context.line_to(canvas_bounds.center.x, canvas_bounds.bottom)
+                drawing_context.move_to(canvas_rect.center.x, canvas_rect.top)
+                drawing_context.line_to(canvas_rect.center.x, canvas_rect.bottom)
             else:
-                drawing_context.move_to(canvas_bounds.left, canvas_bounds.center.y)
-                drawing_context.line_to(canvas_bounds.right, canvas_bounds.center.y)
+                drawing_context.move_to(canvas_rect.left, canvas_rect.center.y)
+                drawing_context.line_to(canvas_rect.right, canvas_rect.center.y)
             drawing_context.stroke_style = self.__color
             drawing_context.stroke()
 
@@ -5103,12 +5113,12 @@ class ProgressBarCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, cache)
         self.__progress = progress
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         progress = self.__progress
-        canvas_size = canvas_bounds.size
-        canvas_bounds_center = canvas_bounds.center
+        canvas_size = canvas_rect.size
+        canvas_rect_center = canvas_rect.center
         with drawing_context.saver():
-            drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
             drawing_context.begin_path()
             drawing_context.rect(0, 0, canvas_size.width, canvas_size.height)
             drawing_context.close_path()
@@ -5132,7 +5142,7 @@ class ProgressBarCanvasItemComposer(BaseComposer):
                 drawing_context.text_baseline = 'middle'
                 drawing_context.fill_style = "#fff"
                 drawing_context.line_width = 2
-                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress - 19, canvas_bounds_center.y + 1)
+                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress - 19, canvas_rect_center.y + 1)
                 drawing_context.fill()
                 drawing_context.close_path()
 
@@ -5171,11 +5181,11 @@ class TimestampCanvasItemComposer(BaseComposer):
         super().__init__(canvas_item, layout_sizing, cache)
         self.__timestamp_str = timestamp_str
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         timestamp_str = self.__timestamp_str
         if timestamp_str:
             with drawing_context.saver():
-                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.translate(canvas_rect.left, canvas_rect.top)
                 drawing_context.timestamp(timestamp_str)
 
 

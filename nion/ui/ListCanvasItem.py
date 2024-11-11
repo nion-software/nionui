@@ -97,19 +97,19 @@ class ListCanvasItemComposer(CanvasItem.BaseComposer):
         height = item_count * self.__item_height
         return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(height=height, width=canvas_bounds.width))
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
-        canvas_size = canvas_bounds.size
-        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_bounds.size)
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        canvas_size = canvas_rect.size
+        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_rect.size)
         delegate = self.__delegate
         item_height = self.__item_height
         drop_index = self.__drop_index
         selection = self.__selection
         focused = self.__focused
         if canvas_size.height > 0 and canvas_size.width > 0:
-            item_width = canvas_bounds.width
+            item_width = canvas_rect.width
 
             with drawing_context.saver():
-                drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
+                drawing_context.translate(canvas_rect.left, canvas_rect.top)
                 items = delegate.items
                 max_index = len(items)
                 top_visible_row = visible_rect.top // item_height

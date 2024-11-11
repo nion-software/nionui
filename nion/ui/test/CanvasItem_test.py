@@ -22,8 +22,7 @@ class TestCanvasItemComposer(CanvasItem.BaseComposer):
         super().__init__(canvas_item, layout_sizing, cache)
         self.__repaint_delay = repaint_delay
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect,
-                 composer_cache: CanvasItem.ComposerCache) -> None:
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         time.sleep(self.__repaint_delay)
 
 

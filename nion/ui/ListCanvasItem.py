@@ -196,11 +196,6 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                     return True
         return super().handle_tool_tip(x, y, gx, gy)
 
-    def __calculate_layout_height(self) -> int:
-        delegate = self.__delegate
-        item_count = delegate.item_count if delegate else 0
-        return item_count * self.__item_height
-
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_bounds = self.canvas_bounds
         if canvas_bounds:

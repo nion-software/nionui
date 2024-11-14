@@ -782,6 +782,15 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
         selected_items = selected_items if item in selected_items else [item]
         return self.__delegate.context_menu_event(ListCanvasItem2ContextMenuEvent(item, selected_items, p, gp))
 
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        canvas_item = self.__list_item_at_point(Geometry.IntPoint(x=x, y=y))
+        if canvas_item:
+            text = canvas_item.tool_tip
+            if text:
+                self.show_tool_tip_text(text, gx, gy)
+                return True
+        return super().handle_tool_tip(x, y, gx, gy)
+
     def _get_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
         return self.__delegate.item_tool_tip(item)
 

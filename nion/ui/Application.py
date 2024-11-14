@@ -120,6 +120,17 @@ class BaseApplication:
         # program is really stopping, clean up.
         self.deinitialize()
 
+    def _get_action_context(self) -> Window.ActionContext:
+        return Window.ActionContext(self, None, None)
+
+    def execute_action(self, action_id: str, action_context: typing.Optional[Window.ActionContext] = None,
+                       parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> Window.ActionResult:
+        context = action_context or self._get_action_context()
+        if parameters:
+            context.parameters.update(parameters)
+        action = Window.actions[action_id]
+        return action.execute(context)
+
     @property
     def windows(self) -> typing.List[Window.Window]:
         return copy.copy(self.__windows)

@@ -1134,7 +1134,7 @@ class TabWidget(Widget):
 
 
 class StackWidgetBehavior(WidgetBehavior, typing.Protocol):
-    current_index: int
+    current_index: typing.Optional[int]
 
     def insert(self, child: Widget, before: int) -> None: ...
     def remove(self, child: Widget) -> None: ...
@@ -1146,10 +1146,10 @@ class StackWidget(Widget):
         super().__init__(widget_behavior)
         self.children: typing.List[Widget] = []
 
-        def set_current_index(value: int) -> None:
+        def set_current_index(value: typing.Optional[int]) -> None:
             self._behavior.current_index = value
 
-        self.__current_index_binding_helper = BindablePropertyHelper[int](None, set_current_index)
+        self.__current_index_binding_helper = BindablePropertyHelper[typing.Optional[int]](None, set_current_index)
 
         self.current_index = 0
 
@@ -1212,11 +1212,11 @@ class StackWidget(Widget):
             self.remove(self.children[-1])
 
     @property
-    def current_index(self) -> int:
+    def current_index(self) -> typing.Optional[int]:
         return self.__current_index_binding_helper.value
 
     @current_index.setter
-    def current_index(self, index: int) -> None:
+    def current_index(self, index: typing.Optional[int]) -> None:
         self.__current_index_binding_helper.value = index
 
     def bind_current_index(self, binding: Binding.Binding) -> None:

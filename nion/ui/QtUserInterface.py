@@ -799,7 +799,7 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
 
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "stack", properties)
-        self.__current_index = -1
+        self.__current_index: typing.Optional[int] = None
         self.__children: typing.List[UserInterface.Widget] = list()
 
     def close(self) -> None:
@@ -826,13 +826,13 @@ class QtStackWidgetBehavior(QtWidgetBehavior):
         child.close()
 
     @property
-    def current_index(self) -> int:
+    def current_index(self) -> typing.Optional[int]:
         return self.__current_index
 
     @current_index.setter
-    def current_index(self, index: int) -> None:
+    def current_index(self, index: typing.Optional[int]) -> None:
         self.__current_index = index
-        self.proxy.StackWidget_setCurrentIndex(self.widget, index)
+        self.proxy.StackWidget_setCurrentIndex(self.widget, index if index is not None else -1)
         # see sizing notes:
         # https://wiki.qt.io/Technical_FAQ#How_can_I_get_a_QStackedWidget_to_automatically_switch_size_depending_on_the_content_of_the_page.3F
         # https://stackoverflow.com/questions/14480696/resize-qstackedwidget-to-the-page-which-is-opened

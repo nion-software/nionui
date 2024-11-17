@@ -745,7 +745,7 @@ class StackWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(widget_type, properties)
-        self.current_index = -1
+        self.current_index: typing.Optional[int] = None
         self.__children: typing.List[UserInterfaceModule.Widget] = list()
 
     def close(self) -> None:

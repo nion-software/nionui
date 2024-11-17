@@ -709,16 +709,19 @@ class ListWidget(UserInterface.Widget):
 
         self.__canvas_widget = canvas_widget
 
-        def set_current_index(index: int) -> None:
-            self.__selection.set(index)
+        def set_current_index(index: typing.Optional[int]) -> None:
+            if index is not None:
+                self.__selection.set(index)
+            else:
+                self.__selection.clear()
 
-        def validate_current_index(new_value: int, old_value: int) -> int:
-            return new_value if new_value >= 0 and new_value < len(self.items) else 0
+        def validate_current_index(new_value: typing.Optional[int], old_value: typing.Optional[int]) -> typing.Optional[int]:
+            return new_value if new_value is not None and new_value >= 0 and new_value < len(self.items) else None
 
         def set_items(items: typing.Sequence[typing.Any]) -> None:
             self.__set_items(items)
 
-        self.__current_index_binding_helper = UserInterface.BindablePropertyHelper[int](None, set_current_index, validate_current_index)
+        self.__current_index_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[int]](None, set_current_index, validate_current_index)
         self.__items_binding_helper = UserInterface.BindablePropertyHelper[typing.Sequence[typing.Any]](None, set_items)
 
         self.items = list(items) if items else list()
@@ -801,11 +804,11 @@ class ListWidget(UserInterface.Widget):
         self.__list_canvas_item.update()
 
     @property
-    def current_index(self) -> int:
+    def current_index(self) -> typing.Optional[int]:
         return self.__current_index_binding_helper.value
 
     @current_index.setter
-    def current_index(self, index: int) -> None:
+    def current_index(self, index: typing.Optional[int]) -> None:
         self.__current_index_binding_helper.value = index
 
     def bind_current_index(self, binding: Binding.Binding) -> None:

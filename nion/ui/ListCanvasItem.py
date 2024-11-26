@@ -692,15 +692,17 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
     def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             list_item_canvas_item = ListItemCanvasItem(self, item, self.__item_factory)
-            self.insert_canvas_item(index, list_item_canvas_item)
-            self.__list_item_canvas_items.insert(index, list_item_canvas_item)
-            self.size_to_content()
+            with self.batch_update():
+                self.insert_canvas_item(index, list_item_canvas_item)
+                self.__list_item_canvas_items.insert(index, list_item_canvas_item)
+                self.size_to_content()
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
-            self.remove_canvas_item(self.canvas_items[index])
-            self.__list_item_canvas_items.pop(index)
-            self.size_to_content()
+            with self.batch_update():
+                self.remove_canvas_item(self.canvas_items[index])
+                self.__list_item_canvas_items.pop(index)
+                self.size_to_content()
 
     def __handle_selection_changed(self) -> None:
         for index, canvas_item in enumerate(typing.cast(typing.Sequence[ListItemCanvasItem], self.canvas_items)):

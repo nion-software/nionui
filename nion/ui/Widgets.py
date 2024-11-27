@@ -92,7 +92,7 @@ class PushButtonWidgetCanvasItemController(BaseWidgetCanvasItemController):
 
 class WidgetCanvasItemControllerFactory(typing.Protocol):
 
-    def create_push_button_widget_canvas_item_controller(self) -> PushButtonWidgetCanvasItemController: ...
+    def create_push_button_widget_canvas_item_controller(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> PushButtonWidgetCanvasItemController: ...
 
     def create_tab_widget_canvas_item_controller(self) -> TabWidgetCanvasItemController: ...
 
@@ -211,8 +211,23 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
         pass
 
 
+def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properties: typing.Mapping[str, typing.Any]) -> None:
+    if "width" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_fixed_width(properties["width"]))
+    if "height" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_fixed_height(properties["height"]))
+    if "min-width" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_minimum_width(properties["min-width"]))
+    if "max-width" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_maximum_width(properties["max-width"]))
+    if "min-height" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_minimum_height(properties["min-height"]))
+    if "max-height" in properties:
+        canvas_item.update_sizing(canvas_item.sizing.with_maximum_height(properties["max-height"]))
+
+
 class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemController):
-    def __init__(self, ui: UserInterface.UserInterface) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         super().__init__(ui)
 
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
@@ -225,6 +240,11 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__stack.layout = CanvasItem.CanvasItemLayout()
         self.__stack.add_canvas_item(self.__text_button_canvas_item)
         self.__stack.add_canvas_item(self.__icon_button_canvas_item)
+
+        self.__properties = dict(properties) if properties else dict()
+
+        apply_sizing_properties(self.__text_button_canvas_item, self.__properties)
+        apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
         def handle_clicked() -> None:
             if callable(self.on_clicked):
@@ -245,6 +265,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.bitmap = None
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
+        apply_sizing_properties(self.__text_button_canvas_item, self.__properties)
+        apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
+
         if callable(self.on_size_changed):
             self.on_size_changed(Geometry.IntSize(width=self.__text_button_canvas_item.sizing.preferred_width_int,
                                                   height=self.__text_button_canvas_item.sizing.preferred_height_int))
@@ -256,6 +279,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
         self.__text_button_canvas_item.text = str()
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+
+        apply_sizing_properties(self.__text_button_canvas_item, self.__properties)
+        apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
         if callable(self.on_size_changed):
             self.on_size_changed(Geometry.IntSize(width=self.__icon_button_canvas_item.sizing.preferred_width_int,
@@ -391,21 +417,21 @@ class BasicWidgetCanvasItemControllerFactory(WidgetCanvasItemControllerFactory):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.__ui = ui
 
-    def create_push_button_widget_canvas_item_controller(self) -> PushButtonWidgetCanvasItemController:
-        return BasicPushButtonWidgetCanvasItemController(self.__ui)
+    def create_push_button_widget_canvas_item_controller(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> PushButtonWidgetCanvasItemController:
+        return BasicPushButtonWidgetCanvasItemController(self.__ui, properties)
 
     def create_tab_widget_canvas_item_controller(self) -> TabWidgetCanvasItemController:
         return BasicTabWidgetCanvasItemController(self.__ui)
 
 
 class PushButtonWidgetBehavior(CompositeWidgetBehavior):
-    def __init__(self, ui: UserInterface.UserInterface) -> None:
+    def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         self.__canvas_widget = ui.create_canvas_widget()
         super().__init__(self.__canvas_widget)
 
         widget_canvas_item_factory = BasicWidgetCanvasItemControllerFactory(ui)
 
-        self.__push_button_widget_canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller()
+        self.__push_button_widget_canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller(properties=properties)
 
         canvas_item = self.__push_button_widget_canvas_item_controller.widget_source.canvas_item
 

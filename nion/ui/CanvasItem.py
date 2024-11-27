@@ -1208,7 +1208,11 @@ class AbstractCanvasItem:
         with self.__update_lock:
             self.__update_level -= 1
             if self.__update_level == 0:
+                self._batch_update_ended()
                 self._update()
+
+    def _batch_update_ended(self) -> None:
+        pass
 
     @contextlib.contextmanager
     def batch_update(self) -> typing.Iterator[typing.Any]:

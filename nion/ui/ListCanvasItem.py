@@ -667,6 +667,7 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
         self.wants_mouse_events = True
         self.focusable = True
         # internal variables
+        self.__needs_size_to_content = False  # delay sizing during batch updates
         self.__list_item_canvas_items = list[ListItemCanvasItem]()
         self.__item_inserted_listener = list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(ListCanvasItem2.__handle_item_inserted, self))
         self.__item_removed_listener = list_model.item_removed_event.listen(ReferenceCounting.weak_partial(ListCanvasItem2.__handle_item_removed, self))
@@ -695,14 +696,19 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
             with self.batch_update():
                 self.insert_canvas_item(index, list_item_canvas_item)
                 self.__list_item_canvas_items.insert(index, list_item_canvas_item)
-                self.size_to_content()
+                self.__needs_size_to_content = True
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             with self.batch_update():
                 self.remove_canvas_item(self.canvas_items[index])
                 self.__list_item_canvas_items.pop(index)
-                self.size_to_content()
+                self.__needs_size_to_content = True
+
+    def _batch_update_ended(self) -> None:
+        if self.__needs_size_to_content:
+            self.size_to_content()
+            self.__needs_size_to_content = False
 
     def __handle_selection_changed(self) -> None:
         for index, canvas_item in enumerate(typing.cast(typing.Sequence[ListItemCanvasItem], self.canvas_items)):

@@ -1783,7 +1783,7 @@ def construct_push_button(ui: UserInterface.UserInterface, d: UIDescription, han
                           finishes: _FinishesListType) -> UserInterface.PushButtonWidget:
     properties = construct_sizing_properties(d)
     if d.get("style", None) == "minimal":
-        widget = UserInterface.PushButtonWidget(Widgets.PushButtonWidgetBehavior(ui), None)
+        widget = UserInterface.PushButtonWidget(Widgets.PushButtonWidgetBehavior(ui, properties=properties), None)
     else:
         widget = ui.create_push_button_widget(properties=properties)
     if handler:

@@ -2046,19 +2046,17 @@ class CanvasItemComposition(AbstractCanvasItem):
         super().__init__()
         self.__canvas_items: typing.List[AbstractCanvasItem] = list()
         self.layout: CanvasItemAbstractLayout = CanvasItemLayout()
-        self.__layout_lock = threading.RLock()
 
     def close(self) -> None:
-        with self.__layout_lock:
-            canvas_items = self.canvas_items
-            for canvas_item in canvas_items:
-                canvas_item.close()
-            # this goes after closing; if this goes before closing, threaded canvas items don't get closed properly
-            # since they notify their container (to cull). to reproduce the bug, create a 1x2, then a 4x3 in the bottom.
-            # then close several panels and undo. not sure if this is  the permanent fix or not. reset to a list rather
-            # than None so that pending uses of canvas_items don't fail.
-            while self.__canvas_items:
-                self._remove_canvas_item_direct(self.__canvas_items[-1])
+        canvas_items = self.canvas_items
+        for canvas_item in canvas_items:
+            canvas_item.close()
+        # this goes after closing; if this goes before closing, threaded canvas items don't get closed properly
+        # since they notify their container (to cull). to reproduce the bug, create a 1x2, then a 4x3 in the bottom.
+        # then close several panels and undo. not sure if this is  the permanent fix or not. reset to a list rather
+        # than None so that pending uses of canvas_items don't fail.
+        while self.__canvas_items:
+            self._remove_canvas_item_direct(self.__canvas_items[-1])
         super().close()
 
     def _description(self) -> str:
@@ -2083,9 +2081,8 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     @property
     def visible_canvas_items(self) -> typing.List[AbstractCanvasItem]:
-        with self.__layout_lock:
-            if self.__canvas_items is not None:
-                return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
+        if self.__canvas_items is not None:
+            return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
         return list()
 
     def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:

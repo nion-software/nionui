@@ -16,7 +16,7 @@ from nion.ui import UserInterface
 from nion.utils import Geometry
 
 
-class TestCanvasItemComposer(CanvasItem.BaseComposer):
+class _TestCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing,
                  cache: CanvasItem.ComposerCache, repaint_delay: float = 0.0) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
@@ -26,9 +26,9 @@ class TestCanvasItemComposer(CanvasItem.BaseComposer):
         time.sleep(self.__repaint_delay)
 
 
-class TestCanvasItem(CanvasItem.AbstractCanvasItem):
+class _TestCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self) -> None:
-        super(TestCanvasItem, self).__init__()
+        super(_TestCanvasItem, self).__init__()
         self.wants_mouse_events = True
         self._mouse_released = False
         self.key: typing.Optional[UserInterface.Key] = None
@@ -50,10 +50,10 @@ class TestCanvasItem(CanvasItem.AbstractCanvasItem):
         return True
 
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return TestCanvasItemComposer(self, self.layout_sizing, composer_cache, self.repaint_delay)
+        return _TestCanvasItemComposer(self, self.layout_sizing, composer_cache, self.repaint_delay)
 
 
-class TestCanvasItemComposition(CanvasItem.CanvasItemComposition):
+class _TestCanvasItemComposition(CanvasItem.CanvasItemComposition):
     def __init__(self) -> None:
         super().__init__()
         self.mouse_inside = False
@@ -124,7 +124,7 @@ class TestCanvasItemClass(unittest.TestCase):
         ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
-            canvas_item = TestCanvasItem()
+            canvas_item = _TestCanvasItem()
             canvas_widget.canvas_item.add_canvas_item(canvas_item)
             canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=100, h=100))
             self.simulate_drag(canvas_widget, (50, 50), (30, 50))
@@ -134,7 +134,7 @@ class TestCanvasItemClass(unittest.TestCase):
         ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
-            canvas_item = TestCanvasItem()
+            canvas_item = _TestCanvasItem()
             canvas_widget.canvas_item.add_canvas_item(canvas_item)
             canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=100, h=100))
             self.simulate_drag(canvas_widget, (50, 50), (-30, 50))
@@ -144,7 +144,7 @@ class TestCanvasItemClass(unittest.TestCase):
         ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
-            canvas_item = TestCanvasItem()
+            canvas_item = _TestCanvasItem()
             container = CanvasItem.CanvasItemComposition()
             container.add_canvas_item(canvas_item)
             canvas_widget.canvas_item.add_canvas_item(container)
@@ -156,7 +156,7 @@ class TestCanvasItemClass(unittest.TestCase):
         ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
-            canvas_item = TestCanvasItem()
+            canvas_item = _TestCanvasItem()
             container = CanvasItem.CanvasItemComposition()
             container.add_canvas_item(canvas_item)
             canvas_widget.canvas_item.add_canvas_item(container)
@@ -604,8 +604,8 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
             canvas_item1.focusable = True
             canvas_item2.focusable = True
             focus_changed_set = set()
@@ -670,8 +670,8 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
             canvas_item1.focusable = True
             canvas_item2.focusable = True
             canvas_item.add_canvas_item(canvas_item1)
@@ -820,7 +820,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             container_canvas_item = CanvasItem.CanvasItemComposition()
-            test_canvas_item = TestCanvasItemComposition()
+            test_canvas_item = _TestCanvasItemComposition()
             test_canvas_item.wants_mouse_events = True
             container_canvas_item.add_canvas_item(test_canvas_item)
             canvas_item.add_canvas_item(container_canvas_item)
@@ -845,7 +845,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            test_canvas_item = TestCanvasItemComposition()
+            test_canvas_item = _TestCanvasItemComposition()
             test_canvas_item.wants_mouse_events = True
             test_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
             canvas_item.add_canvas_item(test_canvas_item)
@@ -872,7 +872,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            test_canvas_item = TestCanvasItemComposition()
+            test_canvas_item = _TestCanvasItemComposition()
             test_canvas_item.wants_mouse_events = True
             test_canvas_item.add_canvas_item(CanvasItem.BackgroundCanvasItem("#00F"))
             canvas_item.add_canvas_item(test_canvas_item)
@@ -898,7 +898,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             container_canvas_item = CanvasItem.CanvasItemComposition()
-            test_canvas_item = TestCanvasItemComposition()
+            test_canvas_item = _TestCanvasItemComposition()
             test_canvas_item.wants_drag_events = True
             container_canvas_item.add_canvas_item(test_canvas_item)
             canvas_item.add_canvas_item(container_canvas_item)
@@ -924,12 +924,12 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item = canvas_widget.canvas_item
             container_canvas_item = CanvasItem.CanvasItemComposition()
             container_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            test_canvas_item1 = TestCanvasItemComposition()
+            test_canvas_item1 = _TestCanvasItemComposition()
             test_canvas_item1.wants_mouse_events = True
             test_canvas_item1.wants_drag_events = True
             container_canvas_item.add_canvas_item(test_canvas_item1)
             canvas_item.add_canvas_item(container_canvas_item)
-            test_canvas_item2 = TestCanvasItemComposition()
+            test_canvas_item2 = _TestCanvasItemComposition()
             test_canvas_item2.wants_mouse_events = True
             container_canvas_item.add_canvas_item(test_canvas_item2)
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -970,12 +970,12 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item = canvas_widget.canvas_item
             container_canvas_item = CanvasItem.CanvasItemComposition()
             container_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            test_canvas_item1 = TestCanvasItemComposition()
+            test_canvas_item1 = _TestCanvasItemComposition()
             test_canvas_item1.wants_mouse_events = True
             test_canvas_item1.wants_drag_events = True
             container_canvas_item.add_canvas_item(test_canvas_item1)
             canvas_item.add_canvas_item(container_canvas_item)
-            test_canvas_item2 = TestCanvasItemComposition()
+            test_canvas_item2 = _TestCanvasItemComposition()
             test_canvas_item2.wants_mouse_events = True
             container_canvas_item.add_canvas_item(test_canvas_item2)
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
@@ -1014,9 +1014,9 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter_outer = CanvasItem.SplitterCanvasItem()
         splitter_inner = CanvasItem.SplitterCanvasItem()
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
-        canvas_item3 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
+        canvas_item3 = _TestCanvasItem()
         splitter_inner.add_canvas_item(canvas_item2)
         splitter_inner.add_canvas_item(canvas_item3)
         splitter_outer.add_canvas_item(canvas_item1)
@@ -1034,8 +1034,8 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             canvas_item.add_canvas_item(splitter)
@@ -1055,8 +1055,8 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
         splitter.add_canvas_item(canvas_item2)
         splitter.splits = [0.4, 0.6]
@@ -1071,8 +1071,8 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
         splitter.splits = [1.0]
         canvas_item.add_canvas_item(splitter)
@@ -1091,9 +1091,9 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
         splitter_in = CanvasItem.SplitterCanvasItem("horizontal")
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
-        canvas_item3 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
+        canvas_item3 = _TestCanvasItem()
         splitter_in.add_canvas_item(canvas_item1)
         splitter_in.add_canvas_item(canvas_item3)
         splitter.add_canvas_item(splitter_in)
@@ -1116,10 +1116,10 @@ class TestCanvasItemClass(unittest.TestCase):
         splitter = CanvasItem.SplitterCanvasItem()
         splitter_l = CanvasItem.SplitterCanvasItem("horizontal")
         splitter_r = CanvasItem.SplitterCanvasItem("horizontal")
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
-        canvas_item3 = TestCanvasItem()
-        canvas_item4 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
+        canvas_item3 = _TestCanvasItem()
+        canvas_item4 = _TestCanvasItem()
         splitter_l.add_canvas_item(canvas_item1)
         splitter_l.add_canvas_item(canvas_item2)
         splitter_r.add_canvas_item(canvas_item3)
@@ -1143,8 +1143,8 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             canvas_item.add_canvas_item(splitter)
@@ -1163,8 +1163,8 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
         splitter.add_canvas_item(canvas_item2)
         canvas_item.add_canvas_item(splitter)
@@ -1182,8 +1182,8 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         splitter = CanvasItem.SplitterCanvasItem()
-        canvas_item1 = TestCanvasItem()
-        canvas_item2 = TestCanvasItem()
+        canvas_item1 = _TestCanvasItem()
+        canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
         splitter.add_canvas_item(canvas_item2)
         canvas_item.add_canvas_item(splitter)
@@ -1205,9 +1205,9 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
-            canvas_item3 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            canvas_item3 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             splitter.add_canvas_item(canvas_item3)
@@ -1233,9 +1233,9 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
-            canvas_item3 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            canvas_item3 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             splitter.add_canvas_item(canvas_item3)
@@ -1264,9 +1264,9 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
-            canvas_item3 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            canvas_item3 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             splitter.add_canvas_item(canvas_item3)
@@ -1293,9 +1293,9 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
-            canvas_item3 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            canvas_item3 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             splitter.add_canvas_item(canvas_item3)
@@ -1326,8 +1326,8 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             splitter = CanvasItem.SplitterCanvasItem()
-            canvas_item1 = TestCanvasItem()
-            canvas_item2 = TestCanvasItem()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
             splitter.add_canvas_item(canvas_item2)
             canvas_item.add_canvas_item(splitter)
@@ -1349,7 +1349,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_scroll_area_content_gets_added_at_offset_zero(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        content = TestCanvasItem()
+        content = _TestCanvasItem()
         content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         canvas_item.add_canvas_item(scroll_area)
@@ -1360,7 +1360,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        content = TestCanvasItem()
+        content = _TestCanvasItem()
         content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=100))
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1378,7 +1378,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            content = TestCanvasItem()
+            content = _TestCanvasItem()
             content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
             scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
             scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1402,7 +1402,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            content = TestCanvasItem()
+            content = _TestCanvasItem()
             content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=30000))
             scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
             scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1426,7 +1426,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            content = TestCanvasItem()
+            content = _TestCanvasItem()
             content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
             scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
             scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1449,7 +1449,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
             canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-            content = TestCanvasItem()
+            content = _TestCanvasItem()
             content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
             scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
             scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1474,7 +1474,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        content = TestCanvasItem()
+        content = _TestCanvasItem()
         content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1493,7 +1493,7 @@ class TestCanvasItemClass(unittest.TestCase):
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
         canvas_item.layout = CanvasItem.CanvasItemRowLayout()
-        content = TestCanvasItem()
+        content = _TestCanvasItem()
         content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
         scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
         scroll_bar = CanvasItem.ScrollBarCanvasItem(scroll_area)
@@ -1665,7 +1665,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(outer_layer):
             inner_composition = CanvasItem.CanvasItemComposition()
             inner_layer = CanvasItem.LayerCanvasItem()
-            test_canvas_item = TestCanvasItem()
+            test_canvas_item = _TestCanvasItem()
             outer_layer.add_canvas_item(inner_composition)
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
@@ -1683,7 +1683,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(outer_layer):
             inner_composition = CanvasItem.CanvasItemComposition()
             inner_layer = CanvasItem.LayerCanvasItem()
-            test_canvas_item = TestCanvasItem()
+            test_canvas_item = _TestCanvasItem()
             outer_layer.add_canvas_item(inner_composition)
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
@@ -1708,7 +1708,7 @@ class TestCanvasItemClass(unittest.TestCase):
         CanvasItem._threaded_rendering_enabled = True
         outer_layer = CanvasItem.LayerCanvasItem()
         with contextlib.closing(outer_layer):
-            test_canvas_item = TestCanvasItem()
+            test_canvas_item = _TestCanvasItem()
             test_canvas_item.repaint_delay = 0.1
             outer_layer.add_canvas_item(test_canvas_item)
             # update the outer layer with the initial size
@@ -1727,7 +1727,7 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(outer_layer):
             inner_composition = CanvasItem.CanvasItemComposition()
             inner_layer = CanvasItem.LayerCanvasItem()
-            test_canvas_item = TestCanvasItem()
+            test_canvas_item = _TestCanvasItem()
             outer_layer.add_canvas_item(inner_composition)
             inner_composition.add_canvas_item(inner_layer)
             inner_layer.add_canvas_item(test_canvas_item)
@@ -1755,11 +1755,11 @@ class TestCanvasItemClass(unittest.TestCase):
         with contextlib.closing(outer_layer):
             inner_composition = CanvasItem.CanvasItemComposition()
             inner_composition.layout = CanvasItem.CanvasItemRowLayout()
-            test_canvas_item1 = TestCanvasItem()
+            test_canvas_item1 = _TestCanvasItem()
             inner_composition.add_canvas_item(test_canvas_item1)
             inner_composition2 = CanvasItem.CanvasItemComposition()
             inner_composition2.layout = CanvasItem.CanvasItemRowLayout()
-            test_canvas_item2 = TestCanvasItem()
+            test_canvas_item2 = _TestCanvasItem()
             inner_composition2.add_canvas_item(test_canvas_item2)
             outer_layer.add_canvas_item(inner_composition)
             outer_layer.add_canvas_item(inner_composition2)
@@ -1774,7 +1774,7 @@ class TestCanvasItemClass(unittest.TestCase):
             test_canvas_item1_layout_count = test_canvas_item1._layout_count
             test_canvas_item2_layout_count = test_canvas_item2._layout_count
             # add a row and ensure only siblings are layed out
-            test_canvas_item1a = TestCanvasItem()
+            test_canvas_item1a = _TestCanvasItem()
             inner_composition.add_canvas_item(test_canvas_item1a)
             outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
             # wait for any thread repainting to finish

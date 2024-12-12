@@ -60,7 +60,7 @@ for ui in order:
     else:
         # launch using the tool frontend
         if sys.platform == "darwin":
-            exe_path = os.path.join(sys.exec_prefix, "bin", "Nion UI Launcher.app", "Contents", "MacOS", "Nion Swift")
+            exe_path = os.path.join(sys.exec_prefix, "bin", "Nion UI Launcher.app", "Contents", "MacOS", "Nion UI Launcher")
         elif sys.platform == "linux":
             exe_path = os.path.join(sys.exec_prefix, "bin", "NionUILauncher", "NionUILauncher")
         elif sys.platform == "win32":

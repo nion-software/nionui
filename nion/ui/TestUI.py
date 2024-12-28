@@ -1476,6 +1476,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_qt_version(self) -> str:
         return "TEST"
 
+    def get_build_version(self) -> str:
+        return "BUILD"
+
     def get_tolerance(self, tolerance_type: UserInterfaceModule.ToleranceType) -> float:
         return 5
 

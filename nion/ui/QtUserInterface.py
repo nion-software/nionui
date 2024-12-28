@@ -2450,6 +2450,13 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_qt_version(self) -> str:
         return typing.cast(str, self.proxy.Core_getQtVersion())
 
+    def get_build_version(self) -> str:
+        if self.proxy.has_method("Core_getBuildVersion"):
+            build_d = self.proxy.Core_getBuildVersion()
+            if build_d:
+                return "(" + ", ".join(f"{k}: {v}" for k, v in build_d.items()) + ")"
+        return "not available"
+
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
         return 5
 

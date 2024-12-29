@@ -1948,7 +1948,7 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         self.__window = window
         self.__handler = handler
         self.__d = d
-        self.__component_handler = None
+        self.__component_handler: typing.Optional[HandlerLike] = None
 
         def set_identifier(value: typing.Optional[str]) -> None:
             self.__update_identifier(value)
@@ -1996,18 +1996,17 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             component_id = identifier
         if component_id:
             # create the handler first, but don't initialize it.
-            component_handler = getattr(handler, "create_handler")(component_id=component_id) if component_id and hasattr(handler, "create_handler") else None
-            if component_handler:
-                # make and attach closer for the component handler and link it to the container handler.
-                component_handler._closer = Closer()
-                getattr(handler, "_closer").push_closeable(component_handler)
-                component_content = getattr(component_handler, "ui_view", component_content)
-                assert component_content, f"{component_handler} missing 'ui_view'."
-                # set properties in the component from the properties dict
-                for k, v in d.get("properties", dict()).items():
-                    # print(f"setting property {k} to {v}")
-                    setattr(component_handler, k, v)
-                self.__component_handler = component_handler
+            component_handler = typing.cast(HandlerLike, getattr(handler, "create_handler")(component_id=component_id))
+            # make and attach closer for the component handler and link it to the container handler.
+            setattr(component_handler, "_closer", Closer())
+            getattr(handler, "_closer").push_closeable(component_handler)
+            component_content = getattr(component_handler, "ui_view", component_content)
+            assert component_content, f"{component_handler} missing 'ui_view'."
+            # set properties in the component from the properties dict
+            for k, v in d.get("properties", dict()).items():
+                # print(f"setting property {k} to {v}")
+                setattr(component_handler, k, v)
+            self.__component_handler = component_handler
             assert component_content, f"{component_id} not found."
             # now construct the widget
             widget = construct(ui, window, component_content, component_handler, finishes)
@@ -2015,9 +2014,10 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
             connect_name(widget, d, handler)
             # since the handler is custom to the widget, make a way to retrieve it from the widget
             setattr(widget, "handler", component_handler)
-            component_handler._event_loop = window.event_loop
-            if callable(getattr(component_handler, "init_handler", None)):
-                component_handler.init_handler()
+            setattr(component_handler, "_event_loop", window.event_loop)
+            init_handler = getattr(component_handler, "init_handler", None)
+            if callable(init_handler):
+                init_handler()
             # connect events
             for event in events:
                 # print(f"connecting {event['event']} ({event['parameters']})")

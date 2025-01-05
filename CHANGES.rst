@@ -1,6 +1,17 @@
 Changelog (nionui)
 ==================
 
+9.0.0 (2025-01-05)
+------------------
+- Add list canvas item 2, using canvas items for optimized rendering.
+- Add visible_rect to repaint methods to help optimize repainting.
+- Add an unrestrained sizing option to relax restraint from contained canvas items.
+- Support sizing properties on minimal-style push button.
+- Fix race condition resizing root canvas items.
+- Change list widget and stack widget to use a None index as 'unselected' instead of -1.
+- Extend background canvas item to allow drawing no background via a fallback color.
+- Clean up scroll area auto sizing.
+
 8.0.0 (2024-10-26)
 ------------------
 - Rework canvas item layout/paint architecture for improved performance.

@@ -696,6 +696,7 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
             with self.batch_update():
                 self.insert_canvas_item(index, list_item_canvas_item)
                 self.__list_item_canvas_items.insert(index, list_item_canvas_item)
+                self.__selection.insert_index(index)
                 self.__needs_size_to_content = True
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
@@ -703,6 +704,7 @@ class ListCanvasItem2(CanvasItem.CanvasItemComposition):
             with self.batch_update():
                 self.remove_canvas_item(self.canvas_items[index])
                 self.__list_item_canvas_items.pop(index)
+                self.__selection.remove_index(index)
                 self.__needs_size_to_content = True
 
     def _batch_update_ended(self) -> None:

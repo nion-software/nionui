@@ -844,6 +844,8 @@ class AbstractCanvasItem:
         super().__init__()
         self.__composer_lock = threading.RLock()
         self.__composer: typing.Optional[BaseComposer] = None
+        self.__composer_last_request_time = 0.0
+        self.__composer_last_update_time = 0.0
         self.__cache = cache or ComposerCache()
         self.__container: typing.Optional[CanvasItemComposition] = None
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
@@ -1262,6 +1264,8 @@ class AbstractCanvasItem:
         # being cleared here and no further updates occur, resulting in an incorrect composer.
         with self.__composer_lock:
             self.__composer = None
+            # record the last request time so that get composed knows whether it is out of date or not.
+            self.__composer_last_request_time = time.time()
 
     def get_composer(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
         """Return the composer for this canvas item. Subclasses should not override.
@@ -1275,8 +1279,11 @@ class AbstractCanvasItem:
 
     def _get_composer_inner(self, cache: ComposerCache) -> typing.Optional[BaseComposer]:
         with self.__composer_lock:
-            if not self.__composer:
+            # if either the composer is missing or the last request time is newer than the last update time,
+            # then we need to get the composer. the last update time is updated when the composer is generated.
+            if not self.__composer or self.__composer_last_request_time > self.__composer_last_update_time:
                 self.__composer = self._get_composer(cache)
+                self.__composer_last_update_time = time.time()
                 # assert self.__composer, f"missing composer for {type(self)}"
         return self.__composer
 

@@ -3051,6 +3051,33 @@ class SplitterCanvasItem(CanvasItemComposition):
             return super().mouse_position_changed(x, y, modifiers)
 
 
+class StackCanvasItem(CanvasItemComposition):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__current_index: int | None = None
+
+    def __update_visibility(self) -> None:
+        for index, canvas_item in enumerate(self.canvas_items):
+            canvas_item.visible = index == self.__current_index
+
+    def _insert_canvas_item_x(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
+        super()._insert_canvas_item_x(before_index, canvas_item)
+
+    def _remove_canvas_item_direct(self, canvas_item: AbstractCanvasItem) -> None:
+        super()._remove_canvas_item_direct(canvas_item)
+
+    @property
+    def current_index(self) -> int | None:
+        return self.__current_index
+
+    @current_index.setter
+    def current_index(self, index: int | None) -> None:
+        if self.__current_index != index:
+            self.__current_index = index
+            self.__update_visibility()
+            self.update()
+
+
 SLIDER_THUMB_WIDTH = 8
 SLIDER_THUMB_HEIGHT = 16
 SLIDER_BAR_OFFSET = 1

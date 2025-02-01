@@ -18,12 +18,13 @@ import functools
 import typing
 
 from nion.ui import CanvasItem
-from nion.ui.CanvasItem import BaseComposer, ComposerCache
+from nion.ui import GridFlowCanvasItem
 from nion.utils import Geometry
 
 if typing.TYPE_CHECKING:
     from nion.ui import DrawingContext
     from nion.ui import UserInterface
+    from nion.utils import ListModel
     from nion.utils import Selection
 
 
@@ -442,3 +443,116 @@ class GridCanvasItem(CanvasItem.AbstractCanvasItem):
         if delegate:
             delegate.delete_pressed()
         return True
+
+
+class GridLayout(CanvasItem.CanvasItemAbstractLayout):
+    def __init__(self, item_size: Geometry.IntSize, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None) -> None:
+        super().__init__(margins, spacing)
+        self.item_size = item_size
+
+    def copy(self) -> CanvasItem.CanvasItemAbstractLayout:
+        return GridLayout(self.item_size, self.margins, self.spacing)
+
+    def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem]) -> None:
+        # layout does nothing in this class. instead the items themselves are laid out with a 0,0 origin and then the repaint
+        # adjusts each items position as it is drawn.
+        return
+
+    def get_sizing(self, canvas_items: typing.Sequence[CanvasItem.LayoutSizingItem]) -> CanvasItem.Sizing:
+        sizing_data = CanvasItem.SizingData()
+        return CanvasItem.Sizing(sizing_data)
+
+    def create_spacing_item(self, spacing: int) -> CanvasItem.AbstractCanvasItem:
+        raise NotImplementedError()
+
+    def create_stretch_item(self) -> CanvasItem.AbstractCanvasItem:
+        raise NotImplementedError()
+
+
+class Grid2CanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 layout: CanvasItem.CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[CanvasItem.BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str],
+                 list_model: ListModel.ListModelLike,
+                 item_size: Geometry.IntSize) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
+        self.__list_model = list_model
+        self.__item_size = item_size
+
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            visible_rect -= canvas_rect.origin
+            item_size = self.__item_size
+            n_columns = max(1, round(canvas_rect.width / item_size.width))
+            column_width = canvas_rect.width // n_columns
+            canvas_item_size = Geometry.IntSize(width=column_width, height=item_size.height)
+            for index, child_composer in enumerate(child_composers):
+                row = index // n_columns
+                column = index - row * n_columns
+                child_canvas_rect = Geometry.IntRect(Geometry.IntPoint(y=row * canvas_item_size.height, x=column * canvas_item_size.width), canvas_item_size)
+                if visible_rect.intersects_rect(child_canvas_rect):
+                    with drawing_context.saver():
+                        child_composer.update_layout(Geometry.IntPoint(), child_canvas_rect.size)
+                        child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
+
+    def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
+        item_size = self.__item_size
+        n_columns = max(1, round(canvas_bounds.width / item_size.width))
+        item_rows = (len(self.__list_model.items) + n_columns - 1) // n_columns
+        canvas_bounds = Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(item_rows * item_size.height, canvas_bounds.width))
+        return canvas_bounds
+
+
+class GridCanvasItem2(GridFlowCanvasItem.GridFlowCanvasItem):
+    """A canvas item that displays a grid of items.
+
+    is_shared_selection parameter is used to share the selection with another canvas item and prevents the selection
+    from being modified when items are inserted or removed.
+    """
+
+    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, item_factory: GridFlowCanvasItem.GridFlowItemFactory, delegate: GridFlowCanvasItem.GridFlowCanvasItemDelegate, item_size: Geometry.IntSize | None = None, *, key: typing.Optional[str] = None, is_shared_selection: bool = False) -> None:
+        self.__item_size = item_size or Geometry.IntSize(80, 80)
+        super().__init__(list_model, selection, GridLayout(self.__item_size), item_factory, delegate, key=key, is_shared_selection=is_shared_selection)
+
+    def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return Grid2CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self._list_model, self.__item_size)
+
+    def _handle_up_arrow(self, key: UserInterface.Key) -> bool:
+        canvas_size = self.canvas_size
+        if canvas_size:
+            n_columns = max(1, round(canvas_size.width / self.__item_size.width))
+            return self._adjust_selection_backward(n_columns, key.modifiers.shift)
+        return False
+
+    def _handle_down_arrow(self, key: UserInterface.Key) -> bool:
+        canvas_size = self.canvas_size
+        if canvas_size:
+            n_columns = max(1, round(canvas_size.width / self.__item_size.width))
+            return self._adjust_selection_forward(n_columns, key.modifiers.shift)
+        return False
+
+    def _handle_left_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_backward(1, key.modifiers.shift)
+
+    def _handle_right_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_forward(1, key.modifiers.shift)
+
+    def _get_grid_flow_item_canvas_rect(self, index: int, canvas_size: Geometry.IntSize) -> Geometry.IntRect:
+        item_size = self.__item_size
+        n_columns = max(1, round(canvas_size.width / item_size.width))
+        column_width = canvas_size.width // n_columns
+        canvas_item_size = Geometry.IntSize(width=column_width, height=item_size.height)
+        row = index // n_columns
+        column = index - row * n_columns
+        return Geometry.IntRect(Geometry.IntPoint(y=row * canvas_item_size.height, x=column * canvas_item_size.width), canvas_item_size)
+
+    def _get_index_for_point(self, p: Geometry.IntPoint, canvas_size: Geometry.IntSize) -> int:
+        item_size = self.__item_size
+        n_columns = max(1, round(canvas_size.width / item_size.width))
+        return round((p.y // item_size.height) * n_columns + (p.x // item_size.width))

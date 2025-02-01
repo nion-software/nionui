@@ -16,6 +16,7 @@ from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
+from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
@@ -242,14 +243,17 @@ def start(ui: UserInterface.UserInterface) -> bool:
 
     selection = Selection.IndexedSelection()
 
-    grid_canvas_item_delegate = GridCanvasItemDelegate()
-    grid_canvas_item = GridCanvasItem.GridCanvasItem(grid_canvas_item_delegate, selection)
-    grid_canvas_item.update_sizing(grid_canvas_item.sizing.with_fixed_height(200))
+    # grid_canvas_item_delegate = GridCanvasItemDelegate()
+    # grid_canvas_item = GridCanvasItem.GridCanvasItem(grid_canvas_item_delegate, selection)
+    # grid_canvas_item.update_sizing(grid_canvas_item.sizing.with_fixed_height(200))
 
     list_model = ListModel.ListModel[int]()
     list_model.items = [1, 2, 3, 4]
     list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, selection, ListItemCanvasItem, ListCanvasItem.ListCanvasItem2Delegate(), item_height=48)
     list_canvas_item.update_sizing(list_canvas_item.sizing.with_fixed_height(200))
+
+    grid_canvas_item = GridCanvasItem.GridCanvasItem2(list_model, selection, ListItemCanvasItem, GridFlowCanvasItem.GridFlowCanvasItemDelegate(), item_size=Geometry.IntSize(100, 100))
+    grid_canvas_item.update_sizing(grid_canvas_item.sizing.with_fixed_height(200))
 
     grid_list_row = CanvasItem.CanvasItemComposition()
     grid_list_row.layout = CanvasItem.CanvasItemRowLayout(spacing=8)

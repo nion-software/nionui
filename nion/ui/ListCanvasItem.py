@@ -19,6 +19,7 @@ import weakref
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import GridFlowCanvasItem
 from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Geometry
@@ -415,6 +416,45 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             self.update_sizing(new_sizing)
 
 
+class ListRowLayout(CanvasItem.CanvasItemAbstractLayout):
+    def __init__(self, item_width: int, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None, alignment: typing.Optional[str] = None) -> None:
+        super().__init__(margins, spacing)
+        self.item_width = item_width
+        self.alignment = alignment
+
+    def copy(self) -> CanvasItem.CanvasItemAbstractLayout:
+        return ListRowLayout(self.item_width, self.margins, self.spacing, self.alignment)
+
+    def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem]) -> None:
+        # layout does nothing in this class. instead the items themselves are laid out with a 0,0 origin and then the repaint
+        # adjusts each items position as it is drawn.
+        return
+
+    def get_sizing(self, canvas_items: typing.Sequence[CanvasItem.LayoutSizingItem]) -> CanvasItem.Sizing:
+        sizing_data = CanvasItem.SizingData()
+        sizing_data.maximum_width = 0
+        sizing_data.maximum_height = 0
+        sizing_data.preferred_height = 0
+        if canvas_items:
+            canvas_item = canvas_items[0]
+            canvas_item_sizing = canvas_item.layout_sizing
+            self._combine_sizing_property(sizing_data, canvas_item_sizing, "preferred_height", max, True)
+            self._combine_sizing_property(sizing_data, canvas_item_sizing, "minimum_height", max)
+            self._combine_sizing_property(sizing_data, canvas_item_sizing, "maximum_height", max, True)
+        canvas_item_count = len(canvas_items)
+        if sizing_data.maximum_height == 0 or canvas_item_count == 0:
+            sizing_data.maximum_height = None
+        if sizing_data.preferred_height == 0 or canvas_item_count == 0:
+            sizing_data.preferred_height = None
+        return CanvasItem.Sizing(sizing_data).with_fixed_width(self.item_width * canvas_item_count + self.spacing * (max(0, canvas_item_count - 1)))
+
+    def create_spacing_item(self, spacing: int) -> CanvasItem.AbstractCanvasItem:
+        raise NotImplementedError()
+
+    def create_stretch_item(self) -> CanvasItem.AbstractCanvasItem:
+        raise NotImplementedError()
+
+
 class ListColumnLayout(CanvasItem.CanvasItemAbstractLayout):
     def __init__(self, item_height: int, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None, alignment: typing.Optional[str] = None) -> None:
         super().__init__(margins, spacing)
@@ -425,19 +465,9 @@ class ListColumnLayout(CanvasItem.CanvasItemAbstractLayout):
         return ListColumnLayout(self.item_height, self.margins, self.spacing, self.alignment)
 
     def layout(self, canvas_origin: Geometry.IntPoint, canvas_size: Geometry.IntSize, canvas_items: typing.Sequence[CanvasItem.LayoutItem]) -> None:
-        # calculate the vertical placement
-        origins = [canvas_origin.y + self.margins.top + index * (self.item_height + self.spacing) for index in range(len(canvas_items))]
-        sizes = [self.item_height] * len(canvas_items)
-        column_layout = CanvasItem.ConstraintResultType(origins, sizes)
-        widths = [canvas_item.layout_sizing.get_unrestrained_width(canvas_size.width - self.margins.left - self.margins.right) for canvas_item in canvas_items]
-        available_width = canvas_size.width - self.margins.left - self.margins.right
-        if self.alignment == "start":
-            x_positions = [canvas_origin.x + self.margins.left for width in widths]
-        elif self.alignment == "end":
-            x_positions = [canvas_origin.x + self.margins.left + (available_width - width) for width in widths]
-        else:
-            x_positions = [round(canvas_origin.x + self.margins.left + (available_width - width) * 0.5) for width in widths]
-        self.layout_canvas_items(x_positions, column_layout.origins, widths, column_layout.sizes, canvas_items)
+        # layout does nothing in this class. instead the items themselves are laid out with a 0,0 origin and then the repaint
+        # adjusts each items position as it is drawn.
+        return
 
     def get_sizing(self, canvas_items: typing.Sequence[CanvasItem.LayoutSizingItem]) -> CanvasItem.Sizing:
         sizing_data = CanvasItem.SizingData()
@@ -464,467 +494,95 @@ class ListColumnLayout(CanvasItem.CanvasItemAbstractLayout):
         raise NotImplementedError()
 
 
-class ListItemAdornmentsCanvasItemComposer(CanvasItem.BaseComposer):
-    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, composer_cache: CanvasItem.ComposerCache, is_dropping: bool) -> None:
-        super().__init__(canvas_item, layout_sizing, composer_cache)
-        self.__is_dropping = is_dropping
+ListCanvasItem2ContextMenuEvent = GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
-        if self.__is_dropping:
-            with drawing_context.saver():
-                drop_border_width = 2.5
-                rect_in = canvas_rect.to_float_rect().inset(drop_border_width / 2, drop_border_width / 2).to_int_rect()
-                drawing_context.begin_path()
-                drawing_context.rect(rect_in.left, rect_in.top, rect_in.width, rect_in.height)
-                drawing_context.line_width = drop_border_width
-                drawing_context.stroke_style = "rgba(56, 117, 214, 0.8)"
-                drawing_context.stroke()
+ListCanvasItem2DeleteEvent = GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent
+
+ListCanvasItem2SelectEvent = GridFlowCanvasItem.GridFlowCanvasItemSelectEvent
+
+ListCanvasItem2DragStartedEvent = GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent
+
+ListCanvasItem2Delegate = GridFlowCanvasItem.GridFlowCanvasItemDelegate
 
 
-class ListItemAdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
-    # ADR: since this is an internal class, we can use a weak reference to the list canvas item as a way to send messages
-    def __init__(self, list_canvas_item: ListCanvasItem2, item: typing.Any, is_dropping: bool = False) -> None:
-        super().__init__()
-        self.__item = item
-        self.__list_canvas_item_ref = weakref.ref(list_canvas_item)
-        self.__is_dropping = is_dropping
-
-    @property
-    def is_dropping(self) -> bool:
-        return self.__is_dropping
-
-    @is_dropping.setter
-    def is_dropping(self, value: bool) -> None:
-        self.__is_dropping = value
-        self.update()
-
-    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
-        return ListItemAdornmentsCanvasItemComposer(self, self.layout_sizing, composer_cache, self.__is_dropping)
-
-
-ListItemFactory = typing.Callable[[typing.Any, Model.PropertyModel[bool]], CanvasItem.AbstractCanvasItem]
-
-
-class ListItemCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, list_canvas_item: ListCanvasItem2, item: typing.Any, item_factory: ListItemFactory) -> None:
-        super().__init__()
-        self.__list_canvas_item_ref = weakref.ref(list_canvas_item)
-        self.__item = item
-        self.__is_selected_model = Model.PropertyModel(False)
-        self.__is_focused_model = Model.PropertyModel(False)
-        self.__is_dropping_model = Model.PropertyModel(False)
-        self.__background_canvas_item = CanvasItem.BackgroundCanvasItem(None, None)  # no fallback color
-        self.__adornments_canvas_item = ListItemAdornmentsCanvasItem(list_canvas_item, item)
-        self.add_canvas_item(self.__background_canvas_item)
-        self._canvas_item = item_factory(item, self.__is_selected_model)
-        self.add_canvas_item(self._canvas_item)
-        self.add_canvas_item(self.__adornments_canvas_item)
-
-    @property
-    def __list_canvas_item(self) -> ListCanvasItem2:
-        list_canvas_item = self.__list_canvas_item_ref()
-        assert list_canvas_item
-        return list_canvas_item
-
-    @property
-    def item(self) -> typing.Any:
-        return self.__item
-
-    @property
-    def is_selected(self) -> bool:
-        return self.__is_selected_model.value or False
-
-    @is_selected.setter
-    def is_selected(self, value: bool) -> None:
-        if value != self.is_selected:
-            self.__is_selected_model.value = value
-            self.__update_background_color()
-            self.update()
-
-    @property
-    def is_focused(self) -> bool:
-        return self.__is_focused_model.value or False
-
-    @is_focused.setter
-    def is_focused(self, value: bool) -> None:
-        if value != self.is_focused:
-            self.__is_focused_model.value = value
-            self.__update_background_color()
-            self.update()
-
-    @property
-    def tool_tip(self) -> typing.Optional[str]:
-        list_canvas_item = self.__list_canvas_item_ref()
-        if list_canvas_item:
-            return list_canvas_item._get_tool_tip(self.__item)
-        return str()
-
-    @tool_tip.setter
-    def tool_tip(self, value: typing.Optional[str]) -> None:
-        pass
-
-    def __update_background_color(self) -> None:
-        if self.is_selected:
-            background_color = "#3875D6" if self.is_focused else "#DDD"
-        else:
-            background_color = None
-        self.__background_canvas_item.background_color = background_color
-
-    @property
-    def is_dropping(self) -> bool:
-        return self.__is_dropping_model.value or False
-
-    @is_dropping.setter
-    def is_dropping(self, value: bool) -> None:
-        if value != self.is_dropping:
-            self.__is_dropping_model.value = value
-            self.update()
-
-    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        list_canvas_item = self.__list_canvas_item_ref()
-        if list_canvas_item:
-            if list_canvas_item._handle_context_menu_event(self.__item, Geometry.IntPoint(x=x, y=y), Geometry.IntPoint(x=gx, y=gy)):
-                return True
-        return super().context_menu_event(x, y, gx, gy)
-
-
-@dataclasses.dataclass
-class ListCanvasItem2ContextMenuEvent:
-    item: typing.Any
-    selected_items: typing.Sequence[typing.Any]
-    p: Geometry.IntPoint
-    gp: Geometry.IntPoint
-
-
-@dataclasses.dataclass
-class ListCanvasItem2DeleteEvent:
-    item: typing.Any
-    selected_items: typing.Sequence[typing.Any]
-
-
-@dataclasses.dataclass
-class ListCanvasItem2SelectEvent:
-    item: typing.Any
-    selected_items: typing.Sequence[typing.Any]
-
-
-@dataclasses.dataclass
-class ListCanvasItem2DragStartedEvent:
-    item: typing.Any
-    selected_items: typing.Sequence[typing.Any]
-    p: Geometry.IntPoint
-    modifiers: UserInterface.KeyboardModifiers
-
-
-class ListCanvasItem2Delegate:
-
-    def context_menu_event(self, context_menu_event: ListCanvasItem2ContextMenuEvent) -> bool:
-        return False
-
-    def select_event(self, select_event: ListCanvasItem2SelectEvent) -> bool:
-        return False
-
-    def delete_event(self, delete_event: ListCanvasItem2DeleteEvent) -> bool:
-        return False
-
-    def drag_started_event(self, event: ListCanvasItem2DragStartedEvent) -> bool:
-        return False
-
-    def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
-        return None
-
-
-class ListCanvasItem2(CanvasItem.CanvasItemComposition):
-    """
-    Takes a delegate that supports the following properties, methods, and optional methods:
-
-    Properties:
-        item_count: the number of items to be displayed
-        items: the items to be displayed
-
-    Methods:
-        paint_item(drawing_context, index, rect, is_selected): paint the cell for index at the position
-
-    Optional methods:
-        content_menu_event(index, x, y, gx, gy): called when user wants context menu for given index
-        key_pressed(key): called when user presses a key
-        delete_pressed(): called when user presses delete key
-        drag_started(index, x, y, modifiers): called when user begins drag with given index
-    """
-
-    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, item_factory: ListItemFactory, delegate: ListCanvasItem2Delegate, item_height: int = 80, *, key: typing.Optional[str] = None) -> None:
-        super().__init__()
-        # store parameters
+class ListCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer):
+    def __init__(self,
+                 canvas_item: CanvasItem.AbstractCanvasItem,
+                 layout_sizing: CanvasItem.Sizing,
+                 composer_cache: CanvasItem.ComposerCache,
+                 layout: CanvasItem.CanvasItemAbstractLayout,
+                 child_composers: typing.Sequence[CanvasItem.BaseComposer],
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str],
+                 list_model: ListModel.ListModelLike,
+                 item_width: int | None,
+                 item_height: int | None) -> None:
+        super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
         self.__list_model = list_model
-        self.__list_model_key = key or "items"
-        self.__selection = selection
-        self.__selection_changed_listener = self.__selection.changed_event.listen(ReferenceCounting.weak_partial(ListCanvasItem2.__handle_selection_changed, self))
-        self.__item_factory = item_factory
-        self.__delegate = delegate
-        # configure super
-        self.__layout = ListColumnLayout(item_height)
-        self.layout = self.__layout
-        self.wants_mouse_events = True
-        self.focusable = True
-        # internal variables
-        self.__needs_size_to_content = False  # delay sizing during batch updates
-        self.__list_item_canvas_items = list[ListItemCanvasItem]()
-        self.__item_inserted_listener = list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(ListCanvasItem2.__handle_item_inserted, self))
-        self.__item_removed_listener = list_model.item_removed_event.listen(ReferenceCounting.weak_partial(ListCanvasItem2.__handle_item_removed, self))
-        self.__mouse_index: typing.Optional[int] = None
-        self.__mouse_canvas_item: typing.Optional[ListItemCanvasItem] = None
-        self.__mouse_pressed = False
-        self.__mouse_pressed_for_dragging = False
-        self.__mouse_position: typing.Optional[Geometry.IntPoint] = None
-        self.__mouse_dragging = False
-        self.__dropping = True
-        self.__drop_before_index: typing.Optional[int] = None
-        self.__drop_index: typing.Optional[int] = None
+        self.__item_width = item_width
         self.__item_height = item_height
-        # initialize
-        for index, item in enumerate(list_model.items):
-            self.__handle_item_inserted(self.__list_model_key, item, index)
-        self.__handle_selection_changed()
 
-    @property
-    def _delegate(self) -> ListCanvasItem2Delegate:
-        return self.__delegate
-
-    def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
-        if key == self.__list_model_key:
-            list_item_canvas_item = ListItemCanvasItem(self, item, self.__item_factory)
-            with self.batch_update():
-                self.insert_canvas_item(index, list_item_canvas_item)
-                self.__list_item_canvas_items.insert(index, list_item_canvas_item)
-                self.__selection.insert_index(index)
-                self.__needs_size_to_content = True
-
-    def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
-        if key == self.__list_model_key:
-            with self.batch_update():
-                self.remove_canvas_item(self.canvas_items[index])
-                self.__list_item_canvas_items.pop(index)
-                self.__selection.remove_index(index)
-                self.__needs_size_to_content = True
-
-    def _batch_update_ended(self) -> None:
-        if self.__needs_size_to_content:
-            self.size_to_content()
-            self.__needs_size_to_content = False
-
-    def __handle_selection_changed(self) -> None:
-        for index, canvas_item in enumerate(typing.cast(typing.Sequence[ListItemCanvasItem], self.canvas_items)):
-            canvas_item.is_selected = self.__selection.contains(index)
-
-    def __list_item_at_point(self, p: Geometry.IntPoint) -> typing.Optional[ListItemCanvasItem]:
-        for canvas_item in self.__list_item_canvas_items:
-            canvas_rect = canvas_item.canvas_rect
-            if canvas_rect and canvas_rect.contains_point(p):
-                return canvas_item
-        return None
-
-    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        # sets the selection to the item if there is no selection and returns True.
-        # otherwise returns False. False means there was an existing selection.
-        canvas_item = self.__list_item_at_point(Geometry.IntPoint(x=x, y=y))
-        if canvas_item:
-            mouse_index = self.__list_item_canvas_items.index(canvas_item)
-            if not self.__selection.contains(mouse_index):
-                self.__selection.set(mouse_index)
-                self.handle_select()
-                return True
-        return super().mouse_double_clicked(x, y, modifiers)
-
-    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        canvas_item = self.__list_item_at_point(Geometry.IntPoint(x=x, y=y))
-        if canvas_item:
-            self.__mouse_index = self.__list_item_canvas_items.index(canvas_item)
-            self.__mouse_canvas_item = canvas_item
-            self.__mouse_pressed = True
-            if not modifiers.shift and not modifiers.control:
-                self.__mouse_pressed_for_dragging = True
-                self.__mouse_position = Geometry.IntPoint(y=y, x=x)
-            return True
-        return super().mouse_pressed(x, y, modifiers)
-
-    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self.__mouse_released(x, y, modifiers, True)
-        return True
-
-    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        if self.__mouse_pressed_for_dragging and self.__mouse_position and self.__mouse_index is not None:
-            mouse_position_f = self.__mouse_position.to_float_point()
-            point_f = Geometry.FloatPoint(y=y, x=x)
-            if self.__mouse_canvas_item and not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
-                self.__mouse_dragging = True
-                root_container = self.root_container
-                if root_container:
-                    root_container.bypass_request_focus()
-                selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-                selected_items = selected_items if self.__mouse_canvas_item in selected_items else [self.__mouse_canvas_item]
-                if self.__delegate.drag_started_event(ListCanvasItem2DragStartedEvent(self.__mouse_canvas_item.item, selected_items, Geometry.IntPoint(x=x, y=y), modifiers)):
-                    # once a drag starts, mouse release will not be called; call it here instead
-                    self.__mouse_released(x, y, modifiers, False)
-                    return True
-        return super().mouse_position_changed(x, y, modifiers)
-
-    def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers, do_select: bool) -> None:
-        if self.__mouse_pressed and do_select:
-            # double check whether mouse_released has been called explicitly as part of a drag.
-            # see https://bugreports.qt.io/browse/QTBUG-40733
-            mouse_index = self.__mouse_index
-            if mouse_index is not None:
-                if modifiers.shift:
-                    self.__selection.extend(mouse_index)
-                elif modifiers.control:
-                    self.__selection.toggle(mouse_index)
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
+        with drawing_context.saver():
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            visible_rect -= canvas_rect.origin
+            for index, child_composer in enumerate(child_composers):
+                if self.__item_height:
+                    child_canvas_rect = Geometry.IntRect(Geometry.IntPoint(y=index * self.__item_height, x=0), Geometry.IntSize(width=canvas_rect.width, height=self.__item_height))
+                elif self.__item_width:
+                    child_canvas_rect = Geometry.IntRect(Geometry.IntPoint(y=0, x=index * self.__item_width), Geometry.IntSize(width=self.__item_width, height=canvas_rect.height))
                 else:
-                    self.__selection.set(mouse_index)
-        self.__mouse_pressed = False
-        self.__mouse_pressed_for_dragging = False
-        self.__mouse_index = None
-        self.__mouse_canvas_item = None
-        self.__mouse_position = None
-        self.__mouse_dragging = False
+                    child_canvas_rect = Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize())
+                if visible_rect.intersects_rect(child_canvas_rect):
+                    with drawing_context.saver():
+                        child_composer.update_layout(Geometry.IntPoint(), child_canvas_rect.size)
+                        child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
 
-    def _handle_context_menu_event(self, item: typing.Any, p: Geometry.IntPoint, gp: Geometry.IntPoint) -> bool:
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
-        return self.__delegate.context_menu_event(ListCanvasItem2ContextMenuEvent(item, selected_items, p, gp))
 
-    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
-        canvas_item = self.__list_item_at_point(Geometry.IntPoint(x=x, y=y))
-        if canvas_item:
-            text = canvas_item.tool_tip
-            if text:
-                self.show_tool_tip_text(text, gx, gy)
-                return True
-        return super().handle_tool_tip(x, y, gx, gy)
+class ListCanvasItem2(GridFlowCanvasItem.GridFlowCanvasItem):
+    """A canvas item that displays a list of items.
 
-    def _get_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
-        return self.__delegate.item_tool_tip(item)
+    is_shared_selection parameter is used to share the selection with another canvas item and prevents the selection
+    from being modified when items are inserted or removed.
+    """
 
-    def __rect_for_index(self, index: int) -> Geometry.IntRect:
-        canvas_bounds = self.canvas_bounds
-        if canvas_bounds:
-            canvas_rect = self.canvas_items[index].canvas_rect
-            if canvas_rect:
-                return canvas_rect
-        return Geometry.IntRect.empty_rect()
+    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, item_factory: GridFlowCanvasItem.GridFlowItemFactory, delegate: GridFlowCanvasItem.GridFlowCanvasItemDelegate, item_width: int | None = None, item_height: int | None = None, *, key: typing.Optional[str] = None, is_shared_selection: bool = False) -> None:
+        layout: CanvasItem.CanvasItemAbstractLayout | None = None
+        if item_width is not None:
+            layout = ListRowLayout(item_width)
+        if item_height is not None:
+            layout = ListColumnLayout(item_height)
+        assert layout
+        super().__init__(list_model, selection, layout, item_factory, delegate, key=key, is_shared_selection=is_shared_selection)
+        self.__item_width = item_width
+        self.__item_height = item_height
 
-    def __make_selection_visible(self, style: int) -> None:
-        selected_indexes = list(self.__selection.indexes)
-        if len(selected_indexes) > 0 and self.canvas_bounds is not None:
-            min_index = min(selected_indexes)
-            max_index = max(selected_indexes)
-            min_rect = self.__rect_for_index(min_index)
-            max_rect = self.__rect_for_index(max_index)
-            scroll_area = self.container
-            if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
-                scroll_area.make_selection_visible(min_rect, max_rect, False, True, style < 0)
+    def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
+        return ListCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self._list_model, self.__item_width, self.__item_height)
 
-    def make_selection_visible(self) -> None:
-        self.__make_selection_visible(-1)
+    def _handle_up_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_backward(1, key.modifiers.shift)
 
-    def _set_focused(self, focused: bool) -> None:
-        super()._set_focused(focused)
-        for list_item_canvas_item in self.__list_item_canvas_items:
-            list_item_canvas_item.is_focused = focused
+    def _handle_down_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_forward(1, key.modifiers.shift)
 
-    def key_pressed(self, key: UserInterface.Key) -> bool:
-        item_count = len(self.__list_model.items)
-        if key.is_delete:
-            if self.handle_delete():
-                return True
-        if key.is_enter_or_return:
-            if self.handle_select():
-                return True
-        if key.is_up_arrow:
-            new_index = None
-            indexes = self.__selection.indexes
-            if len(indexes) > 0:
-                new_index = max(min(indexes) - 1, 0)
-            elif item_count > 0:
-                new_index = item_count - 1
-            if new_index is not None:
-                if key.modifiers.shift:
-                    self.__selection.extend(new_index)
-                else:
-                    self.__selection.set(new_index)
-            self.__make_selection_visible(-1)
-            return True
-        if key.is_down_arrow:
-            new_index = None
-            indexes = self.__selection.indexes
-            if len(indexes) > 0:
-                new_index = min(max(indexes) + 1, item_count - 1)
-            elif item_count > 0:
-                new_index = 0
-            if new_index is not None:
-                if key.modifiers.shift:
-                    self.__selection.extend(new_index)
-                else:
-                    self.__selection.set(new_index)
-            self.__make_selection_visible(1)
-            return True
-        return super().key_pressed(key)
+    def _handle_left_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_backward(1, key.modifiers.shift)
 
-    def _can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> bool:
-        return False
+    def _handle_right_arrow(self, key: UserInterface.Key) -> bool:
+        return self._adjust_selection_forward(1, key.modifiers.shift)
 
-    def _drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> str:
-        return "ignore"
+    def _get_grid_flow_item_canvas_rect(self, index: int, canvas_size: Geometry.IntSize) -> Geometry.IntRect:
+        if self.__item_width is not None:
+            return Geometry.IntRect(Geometry.IntPoint(0, index * self.__item_width), Geometry.IntSize(width=self.__item_width, height=canvas_size.height))
+        elif self.__item_height is not None:
+            return Geometry.IntRect(Geometry.IntPoint(index * self.__item_height, 0), Geometry.IntSize(width=canvas_size.width, height=self.__item_height))
+        return Geometry.IntRect(Geometry.IntPoint(), Geometry.IntSize())
 
-    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
-        self.__dropping = True
-        return "ignore"
-
-    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-        mouse_index = y // self.__item_height
-        max_index = len(self.__list_model.items)
-        drop_index = None
-        if mouse_index >= 0 and mouse_index < max_index:
-            drop_index = mouse_index
-            if not self._can_drop_mime_data(mime_data, "move", drop_index):
-                drop_index = None
-        if drop_index != self.__drop_index:
-            self.__drop_index = drop_index
-        return "ignore"
-
-    def drag_leave(self) -> str:
-        self.__dropping = False
-        self.__drop_index = None
-        return "ignore"
-
-    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-        drop_index = self.__drop_index
-        self.__dropping = False
-        self.__drop_index = None
-        self.update()
-        if drop_index is not None:
-            return self._drop_mime_data(mime_data, "move", drop_index)
-        return "ignore"
-
-    def handle_select_all(self) -> bool:
-        self.__selection.set_multiple(set(range(len(self.__list_model.items))))
-        return True
-
-    def handle_delete(self) -> bool:
-        item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
-        if self.__delegate.delete_event(ListCanvasItem2DeleteEvent(item, selected_items)):
-            return True
-        return False
-
-    def handle_select(self) -> bool:
-        item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
-        if self.__delegate.select_event(ListCanvasItem2SelectEvent(item, selected_items)):
-            return True
-        return False
-
-    def size_to_content(self) -> None:
-        """Size the canvas item to the height of the items."""
-        self.update_sizing(self.__layout.get_sizing(self.canvas_items))
+    def _get_index_for_point(self, p: Geometry.IntPoint, canvas_size: Geometry.IntSize) -> int:
+        if self.__item_width is not None:
+            return round(p.x // self.__item_width)
+        elif self.__item_height is not None:
+            return round(p.y // self.__item_height)
+        else:
+            return 0

@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+9.0.1 (2025-02-11)
+------------------
+- Avoid potential race of requesting update while doing layout.
+- Fix #95. Update selection when items inserted removed from list.
+
 9.0.0 (2025-01-05)
 ------------------
 - Add list canvas item 2, using canvas items for optimized rendering.

@@ -95,8 +95,6 @@ class Action:
     action_id: str = str()
     action_name: str = str()
     action_role: typing.Optional[str] = None
-    action_summary: typing.Optional[str] = None
-    action_description: typing.Optional[str] = None
     action_parameters: typing.List[ActionProperty] = list()
 
     def __init__(self) -> None:
@@ -129,6 +127,9 @@ class Action:
 
     def get_action_name(self, context: ActionContext) -> str:
         return self.action_name
+
+    def get_action_summary(self, context: ActionContext) -> str:
+        return f"{self.action_id}: {self.action_name}"
 
     def report(self, type: ReportType, message: str) -> None:
         self.__reports.append(Report(type, message))

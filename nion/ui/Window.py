@@ -728,10 +728,14 @@ class Window:
             action = actions.get(str(action_or_action_id))
         if action and action not in self.__modal_actions:
             action.clear()
-            if action.invoke(action_context).status == ActionStatus.MODAL:
+            action_status = self._invoke_action_with_context(action, action_context).status
+            if action_status == ActionStatus.MODAL:
                 self.__modal_actions.append(action)
             for report in action.reports:
                 self.display_report(report)
+
+    def _invoke_action_with_context(self, action: Action, action_context: ActionContext) -> ActionResult:
+        return action.invoke(action_context)
 
     def display_report(self, report: Report) -> None:
         from nion.ui import Dialog  # avoid circular reference

@@ -751,11 +751,12 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"stst", len(a_encoded), a_encoded))
 
     @property
-    def line_width(self) -> float:
+    def line_width(self) -> typing.Optional[float]:
         raise NotImplementedError()
 
     @line_width.setter
-    def line_width(self, a: float) -> None:
+    def line_width(self, a: typing.Optional[float]) -> None:
+        assert a is not None
         self.commands.append(("lineWidth", float(a)))
         self.binary_commands.extend(struct.pack("4sf", b"linw", float(a)))
 

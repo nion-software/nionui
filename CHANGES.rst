@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+UNRELEASED
+----------
+- Add support for align and truncation to TextCanvasItem.
+
 9.0.1 (2025-02-11)
 ------------------
 - Avoid potential race of requesting update while doing layout.

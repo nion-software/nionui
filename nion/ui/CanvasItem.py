@@ -114,6 +114,7 @@ import enum
 import functools
 import imageio.v3 as imageio
 import logging
+import math
 import operator
 import random
 import sys
@@ -4485,45 +4486,108 @@ class CellCanvasItem(AbstractCanvasItem):
         return super().mouse_clicked(x, y, modifiers)
 
 
-class TextButtonCell(Cell):
+class TextMeasure(typing.Protocol):
+    """Text measure.
 
-    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
-                 border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+    Measures text and provides truncation.
+
+    Note: this is similar to the methods in UserInterface but avoids enumerations, which results in a circular import.
+    """
+    def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics: ...
+    def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, truncate_mode: str) -> str: ...
+
+
+class TextButtonCell(Cell):
+    """Text button cell.
+
+    To use text align, baseline, and truncation mode, you must provide a text measure, otherwise the behavior defaults
+    to the original behavior of always drawing centered and never truncating.
+    """
+
+    def __init__(self, text: typing.Optional[str] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None, *,
+                 text_font: str | None = None, text_color: str | None = None, text_baseline: str | None = None,
+                 text_align: str | None = None, truncation_mode: str | None = None,
+                 text_measure: TextMeasure | None = None) -> None:
         super().__init__(background_color, border, padding)
         self.__text = text if text is not None else str()
-        self.__text_color: typing.Optional[str] = None
-        self.__text_font: typing.Optional[str] = None
+        self.__text_color = text_color
+        self.__text_font = text_font
+        self.__text_baseline = text_baseline
+        self.__text_align = text_align
+        self.__truncation_mode = truncation_mode
+        self.__text_measure = text_measure
 
     @property
     def text(self) -> str:
         return self.__text
 
     @text.setter
-    def text(self, text: typing.Optional[str]) -> None:
+    def text(self, text: str | None) -> None:
         text = text if text is not None else str()
         if self.__text != text:
             self.__text = text
             self._update()
 
     @property
-    def text_color(self) -> typing.Optional[str]:
+    def text_color(self) -> str | None:
         return self.__text_color
 
     @text_color.setter
-    def text_color(self, value: typing.Optional[str]) -> None:
+    def text_color(self, value: str | None) -> None:
         if self.__text_color != value:
             self.__text_color = value
             self._update()
 
     @property
-    def text_font(self) -> typing.Optional[str]:
+    def text_font(self) -> str | None:
         return self.__text_font
 
     @text_font.setter
-    def text_font(self, value: typing.Optional[str]) -> None:
+    def text_font(self, value: str | None) -> None:
         if self.__text_font != value:
             self.__text_font = value
             self._update()
+
+    @property
+    def text_baseline(self) -> str | None:
+        return self.__text_baseline
+
+    @text_baseline.setter
+    def text_baseline(self, value: str | None) -> None:
+        if self.__text_baseline != value:
+            self.__text_baseline = value
+            self._update()
+
+    @property
+    def text_align(self) -> str | None:
+        return self.__text_align
+
+    @text_align.setter
+    def text_align(self, value: str | None) -> None:
+        if self.__text_align != value:
+            self.__text_align = value
+            self._update()
+
+    @property
+    def truncation_mode(self) -> str | None:
+        return self.__truncation_mode
+
+    @truncation_mode.setter
+    def truncation_mode(self, truncation_mode: str | None) -> None:
+        if self.__truncation_mode != truncation_mode:
+            self.__truncation_mode = truncation_mode
+            self._update()
+
+    @property
+    def text_measure(self) -> TextMeasure | None:
+        return self.__text_measure
+
+    @text_measure.setter
+    def text_measure(self, value: TextMeasure | None) -> None:
+        self.__text_measure = value
+        self._update()
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
         """ Size the canvas item to the text content without padding."""
@@ -4532,25 +4596,53 @@ class TextButtonCell(Cell):
         return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
 
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
-        if self.__text:
+        text = self.__text
+        if text:
             text_font = self.text_font or "12px"
             text_color = self.__text_color or "black"
+            text_baseline = self.__text_baseline or "middle"
+            text_align = self.__text_align or "center"
             drawing_context.font = text_font
-            drawing_context.text_baseline = "middle"
-            drawing_context.text_align = "center"
+            drawing_context.text_baseline = text_baseline
+            drawing_context.text_align = text_align
             drawing_context.fill_style = text_color
-            drawing_context.fill_text(self.__text, rect.center.x, rect.center.y + 1)
+            if self.__truncation_mode and self.__text_measure:
+                text = self.__text_measure.truncate_string_to_width(text_font, text, math.trunc(rect.width + 2), self.__truncation_mode)
+            if self.__text_measure:
+                text_width = self.__text_measure.get_font_metrics(text_font, text).width
+                if text_align == "left":
+                    drawing_context.fill_text(text, rect.left, rect.center.y + 1)
+                elif text_align == "right":
+                    drawing_context.fill_text(text, rect.right - text_width, rect.center.y + 1)
+                else:
+                    drawing_context.fill_text(text, rect.center.x, rect.center.y + 1)
+            else:
+                drawing_context.fill_text(text, rect.center.x, rect.center.y + 1)
 
 
 class TextCanvasItem(CellCanvasItem):
+    """Text canvas item.
 
-    def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
-                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+    To use text align, baseline, and truncation mode, you must provide a text measure, otherwise the behavior defaults
+    to the original behavior of always drawing centered and never truncating.
+
+    For sizing, using size_to_content will essentially negate the effects of align and truncate since the canvas item
+    will be sized to the text content without padding.
+    """
+
+    def __init__(self, text: typing.Optional[str] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None, *,
+                 text_font: str | None = None, text_color: str | None = None, text_baseline: str | None = None,
+                 text_align: str | None = None, truncation_mode: str | None = None,
+                 text_measure: TextMeasure | None = None) -> None:
         super().__init__()
         border = CellBorder()
         if border_color:
             border.border = CellBorderProperties(Color.Color(border_color))
-        self.__text_cell = TextButtonCell(text, background_color, border, padding)
+        self.__text_cell = TextButtonCell(text, background_color, border, padding, text_font=text_font,
+                                          text_color=text_color, text_baseline=text_baseline, text_align=text_align,
+                                          truncation_mode=truncation_mode, text_measure=text_measure)
         self.cell = self.__text_cell
 
     def _description(self) -> str:
@@ -4583,6 +4675,38 @@ class TextCanvasItem(CellCanvasItem):
     @text_font.setter
     def text_font(self, text_font: typing.Optional[str]) -> None:
         self.__text_cell.text_font = text_font
+
+    @property
+    def text_baseline(self) -> str | None:
+        return self.__text_cell.text_baseline
+
+    @text_baseline.setter
+    def text_baseline(self, value: str | None) -> None:
+        self.__text_cell.text_baseline = value
+
+    @property
+    def text_align(self) -> str | None:
+        return self.__text_cell.text_align
+
+    @text_align.setter
+    def text_align(self, value: str | None) -> None:
+        self.__text_cell.text_align = value
+
+    @property
+    def truncation_mode(self) -> str | None:
+        return self.__text_cell.truncation_mode
+
+    @truncation_mode.setter
+    def truncation_mode(self, truncation_mode: str | None) -> None:
+        self.__text_cell.truncation_mode = truncation_mode
+
+    @property
+    def text_measure(self) -> TextMeasure | None:
+        return self.__text_cell.text_measure
+
+    @text_measure.setter
+    def text_measure(self, value: TextMeasure | None) -> None:
+        self.__text_cell.text_measure = value
 
     @property
     def border_enabled(self) -> bool:

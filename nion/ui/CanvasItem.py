@@ -4504,9 +4504,9 @@ class TextButtonCell(Cell):
     to the original behavior of always drawing centered and never truncating.
     """
 
-    def __init__(self, text: typing.Optional[str] = None,
-                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
-                 border: typing.Optional[CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None, *,
+    def __init__(self, text: str | None = None,
+                 background_color: str | DrawingContext.LinearGradient | None = None,
+                 border: CellBorder | None = None, padding: Geometry.IntSize | None = None, *,
                  text_font: str | None = None, text_color: str | None = None, text_baseline: str | None = None,
                  text_align: str | None = None, truncation_mode: str | None = None,
                  text_measure: TextMeasure | None = None) -> None:
@@ -4630,9 +4630,9 @@ class TextCanvasItem(CellCanvasItem):
     will be sized to the text content without padding.
     """
 
-    def __init__(self, text: typing.Optional[str] = None,
-                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
-                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None, *,
+    def __init__(self, text: str | None = None,
+                 background_color: str | DrawingContext.LinearGradient | None = None,
+                 border_color: str | None = None, padding: Geometry.IntSize | None = None, *,
                  text_font: str | None = None, text_color: str | None = None, text_baseline: str | None = None,
                  text_align: str | None = None, truncation_mode: str | None = None,
                  text_measure: TextMeasure | None = None) -> None:
@@ -4657,23 +4657,23 @@ class TextCanvasItem(CellCanvasItem):
         return self.__text_cell.text
 
     @text.setter
-    def text(self, text: typing.Optional[str]) -> None:
+    def text(self, text: str | None) -> None:
         self.__text_cell.text = text or str()
 
     @property
-    def text_color(self) -> typing.Optional[str]:
+    def text_color(self) -> str | None:
         return self.__text_cell.text_color
 
     @text_color.setter
-    def text_color(self, text_color: typing.Optional[str]) -> None:
+    def text_color(self, text_color: str | None) -> None:
         self.__text_cell.text_color = text_color
 
     @property
-    def text_font(self) -> typing.Optional[str]:
+    def text_font(self) -> str | None:
         return self.__text_cell.text_font
 
     @text_font.setter
-    def text_font(self, text_font: typing.Optional[str]) -> None:
+    def text_font(self, text_font: str | None) -> None:
         self.__text_cell.text_font = text_font
 
     @property

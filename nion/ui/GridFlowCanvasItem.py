@@ -413,7 +413,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def __rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_bounds = self.canvas_bounds
         if canvas_bounds:
-            canvas_rect = self.canvas_items[index].canvas_rect
+            canvas_rect = self._get_grid_flow_item_canvas_rect(index, canvas_bounds.size)
             if canvas_rect:
                 return canvas_rect
         return Geometry.IntRect.empty_rect()

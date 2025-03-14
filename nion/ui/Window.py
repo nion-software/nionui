@@ -727,7 +727,7 @@ class Window:
             action = action_or_action_id
         else:
             action = actions.get(str(action_or_action_id))
-        if action and action not in self.__modal_actions:
+        if action and action not in self.__modal_actions and action.is_enabled(action_context):
             action.clear()
             action_status = self._invoke_action_with_context(action, action_context).status
             if action_status == ActionStatus.MODAL:

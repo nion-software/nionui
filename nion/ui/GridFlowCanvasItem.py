@@ -209,6 +209,12 @@ class GridFlowCanvasItemDelegate:
     def drag_started_event(self, event: GridFlowCanvasItemDragStartedEvent) -> bool:
         return False
 
+    def can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> bool:
+        return False
+
+    def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int | None) -> str:
+        return "ignore"
+
     def item_tool_tip(self, item: typing.Any) -> str | None:
         return None
 
@@ -552,7 +558,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__drop_index = None
         self.update()
         if drop_index is not None:
-            return self._drop_mime_data(mime_data, "move", drop_index)
+            internal_drop_result = self._drop_mime_data(mime_data, "move", drop_index)
+            if internal_drop_result != "ignore":
+                return internal_drop_result
+        if self.__delegate.can_drop_mime_data(mime_data, "copy", drop_index):
+            if self.__delegate.drop_mime_data(mime_data, "copy", drop_index) != "ignore":
+                return "accept"
         return "ignore"
 
     def handle_select_all(self) -> bool:

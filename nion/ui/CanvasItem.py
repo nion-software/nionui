@@ -858,6 +858,7 @@ class AbstractCanvasItem:
         self.wants_mouse_events = False
         self.wants_drag_events = False
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
+        self.focus_changed_event = Event.Event()
         self.__cursor_shape: typing.Optional[str] = None
         self.__tool_tip: typing.Optional[str] = None
         self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
@@ -1017,6 +1018,7 @@ class AbstractCanvasItem:
             self.update()
             if callable(self.on_focus_changed):
                 self.on_focus_changed(focused)
+            self.focus_changed_event.fire()
 
     def _request_focus(self, p: typing.Optional[Geometry.IntPoint] = None,
                        modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:

@@ -4,6 +4,7 @@ Changelog (nionui)
 UNRELEASED
 ----------
 - Add support for align and truncation to TextCanvasItem.
+- Add a focus_changed_event to canvas item.
 
 9.0.1 (2025-02-11)
 ------------------

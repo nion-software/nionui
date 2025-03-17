@@ -280,6 +280,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__grid_flow_item_canvas_items.insert(index, grid_flow_item_canvas_item)
                 if not self.__is_shared_selection:
                     self.__selection.insert_index(index)
+                else:
+                    # the selection status (drawing) of each item is uncertain after insert/remove, so update it
+                    self.__handle_selection_changed()
                 self.__needs_size_to_content = True
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
@@ -289,6 +292,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__grid_flow_item_canvas_items.pop(index)
                 if not self.__is_shared_selection:
                     self.__selection.remove_index(index)
+                else:
+                    # the selection status (drawing) of each item is uncertain after insert/remove, so update it
+                    self.__handle_selection_changed()
                 self.__needs_size_to_content = True
 
     def _batch_update_ended(self) -> None:

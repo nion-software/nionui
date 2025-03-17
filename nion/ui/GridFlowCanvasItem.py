@@ -272,6 +272,11 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def _selection(self) -> Selection.IndexedSelection:
         return self.__selection
 
+    @property
+    def _grid_flow_item_canvas_items(self) -> typing.List[GridFlowItemCanvasItem]:
+        # for TESTING
+        return self.__grid_flow_item_canvas_items
+
     def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             grid_flow_item_canvas_item = GridFlowItemCanvasItem(self, item, self.__item_factory)

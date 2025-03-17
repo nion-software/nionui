@@ -3954,7 +3954,14 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
                 self.__drag_tracking_canvas_item.drag_enter(mime_data)
         if self.__drag_tracking_canvas_item:
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
-            response = self.__drag_tracking_canvas_item.drag_move(mime_data, canvas_item_point.x, canvas_item_point.y)
+            # the return value for drag_move is broken. for backwards compatibility, ignore it the return value and
+            # always return 'accept' if at this point since the check for wanting drag events already returned a
+            # positive result in '__drag_canvas_item_at_point'. this approach gives 'drag_move' a chance to do something
+            # keeps the decision about whether to 'accept' or 'ignore' here. that decision affects whether the cursor
+            # shows a drop cursor or not. this goes along with changes to drag event handling in nionui-tool 5.1.4,
+            # but this change is backwards compatible with older nionui-tool.
+            self.__drag_tracking_canvas_item.drag_move(mime_data, canvas_item_point.x, canvas_item_point.y)
+            response = "accept"
         return response
 
     def __drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:

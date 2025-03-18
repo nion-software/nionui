@@ -243,9 +243,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         # internal variables
         self.__selection_changed_listener = self.__selection.changed_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_selection_changed, self))
         self.__needs_size_to_content = False  # delay sizing during batch updates
+        self.__needs_handle_selection_changed = False  # delay selection handling during batch updates
         self.__grid_flow_item_canvas_items = list[GridFlowItemCanvasItem]()
         self.__item_inserted_listener = list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_inserted, self))
         self.__item_removed_listener = list_model.item_removed_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_removed, self))
+        self.__begin_changes_listener = list_model.begin_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__begin_changes, self)) if hasattr(list_model, "begin_changes_event") else None
+        self.__end_changes_listener = list_model.end_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__end_changes, self)) if hasattr(list_model, "end_changes_event") else None
         self.__mouse_index: int | None = None
         self.__mouse_canvas_item: GridFlowItemCanvasItem | None = None
         self.__mouse_pressed = False
@@ -256,8 +259,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__drop_before_index: int | None = None
         self.__drop_index: int | None = None
         # initialize
-        for index, item in enumerate(list_model.items):
-            self.__handle_item_inserted(self.__list_model_key, item, index)
+        with self.batch_update():
+            for index, item in enumerate(list_model.items):
+                self.__handle_item_inserted(self.__list_model_key, item, index)
         self.__handle_selection_changed()
 
     @property
@@ -277,6 +281,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         # for TESTING
         return self.__grid_flow_item_canvas_items
 
+    def __begin_changes(self, key: str) -> None:
+        self._begin_batch_update()
+
+    def __end_changes(self, key: str) -> None:
+        self._end_batch_update()
+
     def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             grid_flow_item_canvas_item = GridFlowItemCanvasItem(self, item, self.__item_factory)
@@ -285,9 +295,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__grid_flow_item_canvas_items.insert(index, grid_flow_item_canvas_item)
                 if not self.__is_shared_selection:
                     self.__selection.insert_index(index)
-                else:
-                    # the selection status (drawing) of each item is uncertain after insert/remove, so update it
-                    self.__handle_selection_changed()
+                self.__needs_handle_selection_changed = True
                 self.__needs_size_to_content = True
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
@@ -297,12 +305,23 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__grid_flow_item_canvas_items.pop(index)
                 if not self.__is_shared_selection:
                     self.__selection.remove_index(index)
-                else:
-                    # the selection status (drawing) of each item is uncertain after insert/remove, so update it
-                    self.__handle_selection_changed()
+                self.__needs_handle_selection_changed = True
                 self.__needs_size_to_content = True
 
+    def _update_child(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        index = self._grid_flow_item_canvas_items.index(typing.cast(GridFlowItemCanvasItem, canvas_item))
+        rect = self.__rect_for_index(index)
+        scroll_area = self.container
+        if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
+            visible_rect = scroll_area.visible_rect
+            if visible_rect and rect.intersects_rect(visible_rect):
+                self.update()
+
     def _batch_update_ended(self) -> None:
+        if self.__needs_handle_selection_changed:
+            # the selection status (drawing) of each item is uncertain after insert/remove, so update it
+            self.__handle_selection_changed()
+            self.__needs_handle_selection_changed = False
         if self.__needs_size_to_content:
             self.size_to_content()
             self.__needs_size_to_content = False

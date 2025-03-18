@@ -1263,7 +1263,12 @@ class AbstractCanvasItem:
         # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
         # thread-safe
         if container := self.__container:
-            container.update()
+            container._update_child(self)
+
+    def _update_child(self, canvas_item: AbstractCanvasItem) -> None:
+        # Notify this canvas item that a child has been updated, repaint if needed at next opportunity.
+        # thread-safe
+        self.update()
 
     def _get_composer_cache(self) -> ComposerCache:
         return self.__cache

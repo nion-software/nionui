@@ -1207,6 +1207,8 @@ class AbstractCanvasItem:
 
     def _begin_batch_update(self) -> None:
         with self.__update_lock:
+            if self.__update_level == 0:
+                self._batch_update_started()
             self.__update_level += 1
 
     def _end_batch_update(self) -> None:
@@ -1215,6 +1217,9 @@ class AbstractCanvasItem:
             if self.__update_level == 0:
                 self._batch_update_ended()
                 self._update()
+
+    def _batch_update_started(self) -> None:
+        pass
 
     def _batch_update_ended(self) -> None:
         pass

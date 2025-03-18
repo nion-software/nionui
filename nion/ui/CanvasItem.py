@@ -1250,8 +1250,9 @@ class AbstractCanvasItem:
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""
-        for canvas_item in self.canvas_items:
-            canvas_item.redraw()
+        with self.batch_update():
+            for canvas_item in self.canvas_items:
+                canvas_item.redraw()
         self._redraw()
 
     def _redraw(self) -> None:

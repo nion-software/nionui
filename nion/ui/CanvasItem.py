@@ -2657,6 +2657,17 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
             return True
         return False
 
+    @property
+    def visible_rect(self) -> Geometry.IntRect | None:
+        canvas_origin = self.canvas_origin
+        canvas_size = self.canvas_size
+        if canvas_origin and canvas_size:
+            content_origin = self.content_origin
+            if content_origin:
+                visible_rect = Geometry.IntRect(origin=-content_origin, size=canvas_size)
+                return visible_rect
+        return None
+
     def make_selection_visible(self, min_rect: Geometry.IntRect, max_rect: Geometry.IntRect, adjust_horizontal: bool, adjust_vertical: bool, prefer_min: bool) -> None:
         canvas_origin = self.canvas_origin
         canvas_size = self.canvas_size

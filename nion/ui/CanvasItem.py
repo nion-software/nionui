@@ -900,7 +900,7 @@ class AbstractCanvasItem:
             canvas_item._set_owner_thread(thread)
 
     @property
-    def canvas_items(self) -> typing.List[AbstractCanvasItem]:
+    def canvas_items(self) -> typing.Sequence[AbstractCanvasItem]:
         """ Returns a list of all canvas items in the hierarchy. """
         return list()
 
@@ -2076,19 +2076,17 @@ class CanvasItemComposition(AbstractCanvasItem):
         # since they notify their container (to cull). to reproduce the bug, create a 1x2, then a 4x3 in the bottom.
         # then close several panels and undo. not sure if this is  the permanent fix or not. reset to a list rather
         # than None so that pending uses of canvas_items don't fail.
-        while self.__canvas_items:
-            self._remove_canvas_item_direct(self.__canvas_items[-1])
+        self._remove_all_canvas_items()
         super().close()
 
-    def _description(self) -> str:
-        return self.__class__.__name__ + "/" + self.layout.__class__.__name__
+    def _remove_all_canvas_items(self) -> None:
+        self.__canvas_items.clear()
 
-    def _summary(self, indent: typing.Optional[str] = None) -> str:
-        indent = indent or str()
-        if self.__canvas_items:
-            return super()._summary(indent) + f" [{len(self.__canvas_items)}]" + "\n" + "\n".join(canvas_item._summary(indent + "  ") for canvas_item in self.__canvas_items)
-        else:
-            return super()._summary(indent) + f" [{len(self.__canvas_items)}]"
+    def _base_insert_canvas_item(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
+        self.__canvas_items.insert(before_index, canvas_item)
+
+    def _base_remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        self.__canvas_items.remove(canvas_item)
 
     @property
     def canvas_items_count(self) -> int:
@@ -2096,15 +2094,24 @@ class CanvasItemComposition(AbstractCanvasItem):
         return len(self.__canvas_items)
 
     @property
-    def canvas_items(self) -> typing.List[AbstractCanvasItem]:
+    def canvas_items(self) -> typing.Sequence[AbstractCanvasItem]:
         """ Return a copy of the canvas items managed by this composition. """
         return copy.copy(self.__canvas_items)
 
+    def _description(self) -> str:
+        return self.__class__.__name__ + "/" + self.layout.__class__.__name__
+
+    def _summary(self, indent: typing.Optional[str] = None) -> str:
+        indent = indent or str()
+        canvas_items = self.canvas_items
+        if canvas_items:
+            return super()._summary(indent) + f" [{len(canvas_items)}]" + "\n" + "\n".join(canvas_item._summary(indent + "  ") for canvas_item in canvas_items)
+        else:
+            return super()._summary(indent) + f" [{len(canvas_items)}]"
+
     @property
-    def visible_canvas_items(self) -> typing.List[AbstractCanvasItem]:
-        if self.__canvas_items is not None:
-            return [canvas_item for canvas_item in self.__canvas_items if canvas_item and canvas_item.visible]
-        return list()
+    def visible_canvas_items(self) -> typing.Sequence[AbstractCanvasItem]:
+        return [canvas_item for canvas_item in self.canvas_items if canvas_item and canvas_item.visible]
 
     def layout_immediate(self, canvas_size: Geometry.IntSize) -> None:
         # TEST ONLY
@@ -2147,17 +2154,10 @@ class CanvasItemComposition(AbstractCanvasItem):
         # I'm not sure if this is the right implementation. It works for now.
         self.update_sizing(self.layout.get_sizing(self.visible_canvas_items))
 
-    def _insert_canvas_item_direct(self, before_index: int, canvas_item: AbstractCanvasItem,
-                                   pos: typing.Optional[Geometry.IntPoint] = None) -> None:
-        self.insert_canvas_item(before_index, canvas_item, pos)
-
-    def _insert_canvas_item_x(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
-        self.__canvas_items.insert(before_index, canvas_item)
-
     def insert_canvas_item(self, before_index: int, canvas_item: AbstractCanvasItem,
                            pos: typing.Optional[typing.Any] = None) -> AbstractCanvasItem:
         """ Insert canvas item into layout. pos parameter is layout specific. """
-        self._insert_canvas_item_x(before_index, canvas_item)
+        self._base_insert_canvas_item(before_index, canvas_item)
         canvas_item.container = self
         canvas_item._inserted(self)
         # tell the layout about the canvas item. layout does not occur here.
@@ -2176,23 +2176,20 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def add_canvas_item(self, canvas_item: AbstractCanvasItem, pos: typing.Optional[typing.Any] = None) -> AbstractCanvasItem:
         """ Add canvas item to layout. pos parameter is layout specific. """
-        return self.insert_canvas_item(len(self.__canvas_items), canvas_item, pos)
+        return self.insert_canvas_item(self.canvas_items_count, canvas_item, pos)
 
     def add_spacing(self, spacing: int) -> AbstractCanvasItem:
-        return self.insert_spacing(len(self.__canvas_items), spacing)
+        return self.insert_spacing(self.canvas_items_count, spacing)
 
     def add_stretch(self) -> AbstractCanvasItem:
-        return self.insert_stretch(len(self.__canvas_items))
-
-    def _remove_canvas_item_direct(self, canvas_item: AbstractCanvasItem) -> None:
-        self.__canvas_items.remove(canvas_item)
+        return self.insert_stretch(self.canvas_items_count)
 
     def _remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         canvas_item._removed(self)
         canvas_item.close()
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
-        self._remove_canvas_item_direct(canvas_item)
+        self._base_remove_canvas_item(canvas_item)
         # trigger layout of both this item and the container.
         self.update()
 
@@ -2202,18 +2199,18 @@ class CanvasItemComposition(AbstractCanvasItem):
 
     def remove_all_canvas_items(self) -> None:
         """ Remove all canvas items from layout. Canvas items are closed. """
-        for canvas_item in reversed(copy.copy(self.__canvas_items)):
+        for canvas_item in reversed(self.canvas_items):
             self._remove_canvas_item(canvas_item)
 
     def replace_canvas_item(self, old_canvas_item: AbstractCanvasItem, new_canvas_item: AbstractCanvasItem) -> None:
         """ Replace the given canvas item with the new one. Canvas item is closed. """
-        index = self.__canvas_items.index(old_canvas_item)
+        index = self.canvas_items.index(old_canvas_item)
         self.remove_canvas_item(old_canvas_item)
         self.insert_canvas_item(index, new_canvas_item)
 
     def replace_canvas_items(self, canvas_items: typing.Sequence[AbstractCanvasItem]) -> None:
         """ Replace all canvas items with the given ones. Canvas items are closed. """
-        for canvas_item in reversed(copy.copy(self.__canvas_items)):
+        for canvas_item in reversed(self.canvas_items):
             canvas_item._set_owner_thread(threading.current_thread())
         self.remove_all_canvas_items()
         for canvas_item in canvas_items:
@@ -2236,16 +2233,15 @@ class CanvasItemComposition(AbstractCanvasItem):
         wrap_state = self._will_wrap_child_canvas_item()
         canvas_origin = canvas_item.canvas_origin
         canvas_size = canvas_item.canvas_size
-        index = self.__canvas_items.index(canvas_item)
+        index = self.canvas_items.index(canvas_item)
         # remove the existing canvas item, but without closing it.
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
         canvas_item._set_canvas_size(None)
         canvas_item._set_canvas_origin(None)
-        self._remove_canvas_item_direct(canvas_item)
+        self._base_remove_canvas_item(canvas_item)
         # insert the canvas item container
-        # self.insert_canvas_item(index, canvas_item_container)  # this would adjust splitters. don't do it.
-        self._insert_canvas_item_direct(index, canvas_item_container)
+        self.insert_canvas_item(index, canvas_item_container)
         # insert the canvas item into the container
         canvas_item_container.add_canvas_item(canvas_item)
         # perform the layout using existing origin/size.
@@ -2274,12 +2270,11 @@ class CanvasItemComposition(AbstractCanvasItem):
         canvas_item.container = None
         canvas_item._set_canvas_size(None)
         canvas_item._set_canvas_origin(None)
-        container._remove_canvas_item_direct(canvas_item)
+        container._base_remove_canvas_item(canvas_item)
         # remove container from enclosing container
-        enclosing_container._remove_canvas_item_direct(container)
+        enclosing_container._base_remove_canvas_item(container)
         # insert canvas item into the enclosing container
-        # enclosing_container.insert_canvas_item(index, canvas_item)  # this would adjust splitters. don't do it.
-        enclosing_container._insert_canvas_item_direct(index, canvas_item)
+        enclosing_container.insert_canvas_item(index, canvas_item)
         # allow subclasses to restore state
         self_container._did_unwrap_child_canvas_item(wrap_state)
         # update the layout if origin and size already known
@@ -2900,7 +2895,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             self.layout = self.__splitter_layout
         self.update()
 
-    def _insert_canvas_item_x(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
+    def _base_insert_canvas_item(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
         sizing_data = SizingData()
         if self.orientation == "horizontal":
             sizing_data.preferred_height = None
@@ -2914,15 +2909,15 @@ class SplitterCanvasItem(CanvasItemComposition):
             self.__sizings.insert(before_index, Sizing(sizing_data))
             self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
             self.layout = self.__splitter_layout
-        super()._insert_canvas_item_x(before_index, canvas_item)
+        super()._base_insert_canvas_item(before_index, canvas_item)
         self.update()
 
-    def _remove_canvas_item_direct(self, canvas_item: AbstractCanvasItem) -> None:
+    def _base_remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         with self.__lock:
             del self.__sizings[self.canvas_items.index(canvas_item)]
             self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
             self.layout = self.__splitter_layout
-        super()._remove_canvas_item_direct(canvas_item)
+        super()._base_remove_canvas_item(canvas_item)
         self.update()
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[AbstractCanvasItem]:
@@ -3084,12 +3079,6 @@ class StackCanvasItem(CanvasItemComposition):
     def __update_visibility(self) -> None:
         for index, canvas_item in enumerate(self.canvas_items):
             canvas_item.visible = index == self.__current_index
-
-    def _insert_canvas_item_x(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
-        super()._insert_canvas_item_x(before_index, canvas_item)
-
-    def _remove_canvas_item_direct(self, canvas_item: AbstractCanvasItem) -> None:
-        super()._remove_canvas_item_direct(canvas_item)
 
     @property
     def current_index(self) -> int | None:

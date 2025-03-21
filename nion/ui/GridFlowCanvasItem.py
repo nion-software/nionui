@@ -247,8 +247,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__grid_flow_item_canvas_items = list[GridFlowItemCanvasItem]()
         self.__item_inserted_listener = list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_inserted, self))
         self.__item_removed_listener = list_model.item_removed_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_removed, self))
-        self.__begin_changes_listener = list_model.begin_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__begin_changes, self)) if hasattr(list_model, "begin_changes_event") else None
-        self.__end_changes_listener = list_model.end_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__end_changes, self)) if hasattr(list_model, "end_changes_event") else None
+        if hasattr(list_model, "begin_changes_event") and hasattr(list_model, "end_changes_event"):
+            self.__begin_changes_listener = list_model.begin_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__begin_changes, self))
+            self.__end_changes_listener = list_model.end_changes_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__end_changes, self))
+        else:
+            self.__begin_changes_listener = None
+            self.__end_changes_listener = None
         self.__mouse_index: int | None = None
         self.__mouse_canvas_item: GridFlowItemCanvasItem | None = None
         self.__mouse_pressed = False

@@ -212,18 +212,24 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
 
 
 def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properties: typing.Mapping[str, typing.Any]) -> None:
+    preferred_width = canvas_item.sizing.preferred_width or 0
+    preferred_height = canvas_item.sizing.preferred_height or 0
     if "width" in properties:
         canvas_item.update_sizing(canvas_item.sizing.with_fixed_width(properties["width"]))
     if "height" in properties:
         canvas_item.update_sizing(canvas_item.sizing.with_fixed_height(properties["height"]))
     if "min-width" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_minimum_width(properties["min-width"]))
+        min_width = properties["min-width"]
+        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_width().with_preferred_width(max(min_width, preferred_width)).with_minimum_width(min_width))
     if "max-width" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_maximum_width(properties["max-width"]))
+        max_width = properties["max-width"]
+        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_width().with_preferred_width(min(max_width, preferred_width)).with_maximum_width(max_width))
     if "min-height" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_minimum_height(properties["min-height"]))
+        min_height = properties["min-height"]
+        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_height().with_preferred_height(max(min_height, preferred_height)).with_minimum_height(min_height))
     if "max-height" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_maximum_height(properties["max-height"]))
+        max_height = properties["max-height"]
+        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_height().with_preferred_height(min(max_height, preferred_height)).with_maximum_height(max_height))
 
 
 class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemController):

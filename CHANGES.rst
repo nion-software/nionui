@@ -3,9 +3,14 @@ Changelog (nionui)
 
 UNRELEASED
 ----------
-- Add support for align and truncation to TextCanvasItem.
-- Add a focus_changed_event to canvas item.
 - Ensure bitmaps passed to host drawing system are in the correct format (c-contiguous).
+- Improve sizing algorithm for minimal push button style to handle min/max better.
+- Improve drag and drop handling to not show drop indicator when not needed.
+- Improve action handling for improved customization.
+- Add a focus_changed_event to canvas item.
+- Add support for align and truncation to TextCanvasItem.
+- Add grid flow canvas item to allow for more complex layouts such as grid views.
+- Add stack canvas item.
 
 9.0.1 (2025-02-11)
 ------------------

@@ -5,6 +5,7 @@ UNRELEASED
 ----------
 - Add support for align and truncation to TextCanvasItem.
 - Add a focus_changed_event to canvas item.
+- Ensure bitmaps passed to host drawing system are in the correct format (c-contiguous).
 
 9.0.1 (2025-02-11)
 ------------------

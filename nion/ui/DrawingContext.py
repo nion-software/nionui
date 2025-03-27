@@ -603,6 +603,9 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4sffff", b"quad", float(x1), float(y1), float(x), float(y)))
 
     def draw_image(self, img: RGBA32Type, x: float, y: float, width: float, height: float) -> None:
+        # The host application expects the image to be contiguous c-style memory. Check and update here if required.
+        if not img.flags['C_CONTIGUOUS']:
+            img = numpy.ascontiguousarray(img)
         # img should be rgba pack, uint32
         assert img.dtype == numpy.uint32
         # The numpy-2 compatible nionui-tool takes an object which has the bytearray interface. The hdf5 dataset does
@@ -617,6 +620,11 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4siiiffff", b"imag", img.shape[1], img.shape[0], int(image_id), float(x), float(y), float(width), float(height)))
 
     def draw_data(self, img: GrayscaleF32Type, x: float, y: float, width: float, height: float, low: float, high: float, color_map_data: typing.Optional[RGBA32Type]) -> None:
+        # The host application expects the image to be contiguous c-style memory. Check and update here if required.
+        if not img.flags['C_CONTIGUOUS']:
+            img = numpy.ascontiguousarray(img)
+        if color_map_data is not None and color_map_data.flags['C_CONTIGUOUS']:
+            color_map_data = numpy.ascontiguousarray(color_map_data)
         # img should be float
         assert img.dtype == numpy.float32
         # The numpy-2 compatible nionui-tool takes an object which has the bytearray interface. The hdf5 dataset does

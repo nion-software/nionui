@@ -16,14 +16,12 @@ from nion.utils import Binding
 
 @contextlib.contextmanager
 def event_loop_context() -> typing.Iterator[asyncio.AbstractEventLoop]:
-    old_event_loop = asyncio.get_event_loop_policy().get_event_loop()
     event_loop = asyncio.new_event_loop()
-    asyncio.get_event_loop_policy().set_event_loop(event_loop)
+    asyncio.set_event_loop(event_loop)
     yield event_loop
     event_loop.stop()
     event_loop.run_forever()
     event_loop.close()
-    asyncio.get_event_loop_policy().set_event_loop(old_event_loop)
 
 
 class TestCanvasItemClass(unittest.TestCase):

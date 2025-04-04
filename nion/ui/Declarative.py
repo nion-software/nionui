@@ -1239,6 +1239,10 @@ def run_window(d: UIDescription, handler: HandlerLike, *, app: typing.Optional[A
     window = Window.Window(ui, app=app, parent_window=parent_window, persistent_id=persistent_id, window_style=window_style)
     window.title = title
     window.on_close = closer.close
+    if parent_window:
+        parent_window.register_dialog(window)
+    elif app:
+        app.register_dialog(window)
     # make and attach closer for the handler; put handler into container closer
     setattr(handler, "_closer", Closer())
     closer.push_closeable(handler)

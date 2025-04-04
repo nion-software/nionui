@@ -168,7 +168,12 @@ class BaseApplication:
 
     def _exit_prevent_close_state(self) -> None:
         self.__prevent_close_count -= 1
-        if not self.__prevent_close_count and not self.__windows and not self.__dialogs:
+        # hack to detect when last document window is closed. this is a hack because this
+        # assumes dialogs do not prevent closing, whereas windows that are not dialog do.
+        # this shows up in issue #1411, close using close box with notification dialog open.
+        open_windows = set(self.__windows)
+        open_dialogs = set([dialog() for dialog in self.__dialogs if dialog()])
+        if not self.__prevent_close_count and not (open_windows - open_dialogs):
             self.ui.request_quit()
 
     def exit(self) -> None:
@@ -194,7 +199,7 @@ class BaseApplication:
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:
-            dialog = typing.cast(Window.Window, weak_dialog())
+            dialog = typing.cast(Window.Window | None, weak_dialog())
             if dialog:
                 try:
                     dialog.request_close()
@@ -209,7 +214,11 @@ class BaseApplication:
         return False
 
     def register_dialog(self, dialog: Window.Window) -> None:
+        old_on_close = dialog.on_close
+
         def close_dialog() -> None:
+            if callable(old_on_close):
+                old_on_close()
             self.__dialogs.remove(weakref.ref(dialog))
 
         dialog.on_close = close_dialog

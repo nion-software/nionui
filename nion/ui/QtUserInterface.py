@@ -2241,7 +2241,8 @@ class QtUserInterface(UserInterface.UserInterface):
     def request_quit(self) -> None:
         # ask the application to shut down. this will eventually call the Application stop method, which will call
         # the close method above.
-        self.proxy.Application_close()
+        if self.proxy:
+            self.proxy.Application_close()
 
     def set_application_info(self, application_name: str, organization_name: str, organization_domain: str) -> None:
         self.proxy.Core_setApplicationInfo(application_name, organization_name, organization_domain)

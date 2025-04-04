@@ -205,7 +205,6 @@ class BaseApplication:
                     dialog.request_close()
                 except Exception as e:
                     pass
-        self.__dialogs = list()
 
     def is_dialog_type_open(self, dialog_class: typing.Type[Dialog.ActionDialog]) -> bool:
         for dialog_weakref in self.__dialogs:

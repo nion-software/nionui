@@ -963,17 +963,20 @@ class TableWidget(UserInterface.Widget):
             self.header_for_empty_list_widget.visible = not has_content
 
 
-class TextPushButtonWidget(UserInterface.Widget):
-    def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
+class TextPushButtonWidgetBehavior(CompositeWidgetBehavior):
+    def __init__(self, ui: UserInterface.UserInterface, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget()
-        super().__init__(CompositeWidgetBehavior(column_widget))
-        self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
+        super().__init__(column_widget)
+        self.on_button_clicked: typing.Callable[[], None] | None = None
+        self.on_clicked: typing.Callable[[], None] | None = None
         font = "normal 11px serif"
         font_metrics = ui.get_font_metrics(font, text)
         text_button_canvas_item = CanvasItem.TextButtonCanvasItem(text)
         text_button_canvas_item.update_sizing(text_button_canvas_item.sizing.with_fixed_size(Geometry.IntSize(height=font_metrics.height + 6, width=font_metrics.width + 6)))
 
         def button_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked()
             if callable(self.on_button_clicked):
                 self.on_button_clicked()
 
@@ -987,6 +990,42 @@ class TextPushButtonWidget(UserInterface.Widget):
             text_button_canvas_widget.on_mouse_exited = root_container.canvas_widget.on_mouse_exited
 
         column_widget.add(text_button_canvas_widget)
+
+        self.__text_button_canvas_item = text_button_canvas_item
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__text_button_canvas_item.text_color = "black" if enabled else "gray"
+
+    def _set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.tool_tip = tool_tip
+
+    def _set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.__text_button_canvas_item.background_color = background_color
+
+    def _set_border_color(self, border_color: typing.Optional[str]) -> None:
+        self.__text_button_canvas_item.border_color = border_color
+
+
+class TextPushButtonWidget(UserInterface.Widget):
+    def __init__(self, ui: UserInterface.UserInterface, text: str) -> None:
+        text_push_button_behavior = TextPushButtonWidgetBehavior(ui, text)
+        super().__init__(text_push_button_behavior)
+        self.__text_push_button_behavior = text_push_button_behavior
+        self.on_clicked: typing.Callable[[UserInterface.Widget], None] | None = None
+
+        def handle_on_clicked() -> None:
+            if callable(self.on_clicked):
+                self.on_clicked(self)
+
+        self.__text_push_button_behavior.on_clicked = handle_on_clicked
+
+    @property
+    def on_button_clicked(self) -> typing.Callable[[], None] | None:
+        return self.__text_push_button_behavior.on_button_clicked
+
+    @on_button_clicked.setter
+    def on_button_clicked(self, callback: typing.Callable[[], None] | None) -> None:
+        self.__text_push_button_behavior.on_button_clicked = callback
 
 
 class ImageWidget(UserInterface.Widget):

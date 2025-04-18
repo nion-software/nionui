@@ -388,6 +388,10 @@ class DeclarativeUI:
         d: UIDescriptionResult = {"type": "scroll_area", "content": content}
         if name is not None:
             d["name"] = name
+        if "vertical_scroll_bar_policy" in kwargs:
+            d["vertical_scroll_bar_policy"] = kwargs["vertical_scroll_bar_policy"]
+        if "horizontal_scroll_bar_policy" in kwargs:
+            d["horizontal_scroll_bar_policy"] = kwargs["horizontal_scroll_bar_policy"]
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1611,7 +1615,7 @@ def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window
                           handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.ScrollAreaWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_scroll_area_widget(properties)
-    widget.set_scrollbar_policies("needed", "needed")
+    widget.set_scrollbar_policies(d.get("horizontal_scroll_bar_policy", "needed"), d.get("vertical_scroll_bar_policy", "needed"))
     content = typing.cast(UIDescription, d.get("content"))
     widget.content = construct(ui, window, content, handler, finishes)
     if handler:

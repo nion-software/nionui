@@ -11,6 +11,7 @@ UNRELEASED
 - Add support for align and truncation to TextCanvasItem.
 - Add grid flow canvas item to allow for more complex layouts such as grid views.
 - Add stack canvas item.
+- Add support for setting scroll bar policy on declarative scroll area.
 
 9.0.1 (2025-02-11)
 ------------------

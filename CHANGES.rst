@@ -1,12 +1,15 @@
 Changelog (nionui)
 ==================
 
-UNRELEASED
-----------
+10.0.0 (2025-04-23)
+-------------------
 - Ensure bitmaps passed to host drawing system are in the correct format (c-contiguous).
 - Improve sizing algorithm for minimal push button style to handle min/max better.
 - Improve drag and drop handling to not show drop indicator when not needed.
 - Improve action handling for improved customization.
+- Improve handling of dialog closing during application exit.
+- Improve Widget.TextPushButton to handle enabled, tool tip, text/background color.
+- Add support for setting scroll bar policy on declarative scroll area.
 - Add a focus_changed_event to canvas item.
 - Add support for align and truncation to TextCanvasItem.
 - Add grid flow canvas item to allow for more complex layouts such as grid views.

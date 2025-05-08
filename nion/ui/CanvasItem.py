@@ -5317,11 +5317,22 @@ class ProgressBarCanvasItemComposer(BaseComposer):
                 progress_text = str(round(progress * 100)) + "%"
                 drawing_context.begin_path()
                 drawing_context.font = "12px sans-serif"
-                drawing_context.text_align = 'center'
+                drawing_context.text_align = 'right'
                 drawing_context.text_baseline = 'middle'
                 drawing_context.fill_style = "#fff"
                 drawing_context.line_width = 2
-                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress - 19, canvas_rect_center.y + 1)
+                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress, canvas_rect_center.y + 1)
+                drawing_context.fill()
+                drawing_context.close_path()
+            elif canvas_size.height >= 16 and canvas_size.width * (1.0 - progress) >= 50 and progress > 0.0:  # TODO: use font metrics to find length of text
+                progress_text = str(round(progress * 100)) + "%"
+                drawing_context.begin_path()
+                drawing_context.font = "12px sans-serif"
+                drawing_context.text_align = 'left'
+                drawing_context.text_baseline = 'middle'
+                drawing_context.fill_style = "#000"
+                drawing_context.line_width = 2
+                drawing_context.fill_text(progress_text, (canvas_size.width - 6) * progress + 4, canvas_rect_center.y + 1)
                 drawing_context.fill()
                 drawing_context.close_path()
 

@@ -5,9 +5,11 @@
 from __future__ import annotations
 
 # standard libraries
+import functools
 import gettext
 import time
 import typing
+import weakref
 
 # third party libraries
 # none
@@ -182,8 +184,11 @@ class NotificationDialog(Window.Window):
 
 class PopupWindow(Window.Window):
 
-    def __init__(self, parent_window: Window.Window, ui_widget: Declarative.UIDescription, ui_handler: Declarative.HandlerLike) -> None:
-        super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style="popup")
+    def __init__(self, parent_window: Window.Window, ui_widget: Declarative.UIDescription, ui_handler: Declarative.HandlerLike, *, window_style: str | None = "default", delegate: typing.Any | None = None) -> None:
+        window_style = window_style if window_style != "default" else "popup"
+        super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style=window_style)
+
+        self.__delegate = weakref.ref(delegate) if delegate else None
 
         from nion.ui import Declarative  # avoid circular reference
 
@@ -216,8 +221,10 @@ class PopupWindow(Window.Window):
 
         self.__ui_handler = ui_handler
 
+        parent_window.register_dialog(self)
+
     def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
-        if size is None and position is None:
+        if position is None:
             parent_window = self.parent_window
             assert parent_window
             position = parent_window._document_window.position + Geometry.IntSize(w=parent_window._document_window.size.width // 2 - 300 // 2,
@@ -286,12 +293,84 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
     column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
     popup = PopupWindow(window, column, ui_handler)
 
-    def handle_close() -> None:
+    def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:
             computation = items[ui_handler.index_model.value or 0]
             completion_fn(computation)
         else:
             completion_fn(None)
+        if callable(old_close):
+            old_close()
 
-    popup.on_close = handle_close
+    popup.on_close = functools.partial(handle_close, popup.on_close)
     popup.show()#position=position, size=size)
+
+
+def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
+                            window: Window.Window, title: typing.Optional[str] = None,
+                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None) -> None:
+
+    class Handler:
+        def __init__(self, s: str) -> None:
+            self.is_rejected = True
+            self.s = s
+            self.line_edit_widget: UserInterface.LineEditWidget | None = None
+
+        def close(self) -> None:
+            pass
+
+        def init_popup(self, request_close_fn: typing.Callable[[], None]) -> None:
+            self.__request_close_fn = request_close_fn
+            if self.line_edit_widget:
+                self.line_edit_widget.select_all()
+                self.line_edit_widget.focused = True
+
+        def reject(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits escape. let the window handle the escape by returning False.
+            # mark popup as rejected.
+            self.__request_close_fn()
+            return False
+
+        def accept(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits return. need to request a close and return True to say we handled event.
+            if self.line_edit_widget:
+                self.s = self.line_edit_widget.text or str()
+            self.__request_close_fn()
+            self.is_rejected = False
+            return True
+
+        def handle_cancel(self, widget: UserInterface.Widget) -> None:
+            self.__request_close_fn()
+
+    from nion.ui import Declarative  # avoid circular reference
+
+    # calculate the max string width, add 10%, min 200, max 480
+    size = size or Geometry.IntSize(30, 200)
+    width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
+
+    ui_handler = Handler(current_string)
+    u = Declarative.DeclarativeUI()
+    title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject"), u.create_stretch())
+    column = u.create_column(title_row, edit_row, spacing=4, margin=8)
+    # passing window_style=None is essential for making copy and paste work, as the 'popup' style does not handle copy/paste.
+    popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)
+    # but we still want a clean window style
+    popup._document_window.set_window_style(["tool", "frameless-hint"])
+    popup._create_menus()
+
+    def handle_close(old_close: typing.Callable[[], None] | None) -> None:
+        if not ui_handler.is_rejected:
+            completion_fn(ui_handler.s)
+        else:
+            completion_fn(None)
+        if callable(old_close):
+            old_close()
+
+    popup.on_close = functools.partial(handle_close, popup.on_close)
+    popup.show(size=size, position=position)
+    # hack to get focus to work properly at first display
+    line_edit_widget = ui_handler.line_edit_widget
+    assert line_edit_widget
+    line_edit_widget.focused = False
+    line_edit_widget.focused = True

@@ -314,7 +314,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
 
     def _update_child(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
         index = self._grid_flow_item_canvas_items.index(typing.cast(GridFlowItemCanvasItem, canvas_item))
-        rect = self.__rect_for_index(index)
+        rect = self._rect_for_index(index)
         scroll_area = self.container
         if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
             visible_rect = scroll_area.visible_rect
@@ -450,7 +450,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def _get_tool_tip(self, item: typing.Any) -> str | None:
         return self.__delegate.item_tool_tip(item)
 
-    def __rect_for_index(self, index: int) -> Geometry.IntRect:
+    def _rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_bounds = self.canvas_bounds
         if canvas_bounds:
             canvas_rect = self._get_grid_flow_item_canvas_rect(index, canvas_bounds.size)
@@ -463,8 +463,8 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         if len(selected_indexes) > 0 and self.canvas_bounds is not None:
             min_index = min(selected_indexes)
             max_index = max(selected_indexes)
-            min_rect = self.__rect_for_index(min_index)
-            max_rect = self.__rect_for_index(max_index)
+            min_rect = self._rect_for_index(min_index)
+            max_rect = self._rect_for_index(max_index)
             scroll_area = self.container
             if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
                 scroll_area.make_selection_visible(min_rect, max_rect, True, True, style < 0)

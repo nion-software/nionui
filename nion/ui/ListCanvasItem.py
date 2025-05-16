@@ -202,7 +202,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                     return True
         return super().handle_tool_tip(x, y, gx, gy)
 
-    def __rect_for_index(self, index: int) -> Geometry.IntRect:
+    def _rect_for_index(self, index: int) -> Geometry.IntRect:
         canvas_bounds = self.canvas_bounds
         if canvas_bounds:
             item_width = canvas_bounds.width
@@ -305,8 +305,8 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             if len(selected_indexes) > 0 and self.canvas_bounds is not None:
                 min_index = min(selected_indexes)
                 max_index = max(selected_indexes)
-                min_rect = self.__rect_for_index(min_index)
-                max_rect = self.__rect_for_index(max_index)
+                min_rect = self._rect_for_index(min_index)
+                max_rect = self._rect_for_index(max_index)
                 scroll_area = self.container
                 if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
                     scroll_area.make_selection_visible(min_rect, max_rect, False, True, style < 0)

@@ -65,6 +65,9 @@ class ListCanvasItemDelegate(typing.Protocol):
     def mouse_pressed_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
         return False
 
+    def mouse_double_clicked_in_item(self, mouse_index: int, pos: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return False
+
     def item_can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: int) -> bool:
         return False
 
@@ -236,7 +239,8 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
             if not self.__selection.contains(mouse_index):
                 self.__selection.set(mouse_index)
             if delegate:
-                return delegate.item_selected(mouse_index)
+                handled = delegate.mouse_double_clicked_in_item(mouse_index, Geometry.IntPoint(y=y - mouse_index * self.__item_height, x=x), modifiers)
+                return handled or delegate.item_selected(mouse_index)
         return super().mouse_double_clicked(x, y, modifiers)
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:

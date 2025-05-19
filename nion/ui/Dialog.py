@@ -357,7 +357,6 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)
     # but we still want a clean window style
     popup._document_window.set_window_style(["tool", "frameless-hint"])
-    popup._create_menus()
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:

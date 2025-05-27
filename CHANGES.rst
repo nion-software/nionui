@@ -1,6 +1,12 @@
 Changelog (nionui)
 ==================
 
+10.1.0 (2025-05-27)
+-------------------
+- Add ability to handle double clicks in list items.
+- Add utility dialog for getting a string (useful for title editing).
+- Draw progress bar percentage when progress is just starting.
+
 10.0.0 (2025-04-23)
 -------------------
 - Ensure bitmaps passed to host drawing system are in the correct format (c-contiguous).

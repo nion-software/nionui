@@ -4803,7 +4803,7 @@ class BitmapCell(Cell):
         self.__display_limits: typing.Optional[typing.Tuple[float, float]] = None
         self.__color_map_data: typing.Optional[DrawingContext.RGBA32Type] = None
 
-    def set_bitmap(self, bitmap: Bitmap.Bitmap, trigger_update: bool = True) -> None:
+    def set_bitmap(self, bitmap: Bitmap.Bitmap | None, trigger_update: bool = True) -> None:
         if bitmap:
             assert isinstance(bitmap, Bitmap.Bitmap)
         self.__bitmap = bitmap
@@ -4828,11 +4828,11 @@ class BitmapCell(Cell):
         return self.__data
 
     @property
-    def bitmap(self) -> typing.Optional[Bitmap.Bitmap]:
+    def bitmap(self) -> Bitmap.Bitmap | None:
         return self.__bitmap
 
     @bitmap.setter
-    def bitmap(self, bitmap: Bitmap.Bitmap) -> None:
+    def bitmap(self, bitmap: Bitmap.Bitmap | None) -> None:
         self.set_bitmap(bitmap)
 
     def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:

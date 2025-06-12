@@ -402,6 +402,10 @@ class Key(UserInterfaceModule.Key):
         return self.__key == "tab"
 
     @property
+    def is_backtab(self) -> bool:
+        return self.__key == "backtab"
+
+    @property
     def is_arrow(self) -> bool:
         return self.is_left_arrow or self.is_up_arrow or self.is_right_arrow or self.is_down_arrow
 

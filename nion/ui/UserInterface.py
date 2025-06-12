@@ -167,6 +167,11 @@ class Key(typing.Protocol):
 
     @property
     @abc.abstractmethod
+    def is_backtab(self) -> bool:
+        ...
+
+    @property
+    @abc.abstractmethod
     def is_insert(self) -> bool:
         ...
 

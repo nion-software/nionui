@@ -144,6 +144,10 @@ class QtKey(UserInterface.Key):
         return self.key == 0x1000001
 
     @property
+    def is_backtab(self) -> bool:
+        return self.key == 0x1000002
+
+    @property
     def is_insert(self) -> bool:
         return self.key == 0x1000006
 

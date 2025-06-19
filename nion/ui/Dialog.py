@@ -325,6 +325,11 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
                 self.line_edit_widget.select_all()
                 self.line_edit_widget.focused = True
 
+        def editing_finished(self, widget: Declarative.UIWidget, text: str) -> None:
+            # this is called when the user clicks outside the line edit, or presses return.
+            # we want to close the popup in this case.
+            self.accept(widget)
+
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
             # mark popup as rejected.
@@ -351,7 +356,7 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
-    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject"), u.create_stretch())
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject", on_editing_finished="editing_finished"), u.create_stretch())
     column = u.create_column(title_row, edit_row, spacing=4, margin=8)
     # passing window_style=None is essential for making copy and paste work, as the 'popup' style does not handle copy/paste.
     popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)

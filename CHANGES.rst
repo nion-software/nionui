@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+10.1.1 (UNRELEASED)
+-------------------
+- Fix key pressed logic to handle focus changing while key is down.
+
 10.1.0 (2025-05-27)
 -------------------
 - Add ability to handle double clicks in list items.

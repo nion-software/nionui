@@ -3531,6 +3531,8 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__interaction_count = 0
         self.__focused_item: typing.Optional[AbstractCanvasItem] = None
         self.__last_focused_item: typing.Optional[AbstractCanvasItem] = None
+        self.__key_pressed_item: typing.Optional[AbstractCanvasItem] = None
+        self.__key_pressed_key: typing.Optional[UserInterface.Key] = None
         self.__mouse_canvas_item: typing.Optional[AbstractCanvasItem] = None  # not None when the mouse is pressed
         self.__mouse_tracking = False
         self.__mouse_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
@@ -3549,6 +3551,8 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__grab_canvas_item = None
         self.__focused_item = None
         self.__last_focused_item = None
+        self.__key_pressed_item = None
+        self.__key_pressed_key = None
         self.__canvas_widget.on_size_changed = None
         self.__canvas_widget.on_mouse_clicked = None
         self.__canvas_widget.on_mouse_double_clicked = None
@@ -3702,9 +3706,18 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         """ Set the canvas focused item. This will also update the focused property of both old item (if any) and new item (if any). """
         if not modifiers or not modifiers.any_modifier:
             if focused_item != self.__focused_item:
+                # send the un-focused message to the old focused item
                 if self.__focused_item:
                     self.__focused_item._set_focused(False)
+                # if the focus changes while a key is pressed, release the key
+                if self.__key_pressed_item:
+                    assert self.__key_pressed_key
+                    self.__key_pressed_item.key_released(self.__key_pressed_key)
+                    self.__key_pressed_item = None
+                    self.__key_pressed_key = None
+                # update the focused item
                 self.__focused_item = focused_item
+                # send the focused message to the new focused item
                 if self.__focused_item:
                     self.__focused_item._set_focused(True)
             if self.__focused_item:
@@ -3921,14 +3934,22 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def __key_pressed(self, key: UserInterface.Key) -> bool:
         self._adjust_ui_interaction(1)
-        if self.focused_item:
-            return self.focused_item.key_pressed(key)
+        focused_item = self.focused_item
+        if focused_item:
+            # save the key pressed item and key so that we can release the key if focus changes while the key is down
+            self.__key_pressed_item = focused_item
+            self.__key_pressed_key = key
+            return self.__key_pressed_item.key_pressed(key)
         return False
 
     def __key_released(self, key: UserInterface.Key) -> bool:
         result = False
-        if self.focused_item:
-            result = self.focused_item.key_released(key)
+        if self.__key_pressed_item:
+            # the key pressed and the focus item should match here, but count on the rest of the logic to keep
+            # key_pressed_item in sync with the focused item.
+            result = self.__key_pressed_item.key_released(key)
+            self.__key_pressed_item = None
+            self.__key_pressed_key = None
         self._adjust_ui_interaction(-1)
         return result
 

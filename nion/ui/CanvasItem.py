@@ -3099,7 +3099,9 @@ SLIDER_BAR_HEIGHT = 4
 RANGE_SLIDER_BAR_HEIGHT = 8
 
 def get_slider_bar_width(canvas_size: typing.Optional[Geometry.IntSize]) -> float:
-    return canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+    if canvas_size:
+        return canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+    return 0.0
 
 def get_slider_bar_rect(canvas_size: typing.Optional[Geometry.IntSize]) -> Geometry.FloatRect:
     if canvas_size:
@@ -3445,7 +3447,7 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         if self.__tracking_max:
             self.max_value = new_max_value
 
-        self.__tracking_start = pos
+        self.__tracking_start = pos.to_int_point()
         return super().mouse_position_changed(x, y, modifiers)
 
     def __adjust_combined_thumb(self, amount: float) -> None:

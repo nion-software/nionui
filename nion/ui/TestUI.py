@@ -924,6 +924,16 @@ class SliderWidgetBehavior(WidgetBehavior):
     def pressed(self) -> bool:
         return False
 
+class RangeSliderWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        super().__init__(widget_type, properties)
+        self.minimum = 0
+        self.maximum = 10
+
+    @property
+    def pressed(self) -> bool:
+        return False
 
 class CanvasWidgetBehavior(WidgetBehavior):
 

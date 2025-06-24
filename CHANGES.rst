@@ -1,9 +1,11 @@
 Changelog (nionui)
 ==================
 
-10.1.1 (UNRELEASED)
+10.2.0 (2025-06-23)
 -------------------
 - Fix key pressed logic to handle focus changing while key is down.
+- Add is_backtab method to Key.
+- Accept edit string pop-up when user clicks outside or otherwise loses focus.
 
 10.1.0 (2025-05-27)
 -------------------

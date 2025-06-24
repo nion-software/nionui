@@ -924,17 +924,6 @@ class SliderWidgetBehavior(WidgetBehavior):
     def pressed(self) -> bool:
         return False
 
-class RangeSliderWidgetBehavior(WidgetBehavior):
-
-    def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
-        super().__init__(widget_type, properties)
-        self.minimum = 0
-        self.maximum = 10
-
-    @property
-    def pressed(self) -> bool:
-        return False
-
 class CanvasWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
@@ -1389,7 +1378,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         return UserInterfaceModule.SliderWidget(SliderWidgetBehavior("slider", properties))
 
     def create_range_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.RangeSliderWidget:
-        return UserInterfaceModule.RangeSliderWidget(RangeSliderWidgetBehavior("rangeslider", properties))
+        return UserInterfaceModule.RangeSliderWidget(CanvasWidgetBehavior("rangeslider", properties))
 
     def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.ProgressBarWidget:
         return UserInterfaceModule.ProgressBarWidget(CanvasWidgetBehavior("canvas", properties))

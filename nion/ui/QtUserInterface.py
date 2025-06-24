@@ -2314,6 +2314,9 @@ class QtUserInterface(UserInterface.UserInterface):
     def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SliderWidget:
         return UserInterface.SliderWidget(QtSliderWidgetBehavior(self.proxy, properties))
 
+    def create_range_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.RangeSliderWidget:
+        return UserInterface.RangeSliderWidget(QtCanvasWidgetBehavior(self.proxy, properties))
+
     def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ProgressBarWidget:
         return UserInterface.ProgressBarWidget(QtCanvasWidgetBehavior(self.proxy, properties))
 

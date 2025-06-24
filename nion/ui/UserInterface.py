@@ -4133,7 +4133,7 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def create_range_slider_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> RangeSliderWidget:
+    def create_range_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> RangeSliderWidget:
         ...
 
     @abc.abstractmethod

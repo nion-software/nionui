@@ -924,6 +924,7 @@ class SliderWidgetBehavior(WidgetBehavior):
     def pressed(self) -> bool:
         return False
 
+
 class CanvasWidgetBehavior(WidgetBehavior):
 
     def __init__(self, widget_type: str, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:

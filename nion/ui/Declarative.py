@@ -1776,6 +1776,7 @@ def construct_slider(ui: UserInterface.UserInterface, d: UIDescription, handler:
     widget = ui.create_slider_widget(properties)
     widget.minimum = minimum
     widget.maximum = maximum
+
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
@@ -1789,7 +1790,7 @@ def construct_slider(ui: UserInterface.UserInterface, d: UIDescription, handler:
 def construct_range_slider(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
                      finishes: _FinishesListType) -> UserInterface.RangeSliderWidget:
     minimum = d.get("minimum", 0)
-    maximum = d.get("maximum", 100)
+    maximum = d.get("maximum", 1000)
     properties = construct_sizing_properties(d)
     properties.setdefault("height", 18)
     properties.setdefault("width", 64)

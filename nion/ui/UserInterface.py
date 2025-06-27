@@ -2980,6 +2980,7 @@ class RangeSliderWidget(CanvasWidget):
 
     def __init__(self, behaviour: RangeSliderWidgetBehavior) -> None:
         super().__init__(behaviour)
+        self.__suppress_updates = False
         self.__data_minimum = 0
         self.__data_maximum = 0
         self.__range_minimum = 0
@@ -2988,25 +2989,49 @@ class RangeSliderWidget(CanvasWidget):
         self.__canvas_item_property_changed_listener = self.__range_slider_canvas_item.property_changed_event.listen(self.canvas_item_property_changed)
 
         def set_range_center_value(value: int) -> None:
-            self.range_center = value
+            if self.__suppress_updates:
+                return
+            self.__suppress_updates = True
+            try:
+                self.range_center = value
+            finally:
+                self.__suppress_updates = False
 
         def validate_range_center(new_value: int, old_value: int) -> int:
             return min(max(new_value, self.__data_minimum), self.__data_maximum)
 
         def set_range_width_value(value: int) -> None:
-            self.range_width = value
+            if self.__suppress_updates:
+                return
+            self.__suppress_updates = True
+            try:
+                self.range_width = value
+            finally:
+                self.__suppress_updates = False
 
         def validate_range_width(new_value: int, old_value: int) -> int:
             return min(max(new_value, self.__data_minimum), self.__data_maximum)
 
         def set_range_minimum_value(value: int) -> None:
-            self.range_minimum = value
+            if self.__suppress_updates:
+                return
+            self.__suppress_updates = True
+            try:
+                self.range_minimum = value
+            finally:
+                self.__suppress_updates = False
 
         def validate_range_minimum(new_value: int, old_value: int) -> int:
             return min(max(new_value, self.__data_minimum), self.__data_maximum)
 
         def set_range_maximum_value(value: int) -> None:
-            self.range_maximum = value
+            if self.__suppress_updates:
+                return
+            self.__suppress_updates = True
+            try:
+                self.range_maximum = value
+            finally:
+                self.__suppress_updates = False
 
         def validate_range_maximum(new_value: int, old_value: int) -> int:
             return min(max(new_value, self.__data_minimum), self.__data_maximum)
@@ -3020,22 +3045,41 @@ class RangeSliderWidget(CanvasWidget):
         self.canvas_item.add_canvas_item(self.__range_slider_canvas_item)
 
     def canvas_item_property_changed(self, property_name: str) -> None:
-        if property_name == "min_value":
-            new_min_value_norm = self.__range_slider_canvas_item.min_value
-            old_range_minimum = self.__range_minimum
-            self.__range_minimum = self.clip_to_range(self.normalized_to_value(new_min_value_norm))
-            if self.__range_minimum != old_range_minimum:
-                self.__range_center_binding_helper.value_changed(self.range_center)
+        def update_min() -> bool:
+            new_min_norm = self.__range_slider_canvas_item.min_value
+            old_min = self.__range_minimum
+            self.__range_minimum = self.clip_to_range(self.normalized_to_value(new_min_norm))
+            return old_min != self.__range_minimum
+
+        def update_max() -> bool:
+            new_max_norm = self.__range_slider_canvas_item.max_value
+            old_max = self.__range_maximum
+            self.__range_maximum = self.clip_to_range(self.normalized_to_value(new_max_norm))
+            return old_max != self.__range_maximum
+
+        self.__suppress_updates = True
+        try:
+            min_changed = False
+            max_changed = False
+
+            if property_name == "min_value":
+                min_changed = update_min()
+            elif property_name == "max_value":
+                max_changed = update_max()
+            elif property_name == "both_value":
+                min_changed = update_min()
+                max_changed = update_max()
+
+            if min_changed or max_changed:
                 self.__range_width_binding_helper.value_changed(self.range_width)
-                self.__range_minimum_binding_helper.value_changed(self.range_minimum)
-        elif property_name == "max_value":
-            new_max_value_norm = self.__range_slider_canvas_item.max_value
-            old_range_maximum = self.__range_maximum
-            self.__range_maximum = self.clip_to_range(self.normalized_to_value(new_max_value_norm))
-            if old_range_maximum != self.__range_maximum:
                 self.__range_center_binding_helper.value_changed(self.range_center)
-                self.__range_width_binding_helper.value_changed(self.range_width)
-                self.__range_maximum_binding_helper.value_changed(self.range_maximum)
+                if min_changed:
+                    self.__range_minimum_binding_helper.value_changed(self.range_minimum)
+                if max_changed:
+                    self.__range_maximum_binding_helper.value_changed(self.range_maximum)
+
+        finally:
+            self.__suppress_updates = False
 
     def normalized_to_value(self, value: float) -> int:
         data_range = self.__data_maximum - self.__data_minimum
@@ -3076,6 +3120,7 @@ class RangeSliderWidget(CanvasWidget):
     @range_minimum.setter
     def range_minimum(self, value: int) -> None:
         self._range_minimum(value)
+        self.trigger_center_width_changed()
 
     def _range_minimum(self, value: int) -> None:
         self.__range_minimum = value
@@ -3089,6 +3134,7 @@ class RangeSliderWidget(CanvasWidget):
     @range_maximum.setter
     def range_maximum(self, value: int) -> None:
         self._range_maximum(value)
+        self.trigger_center_width_changed()
 
     def _range_maximum(self, value: int) -> None:
         self.__range_maximum = value
@@ -3096,15 +3142,22 @@ class RangeSliderWidget(CanvasWidget):
 
     @property
     def range_center(self) -> int:
-        return math.floor((self.__range_minimum + self.__range_maximum) / 2)
+        return math.floor((self.__range_minimum + self.__range_maximum + 1) / 2)
 
     @range_center.setter
     def range_center(self, value: int) -> None:
         prev_center = self.range_center
         delta = value - prev_center
         if delta != 0:
-            self._range_minimum(self.range_minimum + delta)
-            self._range_maximum(self.range_maximum + delta)
+            new_min = self.clip_to_range(self.range_minimum + delta)
+            new_max = self.clip_to_range(self.range_maximum + delta)
+            new_width = new_max - new_min + 1
+            if new_width != self.range_width:
+                # Width has changed
+                self.__range_width_binding_helper.value_changed(new_width)
+
+            self._range_minimum(new_min)
+            self._range_maximum(new_max)
             self.trigger_minmax_changed()
 
     @property
@@ -3113,21 +3166,42 @@ class RangeSliderWidget(CanvasWidget):
 
     @range_width.setter
     def range_width(self, value: int) -> None:
-        prev_width = self.range_width
-        range_delta = value - prev_width
-        if range_delta != 0:
-            if range_delta % 2 == 0:
-                half_delta = int(range_delta / 2)
-                self._range_minimum(self.range_minimum - half_delta)
-                self._range_maximum(self.range_maximum + half_delta)
-            else:
-                self._range_minimum(self.range_minimum - math.ceil(range_delta / 2))
-                self._range_maximum(self.range_maximum + math.floor(range_delta / 2))
-            self.trigger_minmax_changed()
+        if value < 1:
+            value = 1  # Minimum width of 1 to maintain inclusive range semantics
+
+        current_center = self.range_center
+        new_min = current_center - math.floor((value - 1) / 2)
+        new_max = current_center + math.ceil((value - 1) / 2)
+
+        # Clamp to data bounds
+        clamped_new_min = self.clip_to_range(new_min)
+        clamped_new_max = self.clip_to_range(new_max)
+
+        # Recalculate if clamping caused shift
+        update_center = False
+        if clamped_new_min != new_min:
+            new_min = clamped_new_min
+            new_max = new_min + value - 1
+            update_center = True
+        elif clamped_new_max != new_max:
+            new_max = clamped_new_max
+            new_min = new_max - value + 1
+            update_center = True
+
+        self._range_minimum(new_min)
+        self._range_maximum(new_max)
+        self.trigger_minmax_changed()
+        if update_center:
+            new_center = math.floor((new_min + new_max + 1) / 2)
+            self.__range_center_binding_helper.value_changed(new_center)
 
     def trigger_minmax_changed(self) -> None:
         self.__range_minimum_binding_helper.value_changed(self.range_minimum)
         self.__range_maximum_binding_helper.value_changed(self.range_maximum)
+
+    def trigger_center_width_changed(self) -> None:
+        self.__range_center_binding_helper.value_changed(self.range_center)
+        self.__range_width_binding_helper.value_changed(self.range_width)
 
     def bind_range_minimum(self, binding: Binding.Binding) -> None:
         self.__range_minimum_binding_helper.bind_value(binding)

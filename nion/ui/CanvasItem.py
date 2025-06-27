@@ -3268,17 +3268,42 @@ class RangeSliderCanvasItemComposer(BaseComposer):
             drawing_context.stroke_style = "#888"
             drawing_context.stroke()
 
-            drawing_context.stroke_style = "#005A9C"
+            drawing_context.stroke_style = "#007AD8"
             drawing_context.begin_path()
-            drawing_context.rect(self.min_rect.left, self.min_rect.top, self.min_rect.width, self.min_rect.height)
+            # drawing_context.rect(self.min_rect.left, self.min_rect.top, self.min_rect.width, self.min_rect.height)
+            drawing_context.move_to(self.min_rect.left, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.right, (2 * self.min_rect.bottom + 3 * self.min_rect.top)/5)
+            drawing_context.line_to(self.min_rect.right, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.left, self.min_rect.bottom)
+            drawing_context.close_path()
             drawing_context.fill_style = "#007AD8"
             drawing_context.fill()
+            #drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.move_to(self.min_rect.right, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.right, self.min_rect.top)
+            drawing_context.close_path()
             drawing_context.stroke()
 
+            #drawing_context.begin_path()
+            #drawing_context.rect(self.max_rect.left, self.max_rect.top, self.max_rect.width, self.max_rect.height)
+            #drawing_context.fill_style = "#007AD8"
+            #drawing_context.fill()
+            #drawing_context.stroke()
             drawing_context.begin_path()
-            drawing_context.rect(self.max_rect.left, self.max_rect.top, self.max_rect.width, self.max_rect.height)
+            # drawing_context.rect(self.min_rect.left, self.min_rect.top, self.min_rect.width, self.min_rect.height)
+            drawing_context.move_to(self.max_rect.right, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.left, (2 * self.max_rect.bottom + 3 * self.max_rect.top) / 5)
+            drawing_context.line_to(self.max_rect.left, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.right, self.max_rect.bottom)
+            drawing_context.close_path()
             drawing_context.fill_style = "#007AD8"
             drawing_context.fill()
+            # drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.move_to(self.max_rect.left, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.left, self.max_rect.top)
+            drawing_context.close_path()
             drawing_context.stroke()
 
 
@@ -3312,6 +3337,8 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
 
     @property
     def min_value(self) -> float:
+        if self.min_value_stream is None:
+            return 0.0
         return self.min_value_stream.value or 0.0
 
     @min_value.setter
@@ -3324,6 +3351,8 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
 
     @property
     def max_value(self) -> float:
+        if self.max_value_stream is None:
+            return 1.0
         return self.max_value_stream.value if self.max_value_stream.value is not None else 1.0
 
     @max_value.setter
@@ -3333,6 +3362,16 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             self.max_value_stream.value = new_value
             self.update()
             self.notify_property_changed("max_value")
+
+    def set_min_max(self, new_min: float, new_max: float):
+        if self.min_value != new_min:
+            new_value = max(0.0, min(1.0, new_min))
+            self.min_value_stream.value = new_value
+        if self.max_value != new_max:
+            new_value = max(0.0, min(1.0, new_max))
+            self.max_value_stream.value = new_value
+        self.update()
+        self.notify_property_changed("both_value")
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         min_value = self.min_value if not self.__tracking_min else self.__tracking_min_value
@@ -3394,58 +3433,52 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         if not self.__tracking_min and not self.__tracking_max:
             return super().mouse_position_changed(x, y, modifiers)
 
-        min_thumb_rect = get_slider_thumb_rect(self.canvas_size, self.min_value, align="Left")
-        max_thumb_rect = get_slider_thumb_rect(self.canvas_size, self.max_value, align="Right")
-        bar_rect = get_slider_bar_rect(self.canvas_size)
         pos = Geometry.FloatPoint(x=x, y=y)
+        bar_rect = get_slider_bar_rect(self.canvas_size)
+
+        if pos.x < bar_rect.left and self.min_value <= 0.0:
+            return super().mouse_position_changed(x, y, modifiers)
+
+        if pos.x > bar_rect.right and self.max_value >= 1.0:
+            return super().mouse_position_changed(x, y, modifiers)
+
         current_range = self.max_value - self.min_value
         new_normalized_value = (pos.x - bar_rect.left) / bar_rect.width
         prev_normalized_value = (self.__tracking_start.x - bar_rect.left) / bar_rect.width
-        delta_normalized_value = new_normalized_value - prev_normalized_value
+        delta = new_normalized_value - prev_normalized_value
 
-        if pos.x <= bar_rect.left:
-            # Dragged off the left side, clip min to 0
-            new_min_value = 0.0
-            new_max_value = current_range
-        elif pos.x >= bar_rect.right:
-            # Dragged off the right side, clip max to 1
-            new_max_value = 1.0
-            new_min_value = 1.0 - current_range
-        else:
-            # Still within the bar
-            new_min_value = delta_normalized_value + self.min_value
-            new_max_value = delta_normalized_value + self.max_value
+        if self.__tracking_min and self.__tracking_max:
+            # Dragging the entire range
+            new_min = self.min_value + delta
+            new_max = self.max_value + delta
 
-        if self.__tracking_min:
-            if not self.__tracking_max:
-                new_min_value = min(new_min_value, self.max_value)
-                if pos.x > max_thumb_rect.left and delta_normalized_value < 0.0:
-                    new_min_value = self.max_value
-            elif new_max_value > 1.0:
-                    # Going to clamp, need to make sure we don't shrink the range
-                    overshoot = new_max_value - 1.0
-                    new_min_value -= overshoot
+            # Clamp while maintaining range width
+            if new_min < 0.0:
+                new_min = 0.0
+                new_max = new_min + current_range
+            elif new_max > 1.0:
+                new_max = 1.0
+                new_min = new_max - current_range
 
-        if self.__tracking_max:
-            if not self.__tracking_min:
-                new_max_value = max(new_max_value, self.min_value)
-                if pos.x < min_thumb_rect.right and delta_normalized_value > 0.0:
-                    new_max_value = self.min_value
-            elif new_min_value < 0.0:
-                    undershoot = new_min_value
-                    new_max_value -= undershoot
+            self.__tracking_min_value = new_min
+            self.__tracking_max_value = new_max
+            self.set_min_max(new_min, new_max)
 
-        if self.__tracking_min:
-            self.__tracking_min_value = max(0.0, min(1.0, new_min_value))
+        elif self.__tracking_min:
+            # Dragging only the min thumb
+            new_min = self.min_value + delta
+            new_min = max(0.0, min(new_min, self.max_value))  # Clamp to [0, max]
 
-        if self.__tracking_max:
-            self.__tracking_max_value = max(0.0, min(1.0, new_max_value))
+            self.__tracking_min_value = new_min
+            self.min_value = new_min
 
-        if self.__tracking_min:
-            self.min_value = new_min_value
+        elif self.__tracking_max:
+            # Dragging only the max thumb
+            new_max = self.max_value + delta
+            new_max = min(1.0, max(new_max, self.min_value))  # Clamp to [min, 1]
 
-        if self.__tracking_max:
-            self.max_value = new_max_value
+            self.__tracking_max_value = new_max
+            self.max_value = new_max
 
         self.__tracking_start = pos.to_int_point()
         return super().mouse_position_changed(x, y, modifiers)

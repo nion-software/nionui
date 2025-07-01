@@ -3363,7 +3363,7 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             self.update()
             self.notify_property_changed("max_value")
 
-    def set_min_max(self, new_min: float, new_max: float):
+    def set_min_max(self, new_min: float, new_max: float) -> None:
         if self.min_value != new_min:
             new_value = max(0.0, min(1.0, new_min))
             self.min_value_stream.value = new_value

@@ -442,6 +442,10 @@ class BindablePropertyHelper(typing.Generic[T]):
             if self.__binding:
                 self.__binding.update_source(validated_value)
 
+    @property
+    def binding_value(self) -> T:
+        return typing.cast(T, self.__binding.get_target_value()) if self.__binding else self.__value
+
     def set_value(self, value: T) -> None:
         # when the binding source changes, this method should be called with the new value.
         # it updates the low level, but does not update the binding.
@@ -457,9 +461,11 @@ class BindablePropertyHelper(typing.Generic[T]):
         # not update the low level.
         validated_value = self.__value_validator(value, self.__value)
         self.__value_initialized = True
-        self.__value = validated_value
         if self.__binding:
             self.__binding.update_source(validated_value)
+            self.__value = typing.cast(T, self.__binding.get_target_value())
+        else:
+            self.__value = validated_value
 
     # bind to value. takes ownership of binding.
     def bind_value(self, binding: Binding.Binding) -> None:
@@ -2087,9 +2093,23 @@ class LineEditWidget(Widget):
         self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
         self.__last_text = None
 
+        def update_and_validate_text(text: str | None) -> None:
+            # update the binding value by calling the value_changed method.
+            # but also check whether the text is different from the widget
+            # text and update it if so. this is necessary to ensure that
+            # the text is updated in the widget when the user enters invalid
+            # text (i.e. 20.5 in an integer only line edit) and either hits
+            # return or tabs away.
+            self.__text_binding_helper.value_changed(text)
+            value = self.__text_binding_helper.binding_value
+            if text != value:
+                str_ = str(value) if value is not None else str()
+                self.__last_text = str_
+                self._behavior.text = value
+
         def handle_editing_finished(text: str) -> None:
             if text != self.__last_text:
-                self.__text_binding_helper.value_changed(text)
+                update_and_validate_text(text)
             if callable(self.on_editing_finished):
                 self.on_editing_finished(text)
             self.__last_text = text
@@ -2106,7 +2126,7 @@ class LineEditWidget(Widget):
         self._behavior.on_escape_pressed = wrap_callback(self, handle_escape_pressed)
 
         def handle_return_pressed() -> bool:
-            self.__text_binding_helper.value_changed(self.text)
+            update_and_validate_text(self.text)
             self.request_refocus()
             if callable(self.on_return_pressed):
                 return self.on_return_pressed()

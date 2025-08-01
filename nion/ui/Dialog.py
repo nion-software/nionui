@@ -192,13 +192,16 @@ class PopupWindow(Window.Window):
 
         from nion.ui import Declarative  # avoid circular reference
 
+        weakself = weakref.ref(self)
         def request_close() -> None:
             # this may be called in response to the user clicking a button to close.
             # make sure that the button is not destructed as a side effect of closing
             # the window by queueing the close. and it is not possible to use event loop
             # here because the event loop limitations: not able to run both parent and child
             # event loops simultaneously.
-            parent_window.queue_task(self.request_close)
+            obj = weakself()
+            if obj:
+                parent_window.queue_task(obj.request_close)
 
         # make and attach closer for the handler; put handler into container closer
         self.__closer = Declarative.Closer()

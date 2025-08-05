@@ -19,6 +19,7 @@ from nion.ui import Window
 from nion.ui import UserInterface
 from nion.utils import Geometry
 from nion.utils import Model
+from nion.utils import ReferenceCounting
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
@@ -189,19 +190,9 @@ class PopupWindow(Window.Window):
         super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style=window_style)
 
         self.__delegate = weakref.ref(delegate) if delegate else None
+        self.__parent_window = parent_window
 
         from nion.ui import Declarative  # avoid circular reference
-
-        weakself = weakref.ref(self)
-        def request_close() -> None:
-            # this may be called in response to the user clicking a button to close.
-            # make sure that the button is not destructed as a side effect of closing
-            # the window by queueing the close. and it is not possible to use event loop
-            # here because the event loop limitations: not able to run both parent and child
-            # event loops simultaneously.
-            obj = weakself()
-            if obj:
-                parent_window.queue_task(obj.request_close)
 
         # make and attach closer for the handler; put handler into container closer
         self.__closer = Declarative.Closer()
@@ -220,11 +211,19 @@ class PopupWindow(Window.Window):
         if ui_handler and hasattr(ui_handler, "init_handler"):
             getattr(ui_handler, "init_handler")()
         if ui_handler and hasattr(ui_handler, "init_popup"):
-            getattr(ui_handler, "init_popup")(request_close)
+            getattr(ui_handler, "init_popup")(ReferenceCounting.weak_partial(PopupWindow.__queue_request_close, self))
 
         self.__ui_handler = ui_handler
 
         parent_window.register_dialog(self)
+
+    def __queue_request_close(self) -> None:
+        # this may be called in response to the user clicking a button to close.
+        # make sure that the button is not destructed as a side effect of closing
+        # the window by queueing the close. and it is not possible to use event loop
+        # here because the event loop limitations: not able to run both parent and child
+        # event loops simultaneously.
+        self.__parent_window.queue_task(self.request_close)
 
     def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         if position is None:

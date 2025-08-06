@@ -190,7 +190,6 @@ class PopupWindow(Window.Window):
         super().__init__(parent_window.ui, app=parent_window.app, parent_window=parent_window, window_style=window_style)
 
         self.__delegate = weakref.ref(delegate) if delegate else None
-        self.__parent_window = parent_window
 
         from nion.ui import Declarative  # avoid circular reference
 
@@ -223,7 +222,7 @@ class PopupWindow(Window.Window):
         # the window by queueing the close. and it is not possible to use event loop
         # here because the event loop limitations: not able to run both parent and child
         # event loops simultaneously.
-        self.__parent_window.queue_task(self.request_close)
+        self.parent_window.queue_task(self.request_close)
 
     def show(self, *, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         if position is None:

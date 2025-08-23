@@ -3096,19 +3096,44 @@ SLIDER_THUMB_WIDTH = 8
 SLIDER_THUMB_HEIGHT = 16
 SLIDER_BAR_OFFSET = 1
 SLIDER_BAR_HEIGHT = 4
+RANGE_SLIDER_BAR_HEIGHT = 8
 
+def get_slider_bar_width(canvas_size: typing.Optional[Geometry.IntSize]) -> float:
+    if canvas_size:
+        return canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+    return 0.0
 
 def get_slider_bar_rect(canvas_size: typing.Optional[Geometry.IntSize]) -> Geometry.FloatRect:
     if canvas_size:
-        bar_width = canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+        bar_width = get_slider_bar_width(canvas_size)
         return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_BAR_HEIGHT / 2, SLIDER_BAR_OFFSET + SLIDER_THUMB_WIDTH / 2, SLIDER_BAR_HEIGHT, bar_width)
     return Geometry.FloatRect.empty_rect()
 
-def get_slider_thumb_rect(canvas_size: typing.Optional[Geometry.IntSize], value: float) -> Geometry.IntRect:
+def get_range_slider_drag_bar_rect(canvas_size: typing.Optional[Geometry.IntSize], normalized_min: float, normalized_max: float) -> Geometry.FloatRect:
     if canvas_size:
-        bar_width = canvas_size.width - SLIDER_THUMB_WIDTH - SLIDER_BAR_OFFSET * 2
+        bar_width = get_slider_bar_width(canvas_size)
+        range_bar_width = bar_width * (normalized_max - normalized_min)
+        range_bar_offset = bar_width * normalized_min
+        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - RANGE_SLIDER_BAR_HEIGHT / 2, SLIDER_BAR_OFFSET + SLIDER_THUMB_WIDTH / 2 + range_bar_offset, RANGE_SLIDER_BAR_HEIGHT, range_bar_width)
+    return Geometry.FloatRect.empty_rect()
+
+def get_slider_thumb_rect(canvas_size: typing.Optional[Geometry.IntSize], value: float, align: str = "Centre") -> Geometry.IntRect:
+    if canvas_size:
+        bar_width = get_slider_bar_width(canvas_size)
         # use tracking value to avoid thumb jumping around while dragging, which occurs when value gets integerized and set.
-        return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_THUMB_HEIGHT / 2, value * bar_width + SLIDER_BAR_OFFSET, SLIDER_THUMB_HEIGHT, SLIDER_THUMB_WIDTH).to_int_rect()
+        if align == "Left":
+            # Handle is to the left of the value
+            return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_THUMB_HEIGHT / 2,
+                                                value * bar_width + SLIDER_BAR_OFFSET - SLIDER_THUMB_WIDTH / 2, SLIDER_THUMB_HEIGHT,
+                                                SLIDER_THUMB_WIDTH).to_int_rect()
+        elif align == "Right":
+            # Handle is to the right of the value
+            return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_THUMB_HEIGHT / 2,
+                                                value * bar_width + SLIDER_BAR_OFFSET + SLIDER_THUMB_WIDTH / 2, SLIDER_THUMB_HEIGHT,
+                                                SLIDER_THUMB_WIDTH).to_int_rect()
+        else:
+            # Value is the centre of the handle
+            return Geometry.FloatRect.from_tlhw(canvas_size.height / 2 - SLIDER_THUMB_HEIGHT / 2, value * bar_width + SLIDER_BAR_OFFSET, SLIDER_THUMB_HEIGHT, SLIDER_THUMB_WIDTH).to_int_rect()
     return Geometry.IntRect.empty_rect()
 
 
@@ -3207,6 +3232,264 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         self.value_change_stream.begin()
         self.value = max(0.0, min(1.0, self.value + amount * 0.1))
         self.value_change_stream.end()
+
+
+class RangeSliderCanvasItemComposer(BaseComposer):
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache,
+                 min_value_norm: float, max_value_norm: float) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__min_value_norm = min_value_norm
+        self.__max_value_norm = max_value_norm
+        self.min_rect = Geometry.IntRect.empty_rect()
+        self.max_rect = Geometry.IntRect.empty_rect()
+        self.range_bar_rect = Geometry.FloatRect.empty_rect()
+        self.bar_rect = Geometry.FloatRect.empty_rect()
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect,
+                 composer_cache: ComposerCache) -> None:
+        self.min_rect = get_slider_thumb_rect(canvas_rect.size, self.__min_value_norm, align="Left")
+        self.max_rect = get_slider_thumb_rect(canvas_rect.size, self.__max_value_norm, align="Right")
+
+        self.bar_rect = get_slider_bar_rect(canvas_rect.size)
+        self.range_bar_rect = get_range_slider_drag_bar_rect(canvas_rect.size, self.__min_value_norm, self.__max_value_norm)
+        with drawing_context.saver():
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            drawing_context.begin_path()
+            drawing_context.rect(self.bar_rect.left, self.bar_rect.top, self.bar_rect.width, self.bar_rect.height)
+            drawing_context.fill_style = "#CCC"
+            drawing_context.fill()
+            drawing_context.stroke_style = "#888"
+            drawing_context.stroke()
+
+            drawing_context.begin_path()
+            drawing_context.rect(self.range_bar_rect.left, self.range_bar_rect.top, self.range_bar_rect.width, self.range_bar_rect.height)
+            drawing_context.fill_style = "#AAA"
+            drawing_context.fill()
+            drawing_context.stroke_style = "#888"
+            drawing_context.stroke()
+
+            drawing_context.stroke_style = "#007AD8"
+            drawing_context.begin_path()
+            # drawing_context.rect(self.min_rect.left, self.min_rect.top, self.min_rect.width, self.min_rect.height)
+            drawing_context.move_to(self.min_rect.left, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.right, (2 * self.min_rect.bottom + 3 * self.min_rect.top)/5)
+            drawing_context.line_to(self.min_rect.right, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.left, self.min_rect.bottom)
+            drawing_context.close_path()
+            drawing_context.fill_style = "#007AD8"
+            drawing_context.fill()
+            #drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.move_to(self.min_rect.right, self.min_rect.bottom)
+            drawing_context.line_to(self.min_rect.right, self.min_rect.top)
+            drawing_context.close_path()
+            drawing_context.stroke()
+
+            #drawing_context.begin_path()
+            #drawing_context.rect(self.max_rect.left, self.max_rect.top, self.max_rect.width, self.max_rect.height)
+            #drawing_context.fill_style = "#007AD8"
+            #drawing_context.fill()
+            #drawing_context.stroke()
+            drawing_context.begin_path()
+            # drawing_context.rect(self.min_rect.left, self.min_rect.top, self.min_rect.width, self.min_rect.height)
+            drawing_context.move_to(self.max_rect.right, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.left, (2 * self.max_rect.bottom + 3 * self.max_rect.top) / 5)
+            drawing_context.line_to(self.max_rect.left, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.right, self.max_rect.bottom)
+            drawing_context.close_path()
+            drawing_context.fill_style = "#007AD8"
+            drawing_context.fill()
+            # drawing_context.stroke()
+            drawing_context.begin_path()
+            drawing_context.move_to(self.max_rect.left, self.max_rect.bottom)
+            drawing_context.line_to(self.max_rect.left, self.max_rect.top)
+            drawing_context.close_path()
+            drawing_context.stroke()
+
+
+class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.__tracking_min = False
+        self.__tracking_max = False
+        self.__tracking_start = Geometry.IntPoint()
+        self.__tracking_min_value = 0.0
+        self.__tracking_max_value = 1.0
+        self.update_sizing(self.sizing.with_fixed_height(20))
+        self.min_value_stream = Stream.ValueStream[float]().add_ref()
+        self.max_value_stream = Stream.ValueStream[float]().add_ref()
+        self.min_value_change_stream = Stream.ValueChangeStream(self.min_value_stream).add_ref()
+        self.max_value_change_stream = Stream.ValueChangeStream(self.max_value_stream).add_ref()
+        self.composer: RangeSliderCanvasItemComposer | None = None
+
+    def close(self) -> None:
+        self.min_value_change_stream.remove_ref()
+        self.min_value_change_stream = typing.cast(typing.Any, None)
+        self.min_value_stream.remove_ref()
+        self.min_value_stream = typing.cast(typing.Any, None)
+        self.max_value_change_stream.remove_ref()
+        self.max_value_change_stream = typing.cast(typing.Any, None)
+        self.max_value_stream.remove_ref()
+        self.max_value_stream = typing.cast(typing.Any, None)
+        super().close()
+
+    @property
+    def min_value(self) -> float:
+        if self.min_value_stream is None:
+            return 0.0
+        return self.min_value_stream.value or 0.0
+
+    @min_value.setter
+    def min_value(self, value: float) -> None:
+        if self.min_value != value:
+            new_value = max(0.0, min(1.0, value))
+            self.min_value_stream.value = new_value
+            self.update()
+            self.notify_property_changed("min_value")
+
+    @property
+    def max_value(self) -> float:
+        if self.max_value_stream is None:
+            return 1.0
+        return self.max_value_stream.value if self.max_value_stream.value is not None else 1.0
+
+    @max_value.setter
+    def max_value(self, value: float) -> None:
+        if self.max_value != value:
+            new_value = max(0.0, min(1.0, value))
+            self.max_value_stream.value = new_value
+            self.update()
+            self.notify_property_changed("max_value")
+
+    def set_min_max(self, new_min: float, new_max: float) -> None:
+        if self.min_value != new_min:
+            new_value = max(0.0, min(1.0, new_min))
+            self.min_value_stream.value = new_value
+        if self.max_value != new_max:
+            new_value = max(0.0, min(1.0, new_max))
+            self.max_value_stream.value = new_value
+        self.update()
+        self.notify_property_changed("both_value")
+
+    def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
+        min_value = self.min_value if not self.__tracking_min else self.__tracking_min_value
+        max_value = self.max_value if not self.__tracking_max else self.__tracking_max_value
+        composer = RangeSliderCanvasItemComposer(self, self.layout_sizing, composer_cache, min_value, max_value)
+        self.composer = composer
+        return composer
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        min_thumb_rect = get_slider_thumb_rect(self.canvas_size, self.min_value, align="Left")
+        max_thumb_rect = get_slider_thumb_rect(self.canvas_size, self.max_value, align="Right")
+        bar_rect = get_slider_bar_rect(self.canvas_size)
+        range_rect = get_range_slider_drag_bar_rect(self.canvas_size, self.min_value, self.max_value)
+        pos = Geometry.IntPoint(x=x, y=y)
+
+        if min_thumb_rect.inset(-1, -1).contains_point(pos) and not modifiers.shift:
+            self.__tracking_min = True
+            self.__tracking_min_value = self.min_value
+            self.min_value_change_stream.begin()
+        elif max_thumb_rect.inset(-1, -1).contains_point(pos) and not modifiers.shift:
+            self.__tracking_max = True
+            self.__tracking_max_value = self.max_value
+            self.max_value_change_stream.begin()
+        elif range_rect.contains_point(pos.to_float_point()) or modifiers.shift:
+            self.__tracking_min = True
+            self.__tracking_max = True
+            self.__tracking_min_value = self.min_value
+            self.__tracking_max_value = self.max_value
+            self.min_value_change_stream.begin()
+            self.max_value_change_stream.begin()
+        elif bar_rect.contains_point(pos.to_float_point()):
+            if x < min_thumb_rect.left:
+                self.__adjust_combined_thumb(-1)
+            elif x > max_thumb_rect.right:
+                self.__adjust_combined_thumb(1)
+            else:
+                # Not sure what this equates to
+                return super().mouse_pressed(x, y, modifiers)
+        else:
+            return super().mouse_pressed(x, y, modifiers)
+
+        self.__tracking_start = pos
+        self.update()
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if self.__tracking_min or self.__tracking_max:
+            if self.__tracking_min:
+                self.min_value_change_stream.end()
+            if self.__tracking_max:
+                self.max_value_change_stream.end()
+            self.__tracking_min = False
+            self.__tracking_max = False
+            self.update()
+            return True
+        return super().mouse_released(x, y, modifiers)
+
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        if not self.__tracking_min and not self.__tracking_max:
+            return super().mouse_position_changed(x, y, modifiers)
+
+        pos = Geometry.FloatPoint(x=x, y=y)
+        bar_rect = get_slider_bar_rect(self.canvas_size)
+
+        if pos.x < bar_rect.left and self.min_value <= 0.0:
+            return super().mouse_position_changed(x, y, modifiers)
+
+        if pos.x > bar_rect.right and self.max_value >= 1.0:
+            return super().mouse_position_changed(x, y, modifiers)
+
+        current_range = self.max_value - self.min_value
+        new_normalized_value = (pos.x - bar_rect.left) / bar_rect.width
+        prev_normalized_value = (self.__tracking_start.x - bar_rect.left) / bar_rect.width
+        delta = new_normalized_value - prev_normalized_value
+
+        if self.__tracking_min and self.__tracking_max:
+            # Dragging the entire range
+            new_min = self.min_value + delta
+            new_max = self.max_value + delta
+
+            # Clamp while maintaining range width
+            if new_min < 0.0:
+                new_min = 0.0
+                new_max = new_min + current_range
+            elif new_max > 1.0:
+                new_max = 1.0
+                new_min = new_max - current_range
+
+            self.__tracking_min_value = new_min
+            self.__tracking_max_value = new_max
+            self.set_min_max(new_min, new_max)
+
+        elif self.__tracking_min:
+            # Dragging only the min thumb
+            new_min = self.min_value + delta
+            new_min = max(0.0, min(new_min, self.max_value))  # Clamp to [0, max]
+
+            self.__tracking_min_value = new_min
+            self.min_value = new_min
+
+        elif self.__tracking_max:
+            # Dragging only the max thumb
+            new_max = self.max_value + delta
+            new_max = min(1.0, max(new_max, self.min_value))  # Clamp to [min, 1]
+
+            self.__tracking_max_value = new_max
+            self.max_value = new_max
+
+        self.__tracking_start = pos.to_int_point()
+        return super().mouse_position_changed(x, y, modifiers)
+
+    def __adjust_combined_thumb(self, amount: float) -> None:
+        self.min_value_change_stream.begin()
+        self.max_value_change_stream.begin()
+        self.min_value = max(0.0, min(1.0, self.min_value + amount * 0.1))
+        self.max_value = max(0.0, min(1.0, self.max_value + amount * 0.1))
+        self.min_value_change_stream.end()
+        self.max_value_change_stream.end()
 
 
 @dataclasses.dataclass

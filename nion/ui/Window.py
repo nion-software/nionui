@@ -639,7 +639,13 @@ class Window:
                 action_id = item_d["action_id"]
                 action = actions.get(action_id)
                 if action:
-                    key_sequence = action_shortcuts.get(action_id, dict()).get("window")
+                    action_shortcut_d = action_shortcuts.get(action_id, dict())
+                    key_sequence: str | None = None
+                    for context_key in action_shortcut_d.keys():
+                        if action_shortcut_d[context_key]:
+                            key_sequences = [action_shortcut_d[context_key]] if isinstance(action_shortcut_d[context_key], str) else action_shortcut_d[context_key]
+                            key_sequence = key_sequences[0]  # only use the first shortcut for menus
+                            break
                     role = getattr(action, "about_role", None)
                     assert menu is not None
                     menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),

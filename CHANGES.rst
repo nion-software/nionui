@@ -1,6 +1,11 @@
 Changelog (nionui)
 ==================
 
+10.2.1 (2025-09-25)
+-------------------
+- Change menus to display key overloads in any context rather than just window context.
+- Fix issue where editing on line edit with converter didn't always run converter.
+
 10.2.0 (2025-06-23)
 -------------------
 - Fix key pressed logic to handle focus changing while key is down.

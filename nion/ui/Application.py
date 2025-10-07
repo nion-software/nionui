@@ -236,7 +236,16 @@ class BaseApplication:
         button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("OK"), on_clicked="close_window"))
         main_column = u.create_column(error_message, button_row, spacing=8, width=300)
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
-        Declarative.WindowHandler(completion_fn=completion_fn).run(window, app=self)
+        def handle_complete() -> None:
+            self._exit_prevent_close_state()
+            if callable(completion_fn):
+                completion_fn()
+        self._enter_prevent_close_state()
+        try:
+            Declarative.WindowHandler(completion_fn=handle_complete).run(window, app=self)
+        except Exception:
+            self._exit_prevent_close_state()
+            raise
 
     def show_ok_cancel_dialog(self, title: str, message: str, *, ok_text: typing.Optional[str] = None,
                               cancel_text: typing.Optional[str] = None,

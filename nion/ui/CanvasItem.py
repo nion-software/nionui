@@ -3421,7 +3421,7 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         else:
             return super().mouse_pressed(x, y, modifiers)
 
-        self.__tracking_start = pos
+        self.__tracking_start = Geometry.FloatPoint(y=pos.y, x=pos.x)
         self.update()
         return True
 

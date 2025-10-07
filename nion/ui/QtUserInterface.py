@@ -2463,7 +2463,7 @@ class QtUserInterface(UserInterface.UserInterface):
         return "not available"
 
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
-        return 5
+        return 6
 
     def create_context_menu(self, document_window: UserInterface.Window) -> UserInterface.Menu:
         context_menu = QtMenu(typing.cast(QtWindow, document_window), str(), str(), self.proxy, self.proxy.Menu_create())

@@ -3314,15 +3314,18 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         self.wants_mouse_events = True
         self.__tracking_min = False
         self.__tracking_max = False
-        self.__tracking_start = Geometry.IntPoint()
+        self.__tracking_start = Geometry.FloatPoint()
         self.__tracking_min_value = 0.0
         self.__tracking_max_value = 1.0
+        self.__tracking_range_width = 0.0
         self.update_sizing(self.sizing.with_fixed_height(20))
         self.min_value_stream = Stream.ValueStream[float]().add_ref()
         self.max_value_stream = Stream.ValueStream[float]().add_ref()
         self.min_value_change_stream = Stream.ValueChangeStream(self.min_value_stream).add_ref()
         self.max_value_change_stream = Stream.ValueChangeStream(self.max_value_stream).add_ref()
         self.composer: RangeSliderCanvasItemComposer | None = None
+        self.change_begin: Event.Event = Event.Event()
+        self.change_complete: Event.Event = Event.Event()
 
     def close(self) -> None:
         self.min_value_change_stream.remove_ref()
@@ -3387,21 +3390,26 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         range_rect = get_range_slider_drag_bar_rect(self.canvas_size, self.min_value, self.max_value)
         pos = Geometry.IntPoint(x=x, y=y)
 
+        mode = str()
         if min_thumb_rect.inset(-1, -1).contains_point(pos) and not modifiers.shift:
             self.__tracking_min = True
             self.__tracking_min_value = self.min_value
             self.min_value_change_stream.begin()
+            self.change_begin.fire("min")
         elif max_thumb_rect.inset(-1, -1).contains_point(pos) and not modifiers.shift:
             self.__tracking_max = True
             self.__tracking_max_value = self.max_value
             self.max_value_change_stream.begin()
+            self.change_begin.fire("max")
         elif range_rect.contains_point(pos.to_float_point()) or modifiers.shift:
             self.__tracking_min = True
             self.__tracking_max = True
             self.__tracking_min_value = self.min_value
             self.__tracking_max_value = self.max_value
+            self.__tracking_range_width = self.max_value - self.min_value
             self.min_value_change_stream.begin()
             self.max_value_change_stream.begin()
+            self.change_begin.fire("min,max")
         elif bar_rect.contains_point(pos.to_float_point()):
             if x < min_thumb_rect.left:
                 self.__adjust_combined_thumb(-1)
@@ -3419,13 +3427,20 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.__tracking_min or self.__tracking_max:
+            mode = str()
             if self.__tracking_min:
                 self.min_value_change_stream.end()
+                mode = "min"
             if self.__tracking_max:
                 self.max_value_change_stream.end()
+                mode = "max"
+
+            if self.__tracking_min and self.__tracking_max:
+                mode = "min,max"
             self.__tracking_min = False
             self.__tracking_max = False
             self.update()
+            self.change_complete.fire(mode)
             return True
         return super().mouse_released(x, y, modifiers)
 
@@ -3436,51 +3451,56 @@ class RangeSliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         pos = Geometry.FloatPoint(x=x, y=y)
         bar_rect = get_slider_bar_rect(self.canvas_size)
 
+        # Prevent dragging past edges
         if pos.x < bar_rect.left and self.min_value <= 0.0:
             return super().mouse_position_changed(x, y, modifiers)
-
         if pos.x > bar_rect.right and self.max_value >= 1.0:
             return super().mouse_position_changed(x, y, modifiers)
 
-        current_range = self.max_value - self.min_value
+        # Compute delta relative to the initial drag start position
         new_normalized_value = (pos.x - bar_rect.left) / bar_rect.width
         prev_normalized_value = (self.__tracking_start.x - bar_rect.left) / bar_rect.width
         delta = new_normalized_value - prev_normalized_value
 
+        # --- Track min/max start values separately to avoid cumulative rounding errors ---
         if self.__tracking_min and self.__tracking_max:
-            # Dragging the entire range
-            new_min = self.min_value + delta
-            new_max = self.max_value + delta
+            # Dragging the whole range (Shift)
+            # range_width = self.max_value - self.min_value
+            new_min = self.__tracking_min_value + delta
+            # new_max = self.__tracking_max_value + delta
+            new_max = new_min + self.__tracking_range_width
 
             # Clamp while maintaining range width
             if new_min < 0.0:
                 new_min = 0.0
-                new_max = new_min + current_range
+                new_max = new_min + self.__tracking_range_width
             elif new_max > 1.0:
                 new_max = 1.0
-                new_min = new_max - current_range
+                new_min = new_max - self.__tracking_range_width
 
+            # Update only tracking values; flush to streams once
             self.__tracking_min_value = new_min
             self.__tracking_max_value = new_max
             self.set_min_max(new_min, new_max)
+            print(f"Min: {new_min}, Max: {new_max}, Range: {new_max-new_min}")
 
         elif self.__tracking_min:
             # Dragging only the min thumb
-            new_min = self.min_value + delta
+            new_min = self.__tracking_min_value + delta
             new_min = max(0.0, min(new_min, self.max_value))  # Clamp to [0, max]
-
             self.__tracking_min_value = new_min
             self.min_value = new_min
 
         elif self.__tracking_max:
             # Dragging only the max thumb
-            new_max = self.max_value + delta
+            new_max = self.__tracking_max_value + delta
             new_max = min(1.0, max(new_max, self.min_value))  # Clamp to [min, 1]
-
             self.__tracking_max_value = new_max
             self.max_value = new_max
 
-        self.__tracking_start = pos.to_int_point()
+        # Update tracking start position for smooth incremental delta
+        self.__tracking_start = pos# .to_int_point()
+
         return super().mouse_position_changed(x, y, modifiers)
 
     def __adjust_combined_thumb(self, amount: float) -> None:

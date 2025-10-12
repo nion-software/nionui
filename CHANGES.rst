@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+10.2.2 (2025-10-12)
+-------------------
+- Increase default hit testing tolerance to 6 pixels (from 5).
+
 10.2.1 (2025-09-25)
 -------------------
 - Change menus to display key overloads in any context rather than just window context.

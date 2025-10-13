@@ -513,7 +513,7 @@ class BindablePropertyHelper(typing.Generic[T]):
         # a future (different thread), a task (same thread), or just update the pending value (pending update).
         # this ensures the value is updated in update_value_inner in all cases. be careful to use locks for anything
         # that may have thread contention.
-        self.__binding.target_setter = functools.partial(update_value, weakref.ref(self), asyncio.get_event_loop_policy().get_event_loop(), threading.current_thread())
+        self.__binding.target_setter = functools.partial(update_value, weakref.ref(self), asyncio.get_event_loop(), threading.current_thread())
 
     def unbind_value(self) -> None:
         if self.__binding:

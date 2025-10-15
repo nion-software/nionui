@@ -101,6 +101,7 @@ class BaseApplication:
     def deinitialize(self) -> None:
         self._close_dialogs()
         Process.sync_event_loop(self.__event_loop)
+        self.__event_loop.close()
         self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')

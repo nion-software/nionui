@@ -5429,7 +5429,7 @@ class TimestampCanvasItem(AbstractCanvasItem):
         return TimestampCanvasItemComposer(self, self.layout_sizing, composer_cache, timestamp_str)
 
 
-def load_rgba_data_from_bytes(b: typing.ByteString, format: typing.Optional[str] = None) -> typing.Optional[DrawingContext.RGBA32Type]:
+def load_rgba_data_from_bytes(b: bytes, format: typing.Optional[str] = None) -> typing.Optional[DrawingContext.RGBA32Type]:
     extension = "." + format if format else None
     image_argb = imageio.imread(typing.cast(typing.BinaryIO, b), extension=typing.cast(str, extension))
     if image_argb is not None:
@@ -5442,5 +5442,5 @@ def load_rgba_data_from_bytes(b: typing.ByteString, format: typing.Optional[str]
     return None
 
 
-def load_bitmap_from_bytes(b: typing.ByteString, format: typing.Optional[str] = None) -> typing.Optional[Bitmap.Bitmap]:
+def load_bitmap_from_bytes(b: bytes, format: typing.Optional[str] = None) -> typing.Optional[Bitmap.Bitmap]:
     return Bitmap.promote_bitmap(load_rgba_data_from_bytes(b, format))

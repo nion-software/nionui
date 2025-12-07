@@ -3613,6 +3613,13 @@ class Window:
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         raise NotImplementedError()
 
+    @property
+    def color_scheme(self) -> str:
+        return self._get_color_scheme()
+
+    def _get_color_scheme(self) -> str:
+        raise NotImplementedError()
+
     def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
         raise NotImplementedError()
 

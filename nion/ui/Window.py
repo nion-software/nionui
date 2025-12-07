@@ -462,6 +462,10 @@ class Window:
         # so care must be taken to not close windows in cases where the widget triggering the close is still in use.
         self.close()
 
+    @property
+    def color_scheme(self) -> str:
+        return self.__document_window.color_scheme
+
     def refocus_widget(self, widget: UserInterface.Widget) -> None:
         widget.refocus()
 

@@ -2016,6 +2016,9 @@ class QtWindow(UserInterface.Window):
                                                     typing.cast(QtDockWidget, dock_widget1).native_dock_widget,
                                                     typing.cast(QtDockWidget, dock_widget2).native_dock_widget)
 
+    def _get_color_scheme(self) -> str:
+        return typing.cast(str, self.proxy.DocumentWindow_getColorScheme(self.native_document_window))
+
     def _get_screen_size(self) -> Geometry.IntSize:
         w, h = self.proxy.DocumentWindow_getScreenSize(self.native_document_window)
         return Geometry.IntSize(width=w, height=h)

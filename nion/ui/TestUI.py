@@ -1268,6 +1268,9 @@ class DocumentWindow(UserInterfaceModule.Window):
             return None
         return match_native_widget(self.root_widget)
 
+    def _get_color_scheme(self) -> str:
+        return "light"
+
 
 class DockWidget(UserInterfaceModule.DockWidget):
 

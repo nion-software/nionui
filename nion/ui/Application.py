@@ -85,27 +85,44 @@ class BaseApplication:
 
         self.__windows : typing.List[Window.Window] = list()
         self.__window_close_event_listeners: typing.Dict[Window.Window, Event.EventListener] = dict()
-        self.__event_loop: asyncio.AbstractEventLoop = typing.cast(asyncio.AbstractEventLoop, None)
+        self.__event_loop: asyncio.AbstractEventLoop | None = None
         # Python 3.9+: typing.List[weakref.ReferenceType[Dialog]]
         self.__dialogs : typing.List[typing.Any] = list()
 
     def initialize(self) -> None:
-        """Initialize. Separate from __init__ so that overridden methods can be called."""
-        if sys.platform == "win32":
-            # the selector event loop is needed on Windows to interoperate network I/O like requests or zmq
-            self.__event_loop = asyncio.SelectorEventLoop()
-        else:
-            self.__event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.__event_loop)
+        self._initialize_event_loop()
 
     def deinitialize(self) -> None:
         self._close_dialogs()
-        Process.sync_event_loop(self.__event_loop)
-        self.__event_loop.close()
-        self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
+        self._deinitialize_event_loop()
         with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
             f.write(sys.prefix + '\n')
         self.ui.close()
+
+    def _get_event_loop(self) -> asyncio.AbstractEventLoop | None:
+        return self.__event_loop
+
+    def _initialize_event_loop(self) -> None:
+        """Initialize. Separate from __init__ so that overridden methods can be called."""
+        if sys.platform == "win32":
+            # the selector event loop is needed on Windows to interoperate network I/O like requests or zmq
+            event_loop = asyncio.SelectorEventLoop()
+        else:
+            event_loop = asyncio.new_event_loop()
+        self.__event_loop = event_loop
+        asyncio.set_event_loop(event_loop)
+
+    def _deinitialize_event_loop(self) -> None:
+        if self.__event_loop:
+            Process.sync_event_loop(self.__event_loop)
+            self.__event_loop.close()
+            self.__event_loop = None
+
+    @property
+    def event_loop(self) -> asyncio.AbstractEventLoop:
+        event_loop = self._get_event_loop()
+        assert event_loop
+        return event_loop
 
     def run(self) -> None:
         """Run the application. Called from PyQt."""
@@ -194,9 +211,9 @@ class BaseApplication:
 
     def periodic(self) -> None:
         """The periodic method can be overridden to implement periodic behavior."""
-        if self.__event_loop:  # special for shutdown
-            self.__event_loop.stop()
-            self.__event_loop.run_forever()
+        if event_loop := self._get_event_loop():  # special for shutdown
+            event_loop.stop()
+            event_loop.run_forever()
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:
@@ -223,10 +240,6 @@ class BaseApplication:
 
         dialog.on_close = close_dialog
         self.__dialogs.append(weakref.ref(dialog))
-
-    @property
-    def event_loop(self) -> asyncio.AbstractEventLoop:
-        return self.__event_loop
 
     def _menu_about_to_show(self, window: Window.Window, menu: UserInterface.Menu) -> bool:
         return False

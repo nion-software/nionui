@@ -44,15 +44,107 @@ and easily and connect it to your application specific code.
 .. todo:: embedding sub-components
 .. todo:: resources
 
+Installation
+============
+
+Configuring a Development Environment for Nion UI
+-------------------------------------------------
+
+It is recommended to create a Python virtual environment for Nion UI development, either one virtual environment per project or a single virtual environment for all Nion UI development.
+
+For **macOS** and **Linux**, you can create a Python virtual environment using either
+`pyenv <https://github.com/pyenv/pyenv>`_ and `pyenv-virtualenv <https://github.com/pyenv/pyenv-virtualenv>`_ or `uv <https://docs.astral.sh/uv/>`_.
+
+For **Windows**, you can create a Python virtual environment using `uv <https://docs.astral.sh/uv/>`_.
+
+Using pyenv (macOS and Linux)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Find the latest version of Python using ``pyenv install --list``. Install the latest version with ``pyenv install <version>``.
+
+Create a new virtual environment with ``pyenv virtualenv <version> <env-name>`` where env-name is the name of your development virtual environment, something like ``nionui-dev``. Activate the environment with ``pyenv activate <env-name>``.
+
+Configure your virtual environment with ``nionui`` and ``nionui-tool`` using pip:
+
+.. code-block:: zsh
+
+    pyenv install 3.13.11
+    pyenv virtualenv 3.13.11 nionui-dev
+    pyenv activate nionui-dev
+    python -m pip install nionui nionui-tool
+
+Using uv (macOS, Windows, and Linux)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Find the latest version of Python by updating uv and listing available versions with ``uv python list``.
+
+Install the latest version of Python using ``uv python install <version>``.
+
+Create a new virtual environment with ``uv venv <env-name>`` where env-name is the name of your development virtual environment, something like ``nionui-dev``. With uv, you can also just run ``uv venv`` to create a virtual environment for the current directory. Activate the environment (see uv documentation).
+
+.. tab-set::
+
+   .. tab-item:: Windows
+      :sync: win
+
+      .. code-block:: powershell
+
+         uv python install 3.13.11
+         uv venv nionui-dev
+         .venv\nionui-dev\Scripts\activate
+         python -m pip install nionui nionui-tool
+
+   .. tab-item:: macOS
+      :sync: mac
+
+      To install on macOS, run:
+
+      .. code-block:: bash
+
+         uv python install 3.13.11
+         uv venv nionui-dev
+         source .venv/nionui-dev/bin/activate
+         python -m pip install nionui nionui-tool
+
+Running an Application
+======================
+
+Run an application using the ``nionui`` command line tool.
+
+You can run a specific single file application using:
+
+.. code-block:: zsh
+
+    nionui my_app.py
+
+You can run an application in your current Python environment by providing the module name:
+
+.. code-block:: zsh
+
+    nionui nionui_app.my_app_module
+
+You can run the examples:
+
+.. code-block:: zsh
+
+    nionui nionui_app.nionui_examples.hello_world
+    nionui nionui_app.nionui_examples.ui_demo
+    nionui nionui_app.nionui_examples.canvas_demo
 
 Introduction to the Declarative UI
-----------------------------------
+==================================
 The declarative features allow you to have a clean separation between the UI and your code for handling the UI.
+
+Put this code into a file named ``hello_world.py`` and then run it using ``nionui hello_world.py``.
 
 .. code-block:: python
 
+    import gettext
+
     from nion.ui import Application
     from nion.ui import Declarative
+
+    _ = gettext.gettext
 
     class Handler:
         def __init__(self):
@@ -64,33 +156,33 @@ The declarative features allow you to have a clean separation between the UI and
             self.label_item.text = _("Clicked") + " " + str(self.click_count)
 
     def main(args, bootstrap_args):
-        ui = Declarative.DeclarativeUI()
-        button = ui.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
-        label = ui.create_label(name="label_item", text=_("Not Clicked"))
-        column = ui.create_column(button, label, spacing=8)
-        window = ui.create_window(column, title=_("Hello World"), margin=12)
+        u = Declarative.DeclarativeUI()
+        button = u.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
+        label = u.create_label(name="label_item", text=_("Not Clicked"))
+        column = u.create_column(button, label, spacing=8)
+        window = u.create_window(column, title=_("Hello World"), margin=12)
         handler = Handler()
         return Application.run_window(args, bootstrap_args, window, handler)
 
 At the top, a ``Handler`` class is defined which includes a property ``label_item`` and a method ``button_clicked``
 which will be connected to the UI. It also includes a property ``click_count`` that will be used separately.
 
-The ``main`` function begins by creating a ``ui`` object which will help construct the Python dict representing the
+The ``main`` function begins by creating a ``u`` object which will help construct the Python dict representing the
 layout.
 
-With the ``ui`` object, a ``button`` is declared. The button declares that the ``on_clicked`` event will be connected to
+With the ``u`` object, a ``button`` is declared. The button declares that the ``on_clicked`` event will be connected to
 the ``button_clicked`` method of the handler.
 
 Next, a ``label`` is declared. By specifying ``name`` to the label, the declarative UI engine will store the label
-instance into the handler when the UI is run (the ``label_item`` property in the handler).
+widget into the handler when the app is run (the ``label_item`` property in the handler).
 
-Next, a ``column`` is declared with the ``button`` and ``label`` in the column, and both are but into a ``window``
+Next, a ``column`` is declared with the ``button`` and ``label`` in the column. Both are put into a ``window``
 declaration.
 
 Next, an instance of ``Handler`` is created.
 
-Finally, the ``window`` and ``handler`` are passed to ``Application.run_window`` which constructs the window UI,
-connects it to the handler, and presents the UI to the user.
+Finally, the ``window`` and ``handler`` are passed to ``Application.run_window`` which constructs the window user interface,
+connects it to the handler, and presents the user window to the user.
 
 The ``window`` variable is a Python dictionary. It gets connected to the ``Handler`` in the ``Application.run_window``
 method. The dictionary looks like this::

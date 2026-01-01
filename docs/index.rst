@@ -143,19 +143,20 @@ Put this code into a file named ``hello_world.py`` and then run it using ``nionu
 
     from nion.ui import Application
     from nion.ui import Declarative
+    from nion.ui import UserInterface
 
     _ = gettext.gettext
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             self.label_item = None
             self.click_count = 0
 
-        def button_clicked(self, widget):
+        def button_clicked(self, widget: UserInterface.PushButtonWidget) -> None:
             self.click_count += 1
             self.label_item.text = _("Clicked") + " " + str(self.click_count)
 
-    def main(args, bootstrap_args):
+    def main(args: typing.Any, bootstrap_args: typing.Any) -> None:
         u = Declarative.DeclarativeUI()
         button = u.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
         label = u.create_label(name="label_item", text=_("Not Clicked"))
@@ -163,6 +164,9 @@ Put this code into a file named ``hello_world.py`` and then run it using ``nionu
         window = u.create_window(column, title=_("Hello World"), margin=12)
         handler = Handler()
         return Application.run_window(args, bootstrap_args, window, handler)
+
+    if __name__ == "__main__":
+        print("This script cannot be run directly. Use the nionui command line tool.")
 
 At the top, a ``Handler`` class is defined which includes a property ``label_item`` and a method ``button_clicked``
 which will be connected to the UI. It also includes a property ``click_count`` that will be used separately.
@@ -215,6 +219,31 @@ Currently only two low level implementations are provided:
 - A ``TestUI`` user interface, used for testing.
 
 An HTML/JavaScript implementation is also in the works.
+
+Organizing a Nion UI Application
+================================
+
+Although it is possible to write a complete Nion UI application in a single file, it is recommended to organize your code
+into multiple files and modules.
+
+A typical organization might look like this:
+
+.. code-block:: text
+
+    nionui_app/
+        my_app/
+            main.py
+
+By convention, the top level module of your application is named ``nionui_app``. Inside that module, you can have
+sub-modules for your specific application.
+
+Putting your application into the ``nionui_app`` module allows future tooling to recognize your application as a Nion UI
+application.
+
+The main entry point for your application is typically a file named ``main.py``. This file contains the ``main`` function
+which is called by the ``nionui`` command line tool to start your application.
+
+.. LLM_CONTEXT: New projects should be created with the typical organization above. The projects should be fully typed. The main.py file should contain a safety check to ensure it is not run directly, but only through the nionui command line tool.
 
 Declarative UI
 ==============
@@ -503,6 +532,25 @@ Each is described below.
 Components
 ----------
 It provides experimental support for compositions (reusable UI sections).
+
+Common Properties
+-----------------
+Many widgets and layouts share common properties. These common properties are described here.
+
+``enabled``
+    A boolean value indicating whether the widget is enabled or disabled. Bindable.
+``visible``
+    A boolean value indicating whether the widget is visible or hidden. Bindable.
+``tool_tip``
+    A string value indicating the tooltip text for the widget. Bindable.
+``color``
+    A string value indicating the color for the widget. Bindable.
+``background_color``
+    A string value indicating the background color for the widget. Bindable.
+``font``
+    A string value indicating the font for the widget. Bindable.
+``border_color``
+    A string value indicating the border color for the widget. Used for debugging. Bindable.
 
 Resources
 ^^^^^^^^^

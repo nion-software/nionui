@@ -8,6 +8,7 @@ import typing
 # local libraries
 from nion.ui import Application
 from nion.ui import Declarative
+from nion.ui import UserInterface
 
 # ui imports
 from . import Bindings
@@ -30,9 +31,6 @@ from . import Stacks
 from . import StatusBar
 from . import Tabs
 
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
-
 _ = gettext.gettext
 
 
@@ -43,7 +41,7 @@ class Handler(Declarative.Handler):
         self.page_stack: typing.Optional[UserInterface.StackWidget] = None
         self.page_list = page_list
 
-    def select_page(self, widget: Declarative.UIWidget, current_index: int) -> None:
+    def select_page(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
         assert self.page_stack
         self.page_stack.current_index = current_index
 

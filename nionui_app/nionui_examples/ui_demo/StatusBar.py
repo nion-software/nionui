@@ -1,11 +1,12 @@
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Model
 
 
 class Handler(Declarative.Handler):
     slider_value_model = Model.PropertyModel(50)
 
-    def reset(self, widget: Declarative.UIWidget) -> None:
+    def reset(self, widget: UserInterface.PushButtonWidget) -> None:
         self.slider_value_model.value = 50
 
 

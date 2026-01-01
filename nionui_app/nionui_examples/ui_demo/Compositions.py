@@ -12,15 +12,15 @@ class Handler(Declarative.Handler):
     width_field: typing.Optional[Declarative.ComponentWidget] = None
     height_field: typing.Optional[Declarative.ComponentWidget] = None
 
-    def width_changed(self, widget: Declarative.UIWidget, value: str) -> None:
+    def width_changed(self, widget: UserInterface.BoxWidget, value: str) -> None:
         self.width = value
         print(f"New width {self.width}")
 
-    def height_changed(self, widget: Declarative.UIWidget, value: str) -> None:
+    def height_changed(self, widget: UserInterface.BoxWidget, value: str) -> None:
         self.height = value
         print(f"New height {self.height}")
 
-    def reset(self, widget: Declarative.UIWidget) -> None:
+    def reset(self, widget: UserInterface.PushButtonWidget) -> None:
         getattr(self.width_field, "handler").value_widget.text = "20"
         getattr(self.height_field, "handler").value_widget.text = "30"
 
@@ -43,11 +43,10 @@ class Handler(Declarative.Handler):
                 self.label_widget.text = self.label
                 self.value_widget.text = self.value
 
-            def value_changed(self, widget: Declarative.UIWidget, text: str) -> None:
+            def value_changed(self, line_edit_widget: UserInterface.LineEditWidget, text: str) -> None:
                 self.value = text
-                line_edit = typing.cast(UserInterface.LineEditWidget, widget)
-                if line_edit.focused:
-                    line_edit.select_all()
+                if line_edit_widget.focused:
+                    line_edit_widget.select_all()
                 if callable(self.on_value_changed):
                     self.on_value_changed(text)
 

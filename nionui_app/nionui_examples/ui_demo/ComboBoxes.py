@@ -1,10 +1,8 @@
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
 
 
 class Handler(Declarative.Handler):
@@ -23,13 +21,13 @@ class Handler(Declarative.Handler):
         assert self.cb1
         self.cb1.current_index = 2
 
-    def cb1_current_index_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+    def cb1_current_index_changed(self, widget: UserInterface.ComboBoxWidget, current_index: int) -> None:
         print(f"CB1 {current_index}")
 
     def cb2_current_index_changed(self, current_index: typing.Optional[int]) -> None:
         print(f"CB2 {current_index}")
 
-    def change_items(self, widget: Declarative.UIWidget) -> None:
+    def change_items(self, widget: UserInterface.PushButtonWidget) -> None:
         self.numeros.value = ["Eins", "Zwei"]#, "Drei"]
 
 

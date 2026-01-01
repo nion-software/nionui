@@ -1,11 +1,12 @@
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Model
 
 
 class Handler(Declarative.Handler):
     tab_index_model = Model.PropertyModel(1)
 
-    def switch3(self, widget: Declarative.UIWidget) -> None:
+    def switch3(self, widget: UserInterface.PushButtonWidget) -> None:
         print("CLICKED 3")
         self.tab_index_model.value = 2
 

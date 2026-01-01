@@ -14,7 +14,7 @@ class Handler(Declarative.Handler):
     radio_button_value = Model.PropertyModel(2)
     label_widget: typing.Optional[UserInterface.LabelWidget] = None
 
-    def reset_clicked(self, widget: Declarative.UIWidget) -> None:
+    def reset_clicked(self, widget: UserInterface.PushButtonWidget) -> None:
         self.radio_button_value.value = 2
 
 

@@ -1,11 +1,9 @@
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Event
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
 
 
 class Section(Declarative.Handler):
@@ -27,7 +25,7 @@ class Handler(Declarative.Handler):
         self.sections.append(Section("Oranges"))
         self.title_model = Model.PropertyModel[str]()
 
-    def add(self, widget: Declarative.UIWidget) -> None:
+    def add(self, widget: UserInterface.PushButtonWidget) -> None:
         title = self.title_model.value
         if title:
             section = Section(title)
@@ -58,17 +56,17 @@ class Handler(Declarative.Handler):
                 self.title_label_widget.text = self.section.title
                 self.count_label_widget.text = str(self.section.count)
 
-            def increase_count(self, widget: Declarative.UIWidget) -> None:
+            def increase_count(self, widget: UserInterface.PushButtonWidget) -> None:
                 assert self.count_label_widget
                 self.section.count += 1
                 self.count_label_widget.text = str(self.section.count)
 
-            def decrease_count(self, widget: Declarative.UIWidget) -> None:
+            def decrease_count(self, widget: UserInterface.PushButtonWidget) -> None:
                 assert self.count_label_widget
                 self.section.count -= 1
                 self.count_label_widget.text = str(self.section.count)
 
-            def remove(self, widget: Declarative.UIWidget) -> None:
+            def remove(self, widget: UserInterface.PushButtonWidget) -> None:
                 self.container.remove(self.section)
 
         if component_id == "section":

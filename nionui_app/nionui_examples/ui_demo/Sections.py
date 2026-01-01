@@ -1,6 +1,7 @@
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Model
 
@@ -13,7 +14,7 @@ class Handler(Declarative.Handler):
         self.expanded_model2 = Model.PropertyModel(False)
         self.section: typing.Optional[Widgets.SectionWidget] = None
 
-    def switch3(self, widget: Declarative.UIWidget) -> None:
+    def switch3(self, widget: UserInterface.PushButtonWidget) -> None:
         self.expanded_model0.value = False
         self.expanded_model1.value = False
         self.expanded_model2.value = True

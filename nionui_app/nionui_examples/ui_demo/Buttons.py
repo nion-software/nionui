@@ -3,6 +3,8 @@ import numpy.typing
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.utils import Event
 from nion.utils import Model
 
@@ -28,11 +30,11 @@ class Handler(Declarative.Handler):
         self.image_model = Model.PropertyModel(make_icon(16, 16), typing.cast(typing.Callable[[typing.Optional[IconType], typing.Optional[IconType]], bool], numpy.array_equal))
         self.property_changed_event = Event.Event()
 
-    def click(self, widget: Declarative.UIWidget) -> None:
+    def click(self, widget: UserInterface.PushButtonWidget) -> None:
         self.icon1 =  make_icon(12, 12)
         self.property_changed_event.fire("icon1")
 
-    def image_click(self, widget: Declarative.UIWidget) -> None:
+    def image_click(self, widget: Widgets.ImageWidget) -> None:
         self.image_model.value = make_icon(16, 16)
 
 

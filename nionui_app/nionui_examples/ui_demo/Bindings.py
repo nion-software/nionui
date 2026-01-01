@@ -23,7 +23,7 @@ class Handler(Declarative.Handler):
         # method 4: use a handler property directly, no update mechanism
         self.hello4_text = "Hello World Four"
 
-    def hello1_updated(self, widget: Declarative.UIWidget, text: str) -> None:
+    def hello1_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
         assert self.hello1_label
         self.hello1_label.text = text
         line_edit = typing.cast(UserInterface.LineEditWidget, widget)

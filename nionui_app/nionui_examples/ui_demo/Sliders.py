@@ -1,10 +1,8 @@
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
 
 
 class Handler(Declarative.Handler):
@@ -15,15 +13,15 @@ class Handler(Declarative.Handler):
         self.vv = 25
         self.slider2: typing.Optional[UserInterface.SliderWidget] = None
 
-    def reset(self, widget: Declarative.UIWidget) -> None:
+    def reset(self, widget: UserInterface.PushButtonWidget) -> None:
         assert self.slider2
         self.slider_value_model.value = 50
         self.slider2.value = 50
 
-    def value_changed(self, widget: Declarative.UIWidget, value: str) -> None:
+    def value_changed(self, widget: UserInterface.SliderWidget, value: str) -> None:
         print(f"V {value}")
 
-    def slider_moved(self, widget: Declarative.UIWidget, value: str) -> None:
+    def slider_moved(self, widget: UserInterface.SliderWidget, value: str) -> None:
         print(f"M {value}")
 
 

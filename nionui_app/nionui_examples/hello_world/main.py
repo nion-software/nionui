@@ -8,9 +8,7 @@ import typing
 # local libraries
 from nion.ui import Application
 from nion.ui import Declarative
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
+from nion.ui import UserInterface
 
 
 _ = gettext.gettext
@@ -24,7 +22,7 @@ class Handler(Declarative.Handler):
         self.label_item: typing.Optional[UserInterface.LabelWidget] = None
         self.click_count = 0
 
-    def button_clicked(self, widget: Declarative.UIWidget) -> None:
+    def button_clicked(self, widget: UserInterface.PushButtonWidget) -> None:
         assert self.label_item
         self.click_count += 1
         self.label_item.text = _("Clicked") + " " + str(self.click_count)

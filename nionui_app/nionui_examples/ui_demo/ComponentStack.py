@@ -1,13 +1,11 @@
+import asyncio
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Converter
 from nion.utils import StructuredModel
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    import asyncio
-    from nion.ui import UserInterface
 
 
 class Mode:
@@ -72,7 +70,7 @@ class Handler(Declarative.Handler):
         self.__modes_item_removed_listener = typing.cast(typing.Any, None)
         super().close()
 
-    def add_mode(self, widget: Declarative.UIWidget) -> None:
+    def add_mode(self, widget: UserInterface.PushButtonWidget) -> None:
         # when the user clicks to add a mode, grab the title and insert a new mode into the model. then queue an update
         # to the mode index (needs to be queued so that the combo box UI can update from the model before the mode_index
         # on the combo box is set).
@@ -113,7 +111,7 @@ class Handler(Declarative.Handler):
                 # when this is called, all fields will be populated
                 self.title_label_widget.text = self.mode.title
 
-            def remove(self, widget: Declarative.UIWidget) -> None:
+            def remove(self, widget: UserInterface.PushButtonWidget) -> None:
                 self.__model.modes.remove(self.mode)
 
         if component_id == "mode":

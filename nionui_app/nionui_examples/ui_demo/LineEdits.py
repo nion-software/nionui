@@ -13,15 +13,15 @@ class Handler(Declarative.Handler):
         self.color_line_edit: typing.Optional[UserInterface.LineEditWidget] = None
         self.model = Model.PropertyModel("red")
 
-    def color_updated(self, widget: Declarative.UIWidget, text: str) -> None:
+    def color_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
         print(f"Color changed: {widget} {text}")
 
-    def return_pressed(self, widget: Declarative.UIWidget) -> bool:
+    def return_pressed(self, widget: UserInterface.LineEditWidget) -> bool:
         assert self.color_line_edit
         self.color_line_edit.select_all()
         return False  # required so that editing_finished event is triggered
 
-    def key_pressed(self, widget: Declarative.UIWidget, key: UserInterface.Key) -> bool:
+    def key_pressed(self, widget: UserInterface.LineEditWidget, key: UserInterface.Key) -> bool:
         if key.text == "*":
             return True
         return False

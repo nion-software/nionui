@@ -3,10 +3,8 @@ from __future__ import annotations
 import typing
 
 from nion.ui import Declarative
+from nion.ui import UserInterface
 from nion.utils import Model
-
-if typing.TYPE_CHECKING:
-    from nion.ui import UserInterface
 
 
 class Handler(Declarative.Handler):
@@ -27,11 +25,11 @@ class Handler(Declarative.Handler):
 
         self.extra_model.on_value_changed = extra_changed
 
-    def checked(self, widget: Declarative.UIWidget, checked: bool) -> None:
+    def checked(self, widget: UserInterface.CheckBoxWidget, checked: bool) -> None:
         print(f"Checked: {checked}")
         self.__update_check_state()
 
-    def check_state_changed(self, widget: Declarative.UIWidget, check_state: str) -> None:
+    def check_state_changed(self, widget: UserInterface.CheckBoxWidget, check_state: str) -> None:
         assert self.gain_cb
         assert self.dark_cb
         assert self.all_cb

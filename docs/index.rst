@@ -140,6 +140,7 @@ Put this code into a file named ``hello_world.py`` and then run it using ``nionu
 .. code-block:: python
 
     import gettext
+    import typing
 
     from nion.ui import Application
     from nion.ui import Declarative
@@ -147,7 +148,7 @@ Put this code into a file named ``hello_world.py`` and then run it using ``nionu
 
     _ = gettext.gettext
 
-    class Handler:
+    class Handler(Declarative.HandlerLike):
         def __init__(self) -> None:
             self.label_item = None
             self.click_count = 0
@@ -156,14 +157,14 @@ Put this code into a file named ``hello_world.py`` and then run it using ``nionu
             self.click_count += 1
             self.label_item.text = _("Clicked") + " " + str(self.click_count)
 
-    def main(args: typing.Any, bootstrap_args: typing.Any) -> None:
+    def main(*args: typing.Any, **kwargs: typing.Any) -> Application.BaseApplication:
         u = Declarative.DeclarativeUI()
         button = u.create_push_button(text=_("Hello World"), on_clicked="button_clicked")
         label = u.create_label(name="label_item", text=_("Not Clicked"))
         column = u.create_column(button, label, spacing=8)
         window = u.create_window(column, title=_("Hello World"), margin=12)
         handler = Handler()
-        return Application.run_window(args, bootstrap_args, window, handler)
+        return Application.run_window(args[0], args[1], window, handler)
 
     if __name__ == "__main__":
         print("This script cannot be run directly. Use the nionui command line tool.")
@@ -353,7 +354,7 @@ widgets, you can provide a handler property which holds the value.
 .. code-block:: python
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             self.enabled = False
 
     check_box = ui.create_check_box(text="Enable", name="enable_cb", checked="enabled")
@@ -372,7 +373,7 @@ Many widgets, such as buttons, trigger events that can invoke methods in the han
 .. code-block:: python
 
     class Handler:
-        def handle_click(self):
+        def handle_click(self, widget: UserInterface.PushButtonWidget) -> None:
             print("Clicked!")
 
     push_button = ui.create_push_button(text="Push Me", on_clicked="handle_click")
@@ -395,11 +396,11 @@ property models, converters, and events.
 .. code-block:: python
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             self.enabled_model = Model.PropertyModel(False)
             self.enabled_model.on_value_changed = self.enabled_changed
 
-        def enabled_changed(self, widget, new_enabled):
+        def enabled_changed(self, widget: UserInterface.CheckBoxWidget, new_enabled: bool) -> None:
             print(f"Enabled changed to {new_enabled}")
 
     check_box = ui.create_check_box(text="Enabled", value="@binding(enabled_model.value)")
@@ -420,7 +421,7 @@ it to a button.
     class Handler:
         ...
 
-        def button_pushed(self):
+        def button_pushed(self, widget: UserInterface.PushButtonWidget) -> None:
             self.enabled_model.value = True
 
 Most places where you use a string value or a reference can be replaced with a *binding*.
@@ -433,7 +434,7 @@ the user to enter an integer into a text field. You can do this by attaching a *
 .. code-block:: python
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             self.year_model = Model.PropertyModel(2001)
             self.year_converter = Converter.IntegerToStringConverter()
 
@@ -458,16 +459,16 @@ You can explicitly provide this functionality and bind to objects other than a `
 .. code-block:: python
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             self.property_changed_event = Event.Event()
             self.__name = "March"
 
         @property
-        def name(self):
+        def name(self) -> str:
             return self.__name
 
         @name.setter
-        def name(self, value):
+        def name(self, value: str) -> None:
             self.__name = value
             self.property_changed_event.fire("name")
 
@@ -482,12 +483,12 @@ window using ``Application.run_window`` in your ``main`` function.
 
 .. code-block:: python
 
-    def main(args, bootstrap_args):
-        ui = Declarative.DeclarativeUI()
-        content = ui.create_column(ui.create_label(text="Hello World"))
-        window = ui.create_window(content, title="Hello World", margin=12)
+    def main(*args: typing.Any, **kwargs: typing.Any) -> Application.BaseApplication:
+        u = Declarative.DeclarativeUI()
+        content = u.create_column(u.create_label(text="Hello World"))
+        window = u.create_window(content, title=_("Hello World"), margin=12)
         handler = object()  # a dummy handler in this example
-        return Application.run_window(args, bootstrap_args, window, handler)
+        return Application.run_window(args[0], args[1], window, handler)
 
 .. autoclass:: nion.ui.Declarative.DeclarativeUI
     :members: create_window, create_modeless_dialog
@@ -559,11 +560,11 @@ Widgets that construct their content dynamically get the dynamic content via res
 .. code-block:: python
 
     class Handler:
-        def __init__(self):
+        def __init__(self) -> None:
             u = Declarative.DeclarativeUI()
             self.resources = {"component": u.define_component(u.create_label(text="Component"))}
 
-        def get_resource(resource_id: str, **kwargs) -> typing.Optional[UIDescription]:
+        def get_resource(resource_id: str, **kwargs: typing.Any) -> UIDescription | None:
             if resource_id == "component2":
                 return u.define_component(u.create_label(text="Component 2"))
             return None

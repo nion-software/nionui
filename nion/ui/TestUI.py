@@ -1381,6 +1381,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.SliderWidget:
         return UserInterfaceModule.SliderWidget(SliderWidgetBehavior("slider", properties))
 
+    def create_range_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.RangeSliderWidget:
+        return UserInterfaceModule.RangeSliderWidget(CanvasWidgetBehavior("rangeslider", properties))
+
     def create_progress_bar_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterfaceModule.ProgressBarWidget:
         return UserInterfaceModule.ProgressBarWidget(CanvasWidgetBehavior("canvas", properties))
 

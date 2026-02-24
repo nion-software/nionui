@@ -12,6 +12,7 @@ class Handler(Declarative.Handler):
         super().__init__()
         self.color_line_edit: typing.Optional[UserInterface.LineEditWidget] = None
         self.model = Model.PropertyModel("red")
+        self.text_model = Model.PropertyModel("")
 
     def color_updated(self, widget: UserInterface.LineEditWidget, text: str) -> None:
         print(f"Color changed: {widget} {text}")
@@ -31,9 +32,11 @@ def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     field_label = u.create_label(text="Favorite Color?")
     field_line_edit = u.create_line_edit(placeholder_text="Color", name="color_line_edit", on_editing_finished="color_updated", on_return_pressed="return_pressed", on_key_pressed="key_pressed")
     field_line_edit2 = u.create_line_edit(text="@binding(model.value)")
+    text_edit = u.create_text_edit(text="@binding(text_model.value)", height=60)
     return u.create_column(
         u.create_row(field_label, field_line_edit, spacing=8),
         u.create_row(u.create_label(text="Another Color?"), field_line_edit2, u.create_stretch(), spacing=8),
+        u.create_row(text_edit, u.create_stretch()),
         u.create_stretch(),
         spacing=8,
     )

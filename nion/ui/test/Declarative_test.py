@@ -51,14 +51,17 @@ class TestCanvasItemClass(unittest.TestCase):
                 t = threading.Thread(target=set_value_on_thread2, args=(7,))
                 t.start()
                 t.join()
-            self.assertEqual(7, source_model.value)
-            self.assertNotEqual(ui_model.value, source_model.value)
-            # run the event loop twice. when the source model changes on a thread, it calls run_coroutine_threadsafe
-            # which queues the call to make the call. the first run puts the correct call in the queue. the second
-            # run executes the call.
-            event_loop.stop()
-            event_loop.run_forever()
-            event_loop.stop()
-            event_loop.run_forever()
-            self.assertEqual(7, source_model.value)
-            self.assertEqual(ui_model.value, source_model.value)
+
+                # note: when binding_helper is finalized, it cancels any pending tasks. keep it around until finished.
+
+                self.assertEqual(7, source_model.value)
+                self.assertNotEqual(ui_model.value, source_model.value)
+                # run the event loop twice. when the source model changes on a thread, it calls run_coroutine_threadsafe
+                # which queues the call to make the call. the first run puts the correct call in the queue. the second
+                # run executes the call.
+                event_loop.stop()
+                event_loop.run_forever()
+                event_loop.stop()
+                event_loop.run_forever()
+                self.assertEqual(7, source_model.value)
+                self.assertEqual(ui_model.value, source_model.value)

@@ -1426,7 +1426,9 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
     @text.setter
     def text(self, value: typing.Optional[str]) -> None:
-        self.proxy.TextEdit_setText(self.widget, notnone(value))
+        # setting the text can cause the cursor position to change, so only set the text if it's different from the current text
+        if value != self.text:
+            self.proxy.TextEdit_setText(self.widget, notnone(value))
 
     @property
     def placeholder(self) -> typing.Optional[str]:

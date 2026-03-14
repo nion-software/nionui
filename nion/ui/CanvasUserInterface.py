@@ -90,8 +90,8 @@ class BasicCheckBoxWidgetCanvasItemController(CheckBoxWidgetCanvasItemController
         self.__row.size_to_content()
         # TODO: revisit on size changed is handled
         if callable(self.on_size_changed):
-            size = Geometry.IntSize(width=int(self.__row.sizing.preferred_width or 0),
-                                    height=int(self.__row.sizing.preferred_height or 0))
+            size = Geometry.IntSize(width=self.__row.sizing.preferred_width_int,
+                                    height=self.__row.sizing.preferred_height_int)
             self.on_size_changed(size)
 
     @property
@@ -329,8 +329,8 @@ class BasicRadioButtonWidgetCanvasItemController(RadioButtonWidgetCanvasItemCont
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=int(self.__radio_button_canvas_item.sizing.preferred_width or 0),
-                                                  height=int(self.__radio_button_canvas_item.sizing.preferred_height or 0)))
+            self.on_size_changed(Geometry.IntSize(width=self.__radio_button_canvas_item.sizing.preferred_width_int,
+                                                  height=self.__radio_button_canvas_item.sizing.preferred_height_int))
 
     def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         self.__radio_button_canvas_item.visible = False
@@ -341,8 +341,8 @@ class BasicRadioButtonWidgetCanvasItemController(RadioButtonWidgetCanvasItemCont
         self.__radio_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=int(self.__icon_button_canvas_item.sizing.preferred_width or 0),
-                                                  height=int(self.__icon_button_canvas_item.sizing.preferred_height or 0)))
+            self.on_size_changed(Geometry.IntSize(width=self.__icon_button_canvas_item.sizing.preferred_width_int,
+                                                  height=self.__icon_button_canvas_item.sizing.preferred_height_int))
 
     def set_enabled(self, enabled: bool) -> None:
         self.__radio_button_canvas_item.enabled = enabled
@@ -462,7 +462,7 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
             self.__triangle.size_to_content(self.ui.get_font_metrics)
             self.__row.size_to_content()
             if callable(self.on_size_changed):
-                size = Geometry.IntSize(width=int(self.__row.sizing.preferred_width or 0), height=int(self.__row.sizing.preferred_height or 0))
+                size = Geometry.IntSize(width=self.__row.sizing.preferred_width_int, height=self.__row.sizing.preferred_height_int)
                 self.on_size_changed(size)
 
     def set_item_strings(self, strings: typing.Sequence[str]) -> None:
@@ -565,7 +565,7 @@ class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasI
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.__ui = ui
 
-    def create_push_button_widget_canvas_item_controller(self) -> Widgets.PushButtonWidgetCanvasItemController:
+    def create_push_button_widget_canvas_item_controller(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> Widgets.PushButtonWidgetCanvasItemController:
         return Widgets.BasicPushButtonWidgetCanvasItemController(self.__ui)
 
     def create_tab_widget_canvas_item_controller(self) -> Widgets.TabWidgetCanvasItemController:
@@ -708,6 +708,9 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
     def set_background_color(self, color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         self.canvas_item.background_color = color
 
+    def set_border_color(self, color: typing.Optional[str]) -> None:
+        self.canvas_item.border_color = color
+
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
@@ -776,12 +779,12 @@ class StackWidgetBehavior(WidgetBehavior):
         self.__current_index = 0
 
     @property
-    def current_index(self) -> int:
+    def current_index(self) -> int | None:
         return self.__current_index
 
     @current_index.setter
-    def current_index(self, value: int) -> None:
-        self.__current_index = value
+    def current_index(self, value: int | None) -> None:
+        self.__current_index = value or 0
         self.__update()
 
     def insert(self, child: UserInterface.Widget, before: int) -> None:
@@ -1436,6 +1439,11 @@ class CanvasWidgetCanvasItem(CanvasItem.CanvasWidgetCanvasItem):
     def size_changed(self, width: int, height: int) -> None:
         pass  # TODO
 
+    def get_section_ref(self) -> CanvasItem.CanvasWidgetSection:
+        # TODO
+        raise NotImplementedError()
+
+
 
 class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
     # TODO
@@ -1497,6 +1505,9 @@ class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
         pass
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        pass
+
+    def hide_tool_tip_text(self) -> None:
         pass
 
     @property
@@ -1598,7 +1609,7 @@ class CanvasWindow(UserInterface.Window):
     def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         layout_sizing = self.__canvas_widget.canvas_item.layout_sizing if self.__canvas_widget else None
         if not size and layout_sizing:
-            size = Geometry.IntSize(width=int(layout_sizing.preferred_width or 400), height=int(layout_sizing.preferred_height or 200))
+            size = Geometry.IntSize(width=layout_sizing.preferred_width_int or 400, height=layout_sizing.preferred_height_int or 200)
         self.__window.show(size, position)
 
     def activate(self) -> None:
@@ -1798,8 +1809,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         raise NotImplementedError()
 
     def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextEditWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.TextEditWidget(TextEditWidgetBehavior(str(), properties, self.get_font_metrics))
 
     def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> UserInterface.CanvasWidget:
         return UserInterface.CanvasWidget(CanvasWidgetBehavior(properties, self.get_font_metrics))
@@ -1899,6 +1909,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
 
     def get_qt_version(self) -> str:
         return self.__ui.get_qt_version()
+
+    def get_build_version(self) -> str:
+        return self.__ui.get_build_version()
 
     def get_tolerance(self, tolerance_type: UserInterface.ToleranceType) -> float:
         return self.__ui.get_tolerance(tolerance_type)

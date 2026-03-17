@@ -2049,6 +2049,27 @@ class ComponentWidget(Widgets.CompositeWidgetBase):
         self.__identifier_binding_helper.unbind_value()
 
 
+def construct_widget(ui: UserInterface.UserInterface, event_loop: asyncio.AbstractEventLoop, ui_handler: HandlerLike) -> UserInterface.Widget:
+    # create a _closer and attach it to the ui_handler. then add the ui_handler to itself to be closed by the top
+    # level closer.
+    setattr(ui_handler, "_closer", Closer())
+
+    class DummyWindow:
+        # dummy Window to supply event loop
+        def __init__(self, event_loop: asyncio.AbstractEventLoop) -> None:
+            self.event_loop = event_loop
+
+    finishes: _FinishesListType = list()
+    widget = construct(ui, typing.cast(Window.Window, DummyWindow(event_loop)), getattr(ui_handler, "ui_view"), ui_handler, finishes)
+    for finish in finishes:
+        finish()
+    setattr(ui_handler, "_event_loop", event_loop)
+    if callable(getattr(ui_handler, "init_handler", None)):
+        getattr(ui_handler, "init_handler")()
+
+    return widget
+
+
 class DeclarativeWidget(Widgets.CompositeWidgetBase):
     """A widget containing a declarative ui handler."""
 
@@ -2056,29 +2077,15 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         stack_widget = ui.create_stack_widget()
         super().__init__(stack_widget)
 
-        # create a top level closer. for each object added to a closer, the closer will
-        # call close (if it exists) and then close the object's _closer (if it exists).
-        self.__closer = Closer()
+        # save the ui_handler so it can be closed.
+        self.__ui_handler = ui_handler
 
-        # create a _closer and attach it to the ui_handler. this may be used for sub-components.
-        # then add the ui_handler to itself to be closed by the top level closer.
-        setattr(ui_handler, "_closer", Closer())
-        self.__closer.push_closeable(ui_handler)
+        # construct the widget.
+        widget = construct_widget(ui, event_loop, ui_handler)
 
-        class DummyWindow:
-            # dummy Window to supply event loop
-            def __init__(self) -> None:
-                self.event_loop = event_loop
-
-        finishes: _FinishesListType = list()
-        widget = construct(ui, typing.cast(Window.Window, DummyWindow()), getattr(ui_handler, "ui_view"), ui_handler, finishes)
+        # add it to the stack.
         stack_widget.add(widget)
-        for finish in finishes:
-            finish()
-        setattr(ui_handler, "_event_loop", event_loop)
-        if callable(getattr(ui_handler, "init_handler", None)):
-            getattr(ui_handler, "init_handler")()
 
     def close(self) -> None:
-        self.__closer.close()
+        self.__ui_handler.close()
         super().close()

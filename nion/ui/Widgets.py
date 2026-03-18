@@ -212,24 +212,25 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
 
 
 def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properties: typing.Mapping[str, typing.Any]) -> None:
-    preferred_width = canvas_item.sizing.preferred_width or 0
-    preferred_height = canvas_item.sizing.preferred_height or 0
+    canvas_item_sizing = canvas_item.layout_sizing
+    preferred_width = canvas_item_sizing.preferred_width or 0
+    preferred_height = canvas_item_sizing.preferred_height or 0
     if "width" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_fixed_width(properties["width"]))
+        canvas_item.update_sizing(canvas_item_sizing.with_fixed_width(properties["width"]))
     if "height" in properties:
-        canvas_item.update_sizing(canvas_item.sizing.with_fixed_height(properties["height"]))
+        canvas_item.update_sizing(canvas_item_sizing.with_fixed_height(properties["height"]))
     if "min-width" in properties:
         min_width = properties["min-width"]
-        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_width().with_preferred_width(max(min_width, preferred_width)).with_minimum_width(min_width))
+        canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_width().with_preferred_width(max(min_width, preferred_width)).with_minimum_width(min_width))
     if "max-width" in properties:
         max_width = properties["max-width"]
-        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_width().with_preferred_width(min(max_width, preferred_width)).with_maximum_width(max_width))
+        canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_width().with_preferred_width(min(max_width, preferred_width)).with_maximum_width(max_width))
     if "min-height" in properties:
         min_height = properties["min-height"]
-        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_height().with_preferred_height(max(min_height, preferred_height)).with_minimum_height(min_height))
+        canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_height().with_preferred_height(max(min_height, preferred_height)).with_minimum_height(min_height))
     if "max-height" in properties:
         max_height = properties["max-height"]
-        canvas_item.update_sizing(canvas_item.sizing.with_unconstrained_height().with_preferred_height(min(max_height, preferred_height)).with_maximum_height(max_height))
+        canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_height().with_preferred_height(min(max_height, preferred_height)).with_maximum_height(max_height))
 
 
 class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemController):
@@ -275,8 +276,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=self.__text_button_canvas_item.sizing.preferred_width_int,
-                                                  height=self.__text_button_canvas_item.sizing.preferred_height_int))
+            canvas_item_sizing = self.__text_button_canvas_item.layout_sizing
+            self.on_size_changed(Geometry.IntSize(width=canvas_item_sizing.preferred_width_int,
+                                                  height=canvas_item_sizing.preferred_height_int))
 
     def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
         self.__text_button_canvas_item.visible = False
@@ -290,8 +292,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
         if callable(self.on_size_changed):
-            self.on_size_changed(Geometry.IntSize(width=self.__icon_button_canvas_item.sizing.preferred_width_int,
-                                                  height=self.__icon_button_canvas_item.sizing.preferred_height_int))
+            canvas_item_sizing = self.__icon_button_canvas_item.layout_sizing
+            self.on_size_changed(Geometry.IntSize(width=canvas_item_sizing.preferred_width_int,
+                                                  height=canvas_item_sizing.preferred_height_int))
 
     def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
@@ -366,7 +369,7 @@ class BasicTabWidgetCanvasItemController(TabWidgetCanvasItemController):
         button_canvas_item = CanvasItem.TextButtonCanvasItem("X")
         button_canvas_item.padding = Geometry.IntSize(width=6, height=4)
         button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__button_height = button_canvas_item.sizing.preferred_height_int
+        self.__button_height = button_canvas_item.layout_sizing.preferred_height_int
 
     @property
     def widget_source(self) -> WidgetSource:

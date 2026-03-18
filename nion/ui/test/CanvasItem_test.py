@@ -1849,6 +1849,40 @@ class TestCanvasItemClass(unittest.TestCase):
             for canvas_item, expected_rect in zip(row.canvas_items, expected_rects):
                 self.assertEqual(canvas_item.canvas_rect, expected_rect)
 
+    def test_alignment_within_column_row_is_left_top(self) -> None:
+        # tests that the alignment of items within a row and column is left and top aligned by default.
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        column.layout.alignment = "start"
+        with contextlib.closing(column):
+            label1 = CanvasItem.TextCanvasItem(text="M")
+            label1.update_sizing(label1.sizing.with_fixed_size(Geometry.IntSize(width=30, height=30)))
+            label2 = CanvasItem.TextCanvasItem(text="M")
+            label2.update_sizing(label2.sizing.with_fixed_size(Geometry.IntSize(width=40, height=30)))
+            column.add_canvas_item(label1)
+            column.add_canvas_item(label2)
+            column.add_stretch()
+            column.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=40, height=100))
+            for canvas_item in column.canvas_items:
+                canvas_rect = canvas_item.canvas_rect
+                assert canvas_rect
+                self.assertEqual(0, canvas_rect.left)
+            column.layout.alignment = "end"
+            column.update()
+            column.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=40, height=100))
+            for canvas_item in column.canvas_items:
+                canvas_rect = canvas_item.canvas_rect
+                assert canvas_rect
+                self.assertEqual(40, canvas_rect.right)
+            column.layout.alignment = None
+            column.update()
+            column.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=40, height=100))
+            for canvas_item in column.canvas_items:
+                canvas_rect = canvas_item.canvas_rect
+                assert canvas_rect
+                self.assertEqual(20, canvas_rect.center.x)
+
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

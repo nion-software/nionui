@@ -1650,9 +1650,10 @@ class CanvasItemAbstractLayout:
         NOTE: origin=0 is at the top
     """
 
-    def __init__(self, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None) -> None:
+    def __init__(self, margins: Geometry.Margins | None = None, spacing: int | None = None, alignment: str | None = None) -> None:
         self.margins = margins if margins is not None else Geometry.Margins(0, 0, 0, 0)
         self.spacing = spacing if spacing else 0
+        self.alignment = alignment
 
     def copy(self) -> CanvasItemAbstractLayout:
         raise NotImplementedError()
@@ -1885,8 +1886,7 @@ class CanvasItemColumnLayout(CanvasItemAbstractLayout):
 
     def __init__(self, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None,
                  alignment: typing.Optional[str] = None) -> None:
-        super().__init__(margins, spacing)
-        self.alignment = alignment
+        super().__init__(margins, spacing, alignment)
 
     def copy(self) -> CanvasItemAbstractLayout:
         return CanvasItemColumnLayout(self.margins, self.spacing, self.alignment)
@@ -1928,8 +1928,7 @@ class CanvasItemRowLayout(CanvasItemAbstractLayout):
 
     def __init__(self, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None,
                  alignment: typing.Optional[str] = None) -> None:
-        super().__init__(margins, spacing)
-        self.alignment = alignment
+        super().__init__(margins, spacing, alignment)
 
     def copy(self) -> CanvasItemAbstractLayout:
         return CanvasItemRowLayout(self.margins, self.spacing, self.alignment)

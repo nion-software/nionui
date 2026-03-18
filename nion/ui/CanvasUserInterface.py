@@ -28,6 +28,87 @@ def extract_canvas_item(widget: UserInterface.Widget) -> typing.Optional[CanvasI
     return widget_behavior._canvas_item if widget else None
 
 
+class CheckBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.on_size_changed: typing.Optional[typing.Callable[[Geometry.IntSize], None]] = None
+        self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
+
+    @property
+    @abc.abstractmethod
+    def text(self) -> typing.Optional[str]: raise NotImplementedError()
+
+    @text.setter
+    @abc.abstractmethod
+    def text(self, text: typing.Optional[str]) -> None: ...
+
+    @property
+    @abc.abstractmethod
+    def check_state(self) -> str: raise NotImplementedError()
+
+    @check_state.setter
+    @abc.abstractmethod
+    def check_state(self, check_state: str) -> None: ...
+
+    @property
+    @abc.abstractmethod
+    def tristate(self) -> bool: raise NotImplementedError()
+
+    @tristate.setter
+    @abc.abstractmethod
+    def tristate(self, tristate: bool) -> None: ...
+
+
+class BasicCheckBoxWidgetCanvasItemController(CheckBoxWidgetCanvasItemController):
+    def __init__(self, ui: UserInterface.UserInterface) -> None:
+        super().__init__(ui)
+        self.__row = CanvasItem.CanvasItemComposition()
+        self.__row.layout = CanvasItem.CanvasItemRowLayout()
+        self.__check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
+        self.__row.add_canvas_item(self.__check_box_canvas_item)
+
+        def handle_check_state_changed(check_state: str) -> None:
+            if callable(self.on_check_state_changed):
+                self.on_check_state_changed(check_state)
+
+        self.__check_box_canvas_item.on_check_state_changed = handle_check_state_changed
+
+    @property
+    def widget_source(self) -> Widgets.WidgetSource:
+        return Widgets.WidgetSource(self.ui, None, self.__row)
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__check_box_canvas_item.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__check_box_canvas_item.text = text or str()
+        self.__check_box_canvas_item.size_to_content(self.ui.get_font_metrics)
+        self.__row.size_to_content()
+        # TODO: revisit on size changed is handled
+        if callable(self.on_size_changed):
+            size = Geometry.IntSize(width=int(self.__row.sizing.preferred_width or 0),
+                                    height=int(self.__row.sizing.preferred_height or 0))
+            self.on_size_changed(size)
+
+    @property
+    def check_state(self) -> str:
+        return self.__check_box_canvas_item.check_state
+
+    @check_state.setter
+    def check_state(self, check_state: str) -> None:
+        self.__check_box_canvas_item.check_state = check_state
+
+    @property
+    def tristate(self) -> bool:
+        return self.__check_box_canvas_item.tristate
+
+    @tristate.setter
+    def tristate(self, tristate: bool) -> None:
+        self.__check_box_canvas_item.tristate = tristate
+
+
 class ComboBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         super().__init__(ui)
@@ -156,6 +237,9 @@ class CanvasUserInterfaceWidgetCanvasItemControllerFactory(Widgets.WidgetCanvasI
         return Widgets.BasicTabWidgetCanvasItemController(self.__ui)
 
     # additional methods
+
+    def create_check_box_widget_canvas_item_controller(self) -> CheckBoxWidgetCanvasItemController:
+        return BasicCheckBoxWidgetCanvasItemController(self.__ui)
 
     def create_combo_box_widget_canvas_item_controller(self) -> ComboBoxWidgetCanvasItemController:
         return BasicComboBoxWidgetCanvasItemController(self.__ui)
@@ -503,6 +587,56 @@ class PushButtonWidgetBehavior(WidgetBehavior):
 
     def _set_background_color(self, background_color: typing.Optional[str]) -> None:
         self.__canvas_item_controller.set_background_color(background_color)
+
+
+class CheckBoxWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__canvas_item = CanvasItem.CanvasItemComposition()
+        super().__init__(self.__canvas_item, False, properties)
+
+        widget_canvas_item_factory = CanvasUserInterfaceWidgetCanvasItemControllerFactory(ui)
+
+        self.__canvas_item_controller = widget_canvas_item_factory.create_check_box_widget_canvas_item_controller()
+
+        self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+
+        self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
+
+        def handle_check_state_changed(check_state: str) -> None:
+            if callable(self.on_check_state_changed):
+                self.on_check_state_changed(check_state)
+
+        def handle_size_changed(size: Geometry.IntSize) -> None:
+            # TODO: size to content be defined in AbstractCanvasItem
+            self.__canvas_item.update_sizing(self.__canvas_item.sizing.with_fixed_size(size))
+
+        self.__canvas_item_controller.on_check_state_changed = handle_check_state_changed
+        self.__canvas_item_controller.on_size_changed = handle_size_changed
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__canvas_item_controller.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__canvas_item_controller.text = text
+
+    @property
+    def check_state(self) -> str:
+        return self.__canvas_item_controller.check_state
+
+    @check_state.setter
+    def check_state(self, check_state: str) -> None:
+        self.__canvas_item_controller.check_state = check_state
+
+    @property
+    def tristate(self) -> bool:
+        return self.__canvas_item_controller.tristate
+
+    @tristate.setter
+    def tristate(self, tristate: bool) -> None:
+        self.__canvas_item_controller.tristate = tristate
 
 
 class ComboBoxWidgetBehavior(WidgetBehavior):
@@ -909,8 +1043,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         raise NotImplementedError()
 
     def create_check_box_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.CheckBoxWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.CheckBoxWidget(CheckBoxWidgetBehavior(self, properties), text)
 
     def create_label_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LabelWidget:
         return UserInterface.LabelWidget(LabelWidgetBehavior(text or str(), properties, self.get_font_metrics), text)

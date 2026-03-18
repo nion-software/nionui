@@ -1706,6 +1706,8 @@ class CanvasItemAbstractLayout:
                                  clear_if_missing: bool = False) -> None:
         """ Utility method for updating the property of the sizing object using the combiner function and the canvas_item_sizing. """
         canvas_item_value = getattr(canvas_item_sizing, property)
+        if isinstance(canvas_item_value, SizingEnum):
+            canvas_item_value = None
         value = getattr(sizing_data, property)
         if canvas_item_value is not None:
             if clear_if_missing:

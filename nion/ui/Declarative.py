@@ -137,6 +137,7 @@ class DeclarativeUI:
     def create_column(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
                       items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
                       spacing: typing.Optional[UIPoints] = None,
+                      alignment: typing.Optional[str] = None,
                       **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a column UI description with children or dynamic items, spacing, and margin.
 
@@ -171,6 +172,8 @@ class DeclarativeUI:
             d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
+        if alignment is not None:
+            d["alignment"] = alignment
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
@@ -182,6 +185,7 @@ class DeclarativeUI:
     def create_row(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
                    items: typing.Optional[UIIdentifier] = None, item_component_id: typing.Optional[str] = None,
                    spacing: typing.Optional[UIPoints] = None,
+                   alignment: typing.Optional[str] = None,
                    **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a row UI description with children or dynamic items, spacing, and margin.
 
@@ -216,6 +220,8 @@ class DeclarativeUI:
             d["item_component_id"] = item_component_id
         if spacing is not None:
             d["spacing"] = spacing
+        if alignment is not None:
+            d["alignment"] = alignment
         if len(children) > 0:
             d_children = d.setdefault("children", list())
             for child in children:
@@ -1896,10 +1902,15 @@ def construct_text_label(ui: UserInterface.UserInterface, d: UIDescription, hand
 def construct_box(ui: UserInterface.UserInterface, window: Window.Window, is_column: bool,
                   d: UIDescription, handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.BoxWidget:
     sizing_properties = construct_sizing_properties(d)
+    alignment = d.get("alignment", None)
+    if alignment == "start":
+        alignment = "left" if is_column else "top"
+    elif alignment == "end":
+        alignment = "right" if is_column else "bottom"
     if is_column:
-        box_widget = ui.create_column_widget(properties=sizing_properties)
+        box_widget = ui.create_column_widget(alignment=alignment, properties=sizing_properties)
     else:
-        box_widget = ui.create_row_widget(properties=sizing_properties)
+        box_widget = ui.create_row_widget(alignment=alignment, properties=sizing_properties)
     margins_box_widget = construct_margins_box(ui, box_widget, construct_margins(d))
     spacing: typing.Optional[int] = d.get("spacing")
     items = d.get("items")

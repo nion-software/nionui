@@ -263,6 +263,10 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def widget_source(self) -> WidgetSource:
         return WidgetSource(self.ui, None, self.__stack)
 
+    def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__text_button_canvas_item.size_to_content(get_font_metrics_fn)
+        self.__icon_button_canvas_item.size_to_content(get_font_metrics_fn)
+
     def set_text(self, value: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.visible = True
         self.__icon_button_canvas_item.visible = False
@@ -423,7 +427,7 @@ class BasicWidgetCanvasItemControllerFactory(WidgetCanvasItemControllerFactory):
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         self.__ui = ui
 
-    def create_push_button_widget_canvas_item_controller(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> PushButtonWidgetCanvasItemController:
+    def create_push_button_widget_canvas_item_controller(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> BasicPushButtonWidgetCanvasItemController:
         return BasicPushButtonWidgetCanvasItemController(self.__ui, properties)
 
     def create_tab_widget_canvas_item_controller(self) -> TabWidgetCanvasItemController:

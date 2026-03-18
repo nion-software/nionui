@@ -22,6 +22,7 @@ from . import ComponentPolymorphic
 from . import ComponentStack
 from . import Converters
 from . import Groups
+from . import Layout
 from . import LineEdits
 from . import ProgressBars
 from . import RadioButtons
@@ -58,6 +59,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
 
     page_list = [
         (Buttons, "buttons", _("Buttons")),
+        (Layout, "layout", _("Layout")),
         (CheckBoxes, "check_boxes", _("Check Boxes")),
         (ComboBoxes, "combo_boxes", _("Combo Boxes")),
         (Bindings, "bindings", _("Bindings")),

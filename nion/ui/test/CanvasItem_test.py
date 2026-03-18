@@ -1806,6 +1806,49 @@ class TestCanvasItemClass(unittest.TestCase):
             outer_composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
             self.assertEqual(inner_composition_height, canvas_size.height)
 
+    def test_layout_intrinsic_and_constrained_within_container(self) -> None:
+        # tests layout with labels with intrinsic width and fixed width and stretch within a container.
+        column = CanvasItem.CanvasItemComposition()
+        column.layout = CanvasItem.CanvasItemColumnLayout()
+        with contextlib.closing(column):
+            row = CanvasItem.CanvasItemComposition()
+            row.layout = CanvasItem.CanvasItemRowLayout()
+            fm = TestUI.make_font_metrics_for_tests()
+            label1 = CanvasItem.TextCanvasItem(text="M")
+            label1.size_to_content(fm.get_font_metrics)
+            label2 = CanvasItem.TextCanvasItem(text="M")
+            label2.size_to_content(fm.get_font_metrics)
+            label2.update_sizing(label1.sizing.with_fixed_width(30))
+            label3 = CanvasItem.TextCanvasItem(text="M")
+            label3.size_to_content(fm.get_font_metrics)
+            label4 = CanvasItem.TextCanvasItem(text="M")
+            label4.size_to_content(fm.get_font_metrics)
+            label4.update_sizing(label3.sizing.with_fixed_width(40))
+            label5 = CanvasItem.TextCanvasItem(text="M")
+            label5.size_to_content(fm.get_font_metrics)
+            label6 = CanvasItem.TextCanvasItem(text="M")
+            label6.size_to_content(fm.get_font_metrics)
+            row.add_canvas_item(label1)
+            row.add_canvas_item(label2)
+            row.add_canvas_item(label3)
+            row.add_canvas_item(label4)
+            row.add_canvas_item(label5)
+            row.add_stretch()
+            row.add_canvas_item(label6)
+            column.add_canvas_item(row)
+            column.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=20))
+            expected_rects = [
+                Geometry.IntRect.from_tlhw(0, 0, 21, 18),
+                Geometry.IntRect.from_tlhw(0, 18, 21, 30),
+                Geometry.IntRect.from_tlhw(0, 48, 21, 18),
+                Geometry.IntRect.from_tlhw(0, 66, 21, 40),
+                Geometry.IntRect.from_tlhw(0, 106, 21, 18),
+                Geometry.IntRect.from_tlhw(10, 124, 0, 58),
+                Geometry.IntRect.from_tlhw(0, 182, 21, 18),
+            ]
+            for canvas_item, expected_rect in zip(row.canvas_items, expected_rects):
+                self.assertEqual(canvas_item.canvas_rect, expected_rect)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

@@ -906,6 +906,7 @@ class AbstractCanvasItem:
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
         self._canvas_origin_stream = Stream.ValueStream[Geometry.IntPoint]()
         self.__sizing = Sizing(SizingData())
+        self.__intrinsic_size: Geometry.IntSize | None = None
         self.__layout_count = 0
         self.__focused = False
         self.__focusable = False
@@ -1254,7 +1255,25 @@ class AbstractCanvasItem:
             The layout sizing is read only and cannot be modified. It is
             used from the layout engine.
         """
-        return self.sizing
+        sizing = self.sizing
+
+        if self.__intrinsic_size:
+            if not sizing.minimum_width:
+                sizing = sizing.with_minimum_width(self.__intrinsic_size.width)
+            if not sizing.preferred_width:
+                sizing = sizing.with_preferred_width(self.__intrinsic_size.width)
+            if not sizing.maximum_width:
+                sizing = sizing.with_maximum_width(self.__intrinsic_size.width)
+
+        if self.__intrinsic_size:
+            if not sizing.minimum_height:
+                sizing = sizing.with_minimum_height(self.__intrinsic_size.height)
+            if not sizing.preferred_height:
+                sizing = sizing.with_preferred_height(self.__intrinsic_size.height)
+            if not sizing.maximum_height:
+                sizing = sizing.with_maximum_height(self.__intrinsic_size.height)
+
+        return sizing
 
     def copy_sizing(self) -> Sizing:
         return self.sizing
@@ -1262,6 +1281,16 @@ class AbstractCanvasItem:
     def update_sizing(self, new_sizing: Sizing) -> None:
         if new_sizing != self.sizing:
             self.__sizing = new_sizing
+            self.update()
+
+    @property
+    def intrinsic_size(self) -> Geometry.IntSize | None:
+        return self.__intrinsic_size
+
+    @intrinsic_size.setter
+    def intrinsic_size(self, size: Geometry.IntSize | None) -> None:
+        if size != self.__intrinsic_size:
+            self.__intrinsic_size = size
             self.update()
 
     def _begin_batch_update(self) -> None:
@@ -5036,13 +5065,12 @@ class CellCanvasItem(AbstractCanvasItem):
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         """ Size the canvas item to the text content with padding."""
         new_size = self.cell.size_to_content(get_font_metrics_fn) if self.cell else Geometry.IntSize()
-        new_sizing = self.sizing
         padding = self.padding
         # if size is 0 in either dimension, do not pad that dimension. this is a backwards compatibility issue
         # to avoid drawing dimmed disabled items with no content ("Scan/Abort" in device control panels).
-        new_sizing = new_sizing.with_fixed_width(new_size.width + (padding.width * 2 if new_size.width else 0))
-        new_sizing = new_sizing.with_fixed_height(new_size.height + (padding.height * 2 if new_size.height else 0))
-        self.update_sizing(new_sizing)
+        new_width = new_size.width + (padding.width * 2 if new_size.width else 0)
+        new_height = new_size.height + (padding.height * 2 if new_size.height else 0)
+        self.intrinsic_size = Geometry.IntSize(new_height, new_width)
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         if cell := self.cell:
@@ -5755,10 +5783,9 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         horizontal_padding = 4
         vertical_padding = 3
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
-        new_sizing = self.sizing
-        new_sizing = new_sizing.with_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
-        new_sizing = new_sizing.with_fixed_height(font_metrics.height + 2 * vertical_padding)
-        self.update_sizing(new_sizing)
+        new_width = font_metrics.width + 2 * horizontal_padding + 14 + 4
+        new_height = font_metrics.height + 2 * vertical_padding
+        self.intrinsic_size = Geometry.IntSize(new_height, new_width)
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         return CheckBoxCanvasItemComposer(self, self.layout_sizing, composer_cache, self.check_state, self.enabled, self.__mouse_inside, self.__mouse_pressed, self.__text, self.__text_color, self.__text_disabled_color, self.__font)

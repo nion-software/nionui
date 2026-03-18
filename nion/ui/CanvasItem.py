@@ -2231,7 +2231,8 @@ class CanvasItemComposition(AbstractCanvasItem):
     @property
     def layout_sizing(self) -> Sizing:
         sizing = self.sizing
-        layout_sizing = self.layout.get_sizing(self.visible_canvas_items)
+        canvas_items = self.visible_canvas_items if sizing.collapsible else self.canvas_items
+        layout_sizing = self.layout.get_sizing(canvas_items)
         layout_sizing_data = layout_sizing.sizing_data
         if sizing.minimum_width is not None:
             layout_sizing_data.minimum_width = sizing.minimum_width if isinstance(sizing.minimum_width, (int, float)) else None
@@ -2251,7 +2252,7 @@ class CanvasItemComposition(AbstractCanvasItem):
             layout_sizing_data.maximum_aspect_ratio = sizing.maximum_aspect_ratio
         if sizing.preferred_aspect_ratio is not None:
             layout_sizing_data.preferred_aspect_ratio = sizing.preferred_aspect_ratio
-        if len(self.visible_canvas_items) == 0 and sizing.collapsible:
+        if len(canvas_items) == 0 and sizing.collapsible:
             layout_sizing_data.minimum_width = 0
             layout_sizing_data.preferred_width = 0
             layout_sizing_data.maximum_width = 0

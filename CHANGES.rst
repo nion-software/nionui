@@ -1,6 +1,12 @@
 Changelog (nionui)
 ==================
 
+10.2.3 (2026-03-19)
+-------------------
+- Python 3.14 compatibility updates.
+- Ensure event loop is closed at application deinitialize.
+- Fix issue where cursor is reposition to beginning after each text edit change.
+
 10.2.2 (2025-10-12)
 -------------------
 - Increase default hit testing tolerance to 6 pixels (from 5).

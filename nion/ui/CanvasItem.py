@@ -5223,6 +5223,12 @@ class TextButtonCell(Cell):
         font_metrics = get_font_metrics_fn(text_font, self.text)
         return Geometry.IntSize(width=font_metrics.width, height=font_metrics.height)
 
+    def _get_background_and_overlay_colors(self, style: typing.Set[str]) -> typing.Tuple[typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], typing.Optional[str]]:
+        background_color, overlay_color = super()._get_background_and_overlay_colors(style)
+        if "disabled" in style:
+            overlay_color = None
+        return background_color, overlay_color
+
     def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
         text = self.__text
         if text:
@@ -5233,19 +5239,20 @@ class TextButtonCell(Cell):
             drawing_context.font = text_font
             drawing_context.text_baseline = text_baseline
             drawing_context.text_align = text_align
-            drawing_context.fill_style = text_color
+            drawing_context.fill_style = text_color if "disabled" not in style else Color.Color(text_color).to_color_with_alpha(0.5).color_str
             if self.__truncation_mode and self.__text_measure:
                 text = self.__text_measure.truncate_string_to_width(text_font, text, math.trunc(rect.width + 2), self.__truncation_mode)
             if self.__text_measure:
                 text_width = self.__text_measure.get_font_metrics(text_font, text).width
                 if text_align == "left":
-                    drawing_context.fill_text(text, rect.left, rect.center.y + 1)
+                    text_position = Geometry.FloatPoint(x=rect.left, y=rect.center.y + 1)
                 elif text_align == "right":
-                    drawing_context.fill_text(text, rect.right - text_width, rect.center.y + 1)
+                    text_position = Geometry.FloatPoint(x=rect.right - text_width, y=rect.center.y + 1)
                 else:
-                    drawing_context.fill_text(text, rect.center.x, rect.center.y + 1)
+                    text_position = Geometry.FloatPoint(x=rect.center.x, y=rect.center.y + 1)
             else:
-                drawing_context.fill_text(text, rect.center.x, rect.center.y + 1)
+                text_position = Geometry.FloatPoint(x=rect.center.x, y=rect.center.y + 1)
+            drawing_context.fill_text(text, text_position.x, text_position.y)
 
 
 class TextCanvasItem(CellCanvasItem):

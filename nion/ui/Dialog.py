@@ -310,7 +310,8 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
-                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None) -> None:
+                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None, window_style: str | None = None,
+                            cancel_button_text: str | None = None, accept_button_text: str | None = None) -> None:
 
     class Handler:
         def __init__(self, s: str) -> None:
@@ -360,8 +361,15 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
     edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject", on_editing_finished="editing_finished"), u.create_stretch())
     column = u.create_column(title_row, edit_row, spacing=4, margin=8)
-    # passing window_style=None is essential for making copy and paste work, as the 'popup' style does not handle copy/paste.
-    popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)
+    if cancel_button_text is not None or accept_button_text is not None:
+        cancel_button_text = cancel_button_text or _("Cancel")
+        accept_button_text = accept_button_text or _("Done")
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                  u.create_push_button(text=accept_button_text, on_clicked="editing_finished"), spacing=8, margin=8)
+        column = u.create_column(u.create_column(column, u.create_stretch()), button_row)
+    # passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
+    popup = PopupWindow(window, column, ui_handler, window_style=window_style, delegate=ui_handler)
     # but we still want a clean window style
     popup._document_window.set_window_style(["tool", "frameless-hint"])
 

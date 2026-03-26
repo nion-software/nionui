@@ -335,8 +335,6 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
-            # mark popup as rejected.
-            self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
@@ -358,20 +356,20 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
-    title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
-    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject", on_editing_finished="editing_finished"), u.create_stretch())
-    column = u.create_column(title_row, edit_row, spacing=4, margin=8)
+    title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
+    divider = u.create_row(u.create_stretch(), background_color="#AAA", height=1)
+    title_row = u.create_column(title_row, divider)
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
+    column = u.create_column(title_row, edit_row)
     if cancel_button_text is not None or accept_button_text is not None:
         cancel_button_text = cancel_button_text or _("Cancel")
         accept_button_text = accept_button_text or _("Done")
         button_row = u.create_row(u.create_stretch(),
                                   u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
-                                  u.create_push_button(text=accept_button_text, on_clicked="editing_finished"), spacing=8, margin=8)
+                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
         column = u.create_column(u.create_column(column, u.create_stretch()), button_row)
     # passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
     popup = PopupWindow(window, column, ui_handler, window_style=window_style, delegate=ui_handler)
-    # but we still want a clean window style
-    popup._document_window.set_window_style(["tool", "frameless-hint"])
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:
@@ -388,3 +386,65 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     assert line_edit_widget
     line_edit_widget.focused = False
     line_edit_widget.focused = True
+
+
+def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
+                             window: Window.Window, title: str | None = None, caption: str | None = None,
+                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None, window_style: str | None = None,
+                             cancel_button_text: str = _("Cancel"), accept_button_text: str = _("Done")) -> None:
+    """Display a confirmation popup"""
+    class Handler:
+        def __init__(self) -> None:
+            self.is_rejected = True
+
+        def close(self) -> None:
+            pass
+
+        def init_popup(self, request_close_fn: typing.Callable[[], None]) -> None:
+            self.__request_close_fn = request_close_fn
+
+        def reject(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits escape. let the window handle the escape by returning False.
+            # mark popup as rejected.
+            self.__request_close_fn()
+            return False
+
+        def accept(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits return. need to request a close and return True to say we handled event.
+            self.__request_close_fn()
+            self.is_rejected = False
+            return True
+
+    from nion.ui import Declarative  # avoid circular reference
+
+    # calculate the max string width, add 10%, min 200, max 480
+    size = size or Geometry.IntSize(30, 200)
+
+    ui_handler = Handler()
+    u = Declarative.DeclarativeUI()
+
+    title_row = u.create_row(u.create_label(text=title or _("Confirm")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
+    divider = u.create_row(u.create_stretch(), background_color="#AAA", height=1)
+    title_row = u.create_column(title_row, divider)
+    button_row = u.create_row(u.create_stretch(),
+                              u.create_push_button(text=cancel_button_text, on_clicked="reject"),
+                              u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+
+    if caption:
+        caption_row = u.create_row(u.create_label(text=caption), u.create_stretch(), spacing=4, margin=8)
+        column = u.create_column(title_row, caption_row, button_row)
+    else:
+        column = u.create_column(title_row, button_row)
+
+    popup = PopupWindow(window, column, ui_handler, window_style=window_style, delegate=ui_handler)
+
+    def handle_close(old_close: typing.Callable[[], None] | None) -> None:
+        if not ui_handler.is_rejected:
+            completion_fn(True)
+        else:
+            completion_fn(False)
+        if callable(old_close):
+            old_close()
+
+    popup.on_close = functools.partial(handle_close, popup.on_close)
+    popup.show(size=size, position=position)

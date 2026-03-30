@@ -448,3 +448,12 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
 
     popup.on_close = functools.partial(handle_close, popup.on_close)
     popup.show(size=size, position=position)
+
+
+def get_popup_position(parent_panel_rect: Geometry.IntRect, popup_size: Geometry.IntSize) -> Geometry.IntPoint:
+    """Calculate the position for a popup panel from the parent container, and its size.
+
+    It is vertically aligned to be hanging from the top third of the parent panel.
+    """
+    vertical_position = parent_panel_rect.top + parent_panel_rect.height // 2 // 3
+    return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position + popup_size.height)

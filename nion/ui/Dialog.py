@@ -318,6 +318,7 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             self.is_rejected = True
             self.s = s
             self.line_edit_widget: UserInterface.LineEditWidget | None = None
+            self.call_close_on_reject = window_style != "default"
 
         def close(self) -> None:
             pass
@@ -335,6 +336,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
+            if self.call_close_on_reject:
+                self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:

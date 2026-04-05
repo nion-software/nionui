@@ -1225,7 +1225,7 @@ class AbstractCanvasItem:
         pass
 
     @contextlib.contextmanager
-    def batch_update(self) -> typing.Iterator[typing.Any]:
+    def batch_update(self) -> typing.Generator[None, None, None]:
         self._begin_batch_update()
         try:
             yield

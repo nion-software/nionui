@@ -508,7 +508,7 @@ class DrawingContext:
         return result
 
     @contextlib.contextmanager
-    def saver(self) -> typing.Iterator[typing.Any]:
+    def saver(self) -> typing.Generator[None, None, None]:
         self.save()
         try:
             yield

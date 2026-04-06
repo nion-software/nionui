@@ -868,6 +868,7 @@ class AbstractCanvasItem:
         self.__thread = threading.current_thread()
         self.__update_lock = threading.RLock()
         self.__update_level = 0  # used for deferred updating
+        self.__update_pending = False  # whether update was called during batch update
         # stats for testing
         self._update_count = 0
         self._repaint_count = 0
@@ -1211,16 +1212,24 @@ class AbstractCanvasItem:
 
     def _begin_batch_update(self) -> None:
         with self.__update_lock:
+            # Reset state at the start of each outermost batch. Call _batch_update_started to allow subclasses to
+            # know when a batch update is starting.
             if self.__update_level == 0:
                 self._batch_update_started()
+                self.__update_pending = False
+            # Count the update level so that the first/last batch update can be determined.
             self.__update_level += 1
 
     def _end_batch_update(self) -> None:
         with self.__update_lock:
+            # Count the update level so that the first/last batch update can be determined.
             self.__update_level -= 1
+            # When `__update_level` reaches zero, call _batch_update_ended to allow subclasses to know when a batch
+            # update is ending. If an update is pending, call _update to trigger an update.
             if self.__update_level == 0:
                 self._batch_update_ended()
-                self._update()
+                if self.__update_pending:
+                    self._update()
 
     def _batch_update_started(self) -> None:
         pass
@@ -1230,11 +1239,17 @@ class AbstractCanvasItem:
 
     @contextlib.contextmanager
     def batch_update(self) -> typing.Generator[None, None, None]:
+        """Context manager for batching multiple updates together.
+
+        An update is triggered at the end of the outermost batch update if any updates were requested within the
+        batch update. This allows multiple updates to be coalesced into a single update, which can improve
+        performance when making multiple changes to a canvas item.
+        """
         self._begin_batch_update()
         try:
             yield
         finally:
-           self._end_batch_update()
+            self._end_batch_update()
 
     def _update(self) -> None:
         """Mark canvas item as needing a display update.
@@ -1249,8 +1264,13 @@ class AbstractCanvasItem:
             self._updated()
 
     def update(self) -> None:
+        """Mark canvas item as needing an update (repaint).
+
+        Thread-safe.
+        """
+        # Defer the actual update until the outermost batch ends.
         with self.batch_update():
-            pass
+            self.__update_pending = True
 
     def redraw(self) -> None:
         """Force full redraw of this item and children. Used for resolution changes."""

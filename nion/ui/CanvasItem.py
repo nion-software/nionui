@@ -894,6 +894,10 @@ class AbstractCanvasItem:
     def __repr__(self) -> str:
         return self._summary()
 
+    @property
+    def owner_thread(self) -> threading.Thread:
+        return self.__thread
+
     def _set_owner_thread(self, thread: threading.Thread) -> None:
         self.__thread = thread
         for canvas_item in self.canvas_items:

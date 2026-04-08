@@ -909,13 +909,6 @@ class AbstractCanvasItem:
         return list()
 
     @property
-    def is_ui_interaction_active(self) -> bool:
-        root_container = self.root_container
-        if root_container:
-            return root_container.is_ui_interaction_active
-        return False
-
-    @property
     def canvas_size(self) -> typing.Optional[Geometry.IntSize]:
         """ Returns size of canvas_rect (external coordinates). """
         return self._canvas_size_stream.value
@@ -3670,32 +3663,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         return self.__canvas_widget.map_to_global(p)
 
     @property
-    def is_ui_interaction_active(self) -> bool:
-        return self.__interaction_count > 0
-
-    def _adjust_ui_interaction(self, value: int) -> None:
-        self.__interaction_count += value
-
-    class UIInteractionContext:
-        def __init__(self, root_canvas_item: RootCanvasItem) -> None:
-            self.__root_canvas_item = root_canvas_item
-
-        def close(self) -> None:
-            self.__root_canvas_item._adjust_ui_interaction(-1)
-
-        def __enter__(self) -> RootCanvasItem.UIInteractionContext:
-            self.__root_canvas_item._adjust_ui_interaction(1)
-            return self
-
-        def __exit__(self, exception_type: typing.Optional[typing.Type[BaseException]],
-                     value: typing.Optional[BaseException], traceback: typing.Optional[types.TracebackType]) -> typing.Optional[bool]:
-            self.close()
-            return None
-
-    def _ui_interaction(self) -> contextlib.AbstractContextManager[RootCanvasItem.UIInteractionContext]:
-        return RootCanvasItem.UIInteractionContext(self)
-
-    @property
     def focusable(self) -> bool:
         """ Return whether the canvas widget is focusable. """
         return self.canvas_widget.focusable
@@ -3847,24 +3814,21 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             canvas_item_ = canvas_item_.container
 
     def __mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        with self._ui_interaction():
-            canvas_item = self.__mouse_canvas_item_at_point(x, y)
-            if canvas_item:
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-                return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
-            return False
+        canvas_item = self.__mouse_canvas_item_at_point(x, y)
+        if canvas_item:
+            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        return False
 
     def __mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        with self._ui_interaction():
-            canvas_item = self.__mouse_canvas_item_at_point(x, y)
-            if canvas_item:
-                self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-                return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
-            return False
+        canvas_item = self.__mouse_canvas_item_at_point(x, y)
+        if canvas_item:
+            self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
+            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        return False
 
     def __mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        self._adjust_ui_interaction(1)
         self.__mouse_position_changed(x, y, modifiers)
         if not self.__mouse_tracking_canvas_item:
             self.__mouse_tracking_canvas_item = self.__mouse_canvas_item_at_point(x, y)
@@ -3896,7 +3860,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
             self.__mouse_canvas_item = None
             self.__mouse_position_changed(x, y, modifiers)
-        self._adjust_ui_interaction(-1)
         return result
 
     def bypass_request_focus(self) -> None:
@@ -3939,16 +3902,14 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             self.__mouse_tracking_canvas_item.mouse_position_changed(canvas_item_point.x, canvas_item_point.y, modifiers)
 
     def __context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
-        with self._ui_interaction():
-            canvas_items = self.canvas_items_at_point(x, y)
-            for canvas_item in canvas_items:
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-                if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, gx, gy):
-                    return True
-            return False
+        canvas_items = self.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                return True
+        return False
 
     def __key_pressed(self, key: UserInterface.Key) -> bool:
-        self._adjust_ui_interaction(1)
         focused_item = self.focused_item
         if focused_item:
             # save the key pressed item and key so that we can release the key if focus changes while the key is down
@@ -3965,7 +3926,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             result = self.__key_pressed_item.key_released(key)
             self.__key_pressed_item = None
             self.__key_pressed_key = None
-        self._adjust_ui_interaction(-1)
         return result
 
     def __drag_enter(self, mime_data: UserInterface.MimeData) -> str:
@@ -4012,13 +3972,12 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         return response
 
     def __drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-        with self._ui_interaction():
-            response = "ignore"
-            if self.__drag_tracking_canvas_item:
-                canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
-                response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
-            self.__drag_leave()
-            return response
+        response = "ignore"
+        if self.__drag_tracking_canvas_item:
+            canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
+            response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
+        self.__drag_leave()
+        return response
 
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
@@ -4027,13 +3986,11 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def grab_gesture(self, gesture_type: str) -> None:
         """ Grab gesture """
-        self._adjust_ui_interaction(1)
         self.__canvas_widget.grab_gesture(gesture_type)
 
     def release_gesture(self, gesture_type: str) -> None:
         """ Ungrab gesture """
         self.__canvas_widget.release_gesture(gesture_type)
-        self._adjust_ui_interaction(-1)
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self.__canvas_widget.show_tool_tip_text(text, gx, gy)

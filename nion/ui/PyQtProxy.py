@@ -1912,7 +1912,6 @@ class PyCanvas(QtWidgets.QWidget):
         super().__init__()
         self.object = None
         self.__pressed = False
-        self.__grab_mouse_count = 0
         self.__commands_mutex = QtCore.QMutex()
         self.__sections: typing.Dict[int, PyCanvas.CanvasSection] = dict()
         self.__last_pos = QtCore.QPoint()
@@ -2137,14 +2136,6 @@ class PyCanvas(QtWidgets.QWidget):
         if self.object:
             display_scaling = GetDisplayScaling()
 
-            if self.__grab_mouse_count > 0:
-                delta = event.pos() - self.__grab_reference_point
-                try:
-                    self.object.grabbedMousePositionChanged(delta.x() // display_scaling, delta.y() // display_scaling, event.modifiers().value)
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
-
             try:
                 self.object.mousePositionChanged(event.position().x() // display_scaling, event.position().y() // display_scaling, event.modifiers().value)
             except Exception as e:
@@ -2214,23 +2205,6 @@ class PyCanvas(QtWidgets.QWidget):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-
-    def grabMouse0(self, gp: QtCore.QPoint) -> None:
-        grab_mouse_count = self.__grab_mouse_count
-        self.__grab_mouse_count += 1
-        if grab_mouse_count == 0:
-            self.grabMouse()
-            self.grabKeyboard()
-            self.__grab_reference_point = gp
-            QtGui.QCursor.setPos(gp)
-            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.BlankCursor)
-
-    def releaseMouse0(self) -> None:
-        self.__grab_mouse_count -= 1
-        if self.__grab_mouse_count == 0:
-            self.releaseMouse()
-            self.releaseKeyboard()
-            QtWidgets.QApplication.restoreOverrideCursor()
 
     class CanvasSection:
         def __init__(self, section_id: int, commands: typing.List[CanvasDrawingCommand], rect: QtCore.QRect):

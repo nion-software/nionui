@@ -936,7 +936,6 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
         self.on_mouse_released: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], bool]] = None
         self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], None]] = None
-        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterfaceModule.KeyboardModifiers], None]] = None
         self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
         self.on_key_released: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
@@ -956,7 +955,6 @@ class CanvasWidgetBehavior(WidgetBehavior):
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_key_released = None
@@ -1002,12 +1000,6 @@ class CanvasWidgetBehavior(WidgetBehavior):
         pass
 
     def release_gesture(self, gesture_type: str) -> None:
-        pass
-
-    def grab_mouse(self, gx: int, gy: int) -> None:
-        pass
-
-    def release_mouse(self) -> None:
         pass
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:

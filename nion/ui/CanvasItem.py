@@ -141,7 +141,6 @@ from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
-    from nion.ui import MouseTrackingCanvasItem
 
 
 MAX_VALUE = sys.maxsize
@@ -3535,7 +3534,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__canvas_widget.on_mouse_pressed = self.__mouse_pressed
         self.__canvas_widget.on_mouse_released = self.__mouse_released
         self.__canvas_widget.on_mouse_position_changed = self.__mouse_position_changed
-        self.__canvas_widget.on_grabbed_mouse_position_changed = self.__grabbed_mouse_position_changed
         self.__canvas_widget.on_wheel_changed = self.wheel_changed
         self.__canvas_widget.on_context_menu_event = self.__context_menu_event
         self.__canvas_widget.on_key_pressed = self.__key_pressed
@@ -3564,7 +3562,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__request_focus_modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None  # modifiers at the time of mouse press
         self.__drag_tracking = False
         self.__drag_tracking_canvas_item: typing.Optional[AbstractCanvasItem] = None
-        self.__grab_canvas_item: typing.Optional[MouseTrackingCanvasItem.TrackingCanvasItem] = None
         self._set_canvas_origin(Geometry.IntPoint())
 
     def close(self) -> None:
@@ -3572,7 +3569,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self._stop_render_behavior()  # call first so that it doesn't use canvas widget
         self.__mouse_tracking_canvas_item = None
         self.__drag_tracking_canvas_item = None
-        self.__grab_canvas_item = None
         self.__focused_item = None
         self.__last_focused_item = None
         self.__key_pressed_item = None
@@ -3585,7 +3581,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__canvas_widget.on_mouse_pressed = None
         self.__canvas_widget.on_mouse_released = None
         self.__canvas_widget.on_mouse_position_changed = None
-        self.__canvas_widget.on_grabbed_mouse_position_changed = None
         self.__canvas_widget.on_wheel_changed = None
         self.__canvas_widget.on_context_menu_event = None
         self.__canvas_widget.on_key_pressed = None
@@ -3943,10 +3938,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_tracking_canvas_item)
             self.__mouse_tracking_canvas_item.mouse_position_changed(canvas_item_point.x, canvas_item_point.y, modifiers)
 
-    def __grabbed_mouse_position_changed(self, dx: int, dy: int, modifiers: UserInterface.KeyboardModifiers) -> None:
-        if self.__grab_canvas_item:
-            self.__grab_canvas_item.grabbed_mouse_position_changed(dx, dy, modifiers)
-
     def __context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         with self._ui_interaction():
             canvas_items = self.canvas_items_at_point(x, y)
@@ -4042,17 +4033,6 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
     def release_gesture(self, gesture_type: str) -> None:
         """ Ungrab gesture """
         self.__canvas_widget.release_gesture(gesture_type)
-        self._adjust_ui_interaction(-1)
-
-    def grab_mouse(self, grabbed_canvas_item: MouseTrackingCanvasItem.TrackingCanvasItem, gx: int, gy: int) -> None:
-        self._adjust_ui_interaction(1)
-        self.__canvas_widget.grab_mouse(gx, gy)
-        self.__grab_canvas_item = grabbed_canvas_item
-
-    def release_mouse(self) -> None:
-        self.__canvas_widget.release_mouse()
-        self._restore_cursor_shape()
-        self.__grab_canvas_item = None
         self._adjust_ui_interaction(-1)
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:

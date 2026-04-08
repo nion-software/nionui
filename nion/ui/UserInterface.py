@@ -2605,7 +2605,6 @@ class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
     on_mouse_pressed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
     on_mouse_released: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]]
     on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]]
-    on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]]
     on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]]
     on_size_changed: typing.Optional[typing.Callable[[int, int], None]]
     on_key_pressed: typing.Optional[typing.Callable[[Key], bool]]
@@ -2630,8 +2629,6 @@ class CanvasWidgetBehavior(WidgetBehavior, typing.Protocol):
     def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None: ...
     def grab_gesture(self, gesture_type: str) -> None: ...
     def release_gesture(self, gesture_type: str) -> None: ...
-    def grab_mouse(self, gx: int, gy: int) -> None: ...
-    def release_mouse(self) -> None: ...
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None: ...
     def hide_tool_tip_text(self) -> None: ...
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None: ...
@@ -2653,7 +2650,6 @@ class CanvasWidget(Widget):
         self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
         self.on_mouse_released: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
         self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]] = None
-        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], None]] = None
         self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[Key], bool]] = None
         self.on_key_released: typing.Optional[typing.Callable[[Key], bool]] = None
@@ -2719,12 +2715,6 @@ class CanvasWidget(Widget):
             self.position_info = x, y, modifiers
 
         self._behavior.on_mouse_position_changed = wrap_callback(self, handle_mouse_position_changed)
-
-        def handle_grabbed_mouse_position_changed(dx: int, dy: int, modifiers: KeyboardModifiers) -> None:
-            if callable(self.on_grabbed_mouse_position_changed):
-                self.on_grabbed_mouse_position_changed(dx, dy, modifiers)
-
-        self._behavior.on_grabbed_mouse_position_changed = wrap_callback(self, handle_grabbed_mouse_position_changed)
 
         def handle_wheel_changed(x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
             if callable(self.on_wheel_changed):
@@ -2817,7 +2807,6 @@ class CanvasWidget(Widget):
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_key_released = None
@@ -2888,12 +2877,6 @@ class CanvasWidget(Widget):
 
     def release_gesture(self, gesture_type: str) -> None:
         self._behavior.release_gesture(gesture_type)
-
-    def grab_mouse(self, gx: int, gy: int) -> None:
-        self._behavior.grab_mouse(gx, gy)
-
-    def release_mouse(self) -> None:
-        self._behavior.release_mouse()
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self._behavior.show_tool_tip_text(text, gx, gy)

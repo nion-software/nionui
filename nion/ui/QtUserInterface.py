@@ -1555,7 +1555,6 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_mouse_pressed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
         self.on_mouse_released: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
         self.on_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
-        self.on_grabbed_mouse_position_changed: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], None]] = None
         self.on_wheel_changed: typing.Optional[typing.Callable[[int, int, int, int, bool], bool]] = None
         self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
@@ -1576,7 +1575,6 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_mouse_pressed = None
         self.on_mouse_released = None
         self.on_mouse_position_changed = None
-        self.on_grabbed_mouse_position_changed = None
         self.on_wheel_changed = None
         self.on_key_pressed = None
         self.on_key_released = None
@@ -1629,12 +1627,6 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
     def release_gesture(self, gesture_type: str) -> None:
         self.proxy.Widget_ungrabGesture(self.widget, gesture_type)
 
-    def grab_mouse(self, gx: int, gy: int) -> None:
-        self.proxy.Canvas_grabMouse(self.widget, gx, gy)
-
-    def release_mouse(self) -> None:
-        self.proxy.Canvas_releaseMouse(self.widget)
-
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
         self.proxy.ToolTip_show(self.widget, gx, gy, text, 0, 0, 0, 0)
 
@@ -1672,11 +1664,6 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
     def mousePositionChanged(self, x: int, y: int, raw_modifiers: int) -> None:
         if callable(self.on_mouse_position_changed):
             self.on_mouse_position_changed(x, y, QtKeyboardModifiers(raw_modifiers))
-
-    def grabbedMousePositionChanged(self, dx: int, dy: int, raw_modifiers: int) -> None:
-        self._register_ui_activity()
-        if callable(self.on_grabbed_mouse_position_changed):
-            self.on_grabbed_mouse_position_changed(dx, dy, QtKeyboardModifiers(raw_modifiers))
 
     def wheelChanged(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> None:
         self._register_ui_activity()

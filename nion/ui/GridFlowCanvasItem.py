@@ -403,9 +403,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
             point_f = Geometry.FloatPoint(y=y, x=x)
             if self.__mouse_canvas_item and not self.__mouse_dragging and Geometry.distance(mouse_position_f, point_f) > 8:
                 self.__mouse_dragging = True
-                root_container = self.root_container
-                if root_container:
-                    root_container.bypass_request_focus()
+                base_container = self._base_container
+                if base_container:
+                    base_container._bypass_request_focus()
                 selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
                 selected_items = selected_items if self.__mouse_canvas_item in selected_items else [self.__mouse_canvas_item]
                 if self.__delegate.drag_started_event(GridFlowCanvasItemDragStartedEvent(self.__mouse_canvas_item.item, selected_items, Geometry.IntPoint(x=x, y=y), modifiers)):

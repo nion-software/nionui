@@ -294,9 +294,9 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 self.__mouse_dragging = True
                 delegate = self.__delegate
                 if delegate:
-                    root_container = self.root_container
-                    if root_container:
-                        root_container.bypass_request_focus()
+                    base_container = self._base_container
+                    if base_container:
+                        base_container._bypass_request_focus()
                     delegate.drag_started(self.__mouse_index, x, y, modifiers)
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)

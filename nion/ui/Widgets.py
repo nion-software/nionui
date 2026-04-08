@@ -772,7 +772,7 @@ class ListWidget(UserInterface.Widget):
 
     def rect_for_index(self, index: int) -> Geometry.IntRect:
         item_rect = self.__list_canvas_item._rect_for_index(index)
-        return Geometry.IntRect(self.__list_canvas_item.map_to_root_container(item_rect.top_left), item_rect.size)
+        return Geometry.IntRect(self.__list_canvas_item.map_to_base_container(item_rect.top_left), item_rect.size)
 
     @property
     def focused(self) -> bool:

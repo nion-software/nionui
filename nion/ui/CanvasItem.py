@@ -12,18 +12,18 @@ two main categories: composite and non-composite. Composite canvas items are con
 while non-composite canvas items are the leaf nodes of the canvas item tree. Both are derived from the 
 AbstractCanvasItem base class.
 
-The root canvas item in the tree is usually attached to a high level CanvasWidget and receives mouse and keyboard
-events via that widget and passes them down through the tree. The root canvas item is also used for sending rendering
+The base canvas item in the tree is usually attached to a high level CanvasWidget and receives mouse and keyboard
+events via that widget and passes them down through the tree. The base canvas item is also used for sending rendering
 drawing commands to the host via the canvas widget.
 
-The root canvas item is a subclass of a special type of canvas item called a layer, which executes layout and 
-painting on a thread. The canvas item tree can be configured so that the root canvas item is composed of layers that
-draw directly to the canvas widget from their thread; or it can be configured so that the root canvas draws to the 
-canvas widget. When comprised of layers, the root canvas item can be split into drawing disjoint areas,
+The base canvas item is a subclass of a special type of canvas item called a layer, which executes layout and
+painting on a thread. The canvas item tree can be configured so that the base canvas item is composed of layers that
+draw directly to the canvas widget from their thread; or it can be configured so that the base canvas draws to the
+canvas widget. When comprised of layers, the base canvas item can be split into drawing disjoint areas,
 called sections, each in its own thread for performance.
 
 Each layer canvas item also manages a thread for rendering and is responsible for sending drawing commands to the 
-CanvasWidget. Layers acting as sections use the CanvasWidget.draw_section method; whereas root canvas item uses the 
+CanvasWidget. Layers acting as sections use the CanvasWidget.draw_section method; whereas base canvas item uses the
 CanvasWidget.draw method.
 
 Each canvas item is responsible for maintaining its state, including visibility, sizing preferences, visual properties,
@@ -799,6 +799,62 @@ class BaseComposer:
         pass
 
 
+class _BaseContainerInterface(typing.Protocol):
+    """Interface to allow canvas items to interact with their containers."""
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        """Show the tool tip text at the given global coordinates.
+
+        The text will be shown until hide_tool_tip_text is called."""
+        ...
+
+    def hide_tool_tip_text(self) -> None:
+        """Hide the tool tip text."""
+        ...
+
+    def _cursor_shape_changed(self, item: AbstractCanvasItem) -> None:
+        """Update the cursor shape."""
+        ...
+
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        """Map the given point from the base container coordinate space to global coordinates."""
+        ...
+
+    def drag(self,
+             mime_data: UserInterface.MimeData,
+             thumbnail: Bitmap.BitmapOrArray | None = None,
+             hot_spot_x: int | None = None,
+             hot_spot_y: int | None = None,
+             drag_finished_fn: typing.Callable[[str], None] | None = None) -> None:
+        """Perform a drag with the given mime data and optional thumbnail and hot spot.
+
+        The drag_finished_fn, if provided, will be called with the result of the drag when it finishes.
+        """
+        ...
+
+    def _request_base_focus(self,
+                            focused_item: AbstractCanvasItem | None,
+                            p: Geometry.IntPoint | None,
+                            modifiers: UserInterface.KeyboardModifiers | None
+                            ) -> None:
+        """Tells the base container to receive key events."""
+        ...
+
+    def _set_focused_item(self,
+                          focused_item: AbstractCanvasItem | None,
+                          p: Geometry.IntPoint | None = None,
+                          modifiers: UserInterface.KeyboardModifiers | None = None) -> None:
+        """Sets the focused item so that the base container dispatches key events to focused_item."""
+        ...
+
+    def _bypass_request_focus(self) -> None:
+        """Tells the base container to bypass the next request focus call.
+
+        This can be used to skip focus requests when drags are initiated.
+        """
+        ...
+
+
 _g_draw_unique_marker = False
 
 
@@ -836,7 +892,7 @@ class AbstractCanvasItem:
     UPDATES AND DRAWING
 
     Update is the mechanism by which the container is notified that one of its child canvas items needs updating.
-    The update message will ultimately end up at the root container at which point the root container will trigger a
+    The update message will ultimately end up at the base container at which point the base container will trigger a
     repaint on a thread.
     """
 
@@ -966,11 +1022,6 @@ class AbstractCanvasItem:
         self.__container = container
 
     @property
-    def root_container(self) -> typing.Optional[RootCanvasItem]:
-        """ Return the root container, if any. """
-        return self.__container.root_container if self.__container else None
-
-    @property
     def background_color(self) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
         return self.__background_color
 
@@ -1021,9 +1072,9 @@ class AbstractCanvasItem:
                        modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
         # protected method
         if not self.focused:
-            root_container = self.root_container
-            if root_container:
-                root_container._request_root_focus(self, p, modifiers)
+            base_container = self._base_container
+            if base_container:
+                base_container._request_base_focus(self, p, modifiers)
 
     def request_focus(self) -> None:
         """Request focus.
@@ -1038,21 +1089,28 @@ class AbstractCanvasItem:
     def clear_focus(self) -> None:
         """ Relinquish focus. """
         if self.focused:
-            root_container = self.root_container
-            if root_container:
-                root_container._set_focused_item(None)
+            base_container = self._base_container
+            if base_container:
+                base_container._set_focused_item(None)
 
     def drag(self, mime_data: UserInterface.MimeData, thumbnail: typing.Optional[Bitmap.BitmapOrArray] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,
              drag_finished_fn: typing.Optional[typing.Callable[[str], None]] = None) -> None:
-        root_container = self.root_container
-        if root_container:
-            root_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+        base_container = self._base_container
+        if base_container:
+            base_container.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
 
     def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
-        root_container = self.root_container
-        if root_container:
-            root_container.show_tool_tip_text(text, gx, gy)
+        """Show the tool tip text at the given global coordinates."""
+        base_container = self._base_container
+        if base_container:
+            base_container.show_tool_tip_text(text, gx, gy)
+
+    def hide_tool_tip_text(self) -> None:
+        """Hide the tool tip text."""
+        base_container = self._base_container
+        if base_container:
+            base_container.hide_tool_tip_text()
 
     @property
     def tool_tip(self) -> typing.Optional[str]:
@@ -1064,9 +1122,12 @@ class AbstractCanvasItem:
         # clear the tool tip when setting to None. this will happen whenever the mouse exits any item, whether it has
         # a tool tip or not. this may need refinement in the future.
         if value is None:
-            root_container = self.root_container
-            if root_container:
-                root_container.hide_tool_tip_text()
+            self.hide_tool_tip_text()
+
+    @property
+    def _base_container(self) -> _BaseContainerInterface | None:
+        """Return the base container, if any."""
+        return self.__container._base_container if self.__container else None
 
     @property
     def cursor_shape(self) -> typing.Optional[str]:
@@ -1075,22 +1136,24 @@ class AbstractCanvasItem:
     @cursor_shape.setter
     def cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         self.__cursor_shape = cursor_shape
-        root_container = self.root_container
-        if root_container:
-            root_container._cursor_shape_changed(self)
+        base_container = self._base_container
+        if base_container:
+            base_container._cursor_shape_changed(self)
 
     def map_to_canvas_item(self, p: Geometry.IntPointTuple, canvas_item: AbstractCanvasItem) -> Geometry.IntPoint:
         """ Map the point to the local coordinates of canvas_item. """
-        o1 = self.map_to_root_container(Geometry.IntPoint())
-        o2 = canvas_item.map_to_root_container(Geometry.IntPoint())
+        o1 = self.map_to_base_container(Geometry.IntPoint())
+        o2 = canvas_item.map_to_base_container(Geometry.IntPoint())
         return Geometry.IntPoint.make(p) + o1 - o2
 
-    def map_to_root_container(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
-        """ Map the point to the coordinates of the root container. """
-        canvas_item: typing.Optional[AbstractCanvasItem] = self
-        while canvas_item:  # handle case where last canvas item was root
+    def map_to_base_container(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        """ Map the point to the coordinates of the base container. """
+        canvas_item: AbstractCanvasItem | None = self
+        # until BaseContainer is a base class, cast explicitly to abstract canvas item
+        base_container = typing.cast(AbstractCanvasItem | None, self._base_container)
+        while canvas_item and canvas_item is not base_container:  # handle case where last canvas item was base
             canvas_item_origin = canvas_item.canvas_origin
-            if canvas_item_origin is not None:  # handle case where canvas item is not root but has no parent
+            if canvas_item_origin is not None:  # handle case where canvas item is not base but has no parent
                 p = canvas_item.map_to_container(p)
                 canvas_item = canvas_item.container
             else:
@@ -1104,9 +1167,9 @@ class AbstractCanvasItem:
         return p + canvas_origin
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
-        root_container = self.root_container
-        assert root_container
-        return root_container.map_to_global(self.map_to_root_container(p))
+        base_container = self._base_container
+        assert base_container
+        return base_container.map_to_global(self.map_to_base_container(p))
 
     def _inserted(self, container: typing.Optional[AbstractCanvasItem]) -> None:
         """Subclasses may override to know when inserted into a container."""
@@ -1248,7 +1311,7 @@ class AbstractCanvasItem:
 
         Thread-safe.
 
-        The canvas item will be repainted by the root canvas item.
+        The canvas item will be repainted by the base canvas item.
         """
         if self.is_visible:
             self._update_count += 1
@@ -1302,7 +1365,7 @@ class AbstractCanvasItem:
 
         The layer canvas item is special in that it will not have a composer when called
         from the container. This is because the layer canvas item runs its layout on a thread
-        and draws itself directly in the root container. The layer canvas item uses the
+        and draws itself directly in the base container. The layer canvas item uses the
         _get_composer_inner function to get its composer when it is ready to draw.
         """
         return self._get_composer_inner(cache)
@@ -2480,16 +2543,18 @@ class LayerCanvasItem(CanvasItemComposition):
             if canvas_rect := self.canvas_rect:
                 composer.repaint(drawing_context, canvas_rect, canvas_rect)
 
-    def __map_origin_to_root_container(self) -> typing.Optional[Geometry.IntPoint]:
-        """ Map the point to the coordinates of the root container.
+    def __map_origin_to_base_container(self) -> Geometry.IntPoint | None:
+        """ Map the point to the coordinates of the base container.
 
         This is different from default implementation in that it returns None if it fails.
         """
         p = Geometry.IntPoint()
         canvas_item: typing.Optional[AbstractCanvasItem] = self
-        while canvas_item:  # handle case where last canvas item was root
+        # until BaseContainer is a base class, cast explicitly to abstract canvas item
+        base_container = typing.cast(AbstractCanvasItem | None, self._base_container)
+        while canvas_item and canvas_item is not base_container:  # handle case where last canvas item was base
             canvas_item_origin = canvas_item.canvas_origin
-            if canvas_item_origin is not None:  # handle case where canvas item is not root but has no parent
+            if canvas_item_origin is not None:  # handle case where canvas item is not base but has no parent
                 p = canvas_item.map_to_container(p)
                 canvas_item = canvas_item.container
             else:
@@ -2502,8 +2567,8 @@ class LayerCanvasItem(CanvasItemComposition):
                 try:
                     with Process.audit("repaint_layer"):
                         canvas_rect = self.canvas_rect
-                        root_container = self.root_container
-                        canvas_widget = typing.cast(CanvasWidgetCanvasItem, root_container) if isinstance(root_container, CanvasWidgetCanvasItem) else None
+                        base_container = self._base_container
+                        canvas_widget = typing.cast(CanvasWidgetCanvasItem, base_container) if isinstance(base_container, CanvasWidgetCanvasItem) else None
                         drawing_context = DrawingContext.DrawingContext()
                         is_root_opaque = self.is_root_opaque
                         if is_root_opaque and canvas_widget and canvas_rect:
@@ -2521,18 +2586,18 @@ class LayerCanvasItem(CanvasItemComposition):
                                     self.__canvas_widget_section_ref = canvas_widget.get_section_ref()
                                 # draw top level opaque item directly. ensure the proper canvas rect.
                                 assert self.__canvas_widget_section_ref
-                                # get the canvas origin; but wait until the root container is ready.
-                                # this layout may occur faster than the root layout.
-                                canvas_origin = self.__map_origin_to_root_container()
+                                # get the canvas origin; but wait until the base container is ready.
+                                # this layout may occur faster than the base layout.
+                                canvas_origin = self.__map_origin_to_base_container()
                                 while not canvas_origin:
                                     time.sleep(0.01)
-                                    canvas_origin = self.__map_origin_to_root_container()
+                                    canvas_origin = self.__map_origin_to_base_container()
                                 canvas_rect = Geometry.IntRect(origin=canvas_origin, size=canvas_rect.size)
                                 self.__canvas_widget_section_ref.draw(drawing_context, canvas_rect)
                             else:
                                 # if this is a normal layer that is not top level opaque, then the drawing context
                                 # is saved and the container is asked to update after which it will return a composer
-                                # with the drawing context. if this is a root layer, then the drawing context is
+                                # with the drawing context. if this is a base layer, then the drawing context is
                                 # directly updated to the canvas widget.
                                 self._repaint_finished(drawing_context)
                 except Exception as e:
@@ -3651,7 +3716,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         return RootCanvasWidgetSection(self, RootCanvasItem.next_section_id)
 
     @property
-    def root_container(self) -> typing.Optional[RootCanvasItem]:
+    def _base_container(self) -> _BaseContainerInterface | None:
         return self
 
     @property
@@ -3718,11 +3783,10 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         elif not focused and self.focused_item:
             self._set_focused_item(None)
 
-    def _request_root_focus(self, focused_item: typing.Optional[AbstractCanvasItem], p: typing.Optional[Geometry.IntPoint], modifiers: typing.Optional[UserInterface.KeyboardModifiers]) -> None:
-        """Requests that the root widget gets focus.
+    def _request_base_focus(self, focused_item: AbstractCanvasItem | None, p: Geometry.IntPoint | None, modifiers: UserInterface.KeyboardModifiers | None) -> None:
+        """Requests that the base widget gets focus.
 
-        This focused is different from the focus within the canvas system. This is
-        the external focus in the widget system.
+        The focus is external focus, different from the focus within the canvas system.
 
         If the canvas widget is already focused, this simply sets the focused item
         to be the requested one. Otherwise, the widget has to request focus. When
@@ -3862,7 +3926,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             self.__mouse_position_changed(x, y, modifiers)
         return result
 
-    def bypass_request_focus(self) -> None:
+    def _bypass_request_focus(self) -> None:
         self.__request_focus_canvas_item = None
 
     def __mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:

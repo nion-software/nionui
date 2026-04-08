@@ -120,7 +120,6 @@ import random
 import sys
 import threading
 import time
-import types
 import typing
 import warnings
 import weakref
@@ -3562,6 +3561,521 @@ class CanvasWidgetCanvasItem(LayerCanvasItem):
     def get_section_ref(self) -> CanvasWidgetSection: ...
 
 
+class ThreadedCanvasItemContentWrapperCanvasItem(CanvasItemComposition):
+    """A canvas item that wraps the content of a threaded canvas item.
+
+    This is used as a base container and to forward some calls to the threaded canvas item.
+    """
+
+    def __init__(self, threaded_canvas_item: ThreadedCanvasItem) -> None:
+        super().__init__()
+        self.__threaded_canvas_item = threaded_canvas_item
+
+    def _updated(self) -> None:
+        self.__threaded_canvas_item.update()
+
+    @property
+    def _base_container(self) -> _BaseContainerInterface | None:
+        return self
+
+    def show_tool_tip_text(self, text: str, gx: int, gy: int) -> None:
+        self.__threaded_canvas_item.show_tool_tip_text(text, gx, gy)
+
+    def hide_tool_tip_text(self) -> None:
+        self.__threaded_canvas_item.hide_tool_tip_text()
+
+    def _cursor_shape_changed(self, item: AbstractCanvasItem) -> None:
+        self.__threaded_canvas_item.cursor_shape = item.cursor_shape
+
+    def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
+        return self.__threaded_canvas_item.map_to_global(p)
+
+    def drag(self, mime_data: UserInterface.MimeData, thumbnail: Bitmap.BitmapOrArray | None = None,
+             hot_spot_x: int | None = None, hot_spot_y: int | None = None,
+             drag_finished_fn: typing.Callable[[str], None] | None = None) -> None:
+        self.__threaded_canvas_item.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished_fn)
+
+    def _request_base_focus(self, focused_item: AbstractCanvasItem | None,
+                            p: Geometry.IntPoint | None,
+                            modifiers: UserInterface.KeyboardModifiers | None) -> None:
+        self.__threaded_canvas_item._request_base_focus(focused_item, p, modifiers)
+
+    def _set_focused_item(self, focused_item: AbstractCanvasItem | None,
+                          p: Geometry.IntPoint | None = None,
+                          modifiers: UserInterface.KeyboardModifiers | None = None) -> None:
+        self.__threaded_canvas_item._set_focused_item(focused_item, p, modifiers)
+
+    def _bypass_request_focus(self) -> None:
+        self.__threaded_canvas_item._bypass_request_focus()
+
+
+class ThreadedCanvasItem(AbstractCanvasItem):
+    """A canvas item that wraps another canvas item to do layout and repainting in a thread."""
+
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
+    def __init__(self, canvas_item: AbstractCanvasItem) -> None:
+        super().__init__()
+        self.__cancel = False
+        self.__needs_repaint = False  # keep track of repaint requests that arrive during an existing repaint
+        self.__layer_drawing_context: DrawingContext.DrawingContext | None = None
+        self.__layer_thread_lock = threading.RLock()
+        self.__repaint_one_future: concurrent.futures.Future[None] | None = None
+        self.__wrapper_canvas_item = ThreadedCanvasItemContentWrapperCanvasItem(self)
+        self.__canvas_item = canvas_item
+        self.__wrapper_canvas_item.add_canvas_item(self.__canvas_item)
+        self.on_will_repaint: typing.Callable[[], None] | None = None
+        self.__wrapper_canvas_item.wants_mouse_events = self.__canvas_item.wants_mouse_events
+        self.wants_mouse_events = True
+        self.__focused_item: AbstractCanvasItem | None = None
+        self.__last_focused_item: AbstractCanvasItem | None = None
+        self.__key_pressed_item: AbstractCanvasItem | None = None
+        self.__key_pressed_key: UserInterface.Key | None = None
+        self.__mouse_canvas_item: AbstractCanvasItem | None = None  # not None when the mouse is pressed
+        self.__mouse_tracking = False
+        self.__mouse_tracking_canvas_item: AbstractCanvasItem | None = None
+        self.__request_focus_canvas_item: AbstractCanvasItem | None = None
+        self.__request_focus_modifiers: UserInterface.KeyboardModifiers | None = None  # modifiers at the time of mouse press
+        self.__drag_tracking = False
+        self.__drag_tracking_canvas_item: AbstractCanvasItem | None = None
+        self.__in_repaint_layer = False
+
+    def close(self) -> None:
+        self._stop_render_behavior()
+        self.__wrapper_canvas_item.close()
+        super().close()
+
+    def _stop_render_behavior(self) -> None:
+        self.__cancel = True  # This is outside the lock to prevent blocking.
+        done_event = threading.Event()
+        with self.__layer_thread_lock:
+            if self.__repaint_one_future:
+                def repaint_done(future: concurrent.futures.Future[None]) -> None:
+                    done_event.set()
+
+                self.__repaint_one_future.add_done_callback(repaint_done)
+            else:
+                done_event.set()
+        done_event.wait()
+
+    def __repaint_done(self, future: concurrent.futures.Future[None]) -> None:
+        with self.__layer_thread_lock:
+            self.__repaint_one_future = None
+            if self.__needs_repaint:
+                self.__queue_repaint()
+
+    def __queue_repaint(self) -> None:
+        with self.__layer_thread_lock:
+            # this will not launch another repaint layer if one is already running. updates will stack up and
+            # be processed at the end of the current update in repaint done.
+            if not self.__cancel and not self.__repaint_one_future:
+                self.__needs_repaint = False
+                self.__repaint_one_future = self.__class__._executor.submit(self.__repaint_layer)
+                self.__repaint_one_future.add_done_callback(self.__repaint_done)
+            else:
+                self.__needs_repaint = True
+
+    def _repaint_finished(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        # when the thread finishes the repaint, this method gets called. the normal container update
+        # has not been called yet since the repaint wasn't finished until now. this method performs
+        # the container update. it does not call the regular update again because that would re-invalidate
+        # this canvas item itself and cause another repaint.
+        self.__layer_drawing_context = drawing_context
+        self._invalidate_composer()
+        super()._updated()
+
+    def _updated(self) -> None:
+        # thread-safe
+        with self.__layer_thread_lock:
+            if _threaded_rendering_enabled:
+                self.__queue_repaint()
+        # normally, this method would mark a pending update and forward the update to the container;
+        # however with the layer, since drawing occurs on a thread, this must occur after the thread
+        # is finished. if the thread is suppressed (typically during testing), use the regular flow.
+        if not _threaded_rendering_enabled:
+            # Pass through updates in the thread are suppressed, so that updates actually occur.
+            super()._updated()
+
+    def get_composer(self, cache: ComposerCache) -> BaseComposer | None:
+        if self.__layer_drawing_context:
+            return DrawingContextCanvasItemComposer(self, self.layout_sizing, cache, self.__layer_drawing_context)
+        else:
+            return EmptyCanvasItemComposer(self, self.layout_sizing, cache)
+
+    def _layout_changed(self) -> None:
+        self._updated()
+
+    def __call_will_repaint(self) -> None:
+        if callable(self.on_will_repaint):
+            self.on_will_repaint()
+            # will_repaint may change the canvas item hierarchy, so update the owner of the wrapper canvas item to
+            # ensure it is correct for the new hierarchy.
+            self.__wrapper_canvas_item._set_owner_thread(self.owner_thread)
+
+    def _repaint_layer_inner(self, drawing_context: DrawingContext.DrawingContext) -> None:
+        assert not self.__in_repaint_layer
+        self.__in_repaint_layer = True
+        try:
+            canvas_size = self.canvas_size
+            assert canvas_size is not None
+            self.__call_will_repaint()
+            self.__wrapper_canvas_item.repaint_immediate(drawing_context, canvas_size)
+        finally:
+            self.__in_repaint_layer = False
+
+    def repaint_immediate(self, drawing_context: DrawingContext.DrawingContext, canvas_size: Geometry.IntSize) -> None:
+        self.__call_will_repaint()
+        self.__wrapper_canvas_item.repaint_immediate(drawing_context, canvas_size)
+
+    def refresh_layout_immediate(self) -> None:
+        # TEST ONLY
+        self.__wrapper_canvas_item.refresh_layout_immediate()
+
+    def get_composer_immediate(self, composer_cache: ComposerCache) -> BaseComposer | None:
+        self.__call_will_repaint()
+        return self.__wrapper_canvas_item.get_composer_immediate(composer_cache)
+
+    def __repaint_layer(self) -> None:
+        if not self.__cancel:
+            if self._has_layout:
+                try:
+                    with Process.audit("repaint_layer"):
+                        drawing_context = DrawingContext.DrawingContext()
+                        self._repaint_layer_inner(drawing_context)
+                        if not self.__cancel:
+                            # if this is a normal layer that is not top level opaque, then the drawing context
+                            # is saved and the container is asked to update after which it will return a composer
+                            # with the drawing context. if this is a root layer, then the drawing context is
+                            # directly updated to the canvas widget.
+                            self._repaint_finished(drawing_context)
+                except Exception as e:
+                    import traceback
+                    logging.debug("CanvasItem Render Error: %s", e)
+                    traceback.print_exc()
+                    traceback.print_stack()
+
+    def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.__mouse_clicked(x, y, modifiers)
+
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.__mouse_double_clicked(x, y, modifiers)
+
+    def mouse_entered(self) -> bool:
+        self.__mouse_entered()
+        return True
+
+    def mouse_exited(self) -> bool:
+        self.__mouse_exited()
+        return True
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.__mouse_pressed(x, y, modifiers)
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        return self.__mouse_released(x, y, modifiers)
+
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_position_changed(x, y, modifiers)
+        return True
+
+    def wheel_changed(self, x: int, y: int, dx: int, dy: int, is_horizontal: bool) -> bool:
+        return self.__canvas_item.wheel_changed(x, y, dx, dy, is_horizontal)
+
+    def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__context_menu_event(x, y, gx, gy)
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        return self.__key_pressed(key)
+
+    def key_released(self, key: UserInterface.Key) -> bool:
+        return self.__key_released(key)
+
+    def wants_drag_event(self, mime_data: UserInterface.MimeData, x: int, y: int) -> bool:
+        return self.__canvas_item.wants_drag_event(mime_data, x, y)
+
+    def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
+        return self.__drag_enter(mime_data)
+
+    def drag_leave(self) -> str:
+        return self.__drag_leave()
+
+    def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+        return self.__drag_move(mime_data, x, y)
+
+    def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+        return self.__drop(mime_data, x, y)
+
+    def handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        return self.__handle_tool_tip(x, y, gx, gy)
+
+    def _dispatch_any(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
+        return self.__dispatch_any(method, *args, **kwargs)
+
+    def _can_dispatch_any(self, method: str) -> bool:
+        return self.__can_dispatch_any(method)
+
+    def _get_menu_item_state(self, command_id: str) -> UserInterface.MenuItemState | None:
+        return self.__get_menu_item_state(command_id)
+
+    def __mouse_entered(self) -> None:
+        self.__mouse_tracking = True
+
+    def __mouse_exited(self) -> None:
+        if self.__mouse_tracking_canvas_item:
+            self.__mouse_tracking_canvas_item.mouse_exited()
+        self.__mouse_tracking = False
+        self.__mouse_tracking_canvas_item = None
+        self.cursor_shape = None
+        self.tool_tip = None
+
+    def __mouse_canvas_item_at_point(self, x: int, y: int) -> AbstractCanvasItem | None:
+        if self.__mouse_canvas_item:
+            return self.__mouse_canvas_item
+        canvas_items = self.__wrapper_canvas_item.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            if canvas_item.wants_mouse_events:
+                return canvas_item
+        return None
+
+    def __mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        canvas_item = self.__mouse_canvas_item_at_point(x, y)
+        if canvas_item:
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            return canvas_item.mouse_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        return False
+
+    def __mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        canvas_item = self.__mouse_canvas_item_at_point(x, y)
+        if canvas_item:
+            self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
+        return False
+
+    def __mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__mouse_position_changed(x, y, modifiers)
+        if not self.__mouse_tracking_canvas_item:
+            self.__mouse_tracking_canvas_item = self.__mouse_canvas_item_at_point(x, y)
+            if self.__mouse_tracking_canvas_item:
+                self.__mouse_tracking_canvas_item.mouse_entered()
+                self.cursor_shape = self.__mouse_tracking_canvas_item.cursor_shape
+                self.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
+        if mouse_tracking_canvas_item := self.__mouse_tracking_canvas_item:
+            self.__mouse_canvas_item = mouse_tracking_canvas_item
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), mouse_tracking_canvas_item)
+            self.__request_focus_canvas_item = self.__mouse_canvas_item
+            self.__request_focus_modifiers = modifiers
+            return self.__mouse_canvas_item.mouse_pressed(canvas_item_point.x, canvas_item_point.y, modifiers)
+        return False
+
+    def __mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        result = False
+        if self.__mouse_canvas_item:
+            if self.__request_focus_canvas_item:
+                # pass the modifiers at the time of the mouse press to request focus. this avoids issues where
+                # the user clicks to start a drag operation such as creating a rectangle and then holds shift
+                # to modify that drag operation, i.e. shift to make rectangle square. if this code is reached,
+                # it means no tool has claimed the mouse released operation and so focus should be requested, but
+                # the request focus should only utilize the modifiers down at the start of the operation.
+                assert self.__request_focus_modifiers is not None  # this is the result of a mouse click, so should always be set
+                self.__request_focus(self.__request_focus_canvas_item, Geometry.IntPoint(x=x, y=y), self.__request_focus_modifiers)
+                self.__request_focus_canvas_item = None
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_canvas_item)
+            result = self.__mouse_canvas_item.mouse_released(canvas_item_point.x, canvas_item_point.y, modifiers)
+            self.__mouse_canvas_item = None
+            self.__mouse_position_changed(x, y, modifiers)
+        return result
+
+    def __mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
+        if not self.__mouse_tracking:
+            # handle case where mouse is suddenly within this canvas item but it never entered. this can happen when
+            # the user activates the application.
+            self.mouse_entered()
+        if self.__mouse_tracking and not self.__mouse_tracking_canvas_item:
+            # find the existing canvas item that is or wants to track the mouse. if it's new, call entered and update
+            # the cursor.
+            self.__mouse_tracking_canvas_item = self.__mouse_canvas_item_at_point(x, y)
+            if self.__mouse_tracking_canvas_item:
+                self.__mouse_tracking_canvas_item.mouse_entered()
+                self.cursor_shape = self.__mouse_tracking_canvas_item.cursor_shape
+                self.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
+        new_mouse_canvas_item = self.__mouse_canvas_item_at_point(x, y)
+        if self.__mouse_tracking_canvas_item != new_mouse_canvas_item:
+            # if the mouse tracking canvas item changes, exit the old one and enter the new one.
+            if self.__mouse_tracking_canvas_item:
+                # there may be a case where the mouse has moved outside the canvas item and the canvas
+                # item has also been closed. for instance, context menu item which closes the canvas item.
+                # so double check whether the mouse tracking canvas item is still in the hierarchy by checking
+                # its container. only call mouse exited if the item is still in the hierarchy.
+                if self.__mouse_tracking_canvas_item.container:
+                    self.__mouse_tracking_canvas_item.mouse_exited()
+                self.cursor_shape = None
+                self.tool_tip = None
+            self.__mouse_tracking_canvas_item = new_mouse_canvas_item
+            if self.__mouse_tracking_canvas_item:
+                self.__mouse_tracking_canvas_item.mouse_entered()
+                self.cursor_shape = self.__mouse_tracking_canvas_item.cursor_shape
+                self.tool_tip = self.__mouse_tracking_canvas_item.tool_tip
+        # finally, send out the actual position changed message to the (possibly new) current mouse tracking canvas
+        # item. also make note of the last time the cursor changed for tool tip tracking.
+        if self.__mouse_tracking_canvas_item:
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__mouse_tracking_canvas_item)
+            self.__mouse_tracking_canvas_item.mouse_position_changed(canvas_item_point.x, canvas_item_point.y, modifiers)
+
+    def __context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
+        canvas_items = self.__wrapper_canvas_item.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            if canvas_item.context_menu_event(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                return True
+        return False
+
+    def _bypass_request_focus(self) -> None:
+        self.__request_focus_canvas_item = None
+
+    def __request_focus(self, canvas_item: AbstractCanvasItem, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
+        canvas_item_: AbstractCanvasItem | None = canvas_item
+        while canvas_item_:
+            if canvas_item_.focusable:
+                canvas_item_._request_focus(p, modifiers)
+                break
+            canvas_item_ = canvas_item_.container
+
+    def _request_base_focus(self, canvas_item: AbstractCanvasItem | None, p: Geometry.IntPoint | None, modifiers: UserInterface.KeyboardModifiers | None) -> None:
+        if canvas_item is not None and p is not None and modifiers is not None:
+            self.__request_focus(canvas_item, p, modifiers)
+
+    @property
+    def focused_item(self) -> AbstractCanvasItem | None:
+        """Return the focused canvas item or None."""
+        return self.__focused_item
+
+    def _set_focused_item(self, focused_item: AbstractCanvasItem | None, p: Geometry.IntPoint | None = None, modifiers: UserInterface.KeyboardModifiers | None = None) -> None:
+        """Set the canvas focused item.
+
+        This will also update the focused property of both old item (if any) and new item (if any).
+        """
+        if not modifiers or not modifiers.any_modifier:
+            if focused_item != self.__focused_item:
+                # send the un-focused message to the old focused item
+                if self.__focused_item:
+                    self.__focused_item._set_focused(False)
+                # if the focus changes while a key is pressed, release the key
+                if self.__key_pressed_item:
+                    assert self.__key_pressed_key
+                    self.__key_pressed_item.key_released(self.__key_pressed_key)
+                    self.__key_pressed_item = None
+                    self.__key_pressed_key = None
+                # update the focused item
+                self.__focused_item = focused_item
+                # send the focused message to the new focused item
+                if self.__focused_item:
+                    self.__focused_item._set_focused(True)
+            if self.__focused_item:
+                self.__last_focused_item = self.__focused_item
+        elif focused_item:
+            focused_item.adjust_secondary_focus(p or Geometry.IntPoint(), modifiers)
+
+    def __key_pressed(self, key: UserInterface.Key) -> bool:
+        focused_item = self.focused_item
+        if focused_item:
+            # save the key pressed item and key so that we can release the key if focus changes while the key is down
+            self.__key_pressed_item = focused_item
+            self.__key_pressed_key = key
+            return self.__key_pressed_item.key_pressed(key)
+        return False
+
+    def __key_released(self, key: UserInterface.Key) -> bool:
+        result = False
+        if self.__key_pressed_item:
+            # the key pressed and the focus item should match here, but count on the rest of the logic to keep
+            # key_pressed_item in sync with the focused item.
+            result = self.__key_pressed_item.key_released(key)
+            self.__key_pressed_item = None
+            self.__key_pressed_key = None
+        return result
+
+    def __handle_tool_tip(self, x: int, y: int, gx: int, gy: int) -> bool:
+        canvas_items = self.__wrapper_canvas_item.canvas_items_at_point(x, y)
+        for canvas_item in reversed(canvas_items):
+            if canvas_item != self:
+                canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+                if canvas_item.handle_tool_tip(canvas_item_point.x, canvas_item_point.y, gx, gy):
+                    return True
+        return False
+
+    def __dispatch_any(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
+        focused_item = self.focused_item
+        if focused_item:
+            return focused_item._dispatch_any(method, *args, **kwargs)
+        return False
+
+    def __can_dispatch_any(self, method: str) -> bool:
+        focused_item = self.focused_item
+        if focused_item:
+            return focused_item._can_dispatch_any(method)
+        return False
+
+    def __get_menu_item_state(self, command_id: str) -> UserInterface.MenuItemState | None:
+        focused_item = self.focused_item
+        if focused_item:
+            menu_item_state = focused_item._get_menu_item_state(command_id)
+            if menu_item_state:
+                return menu_item_state
+        return None
+
+    def __drag_enter(self, mime_data: UserInterface.MimeData) -> str:
+        self.__drag_tracking = True
+        return "accept"
+
+    def __drag_leave(self) -> str:
+        if self.__drag_tracking_canvas_item:
+            self.__drag_tracking_canvas_item.drag_leave()
+        self.__drag_tracking = False
+        self.__drag_tracking_canvas_item = None
+        return "accept"
+
+    def __drag_canvas_item_at_point(self, x: int, y: int, mime_data: UserInterface.MimeData) -> AbstractCanvasItem | None:
+        canvas_items = self.__wrapper_canvas_item.canvas_items_at_point(x, y)
+        for canvas_item in canvas_items:
+            if canvas_item.wants_drag_event(mime_data, x, y):
+                return canvas_item
+        return None
+
+    def __drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+        response = "ignore"
+        if self.__drag_tracking and not self.__drag_tracking_canvas_item:
+            self.__drag_tracking_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
+            if self.__drag_tracking_canvas_item:
+                self.__drag_tracking_canvas_item.drag_enter(mime_data)
+        new_drag_canvas_item = self.__drag_canvas_item_at_point(x, y, mime_data)
+        if self.__drag_tracking_canvas_item != new_drag_canvas_item:
+            if self.__drag_tracking_canvas_item:
+                self.__drag_tracking_canvas_item.drag_leave()
+            self.__drag_tracking_canvas_item = new_drag_canvas_item
+            if self.__drag_tracking_canvas_item:
+                self.__drag_tracking_canvas_item.drag_enter(mime_data)
+        if self.__drag_tracking_canvas_item:
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
+            # the return value for drag_move is broken. for backwards compatibility, ignore it and always return
+            # 'accept' if at this point since the check for wanting drag events already returned a positive result in
+            # '__drag_canvas_item_at_point'. this approach gives 'drag_move' a chance to do something keeps the
+            # decision about whether to 'accept' or 'ignore' here. that decision affects whether the cursor shows a
+            # drop cursor or not. this goes along with changes to drag event handling in nionui-tool 5.1.4,
+            # but this change is backwards compatible with older nionui-tool.
+            self.__drag_tracking_canvas_item.drag_move(mime_data, canvas_item_point.x, canvas_item_point.y)
+            response = "accept"
+        return response
+
+    def __drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
+        response = "ignore"
+        if self.__drag_tracking_canvas_item:
+            canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), self.__drag_tracking_canvas_item)
+            response = self.__drag_tracking_canvas_item.drop(mime_data, canvas_item_point.x, canvas_item_point.y)
+        self.__drag_leave()
+        return response
+
+
 RootLayoutRender = "root"
 
 
@@ -3949,7 +4463,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
                 # there may be a case where the mouse has moved outside the canvas item and the canvas
                 # item has also been closed. for instance, context menu item which closes the canvas item.
                 # so double check whether the mouse tracking canvas item is still in the hierarchy by checking
-                # its container. only call mouse existed if the item is still in the hierarchy.
+                # its container. only call mouse exited if the item is still in the hierarchy.
                 if self.__mouse_tracking_canvas_item.container:
                     self.__mouse_tracking_canvas_item.mouse_exited()
                 self.__canvas_widget.set_cursor_shape(None)

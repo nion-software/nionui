@@ -3572,6 +3572,8 @@ class ThreadedCanvasItemContentWrapperCanvasItem(CanvasItemComposition):
         self.__threaded_canvas_item = threaded_canvas_item
 
     def _updated(self) -> None:
+        # When the content is updated, we need to trigger an update on the threaded canvas item to ensure that the
+        # new content gets rendered.
         self.__threaded_canvas_item.update()
 
     @property
@@ -3610,7 +3612,13 @@ class ThreadedCanvasItemContentWrapperCanvasItem(CanvasItemComposition):
 
 
 class ThreadedCanvasItem(AbstractCanvasItem):
-    """A canvas item that wraps another canvas item to do layout and repainting in a thread."""
+    """A canvas item that wraps another canvas item to do layout and repainting in a thread.
+
+    The wrapped canvas item (the content) will layout and repaint in a thread, producing a drawing context that
+    serves as the content of this threaded canvas item. Updates are independent, meaning that requesting an update or
+    layout on the content will trigger the thread to produce a new drawing context. When that is finished it will
+    then trigger an update on this canvas item using that latest drawing context produced by the thread.
+    """
 
     _executor = concurrent.futures.ThreadPoolExecutor()
 

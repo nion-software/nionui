@@ -3951,7 +3951,8 @@ class ThreadedCanvasItem(AbstractCanvasItem):
 
     def _request_base_focus(self, canvas_item: AbstractCanvasItem | None, p: Geometry.IntPoint | None, modifiers: UserInterface.KeyboardModifiers | None) -> None:
         if canvas_item is not None and p is not None and modifiers is not None:
-            self.__request_focus(canvas_item, p, modifiers)
+            self._set_focused_item(canvas_item, p, modifiers)
+            self.request_focus()
 
     @property
     def focused_item(self) -> AbstractCanvasItem | None:
@@ -3983,6 +3984,14 @@ class ThreadedCanvasItem(AbstractCanvasItem):
                 self.__last_focused_item = self.__focused_item
         elif focused_item:
             focused_item.adjust_secondary_focus(p or Geometry.IntPoint(), modifiers)
+
+    def _set_focused(self, focused: bool) -> None:
+        """Called when focus changes."""
+        if focused and not self.focused_item:
+            self._set_focused_item(self.__last_focused_item)
+        elif not focused and self.focused_item:
+            self._set_focused_item(None)
+        super()._set_focused(focused)
 
     def __key_pressed(self, key: UserInterface.Key) -> bool:
         focused_item = self.focused_item

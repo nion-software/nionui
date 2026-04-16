@@ -310,15 +310,17 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
-                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None, window_style: str | None = None,
+                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
                             cancel_button_text: str | None = None, accept_button_text: str | None = None) -> None:
+    """Create a popup with a text input field.
 
+    Setting cancel_button_text or accept_button_text will display buttons below the input field.
+    """
     class Handler:
         def __init__(self, s: str) -> None:
             self.is_rejected = True
             self.s = s
             self.line_edit_widget: UserInterface.LineEditWidget | None = None
-            self.call_close_on_reject = window_style != "default"
 
         def close(self) -> None:
             pass
@@ -336,8 +338,6 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
-            if self.call_close_on_reject:
-                self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
@@ -352,9 +352,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             self.__request_close_fn()
 
     from nion.ui import Declarative  # avoid circular reference
-
-    # calculate the max string width, add 10%, min 200, max 480
     size = size or Geometry.IntSize(30, 200)
+    # calculate the max string width, add 10%, min 200, max 480
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
 
     ui_handler = Handler(current_string)
@@ -371,8 +370,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
                                   u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
                                   u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
         column = u.create_column(u.create_column(column, u.create_stretch()), button_row)
-    # passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
-    popup = PopupWindow(window, column, ui_handler, window_style=window_style, delegate=ui_handler)
+    # Passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
+    popup = PopupWindow(window, column, ui_handler, window_style='popup', delegate=ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:

@@ -344,8 +344,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             # receive this when the user hits return. need to request a close and return True to say we handled event.
             if self.line_edit_widget:
                 self.s = self.line_edit_widget.text or str()
-            self.__request_close_fn()
             self.is_rejected = False
+            self.__request_close_fn()
             return True
 
         def handle_cancel(self, widget: UserInterface.Widget) -> None:
@@ -392,8 +392,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
 def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
                              window: Window.Window, title: str | None = None, caption: str | None = None,
-                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None, window_style: str | None = None,
-                             cancel_button_text: str = _("Cancel"), accept_button_text: str = _("Done")) -> None:
+                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
+                             cancel_button_text: str | None = None, accept_button_text: str | None = None) -> None:
     """Display a confirmation popup"""
     class Handler:
         def __init__(self) -> None:
@@ -408,14 +408,16 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
             # mark popup as rejected.
-            self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits return. need to request a close and return True to say we handled event.
-            self.__request_close_fn()
             self.is_rejected = False
+            self.__request_close_fn()
             return True
+
+        def handle_cancel(self, widget: UserInterface.Widget) -> None:
+            self.__request_close_fn()
 
     from nion.ui import Declarative  # avoid circular reference
 
@@ -428,17 +430,28 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
     title_row = u.create_row(u.create_label(text=title or _("Confirm")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
     divider = u.create_row(u.create_stretch(), background_color="#AAA", height=1)
     title_row = u.create_column(title_row, divider)
-    button_row = u.create_row(u.create_stretch(),
-                              u.create_push_button(text=cancel_button_text, on_clicked="reject"),
-                              u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+    button_row = None
+    if cancel_button_text is not None or accept_button_text is not None:
+        cancel_button_text = cancel_button_text or _("Cancel")
+        accept_button_text = accept_button_text or _("Done")
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
 
+    caption_row = None
     if caption:
         caption_row = u.create_row(u.create_label(text=caption), u.create_stretch(), spacing=4, margin=8)
-        column = u.create_column(title_row, caption_row, button_row)
-    else:
-        column = u.create_column(title_row, button_row)
 
-    popup = PopupWindow(window, column, ui_handler, window_style=window_style, delegate=ui_handler)
+    if button_row is not None and caption_row is not None:
+        column = u.create_column(title_row, caption_row, button_row)
+    elif button_row is not None:
+        column = u.create_column(title_row, button_row)
+    elif caption_row is not None:
+        column = u.create_column(title_row, caption_row)
+    else:
+        column = u.create_column(title_row)
+
+    popup = PopupWindow(window, column, ui_handler, window_style="popup", delegate=ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:

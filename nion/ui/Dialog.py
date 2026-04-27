@@ -352,7 +352,7 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             self.__request_close_fn()
 
     from nion.ui import Declarative  # avoid circular reference
-    size = size or Geometry.IntSize(30, 200)
+    size = size or Geometry.IntSize(width=400, height=100)
     # calculate the max string width, add 10%, min 200, max 480
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
 
@@ -422,7 +422,7 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
     from nion.ui import Declarative  # avoid circular reference
 
     # calculate the max string width, add 10%, min 200, max 480
-    size = size or Geometry.IntSize(30, 200)
+    size = size or Geometry.IntSize(width=400, height=100)
 
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()

@@ -310,8 +310,16 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
-                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None) -> None:
+                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
+                            cancel_button_text: str | None = None, accept_button_text: str | None = None,
+                            parent_rect: Geometry.IntRect | None = None) -> None:
+    """Create a popup with a text input field.
 
+    Setting cancel_button_text or accept_button_text will display buttons below the input field.
+    The popup's position will depend on the passed parameters.
+    If the position is passed then the popup will be centered on that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    """
     class Handler:
         def __init__(self, s: str) -> None:
             self.is_rejected = True
@@ -334,36 +342,49 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
-            # mark popup as rejected.
-            self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits return. need to request a close and return True to say we handled event.
             if self.line_edit_widget:
                 self.s = self.line_edit_widget.text or str()
-            self.__request_close_fn()
             self.is_rejected = False
+            self.__request_close_fn()
             return True
 
         def handle_cancel(self, widget: UserInterface.Widget) -> None:
             self.__request_close_fn()
 
     from nion.ui import Declarative  # avoid circular reference
-
+    size = size or Geometry.IntSize(width=400, height=100)
+    assert size is not None
     # calculate the max string width, add 10%, min 200, max 480
-    size = size or Geometry.IntSize(30, 200)
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
+
+    if position is None:
+        if parent_rect is None:
+            parent_size = window._document_window.size or window._document_window.screen_size
+            parent_position = window._document_window.position
+            parent_rect = Geometry.IntRect(origin=parent_position, size=parent_size)
+        assert parent_rect is not None
+        position = get_popup_position(parent_rect, size)
+    else:
+        position = Geometry.IntPoint(position.y - size.height // 2, position.x - size.width // 2)
 
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
-    title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
-    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject", on_editing_finished="editing_finished"), u.create_stretch())
-    column = u.create_column(title_row, edit_row, spacing=4, margin=8)
-    # passing window_style=None is essential for making copy and paste work, as the 'popup' style does not handle copy/paste.
-    popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)
-    # but we still want a clean window style
-    popup._document_window.set_window_style(["tool", "frameless-hint"])
+    title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
+    column = u.create_column(title_row, edit_row, u.create_stretch())
+    if cancel_button_text is not None or accept_button_text is not None:
+        cancel_button_text = cancel_button_text or _("Cancel")
+        accept_button_text = accept_button_text or _("Done")
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+        column = u.create_column(column, button_row)
+    # Passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
+    popup = PopupWindow(window, column, ui_handler, window_style='popup', delegate=ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:
@@ -380,3 +401,101 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     assert line_edit_widget
     line_edit_widget.focused = False
     line_edit_widget.focused = True
+
+
+def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
+                             window: Window.Window, title: str | None = None, caption: str | None = None,
+                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
+                             cancel_button_text: str | None = None, accept_button_text: str | None = None,
+                             parent_rect: Geometry.IntRect | None = None) -> None:
+    """Display a confirmation popup.
+
+    The popup's position will depend on the passed parameters.
+    If the position is passed then the popup will be centered on that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    """
+    class Handler:
+        def __init__(self) -> None:
+            self.is_rejected = True
+
+        def close(self) -> None:
+            pass
+
+        def init_popup(self, request_close_fn: typing.Callable[[], None]) -> None:
+            self.__request_close_fn = request_close_fn
+
+        def reject(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits escape. let the window handle the escape by returning False.
+            # mark popup as rejected.
+            return False
+
+        def accept(self, widget: UserInterface.Widget) -> bool:
+            # receive this when the user hits return. need to request a close and return True to say we handled event.
+            self.is_rejected = False
+            self.__request_close_fn()
+            return True
+
+        def handle_cancel(self, widget: UserInterface.Widget) -> None:
+            self.__request_close_fn()
+
+    from nion.ui import Declarative  # avoid circular reference
+
+    # calculate the max string width, add 10%, min 200, max 480
+    size = size or Geometry.IntSize(width=400, height=100)
+    assert size is not None
+    if position is None:
+        if parent_rect is None:
+            parent_size = window._document_window.size or window._document_window.screen_size
+            parent_position = window._document_window.position
+            parent_rect = Geometry.IntRect(origin=parent_position, size=parent_size)
+        assert parent_rect is not None
+        position = get_popup_position(parent_rect, size)
+    else:
+        position = Geometry.IntPoint(position.y - size.height // 2, position.x - size.width // 2)
+
+    ui_handler = Handler()
+    u = Declarative.DeclarativeUI()
+
+    title_row = u.create_row(u.create_label(text=title or _("Confirm")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
+    button_row = None
+    if cancel_button_text is not None or accept_button_text is not None:
+        cancel_button_text = cancel_button_text or _("Cancel")
+        accept_button_text = accept_button_text or _("Done")
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+
+    caption_row = None
+    if caption:
+        caption_row = u.create_row(u.create_label(text=caption), u.create_stretch(), spacing=4, margin=8)
+
+    if button_row is not None and caption_row is not None:
+        column = u.create_column(title_row, caption_row, button_row)
+    elif button_row is not None:
+        column = u.create_column(title_row, button_row)
+    elif caption_row is not None:
+        column = u.create_column(title_row, caption_row)
+    else:
+        column = u.create_column(title_row)
+
+    popup = PopupWindow(window, column, ui_handler, window_style="popup", delegate=ui_handler)
+
+    def handle_close(old_close: typing.Callable[[], None] | None) -> None:
+        if not ui_handler.is_rejected:
+            completion_fn(True)
+        else:
+            completion_fn(False)
+        if callable(old_close):
+            old_close()
+
+    popup.on_close = functools.partial(handle_close, popup.on_close)
+    popup.show(size=size, position=position)
+
+
+def get_popup_position(parent_panel_rect: Geometry.IntRect, popup_size: Geometry.IntSize) -> Geometry.IntPoint:
+    """Calculate the position for a popup panel from the parent container, and its size.
+
+    It is vertically aligned to be hanging from the top third of the parent panel.
+    """
+    vertical_position = parent_panel_rect.top + parent_panel_rect.height // 2 // 3
+    return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position + popup_size.height)

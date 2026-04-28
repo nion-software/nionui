@@ -359,17 +359,15 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
-    divider = u.create_row(u.create_stretch(), background_color="#AAA", height=1)
-    title_row = u.create_column(title_row, divider)
     edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
-    column = u.create_column(title_row, edit_row)
+    column = u.create_column(title_row, edit_row, u.create_stretch())
     if cancel_button_text is not None or accept_button_text is not None:
         cancel_button_text = cancel_button_text or _("Cancel")
         accept_button_text = accept_button_text or _("Done")
         button_row = u.create_row(u.create_stretch(),
                                   u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
                                   u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
-        column = u.create_column(u.create_column(column, u.create_stretch()), button_row)
+        column = u.create_column(column, button_row)
     # Passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
     popup = PopupWindow(window, column, ui_handler, window_style='popup', delegate=ui_handler)
 
@@ -428,8 +426,6 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
     u = Declarative.DeclarativeUI()
 
     title_row = u.create_row(u.create_label(text=title or _("Confirm")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
-    divider = u.create_row(u.create_stretch(), background_color="#AAA", height=1)
-    title_row = u.create_column(title_row, divider)
     button_row = None
     if cancel_button_text is not None or accept_button_text is not None:
         cancel_button_text = cancel_button_text or _("Cancel")

@@ -311,10 +311,14 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
-                            cancel_button_text: str | None = None, accept_button_text: str | None = None) -> None:
+                            cancel_button_text: str | None = None, accept_button_text: str | None = None,
+                            parent_rect: Geometry.IntRect | None = None) -> None:
     """Create a popup with a text input field.
 
     Setting cancel_button_text or accept_button_text will display buttons below the input field.
+    The popup's position will depend on the passed parameters.
+    If the position is passed then the popup will be centered on that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
     """
     class Handler:
         def __init__(self, s: str) -> None:
@@ -353,8 +357,19 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
     from nion.ui import Declarative  # avoid circular reference
     size = size or Geometry.IntSize(width=400, height=100)
+    assert size is not None
     # calculate the max string width, add 10%, min 200, max 480
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
+
+    if position is None:
+        if parent_rect is None:
+            parent_size = window._document_window.size or window._document_window.screen_size
+            parent_position = window._document_window.position
+            parent_rect = Geometry.IntRect(origin=parent_position, size=parent_size)
+        assert parent_rect is not None
+        position = get_popup_position(parent_rect, size)
+    else:
+        position = Geometry.IntPoint(position.y - size.height // 2, position.x - size.width // 2)
 
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
@@ -391,8 +406,14 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
                              window: Window.Window, title: str | None = None, caption: str | None = None,
                              position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
-                             cancel_button_text: str | None = None, accept_button_text: str | None = None) -> None:
-    """Display a confirmation popup"""
+                             cancel_button_text: str | None = None, accept_button_text: str | None = None,
+                             parent_rect: Geometry.IntRect | None = None) -> None:
+    """Display a confirmation popup.
+
+    The popup's position will depend on the passed parameters.
+    If the position is passed then the popup will be centered on that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    """
     class Handler:
         def __init__(self) -> None:
             self.is_rejected = True
@@ -421,6 +442,16 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
 
     # calculate the max string width, add 10%, min 200, max 480
     size = size or Geometry.IntSize(width=400, height=100)
+    assert size is not None
+    if position is None:
+        if parent_rect is None:
+            parent_size = window._document_window.size or window._document_window.screen_size
+            parent_position = window._document_window.position
+            parent_rect = Geometry.IntRect(origin=parent_position, size=parent_size)
+        assert parent_rect is not None
+        position = get_popup_position(parent_rect, size)
+    else:
+        position = Geometry.IntPoint(position.y - size.height // 2, position.x - size.width // 2)
 
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()

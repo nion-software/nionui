@@ -244,8 +244,18 @@ class PopupWindow(Window.Window):
 def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: typing.Callable[[typing.Any], None], *,
                             window: Window.Window, current_item: int = 0,
                             item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None,
-                            title: typing.Optional[str] = None) -> None:
+                            title: typing.Optional[str] = None, position: Geometry.IntPoint | None = None,
+                            size: Geometry.IntSize | None = None, parent_rect: Geometry.IntRect | None = None,
+                            position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
+    """Create a popup that allows the user to select an item from a list.
 
+    The popup's position will depend on the passed parameters.
+    If position is passed then the popup's top left corner will be that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    The position_offset is CSS standard, meaning positive values are down, right
+    Passing position_offset as IntSize will be treated as a pixel offset from the top left position.
+    Passing position_offset a FloatSize will be treated as a percentage of the popup size to offset from the top left position.
+    """
     item_getter = item_getter or str
 
     class Handler:
@@ -287,6 +297,8 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
     # calculate the max string width, add 10%, min 200, max 480
     width = min(max(int(max([window.get_font_metrics("system", item_getter(c)).width for c in items]) * 1.10), 200), 480)
 
+    size, position = _get_pop_up_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
+
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Select Item")), u.create_stretch())
@@ -305,13 +317,23 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
             old_close()
 
     popup.on_close = functools.partial(handle_close, popup.on_close)
-    popup.show()#position=position, size=size)
+    popup.show(position=position, size=size)
 
 
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
-                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None) -> None:
+                            position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
+                            parent_rect: Geometry.IntRect | None = None, position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
+    """ Create a popup with a text input field.
 
+    Setting cancel_button_text or accept_button_text will display buttons below the input field.
+    The popup's position will depend on the passed parameters.
+    If position is passed then the popup's top left corner will be that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    The position_offset is CSS standard, meaning positive values are down, right
+    Passing position_offset as IntSize will be treated as a pixel offset from the top left position.
+    Passing position_offset a FloatSize will be treated as a percentage of the popup size to offset from the top left position.
+    """
     class Handler:
         def __init__(self, s: str) -> None:
             self.is_rejected = True
@@ -350,7 +372,7 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             self.__request_close_fn()
 
     from nion.ui import Declarative  # avoid circular reference
-
+    size, position = _get_pop_up_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
     # calculate the max string width, add 10%, min 200, max 480
     size = size or Geometry.IntSize(30, 200)
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
@@ -380,3 +402,45 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     assert line_edit_widget
     line_edit_widget.focused = False
     line_edit_widget.focused = True
+
+
+def _get_popup_position_from_parent_rect(parent_panel_rect: Geometry.IntRect, popup_size: Geometry.IntSize) -> Geometry.IntPoint:
+    """ Calculate the position for a popup panel from the parent container, and its size.
+
+    It is vertically aligned to be hanging from the top third of the parent panel.
+    """
+    vertical_position = parent_panel_rect.top + parent_panel_rect.height // 2 // 3
+    return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position + popup_size.height)
+
+
+def _get_pop_up_size_and_position(window: Window.Window, position: Geometry.IntPoint | None = None,
+                                  size: Geometry.IntSize | None = None, parent_rect: Geometry.IntRect | None = None,
+                                  position_offset: Geometry.IntSize | Geometry.FloatSize | None = None)\
+        -> tuple[Geometry.IntSize, Geometry.IntPoint]:
+    """ Calculate the size and position of a popup.
+
+    The popup's position will depend on the passed parameters.
+    If position is passed then the popup's top left corner will be that point.
+    Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
+    The position_offset is CSS standard, meaning positive values are down, right
+    Passing position_offset as IntSize will be treated as a pixel offset from the top left position.
+    Passing position_offset a FloatSize will be treated as a percentage of the popup size to offset from the top left position.
+    """
+    size = size or Geometry.IntSize(width=400, height=100)
+    assert size is not None
+
+    if position is None:
+        if parent_rect is None:
+            parent_size = window._document_window.size or window._document_window.screen_size
+            parent_position = window._document_window.position
+            parent_rect = Geometry.IntRect(origin=parent_position, size=parent_size)
+        assert parent_rect is not None
+        position = _get_popup_position_from_parent_rect(parent_rect, size)
+
+    if position_offset is not None:  # Offset is CSS standard, meaning positive values are down, right
+        if isinstance(position_offset, Geometry.IntSize):
+            position = Geometry.IntPoint(position.y + position_offset.height, position.x + position_offset.width)
+        elif isinstance(position_offset, Geometry.FloatSize):
+            position = Geometry.IntPoint(position.y + int(size.height * position_offset.height), position.x + int(size.width * position_offset.width))
+
+    return size, position

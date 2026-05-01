@@ -323,6 +323,7 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
                             window: Window.Window, title: typing.Optional[str] = None,
                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
+                            cancel_button_text: str | None = None, accept_button_text: str | None = None,
                             parent_rect: Geometry.IntRect | None = None, position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
     """ Create a popup with a text input field.
 
@@ -356,16 +357,14 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
 
         def reject(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits escape. let the window handle the escape by returning False.
-            # mark popup as rejected.
-            self.__request_close_fn()
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
             # receive this when the user hits return. need to request a close and return True to say we handled event.
             if self.line_edit_widget:
                 self.s = self.line_edit_widget.text or str()
-            self.__request_close_fn()
             self.is_rejected = False
+            self.__request_close_fn()
             return True
 
         def handle_cancel(self, widget: UserInterface.Widget) -> None:
@@ -374,18 +373,22 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     from nion.ui import Declarative  # avoid circular reference
     size, position = _get_pop_up_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
     # calculate the max string width, add 10%, min 200, max 480
-    size = size or Geometry.IntSize(30, 200)
     width = (size.width - 20) if size else min(max(int(window.get_font_metrics("system", current_string).width * 1.10), 200), 480)
 
     ui_handler = Handler(current_string)
     u = Declarative.DeclarativeUI()
-    title_row = u.create_row(u.create_label(text=title or _("Edit")), u.create_stretch())
-    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", width=width, on_return_pressed="accept", on_escape_pressed="reject", on_editing_finished="editing_finished"), u.create_stretch())
-    column = u.create_column(title_row, edit_row, spacing=4, margin=8)
-    # passing window_style=None is essential for making copy and paste work, as the 'popup' style does not handle copy/paste.
-    popup = PopupWindow(window, column, ui_handler, window_style=None, delegate=ui_handler)
-    # but we still want a clean window style
-    popup._document_window.set_window_style(["tool", "frameless-hint"])
+    title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
+    column = u.create_column(title_row, edit_row, u.create_stretch())
+    if cancel_button_text is not None or accept_button_text is not None:
+        cancel_button_text = cancel_button_text or _("Cancel")
+        accept_button_text = accept_button_text or _("Done")
+        button_row = u.create_row(u.create_stretch(),
+                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+        column = u.create_column(column, button_row)
+    # Passing window_style='popup' previously did not handle copy/paste, this issue seems to be resolved.
+    popup = PopupWindow(window, column, ui_handler, window_style='popup', delegate=ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
         if not ui_handler.is_rejected:

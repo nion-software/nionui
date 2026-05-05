@@ -414,9 +414,10 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
                              position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
                              cancel_button_text: str | None = None, accept_button_text: str | None = None,
                              show_buttons: bool = False, parent_rect: Geometry.IntRect | None = None,
-                             position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
+                             position_offset: Geometry.IntSize | Geometry.FloatSize | None = None, show_cancel_button: bool = True) -> None:
     """ Display a confirmation popup.
 
+    show_cancel_button parameter is for when show_buttons is True, but you only want to show the accept button.
     The popup's position will depend on the passed parameters.
     If position is passed then the popup's top left corner will be that point.
     Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
@@ -461,9 +462,13 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
     if show_buttons:
         cancel_button_text = cancel_button_text or _("Cancel")
         accept_button_text = accept_button_text or _("Done")
-        button_row = u.create_row(u.create_stretch(),
-                                  u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
-                                  u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+        if show_cancel_button:
+            button_row = u.create_row(u.create_stretch(),
+                                      u.create_push_button(text=cancel_button_text, on_clicked="handle_cancel"),
+                                      u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
+        else:
+            button_row = u.create_row(u.create_stretch(),
+                                     u.create_push_button(text=accept_button_text, on_clicked="accept"), spacing=8, margin=8)
 
     caption_row = None
     if caption:

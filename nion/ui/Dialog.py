@@ -11,6 +11,8 @@ import time
 import typing
 import weakref
 
+from fontTools.subset import prune_hints
+
 # third party libraries
 # none
 
@@ -243,8 +245,8 @@ class PopupWindow(Window.Window):
 
 def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: typing.Callable[[typing.Any], None], *,
                             window: Window.Window, current_item: int = 0,
-                            item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None,
-                            title: typing.Optional[str] = None, position: Geometry.IntPoint | None = None,
+                            item_getter: typing.Callable[[typing.Any], str] | None = None,
+                            title: str | None = None, position: Geometry.IntPoint | None = None,
                             size: Geometry.IntSize | None = None, parent_rect: Geometry.IntRect | None = None,
                             position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
     """Create a popup that allows the user to select an item from a list.
@@ -321,13 +323,12 @@ def pose_select_item_pop_up(items: typing.Sequence[typing.Any], completion_fn: t
 
 
 def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[[str | None], None], *,
-                            window: Window.Window, title: typing.Optional[str] = None,
+                            window: Window.Window, title: str | None = None,
                             position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
-                            cancel_button_text: str | None = None, accept_button_text: str | None = None,
+                            cancel_button_text: str | None = None, accept_button_text: str | None = None, show_buttons: bool = False,
                             parent_rect: Geometry.IntRect | None = None, position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
     """ Create a popup with a text input field.
 
-    Setting cancel_button_text or accept_button_text will display buttons below the input field.
     The popup's position will depend on the passed parameters.
     If position is passed then the popup's top left corner will be that point.
     Otherwise, the popup will use get_popup_position to be centered on the top third of the parent_rect if it is passed or the window if parent_rect is None.
@@ -356,7 +357,8 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
             self.accept(widget)
 
         def reject(self, widget: UserInterface.Widget) -> bool:
-            # receive this when the user hits escape. let the window handle the escape by returning False.
+            # Receive this when the user hits escape. Let the window handle the escape by returning False.
+            # The window will close when reject is called on a popup, so calling self.__request_close_fn() is not necessary here.
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
@@ -380,7 +382,7 @@ def pose_edit_string_pop_up(current_string: str, completion_fn: typing.Callable[
     title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
     edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
     column = u.create_column(title_row, edit_row, u.create_stretch())
-    if cancel_button_text is not None or accept_button_text is not None:
+    if show_buttons:
         cancel_button_text = cancel_button_text or _("Cancel")
         accept_button_text = accept_button_text or _("Done")
         button_row = u.create_row(u.create_stretch(),
@@ -411,7 +413,7 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
                              window: Window.Window, title: str | None = None, caption: str | None = None,
                              position: Geometry.IntPoint | None = None, size: Geometry.IntSize | None = None,
                              cancel_button_text: str | None = None, accept_button_text: str | None = None,
-                             parent_rect: Geometry.IntRect | None = None,
+                             show_buttons: bool = False, parent_rect: Geometry.IntRect | None = None,
                              position_offset: Geometry.IntSize | Geometry.FloatSize | None = None) -> None:
     """ Display a confirmation popup.
 
@@ -433,8 +435,8 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
             self.__request_close_fn = request_close_fn
 
         def reject(self, widget: UserInterface.Widget) -> bool:
-            # receive this when the user hits escape. let the window handle the escape by returning False.
-            # mark popup as rejected.
+            # Receive this when the user hits escape. Let the window handle the escape by returning False.
+            # The window will close when reject is called on a popup, so calling self.__request_close_fn() is not necessary here.
             return False
 
         def accept(self, widget: UserInterface.Widget) -> bool:
@@ -456,7 +458,7 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
 
     title_row = u.create_row(u.create_label(text=title or _("Confirm")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
     button_row = None
-    if cancel_button_text is not None or accept_button_text is not None:
+    if show_buttons:
         cancel_button_text = cancel_button_text or _("Cancel")
         accept_button_text = accept_button_text or _("Done")
         button_row = u.create_row(u.create_stretch(),
@@ -493,10 +495,10 @@ def pose_confirmation_pop_up(completion_fn: typing.Callable[[bool], None], *,
 def _get_popup_position_from_parent_rect(parent_panel_rect: Geometry.IntRect, popup_size: Geometry.IntSize) -> Geometry.IntPoint:
     """ Calculate the position for a popup panel from the parent container, and its size.
 
-    It is vertically aligned to be hanging from the top third of the parent panel.
+    It is vertically aligned to the top third of the parent panel.
     """
-    vertical_position = parent_panel_rect.top + parent_panel_rect.height // 2 // 3
-    return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position + popup_size.height)
+    vertical_position = parent_panel_rect.top + parent_panel_rect.height // 3
+    return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position)
 
 
 def _get_pop_up_size_and_position(window: Window.Window, position: Geometry.IntPoint | None = None,

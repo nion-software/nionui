@@ -5,19 +5,54 @@ Welcome to |ProjectName| documentation!
 |ProjectName| is a toolkit for building desktop user interfaces (UI) in Python. It includes tools for declarative UI
 programming through simple Python dicts. It was primarily created to implement the Nion Swift application.
 
-The toolkit includes a specific backend to work in conjunction with |LauncherName|, which is a high performance Qt-based
-UI hosting application. |LauncherName| provides a Python environment in which to run and an API to implement the user
-interface exposed by |ProjectName|.
+|ProjectName| works in conjunction with a host application. The host application is responsible for initializing a
+Python environment, calling functions in this library in response to UI events, and providing idle time for this library
+to perform periodic maintenance tasks.
 
-At its base, the toolkit provides a basic application, menu, and window system. The windows are constructed using
-widgets, which are standard UI elements such as buttons and text edit fields. The toolkit also provides canvas items,
-which are special widgets that can be displayed using explicit drawing commands similar to HTML canvas items.
+|ProjectName| is designed to be compatible with multiple host applications, but includes built-in support for
+|LauncherName|, a high-performance Qt-based host application.
 
-In addition to the explicit widget and canvas item capabilities, the toolkit provides a declarative UI.
+In conjunction with the host application, |ProjectName| provides an application framework that includes:
 
-With the declarative features of |ProjectName|, you construct your UI by defining a Python dict which describes your UI
-and its connections to Python handlers. |ProjectName| provides functions to help you construct the Python dict quickly
-and easily and connect it to your application specific code.
+- Windows
+- Docked panels
+- Menus
+- Application management
+- Widget and layout system
+- Declarative UI system
+- Clipboard handling
+- Drag and drop handling
+- Threaded low-level drawing system
+- High-performance canvas items
+- Logging
+- Font handling
+- File dialogs
+- Screen and color scheme handling
+- Preferences
+
+The widget and layout system includes:
+
+- Labels
+- Push buttons
+- Check boxes
+- Combo boxes
+- Line edits
+- Text edits
+- Text browsers
+- Progress bars
+- Radio buttons
+- Sliders
+- Groups
+- Tabs
+- Stacks
+- Splitters
+- Scroll areas
+
+|ProjectName| also provides canvas items, which are special high-performance widgets that can be displayed using
+explicit drawing commands similar to HTML canvas items.
+
+|ProjectName| also includes a declarative UI that allows you to construct your UI by defining a Python dict that
+describes the UI structure and connects it to Python handlers.
 
 .. todo:: Widgets vs CanvasItems
 .. todo:: Application and launcher, nionui_app namespace

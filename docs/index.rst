@@ -169,7 +169,7 @@ You can run the examples:
 Thread Handling
 ===============
 
-The host application responds to UI events by calling functions in |ProjectName|. It also regularly calls `periodic` to
+The host application responds to UI events by calling functions in |ProjectName|. It also regularly calls ``periodic`` to
 provide idle time to perform maintenance tasks.
 
 Your code needs to ensure it runs quickly in response to those events to maintain UI responsiveness. If your code needs
@@ -178,20 +178,20 @@ to do a long running task or something periodically, you can use the techniques 
 Async Functions
 ---------------
 
-|ProjectName| works seamlessly with `async` tasks. The host application regularly calls `periodic` and `periodic`
-runs any pending async tasks.
+|ProjectName| works seamlessly with ``async`` tasks. The host application regularly calls ``periodic`` which runs any
+pending async tasks.
 
-To start an `async` task in response to a UI event, you can use code like:
+To start an ``async`` task in response to a UI event, you can use code like:
 
 .. code-block:: python
 
     def handle_ui_event(window: Window.Window) -> None:
         window.event_loop.create_task(my_async_function())
 
-Your `async` task should not do anything that takes more than approximately 10ms to run. If you need to do something
+Your ``async`` task should not do anything that takes more than approximately 10ms to run. If you need to do something
 that takes longer, you can use various techniques below to run the time consuming or blocking task in a separate thread.
 
-For short blocking tasks where total thread exhaustion is not an issue, you can use `asyncio.to_thread` to run the task
+For short blocking tasks where total thread exhaustion is not an issue, you can use ``asyncio.to_thread`` to run the task
 in a separate thread without blocking the UI.
 
 .. code-block:: python
@@ -205,7 +205,7 @@ in a separate thread without blocking the UI.
     async def my_async_function():
         await asyncio.to_thread(blocking_task)
 
-For long running tasks or tasks that need to limit their thread usage, you can use a `ThreadPoolExecutor` to run the
+For long running tasks or tasks that need to limit their thread usage, you can use a ``ThreadPoolExecutor`` to run the
 task in a separate thread.
 
 .. code-block:: python
@@ -222,7 +222,7 @@ task in a separate thread.
     async def my_async_function(window: Window.Window) -> None:
         await window.event_loop.run_in_executor(executor, blocking_task)
 
-From within a thread, you can call specific functions in the main thread using `call_soon_threadsafe` on the event loop.
+From within a thread, you can call specific functions in the main thread using ``call_soon_threadsafe`` on the event loop.
 
 .. code-block:: python
 
@@ -231,7 +231,7 @@ From within a thread, you can call specific functions in the main thread using `
         ...
         event_loop.call_soon_threadsafe(some_function_in_main_thread)
 
-You can also run async functions from a thread by using `run_coroutine_threadsafe` on the event loop. Using this
+You can also run async functions from a thread by using ``run_coroutine_threadsafe`` on the event loop. Using this
 technique, you can also wait for return values from the async function.
 
 .. code-block:: python
@@ -245,8 +245,8 @@ technique, you can also wait for return values from the async function.
         result = future.result()  # this will block the thread until the async function is done
 
 Very few UI related functions are thread safe. If you need to interact with the UI, use one of the techniques above to
-call a function in the main thread that interacts with the UI. The exception is calling the `update` method on a canvas
-item. The `update` method is thread safe and can be called from a thread to schedule a redraw of the canvas item.
+call a function in the main thread that interacts with the UI. The exception is calling the ``update`` method on a canvas
+item. The ``update`` method is thread safe and can be called from a thread to schedule a redraw of the canvas item.
 
 As much as possible, functions running on threads should minimize their footprint. As an example, instead of passing the
 window object to a thread, only pass the event loop. This minimizes the chance of accidentally calling a non-thread safe
@@ -261,10 +261,10 @@ Long running tasks will typically need to be cancellable and should check for ca
 occur in response to user actions such as closing a window or clicking a cancel button. It is important to ensure
 that your long running tasks are cancelled properly when the window or application closes.
 
-`async` tasks are automatically cancelled when the window or application closes. However, within the task itself, you
+``async`` tasks are automatically cancelled when the window or application closes. However, within the task itself, you
 will need to handle any cleanup of any threads that have been launched from the task. The async task will immediately
-throw an `asyncio.CancelledError` at the next `await` point, but the thread itself will continue to run until it
-finishes. You can handle the `asyncio.CancelledError` in your async task and perform any necessary cleanup of the
+throw an ``asyncio.CancelledError`` at the next ``await`` point, but the thread itself will continue to run until it
+finishes. You can handle the ``asyncio.CancelledError`` in your async task and perform any necessary cleanup of the
 thread, such as cancelling any long running operations or joining the thread.
 
 Here is an example:

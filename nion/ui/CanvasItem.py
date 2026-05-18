@@ -3235,7 +3235,9 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
 
     @property
     def value(self) -> float:
-        return self.value_stream.value or 0.0
+        if self.value_stream is not None and self.value_stream.value is not None:
+            return self.value_stream.value
+        return 0.0
 
     @value.setter
     def value(self, value: float) -> None:

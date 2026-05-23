@@ -842,6 +842,63 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
+    def create_range_slider(self, *,
+                      name: typing.Optional[UIIdentifier] = None,
+                      range_center: typing.Optional[UIIdentifier] = None,
+                      range_width: typing.Optional[UIIdentifier] = None,
+                      range_minimum: typing.Optional[UIIdentifier] = None,
+                      range_maximum: typing.Optional[UIIdentifier] = None,
+                      minimum: typing.Optional[int] = None,
+                      maximum: typing.Optional[int] = None,
+                      on_value_changed: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_pressed: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_released: typing.Optional[UICallableIdentifier] = None,
+                      on_slider_moved: typing.Optional[UICallableIdentifier] = None,
+                      **kwargs: typing.Any) -> UIDescriptionResult:
+        """Create a slider UI description with name, value, limits, and events.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            range_center: handler reference to the current range center (required, bindable)
+            range_width: handler reference to the current range width (required, bindable)
+            range_minimum: handler reference to the current minimum value (required, bindable)
+            range_maximum: handler reference to the current maximum value (required, bindable)
+            minimum: minimum value (default 0)
+            maximum: maximum value (default 100)
+            on_value_changed: callback when value changes, any source (optional)
+            on_slider_pressed: callback when slider is pressed (optional)
+            on_slider_released: callback when slider is released (optional)
+            on_slider_moved: callback when slider moves, user initiated only (optional)
+
+        Returns:
+            UI description of the slider
+        """
+        d: UIDescriptionResult = {"type": "range_slider"}
+        if name is not None:
+            d["name"] = name
+        if range_center is not None:
+            d["range_center"] = range_center
+        if range_width is not None:
+            d["range_width"] = range_width
+        if range_minimum is not None:
+            d["range_minimum"] = range_minimum
+        if range_maximum is not None:
+            d["range_maximum"] = range_maximum
+        if minimum is not None:
+            d["minimum"] = minimum
+        if maximum is not None:
+            d["maximum"] = maximum
+        if on_value_changed is not None:
+            d["on_value_changed"] = on_value_changed
+        if on_slider_pressed is not None:
+            d["on_slider_pressed"] = on_slider_pressed
+        if on_slider_released is not None:
+            d["on_slider_released"] = on_slider_released
+        if on_slider_moved is not None:
+            d["on_slider_moved"] = on_slider_moved
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_divider(self, *,
                        name: typing.Optional[UIIdentifier] = None,
                        orientation: typing.Optional[str] = None,
@@ -1490,6 +1547,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         return construct_radio_button(ui, d, handler, finishes)
     elif d_type == "slider":
         return construct_slider(ui, d, handler, finishes)
+    elif d_type == "range_slider":
+        return construct_range_slider(ui, d, handler, finishes)
     if d_type == "divider":
         return construct_divider(ui, d, handler, finishes)
     elif d_type == "progress_bar":
@@ -1717,6 +1776,7 @@ def construct_slider(ui: UserInterface.UserInterface, d: UIDescription, handler:
     widget = ui.create_slider_widget(properties)
     widget.minimum = minimum
     widget.maximum = maximum
+
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "value", finishes, value_type=int)
@@ -1727,6 +1787,24 @@ def construct_slider(ui: UserInterface.UserInterface, d: UIDescription, handler:
         connect_attributes(widget, d, handler, finishes)
     return widget
 
+def construct_range_slider(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
+                     finishes: _FinishesListType) -> UserInterface.RangeSliderWidget:
+    minimum = d.get("minimum", 0)
+    maximum = d.get("maximum", 1000)
+    properties = construct_sizing_properties(d)
+    properties.setdefault("height", 18)
+    properties.setdefault("width", 64)
+    widget = ui.create_range_slider_widget(properties=properties)
+    widget.minimum = minimum
+    widget.maximum = maximum
+    if handler:
+        connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "range_center", finishes, value_type=int)
+        connect_reference_value(widget, d, handler, "range_width", finishes, value_type=int)
+        connect_reference_value(widget, d, handler, "range_minimum", finishes, value_type=int)
+        connect_reference_value(widget, d, handler, "range_maximum", finishes, value_type=int)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
 
 def construct_radio_button(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
                            finishes: _FinishesListType) -> UserInterface.Widget:

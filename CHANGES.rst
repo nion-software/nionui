@@ -1,6 +1,17 @@
 Changelog (nionui)
 ==================
 
+11.0.0 (2026-06-05)
+-------------------
+- Update typing.
+- Remove conda build support.
+- Improve batch updating efficiency.
+- Remove unused/non-functioning mouse tracker support.
+- Remove unused ui_interaction tracking.
+- Add ThreadedCanvasItem for improved performance when using threads for rendering.
+- Extend pose-style dialogs with improved positioning, button naming.
+- Update documentation (partial).
+
 10.2.3 (2026-03-19)
 -------------------
 - Python 3.14 compatibility updates.

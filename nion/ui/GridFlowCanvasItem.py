@@ -407,7 +407,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 if base_container:
                     base_container._bypass_request_focus()
                 selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-                selected_items = selected_items if self.__mouse_canvas_item in selected_items else [self.__mouse_canvas_item]
+                selected_items = selected_items if self.__mouse_canvas_item.item in selected_items else [self.__mouse_canvas_item]
                 if self.__delegate.drag_started_event(GridFlowCanvasItemDragStartedEvent(self.__mouse_canvas_item.item, selected_items, Geometry.IntPoint(x=x, y=y), modifiers)):
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)

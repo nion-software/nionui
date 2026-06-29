@@ -1377,7 +1377,8 @@ class AbstractCanvasItem:
                 self.__composer = self._get_composer(cache)
                 self.__composer_last_update_time = time.time()
                 # assert self.__composer, f"missing composer for {type(self)}"
-        return self.__composer
+            # return composer within lock to avoid race condition with _invalidate_composer clearing the value.
+            return self.__composer
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         return None

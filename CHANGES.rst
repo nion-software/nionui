@@ -1,6 +1,10 @@
 Changelog (nionui)
 ==================
 
+11.1.0 (2026-07-11)
+-------------------
+- Fix the bug that prevented a drag to start with multiple items.
+
 11.0.0 (2026-06-05)
 -------------------
 - Update typing.

@@ -1343,9 +1343,8 @@ def construct_margins(d: UIDescription) -> UIMargins:
 
 
 # to properly type the container widget needs more work. substitute typing.Any for now.
-def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: typing.Any,
-                  handler: HandlerLike, items: str, item_component_id: str, spacing_h: typing.Optional[int] = None,
-                  spacing_v: typing.Optional[int] = None) -> None:
+def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: UserInterface.BoxWidget | UserInterface.StackWidget,
+                  handler: HandlerLike, items: str, item_component_id: str, is_column: bool = True, spacing: int | None = None) -> None:
     """Connect list of item components to container widget.
 
     Several declarative elements (columns, rows, stacks) take a list of item components. This method connects the item
@@ -1359,7 +1358,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     `component_content` from established component. Otherwise, it uses the `item_component_id` as the `component_id`
     and continues.
 
-    Next, it calls `create_handler` with the established `component_id` and `item`. If the handler defines a `ui_view`,
+    Next, it calls `create_handler` with the established `component_id`, `container`, and `item`. If the handler defines a `ui_view`,
     that is used as the `component_content`; otherwise the `component_content` established earlier is used.
 
     The preferred technique for dynamic content is to define `create_handler` to return a handler for the given
@@ -1377,19 +1376,24 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     # assumption so that subcomponents have a path by which to get closed.
     assert getattr(handler, "_closer")
 
+    used_spacing = spacing or 0
+
     def adjust_spacing() -> None:
-        spacing = max(spacing_h or 0, spacing_v or 0)
-        if spacing and container_widget.children:
+        # Keep one trailing spacer in each wrapper except the last one:
+        # non-last wrappers should be [item, spacer], while the last is [item].
+        if used_spacing and container_widget.children:
             last_child = container_widget.children[-1]
-            for spacing_widget in container_widget.children:
-                if spacing_widget != last_child:
-                    if len(spacing_widget.children) == 1:
-                        spacing_widget.add_spacing(spacing)
+            for item_wrapper_widget in container_widget.children:
+                assert isinstance(item_wrapper_widget, UserInterface.BoxWidget)
+                if item_wrapper_widget != last_child:
+                    if len(item_wrapper_widget.children) == 1:
+                        item_wrapper_widget.add_spacing(used_spacing)
                 else:
-                    if len(spacing_widget.children) == 2:
-                        spacing_widget.remove(spacing_widget.children[-1])
+                    if len(item_wrapper_widget.children) == 2:
+                        item_wrapper_widget.remove(item_wrapper_widget.children[-1])
 
     def insert_item(index: int, item: typing.Any) -> None:
+        # Wrap each item in its own row/column wrapper so spacing can be toggled independently.
         item_widget = None
         component_id: typing.Optional[str]
         component_content: typing.Optional[UIDescription] = None
@@ -1426,13 +1430,13 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()
-        if spacing_h:
-            spacing_widget = ui.create_row_widget()
+        if is_column:
+            item_wrapper_widget = ui.create_column_widget()
         else:
-            spacing_widget = ui.create_column_widget()
+            item_wrapper_widget = ui.create_row_widget()
         if item_widget:
-            spacing_widget.add(item_widget)
-        container_widget.insert(spacing_widget, index)
+            item_wrapper_widget.add(item_widget)
+        container_widget.insert(item_wrapper_widget, index)
         adjust_spacing()
 
     def row_item_inserted(key: str, value: typing.Any, before_index: int) -> None:
@@ -1442,7 +1446,9 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     def row_item_removed(key: str, value: typing.Any, before_index: int) -> None:
          if key == items_key:
             item_widget = container_widget.children[before_index]
-            getattr(handler, "_closer").pop_closeable(item_widget.children[0].handler)
+            assert isinstance(item_widget, UserInterface.BoxWidget)
+            item_widget_first_child = item_widget.children[0]
+            getattr(handler, "_closer").pop_closeable(getattr(item_widget_first_child, "handler"))
             container_widget.remove(item_widget)
             adjust_spacing()
 
@@ -1912,8 +1918,7 @@ def construct_box(ui: UserInterface.UserInterface, window: Window.Window, is_col
             box_widget.add(construct(ui, window, child, handler, finishes))
         first = False
     if items and item_component_id:
-        spacing_kwargs = {'spacing_v': spacing} if is_column else {'spacing_h': spacing}
-        connect_items(ui, window, box_widget, handler, items, item_component_id, **spacing_kwargs)
+        connect_items(ui, window, box_widget, handler, items, item_component_id, is_column=is_column, spacing=spacing)
     if handler:
         connect_name(box_widget, d, handler)
         connect_attributes(margins_box_widget, d, handler, finishes)

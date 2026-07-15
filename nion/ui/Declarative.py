@@ -1912,7 +1912,8 @@ def construct_box(ui: UserInterface.UserInterface, window: Window.Window, is_col
             box_widget.add(construct(ui, window, child, handler, finishes))
         first = False
     if items and item_component_id:
-        connect_items(ui, window, box_widget, handler, items, item_component_id, spacing_v=spacing)
+        spacing_kwargs = {'spacing_v': spacing} if is_column else {'spacing_h': spacing}
+        connect_items(ui, window, box_widget, handler, items, item_component_id, **spacing_kwargs)
     if handler:
         connect_name(box_widget, d, handler)
         connect_attributes(margins_box_widget, d, handler, finishes)

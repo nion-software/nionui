@@ -431,8 +431,10 @@ class DrawingContext:
                     font_str += " fill='{0}'".format(fill_style)
                 if fill_opacity < 1.0:
                     font_str += " fill-opacity='{0}'".format(fill_opacity)
-                svg_format_str = "<text x='{0}' y='{1}' text-anchor='{3}' alignment-baseline='{4}'{5}{6}>{2}</text>"
-                svg += svg_format_str.format(x, y, xml.sax.saxutils.escape(text), text_anchor, text_baseline, font_str,
+                # Use both dominant/alignment baseline to better match Qt text placement across SVG renderers.
+                baseline_str = f" dominant-baseline='{text_baseline}' alignment-baseline='{text_baseline}'"
+                svg_format_str = "<text x='{0}' y='{1}' text-anchor='{3}'{4}{5}{6}>{2}</text>"
+                svg += svg_format_str.format(x, y, xml.sax.saxutils.escape(text), text_anchor, baseline_str, font_str,
                                              transform_str)
             elif command_id == "fillStyleGradient":
                 command_var = command_args[0]
@@ -464,8 +466,9 @@ class DrawingContext:
                 text_anchors = {"start": "start", "end": "end", "left": "start", "center": "middle", "right": "end"}
                 text_anchor = text_anchors.get(command_args[0], "start")
             elif command_id == "textBaseline":
-                text_baselines = {"top": "hanging", "hanging": "hanging", "middle": "middle",
-                                  "alphabetic": "alphabetic", "ideaographic": "ideaographic", "bottom": "bottom"}
+                text_baselines = {"top": "text-before-edge", "hanging": "hanging", "middle": "middle",
+                                  # Keep ideographic/bottom aligned to alphabetic to mirror current Qt behavior.
+                                  "alphabetic": "alphabetic", "ideographic": "alphabetic", "bottom": "alphabetic"}
                 text_baseline = text_baselines.get(command_args[0], "alphabetic")
             elif command_id == "strokeStyle":
                 stroke_style, stroke_opacity = parse_color(command_args[0])

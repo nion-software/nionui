@@ -255,12 +255,12 @@ class DrawingContext:
         line_cap = "square"
         line_join = "bevel"
         line_width = 1.0
-        line_dash: typing.Optional[int] = None
+        line_dash: typing.Optional[float] = None
         text_anchor = "start"
         text_baseline = "alphabetic"
         font_style: typing.Optional[str] = None
         font_weight: typing.Optional[str] = None
-        font_size: typing.Optional[int] = None
+        font_size_str: typing.Optional[str] = None
         font_unit: typing.Optional[str] = None
         font_family: typing.Optional[str] = None
         # Python 3.9+: collections.deque[typing.Dict[str, typing.Any]]
@@ -294,7 +294,7 @@ class DrawingContext:
                 context["line_dash"] = line_dash
                 context["font_style"] = font_style
                 context["font_weight"] = font_weight
-                context["font_size"] = font_size
+                context["font_size_str"] = font_size_str
                 context["font_unit"] = font_unit
                 context["font_family"] = font_family
                 context["text_anchor"] = text_anchor
@@ -311,7 +311,7 @@ class DrawingContext:
                 fill_opacity = context["fill_opacity"]
                 font_style = context["font_style"]
                 font_weight = context["font_weight"]
-                font_size = context["font_size"]
+                font_size_str = context["font_size_str"]
                 font_unit = context["font_unit"]
                 font_family = context["font_family"]
                 text_anchor = context["text_anchor"]
@@ -423,8 +423,8 @@ class DrawingContext:
                     font_str += " font-style='{0}'".format(font_style)
                 if font_weight:
                     font_str += " font-weight='{0}'".format(font_weight)
-                if font_size:
-                    font_str += " font-size='{0}{1}'".format(font_size, font_unit)
+                if font_size_str:
+                    font_str += " font-size='{0}{1}'".format(font_size_str, font_unit)
                 if font_family:
                     font_str += " font-family='{0}'".format(font_family)
                 if fill_style:
@@ -446,19 +446,28 @@ class DrawingContext:
             elif command_id == "font":
                 font_style = None
                 font_weight = None
-                font_size = None
+                font_size_str = None
                 font_unit = None
                 font_family = None
+
+                def format_font_size_str(value: float, places: int = 2) -> str:
+                    s = f"{value:.{places}f}"
+                    if "." in s:
+                        s = s.rstrip("0").rstrip(".")
+                    if s in ("-0", ""):
+                        s = "0"
+                    return f"{s}"
+
                 for font_part in [s for s in command_args[0].split(" ") if s]:
                     if font_part == "italic":
                         font_style = "italic"
                     elif font_part == "bold":
                         font_weight = "bold"
-                    elif font_part.endswith("px") and int(font_part[0:-2]) > 0:
-                        font_size = int(font_part[0:-2])
+                    elif font_part.endswith("px") and float(font_part[0:-2]) > 0:
+                        font_size_str = format_font_size_str(float(font_part[0:-2]))
                         font_unit = "px"
-                    elif font_part.endswith("pt") and int(font_part[0:-2]) > 0:
-                        font_size = int(font_part[0:-2])
+                    elif font_part.endswith("pt") and float(font_part[0:-2]) > 0:
+                        font_size_str = format_font_size_str(float(font_part[0:-2]))
                         font_unit = "pt"
                     else:
                         font_family = font_part
@@ -677,7 +686,7 @@ class DrawingContext:
         self.commands.append(("fill", ))
         self.binary_commands.extend(b"fill")
 
-    def fill_text(self, text: str, x: float, y: float, max_width: typing.Optional[int] = None) -> None:
+    def fill_text(self, text: str, x: float, y: float, max_width: typing.Optional[float] = None) -> None:
         text = str(text) if text is not None else str()
         self.commands.append(("fillText", text, float(x), float(y), float(max_width) if max_width else 0))
         text_encoded = text.encode("utf-8")
@@ -771,11 +780,11 @@ class DrawingContext:
         self.binary_commands.extend(struct.pack("4sf", b"linw", float(a)))
 
     @property
-    def line_dash(self) -> typing.Optional[int]:
+    def line_dash(self) -> typing.Optional[float]:
         raise NotImplementedError()
 
     @line_dash.setter
-    def line_dash(self, a: typing.Optional[int]) -> None:
+    def line_dash(self, a: typing.Optional[float]) -> None:
         """Set the line dash. Takes a single value with the length of the dash."""
         assert a is not None
         self.commands.append(("lineDash", float(a)))

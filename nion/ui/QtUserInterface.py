@@ -2437,7 +2437,21 @@ class QtUserInterface(UserInterface.UserInterface):
         return image_array
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterface.FontMetrics:
-        return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font_str, text)))
+        # font_str may have fractional fonts; but Core_getFontMetrics only supports integer font sizes.
+        # Round any fractional px/pt size to nearest integer.
+        def round_font_size(fs: str) -> str:
+            def round_size(part: str) -> str:
+                for suffix in ("px", "pt"):
+                    if part.endswith(suffix):
+                        try:
+                            return f"{round(float(part[:-len(suffix)]))}{suffix}"
+                        except ValueError:
+                            pass
+                return part
+            return " ".join(round_size(part) for part in fs.split())
+
+        rounded_font_str = round_font_size(font_str)
+        return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(rounded_font_str, text)))
 
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
         if self.proxy.has_method("Core_truncateToWidth"):

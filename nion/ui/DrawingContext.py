@@ -450,24 +450,16 @@ class DrawingContext:
                 font_unit = None
                 font_family = None
 
-                def format_font_size_str(value: float, places: int = 2) -> str:
-                    s = f"{value:.{places}f}"
-                    if "." in s:
-                        s = s.rstrip("0").rstrip(".")
-                    if s in ("-0", ""):
-                        s = "0"
-                    return f"{s}"
-
                 for font_part in [s for s in command_args[0].split(" ") if s]:
                     if font_part == "italic":
                         font_style = "italic"
                     elif font_part == "bold":
                         font_weight = "bold"
                     elif font_part.endswith("px") and float(font_part[0:-2]) > 0:
-                        font_size_str = format_font_size_str(float(font_part[0:-2]))
+                        font_size_str = f"{float(font_part[0:-2]):.2f}".rstrip("0").rstrip(".")
                         font_unit = "px"
                     elif font_part.endswith("pt") and float(font_part[0:-2]) > 0:
-                        font_size_str = format_font_size_str(float(font_part[0:-2]))
+                        font_size_str = f"{float(font_part[0:-2]):.2f}".rstrip("0").rstrip(".")
                         font_unit = "pt"
                     else:
                         font_family = font_part

@@ -2088,8 +2088,12 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         stack_widget = ui.create_stack_widget()
         super().__init__(stack_widget)
 
+        # the closer calls close method and _closer.close if either exist.
+        # use it for the ui_handler so it covers both cases.
+        self.__closer = Closer()
+
         # save the ui_handler so it can be closed.
-        self.__ui_handler = ui_handler
+        self.__closer.push_closeable(ui_handler)
 
         # construct the widget.
         widget = construct_widget(ui, event_loop, ui_handler)
@@ -2098,5 +2102,5 @@ class DeclarativeWidget(Widgets.CompositeWidgetBase):
         stack_widget.add(widget)
 
     def close(self) -> None:
-        self.__ui_handler.close()
+        self.__closer.close()
         super().close()

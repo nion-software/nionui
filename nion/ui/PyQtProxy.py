@@ -1916,11 +1916,16 @@ class PyCanvas(QtWidgets.QWidget):
         self.__sections: typing.Dict[int, PyCanvas.CanvasSection] = dict()
         self.__last_pos = QtCore.QPoint()
         self.__grab_reference_point = QtCore.QPoint()
+        # set while the canvas itself is being torn down (see Widget_removeWidget). guards
+        # against an in-flight render task resurrecting/touching a section after the widget
+        # has begun closing. mirrors nionui-tool's PyCanvas::m_closing.
+        self.__closing = False
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
 
     def repaint_rect(self, rect: QtCore.QRect) -> None:
-        self.update(rect)
+        if not self.__closing:
+            self.update(rect)
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -1943,12 +1948,15 @@ class PyCanvas(QtWidgets.QWidget):
     def render_one(self) -> typing.Optional[QtCore.QRect]:
         rect = None
         with QtCore.QMutexLocker(self.__commands_mutex):
-            sections = list(self.__sections.values())
+            # do not consider any sections for rendering if the canvas itself is closing;
+            # sections may still be present in __sections until removeSection is called for
+            # each of them, so this check is needed in addition to each section's own flag.
+            sections = list(self.__sections.values()) if not self.__closing else []
         next_section = None
         for section in sections:
             with QtCore.QMutexLocker(section.mutex):
                 # first check whether the section can be rendered (not rendering already and has commands to render)
-                if not section.rendering and section.commands:
+                if not section.rendering and not section.closing and section.commands:
                     # next check whether it is earlier than the current next_section
                     # if so, make this the new next section
                     if next_section is None or section.time < next_section.time:
@@ -1956,8 +1964,10 @@ class PyCanvas(QtWidgets.QWidget):
         if next_section:
             with QtCore.QMutexLocker(next_section.mutex):
                 # mark this section as being rendered, but check to make sure it's not being rendered
-                # on another thread (avoids race condition). also check to see if it was deleted.
-                if not next_section.rendering and next_section.commands:
+                # on another thread (avoids race condition). also check to see if it was deleted or
+                # is being closed (removeSection waits on section.rendering, so once this flag is set
+                # it is safe to proceed even if closing started concurrently).
+                if not next_section.rendering and not next_section.closing and next_section.commands:
                     next_section.rendering = True
                 else:
                     return None
@@ -1966,7 +1976,10 @@ class PyCanvas(QtWidgets.QWidget):
                 # mark this section as being finished. no race condition. just clear it and update the time.
                 next_section.rendering = False
                 next_section.time = time.perf_counter()
-            self.wakeRenderer()
+            # do not schedule further rendering or touch self if the canvas is closing; self
+            # may already be in the process of being deleted by Qt/PySide6.
+            if not self.__closing and not next_section.closing:
+                self.wakeRenderer()
         return rect
 
     def render_section(self, section) -> typing.Optional[QtCore.QRect]:
@@ -2221,6 +2234,10 @@ class PyCanvas(QtWidgets.QWidget):
             self.time = 0.0
             self.latencies_mutex = QtCore.QMutex()
             self.latencies: typing.List[int] = list()
+            # set by removeSection while waiting for an in-flight render to finish; once set,
+            # no new render task may be scheduled or started for this section. mirrors
+            # nionui-tool's CanvasSection::closing (see b12e61c/87cd69b).
+            self.closing = False
 
     def setCommands(self, commands: typing.List[CanvasDrawingCommand]) -> None:
         self.setSectionCommands(0, commands, 0, 0, self.width(), self.height())
@@ -2228,21 +2245,64 @@ class PyCanvas(QtWidgets.QWidget):
     def setSectionCommands(self, section_id: int, commands: typing.List[CanvasDrawingCommand], left: int, top: int, width: int, height: int) -> None:
         display_scaling = GetDisplayScaling()
         with QtCore.QMutexLocker(self.__commands_mutex):
+            # do not create/update a section if the canvas itself is closing (may be called
+            # from Python after Widget_removeWidget has begun tearing this canvas down).
+            if self.__closing:
+                return
             rect = QtCore.QRect(left * display_scaling, top * display_scaling, width * display_scaling, height * display_scaling)
             section = self.__sections.setdefault(section_id, PyCanvas.CanvasSection(section_id, commands, rect))
         with QtCore.QMutexLocker(section.mutex):
+            if section.closing:
+                return
             section.commands = commands
             section.rect = rect
         self.wakeRenderer()
 
     def wakeRenderer(self) -> None:
+        if self.__closing:
+            return
         task = PyCanvasRenderTask(self)
         task.signals.renderingReady.connect(self.repaint_rect)
         QtCore.QThreadPool.globalInstance().start(task)
 
     def removeSection(self, section_id: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):
+            section = self.__sections.get(section_id)
+        if section is None:
+            return
+        # mark the section as closing so render_one/setSectionCommands will not pick it up or
+        # restart rendering for it, then wait for any in-flight render on this section to
+        # finish before removing it, so a render task can never write into (or resurrect) a
+        # section object after it has been removed. mirrors nionui-tool's removeSection
+        # (see a176798/4011b55/b12e61c/87cd69b).
+        with QtCore.QMutexLocker(section.mutex):
+            section.closing = True
+        while True:
+            with QtCore.QMutexLocker(section.mutex):
+                if not section.rendering:
+                    break
+            time.sleep(0.001)
+        with QtCore.QMutexLocker(self.__commands_mutex):
             self.__sections.pop(section_id, None)
+
+    def shutdown_rendering(self) -> None:
+        # called from Widget_removeWidget before the underlying QWidget is torn down. blocks
+        # until no section is currently rendering, so no PyCanvasRenderTask can touch this
+        # canvas (or its sections) after the C++/PySide6 widget object is deleted. mirrors
+        # nionui-tool's PyCanvas::~PyCanvas().
+        self.__closing = True
+        while True:
+            with QtCore.QMutexLocker(self.__commands_mutex):
+                sections = list(self.__sections.values())
+            is_rendering = False
+            for section in sections:
+                with QtCore.QMutexLocker(section.mutex):
+                    if section.rendering:
+                        is_rendering = True
+                        break
+            if not is_rendering:
+                break
+            time.sleep(0.001)
 
     def dragEnterEvent(self, event: QtGui.QDragEnterEvent) -> None:
         if self.object:
@@ -4143,6 +4203,12 @@ class PyQtProxy:
         # the GIL here until the render thread finishes and this object
         # has been deleted.
         # Python_ThreadAllow thread_allow
+        if isinstance(widget, PyCanvas):
+            # block until no PyCanvasRenderTask is in flight for this canvas, so no task can
+            # touch the widget (or its sections) after it is deleted below. see
+            # PyCanvas.shutdown_rendering. time.sleep() below releases the GIL, so this does
+            # not block the render thread from finishing (it may need the GIL to complete).
+            widget.shutdown_rendering()
         widget.setParent(None)
 
     def Widget_setAttributes(self, widget: QtWidgets.QWidget, attributes: typing.Sequence[str]) -> None:

@@ -2380,7 +2380,7 @@ class PyCanvas(QtWidgets.QWidget):
             elif action == "accept":
                 event.accept()
             else:
-                super().dragMoveEvent(event)
+                event.ignore()
         else:
             super().dragMoveEvent(event)
 

@@ -2094,6 +2094,11 @@ class PyCanvas(QtWidgets.QWidget):
             painter.end()
 
     def event(self, event: QtCore.QEvent) -> bool:
+        if event.type() == QtCore.QEvent.KeyPress:
+            key_event = event
+            if key_event.key() == QtCore.Qt.Key_Tab or key_event.key() == QtCore.Qt.Key_Backtab:
+                self.keyPressEvent(key_event)
+                return True
         if event.type() == QtCore.QEvent.Gesture:
             gesture_event = event
             pan_gesture = gesture_event.gesture(QtCore.Qt.PanGesture)

@@ -2823,6 +2823,10 @@ class PyQtProxy:
     def Core_getQtVersion(self) -> str:
         return QtCore.qVersion()
 
+    def Core_getBuildVersion(self) -> typing.Dict[str, str]:
+        # no build-time git info is available in the pure Python path.
+        return dict()
+
     def Core_getLocation(self, location_id: str) -> str:
         location = QtCore.QStandardPaths.DocumentsLocation
         if location_id == "data":

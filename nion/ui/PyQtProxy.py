@@ -1350,10 +1350,10 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
                 font.setWeight(QtGui.QFont.Medium)
             elif font_part == "system":
                 font.setStyleHint(QtGui.QFont.System)
-            elif font_part.endswith("pt") and int(font_part[:-2]) > 0:
-                font.setPointSizeF(int(font_part[:-2]) * display_scaling)
-            elif font_part.endswith("px") and int(font_part[:-2]) > 0:
-                font.setPixelSize(int(int(font_part[:-2]) * display_scaling))
+            elif font_part.endswith("pt") and float(font_part[:-2]) > 0:
+                font.setPointSizeF(float(font_part[:-2]) * display_scaling)
+            elif font_part.endswith("px") and float(font_part[:-2]) > 0:
+                font.setPixelSize(int(float(font_part[:-2]) * display_scaling))
             else:
                 is_family = True
         if is_family:
@@ -1753,7 +1753,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "fillText" or cmd == "strokeText":
             text = args[0]
             text_pos = QtCore.QPointF(args[1] * display_scaling, args[2] * display_scaling)
-            fm = QtGui.QFontMetrics(text_font)
+            fm = QtGui.QFontMetricsF(text_font)
             text_width = fm.horizontalAdvance(text)
             if text_align == 2 or text_align == 5:  # end or right
                 text_pos.setX(text_pos.x() - text_width)
@@ -1847,7 +1847,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             date_time.setTimeSpec(QtCore.Qt.UTC)
             text_pos = QtCore.QPointF(12, 12)
             text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
-            fm = QtGui.QFontMetrics(text_font)
+            fm = QtGui.QFontMetricsF(text_font)
             text_width = fm.horizontalAdvance(text)
             text_ascent = fm.ascent()
             text_height = fm.height()
@@ -2076,7 +2076,7 @@ class PyCanvas(QtWidgets.QWidget):
                     if latency_average > 0:
                         text += ": " + f"{latency_average:0.3f}" + " ± " + f"{latency_std_dev:0.3f}" + "[" + f"{latency_min:0.3f}" + " - " + f"{latency_max:0.3f}" + "]"
                     text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
-                    fm = QtGui.QFontMetrics(text_font)
+                    fm = QtGui.QFontMetricsF(text_font)
                     text_width = fm.horizontalAdvance(text)
                     text_ascent = fm.ascent()
                     text_height = fm.height()
@@ -2818,11 +2818,11 @@ class PyQtProxy:
         assert combobox is not None
         combobox.setCurrentText(text)
 
-    def Core_getFontMetrics(self, font_str: str, text: str) -> typing.Tuple[int, int, int, int, int]:
+    def Core_getFontMetrics(self, font_str: str, text: str) -> typing.Tuple[float, float, float, float, float]:
         text = text if text else str()
         display_scaling = GetDisplayScaling()
         font = ParseFontString(font_str, display_scaling)
-        font_metrics = QtGui.QFontMetrics(font)
+        font_metrics = QtGui.QFontMetricsF(font)
         return font_metrics.horizontalAdvance(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
 
     def Core_getQtVersion(self) -> str:
@@ -2880,7 +2880,7 @@ class PyQtProxy:
         text = text if text else str()
         display_scaling = GetDisplayScaling()
         font = ParseFontString(font_str, display_scaling)
-        font_metrics = QtGui.QFontMetrics(font)
+        font_metrics = QtGui.QFontMetricsF(font)
         mapping = {
             0: QtCore.Qt.ElideLeft,
             1: QtCore.Qt.ElideRight,
@@ -2888,6 +2888,9 @@ class PyQtProxy:
             3: QtCore.Qt.ElideNone
         }
         return font_metrics.elidedText(text, mapping[mode], pixel_width)
+
+    def Core_truncateToWidthF(self, font_str: str, text: str, pixel_width: float, mode: int) -> str:
+        return self.Core_truncateToWidth(font_str, text, pixel_width, mode)
 
     def Core_URLToPath(self, url: str) -> str:
         qurl = QtCore.QUrl(url)

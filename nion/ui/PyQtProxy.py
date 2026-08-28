@@ -3284,10 +3284,8 @@ class PyQtProxy:
         global app
         assert app.thread() == QtCore.QThread.currentThread()
         assert label is not None
-        palette = label.palette()
-        palette.setColor(QtGui.QPalette.Text, QtGui.QColor(r, g, b))
-        palette.setColor(label.foregroundRole(), QtGui.QColor(r, g, b))
-        label.setPalette(palette)
+        # Qt color handling is an absolute mess. Set color using stylesheet as it seems more reliable than the palette.
+        label.setStyleSheet("QLabel { color: " + QtGui.QColor(r, g, b).name() + "; }")
 
     def Label_setTextFont(self, label: QtWidgets.QLabel, font_str: str) -> None:
         global app

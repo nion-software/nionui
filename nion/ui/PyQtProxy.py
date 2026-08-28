@@ -180,6 +180,10 @@ class PyApplication(QtWidgets.QApplication):
     def __init__(self, application, args):
         super().__init__(args)
         self.application = application
+        # use old style until Qt has sensible text field width defaults on Windows 11.
+        # see https://github.com/nion-software/nion-instrumentation/issues/421
+        if sys.platform == "win32":
+            self.setStyle("windowsvista")
         global g_timer
         if g_timer is None:
             g_timer = QtCore.QElapsedTimer()

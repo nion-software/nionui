@@ -622,6 +622,24 @@ class PyLineEdit(QtWidgets.QLineEdit):
                         traceback.print_exc()
         super().keyPressEvent(key_event)
 
+    def focusInEvent(self, event) -> None:
+        if self.object:
+            try:
+                self.object.focusIn()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        super().focusInEvent(event)
+
+    def focusOutEvent(self, event) -> None:
+        if self.object:
+            try:
+                self.object.focusOut()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+        super().focusOutEvent(event)
+
 
 class PyTextBrowser(QtWidgets.QTextBrowser):
     def __init__(self) -> None:

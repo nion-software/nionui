@@ -16,6 +16,7 @@ import typing
 from PySide6 import QtCore
 from PySide6 import QtGui
 from PySide6 import QtWidgets
+import shiboken6
 from PySide6.QtCore import Signal, Slot
 
 if typing.TYPE_CHECKING:
@@ -4249,7 +4250,18 @@ class PyQtProxy:
             # PyCanvas.shutdown_rendering. time.sleep() below releases the GIL, so this does
             # not block the render thread from finishing (it may need the GIL to complete).
             widget.shutdown_rendering()
-        widget.setParent(None)
+        # explicitly and synchronously delete the underlying C++ widget here, mirroring
+        # nionui-tool's "delete widget" in Widget_removeWidget. relying on setParent(None)
+        # plus Python refcounting to eventually delete the widget is not sufficient: Qt may
+        # already have posted events (e.g. paint events) queued for this widget, and those
+        # will still be delivered by a later sendPostedEvents() unless the widget's C++
+        # destructor runs now (which removes any of its pending posted events from the
+        # queue). deferring deletion (e.g. via deleteLater) would have the same problem,
+        # since it only schedules a future deletion rather than removing already-posted
+        # events immediately. an explicit, synchronous shiboken6.delete() avoids the crash
+        # where a stale posted paint event is dispatched to an already/partially torn down
+        # widget.
+        shiboken6.delete(widget)
 
     def Widget_setAttributes(self, widget: QtWidgets.QWidget, attributes: typing.Sequence[str]) -> None:
         global app

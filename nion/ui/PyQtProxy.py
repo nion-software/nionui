@@ -1770,17 +1770,27 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 text_pos.setY(text_pos.y())
             elif text_baseline == 5:  # bottom
                 text_pos.setY(text_pos.y() + fm.ascent() - fm.height())
-            path = QtGui.QPainterPath()
-            path.addText(text_pos, text_font, text)
+            # use a separate local variable for the text glyph outline rather than reassigning
+            # the outer `path` (which is shared with beginPath/moveTo/lineTo/rect/fill/stroke/clip
+            # for the rest of this function). in nionui-tool's PaintBinaryCommands, the equivalent
+            # QPainterPath is declared inside the case block, which shadows (and thus does not
+            # clobber) the outer path. python has no block scoping, so reusing the name `path`
+            # here would silently corrupt the outer path for the remainder of the command stream:
+            # any later "fill"/"stroke" command (e.g. for an unrelated sibling canvas item, drawn
+            # with a different transform) would re-fill/re-stroke this stale text glyph outline
+            # instead of its own intended path, producing duplicate/smudged text at the wrong
+            # location.
+            text_path = QtGui.QPainterPath()
+            text_path.addText(text_pos, text_font, text)
             if cmd == "fillText":
                 brush = QtGui.QBrush(gradients[fill_gradient]) if fill_gradient >= 0 else QtGui.QBrush(fill_color)
-                painter.fillPath(path, brush)
+                painter.fillPath(text_path, brush)
             else:
                 pen = QtGui.QPen(line_color)
                 pen.setWidth(int(line_width * display_scaling))
                 pen.setJoinStyle(line_join)
                 pen.setCapStyle(line_cap)
-                painter.strokePath(path, pen)
+                painter.strokePath(text_path, pen)
         elif cmd == "font":
             text_font = ParseFontString(args[0], display_scaling)
         elif cmd == "textAlign":
@@ -1855,9 +1865,12 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             background = QtGui.QPainterPath()
             background.addRect(text_pos.x() - 4, text_pos.y() - 4, text_width + 8, text_height + 8)
             painter.fillPath(background, QtCore.Qt.GlobalColor.white)
-            path = QtGui.QPainterPath()
-            path.addText(text_pos.x(), text_pos.y() + text_ascent, text_font, text)
-            painter.fillPath(path, QtCore.Qt.GlobalColor.black)
+            # use a separate local variable; see the identical comment in the fillText/strokeText
+            # branch above about why reusing the outer `path` here would corrupt it for the rest
+            # of the command stream.
+            text_path = QtGui.QPainterPath()
+            text_path.addText(text_pos.x(), text_pos.y() + text_ascent, text_font, text)
+            painter.fillPath(text_path, QtCore.Qt.GlobalColor.black)
             painter.restore()
             transform = painter.transform()
             for p in reversed(painter_stack):

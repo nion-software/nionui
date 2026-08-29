@@ -1973,6 +1973,7 @@ def MeasurementsTextF(stats: typing.Optional[typing.Tuple[float, float, float, f
 class PyCanvasRenderTaskSignals(QtCore.QObject):
 
     renderingReady = Signal(QtCore.QRect)
+    taskFinished = Signal(object)
 
 
 class PyCanvasRenderTask(QtCore.QRunnable):
@@ -1980,6 +1981,16 @@ class PyCanvasRenderTask(QtCore.QRunnable):
     def __init__(self, canvas: "PyCanvas"):
         super().__init__()
         self.__canvas = canvas
+        # the default QRunnable auto-delete deletes the C++ (and therefore Python) object
+        # from whichever thread QThreadPoolThread happens to finish run() on -- i.e. the worker
+        # thread, not the GUI thread that created this task. Deallocating a Python object (with
+        # its associated weakref/GC bookkeeping) from a non-GIL-owning/non-creating thread is
+        # unsafe with shiboken6/PySide6 and was observed to cause intermittent SIGSEGV crashes (in
+        # subtype_dealloc / clear_weakref_lock_held, called directly from the QRunnable::run()
+        # return path) especially under heavy repaint load. Disable auto-delete here and instead
+        # let the canvas (GUI thread) release its reference to this task once finished, via the
+        # taskFinished signal below -- so the task is only ever destroyed on the GUI thread.
+        self.setAutoDelete(False)
 
     def run(self):
         # this method is a QRunnable virtual override invoked directly by C++ (via
@@ -1995,6 +2006,11 @@ class PyCanvasRenderTask(QtCore.QRunnable):
         except Exception:
             import traceback
             traceback.print_exc()
+        finally:
+            # always signal completion (even on exception) so the GUI thread can drop its
+            # reference to this task; see the comment in __init__ for why this must not
+            # happen via auto-delete on this (worker) thread.
+            self.__canvas.signals.taskFinished.emit(self)
 
 
 class PyCanvas(QtWidgets.QWidget):
@@ -2018,8 +2034,18 @@ class PyCanvas(QtWidgets.QWidget):
         # created it) is undefined behavior in Qt and was observed to crash intermittently.
         self.signals = PyCanvasRenderTaskSignals()
         self.signals.renderingReady.connect(self.repaint_rect)
+        # PyCanvasRenderTask.setAutoDelete(False) means these tasks are no longer destroyed by
+        # QThreadPool on the worker thread (see the comment in PyCanvasRenderTask.__init__).
+        # Instead each task is kept alive here (referenced from the GUI thread that created it)
+        # until it signals completion via taskFinished, at which point it is discarded -- so the
+        # only Python refcount drop/deallocation happens on the GUI thread.
+        self.__pending_tasks: typing.Set[PyCanvasRenderTask] = set()
+        self.signals.taskFinished.connect(self.__task_finished, QtCore.Qt.ConnectionType.QueuedConnection)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
+
+    def __task_finished(self, task: "PyCanvasRenderTask") -> None:
+        self.__pending_tasks.discard(task)
 
     def repaint_rect(self, rect: QtCore.QRect) -> None:
         if not self.__closing:
@@ -2404,6 +2430,10 @@ class PyCanvas(QtWidgets.QWidget):
         if self.__closing:
             return
         task = PyCanvasRenderTask(self)
+        # keep a strong reference until the task signals completion (see __init__/__task_finished);
+        # otherwise this would be the only reference and it would be dropped as soon as this method
+        # returns, deallocating the task while it may still be running on the worker thread.
+        self.__pending_tasks.add(task)
         QtCore.QThreadPool.globalInstance().start(task)
 
     def removeSection(self, section_id: int) -> None:

@@ -1473,13 +1473,14 @@ times_map: typing.Dict[str, typing.Any] = dict()
 count_map: typing.Dict[str, typing.Any] = dict()
 
 
-RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "timestamp", "section_id"])
+RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "timestamp_ns", "section_id", "elapsed_ns", "text"])
 
 
 def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand],
                   image_cache: typing.MutableMapping[int, PaintImageCacheEntry], display_scaling: float = 1.0, *,
                   layer_cache: typing.MutableMapping[int, LayerCacheEntry] = None,
-                  section_id: int = 0) -> typing.List[RenderedTimestamp]:
+                  section_id: int = 0,
+                  last_rendered_timestamps: typing.Optional[typing.List["RenderedTimestamp"]] = None) -> typing.List[RenderedTimestamp]:
     global timer_map
     global times_map
     global count_map
@@ -1852,30 +1853,30 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "message":
             print(args[0])
         elif cmd == "timestamp":
+            # nionui-tool's "time" command: the argument is either a raw monotonic nanosecond
+            # timestamp (as a decimal string, always much longer than 4 characters) or the
+            # sentinel "last" (exactly 4 characters) meaning "reuse whatever timestamp/elapsed
+            # time this section last recorded". this command never draws anything itself --
+            # unlike the previous (incorrect) implementation here, which mis-parsed the argument
+            # as an ISO date-time string (always failing, since it is actually a nanosecond
+            # integer or "last") and then drew a bogus overlay inline. the actual frame-rate/
+            # latency overlay is computed and drawn later, in paintEvent, using the transform
+            # recorded here together with a real elapsed-time measurement.
             text = args[0]
-            date_time = QtCore.QDateTime.fromString(text, QtCore.Qt.DateFormat.ISODateWithMs)
-            painter.save()
-            date_time.setTimeSpec(QtCore.Qt.TimeSpec.UTC)
-            text_pos = QtCore.QPointF(12, 12)
-            text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
-            fm = QtGui.QFontMetricsF(text_font)
-            text_width = fm.horizontalAdvance(text)
-            text_ascent = fm.ascent()
-            text_height = fm.height()
-            background = QtGui.QPainterPath()
-            background.addRect(text_pos.x() - 4, text_pos.y() - 4, text_width + 8, text_height + 8)
-            painter.fillPath(background, QtCore.Qt.GlobalColor.white)
-            # use a separate local variable; see the identical comment in the fillText/strokeText
-            # branch above about why reusing the outer `path` here would corrupt it for the rest
-            # of the command stream.
-            text_path = QtGui.QPainterPath()
-            text_path.addText(text_pos.x(), text_pos.y() + text_ascent, text_font, text)
-            painter.fillPath(text_path, QtCore.Qt.GlobalColor.black)
-            painter.restore()
+            timestamp_ns = 0
+            elapsed_ns = 0
+            if len(text) > 4:
+                timestamp_ns = int(text)
+            else:
+                for last_rendered_timestamp in (last_rendered_timestamps or ()):
+                    if last_rendered_timestamp.section_id == section_id:
+                        timestamp_ns = last_rendered_timestamp.timestamp_ns
+                        elapsed_ns = last_rendered_timestamp.elapsed_ns
+                        text = last_rendered_timestamp.text
             transform = painter.transform()
             for p in reversed(painter_stack):
                 transform = p.transform() * transform
-            rendered_timestamps.append(RenderedTimestamp(transform, date_time, section_id))
+            rendered_timestamps.append(RenderedTimestamp(transform, timestamp_ns, section_id, elapsed_ns, text))
         elif cmd == "begin_layer":
             layer_id = int(args[0])
             layer_seed = int(args[1])
@@ -1922,6 +1923,51 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 del layer_cache[layer_id]
 
     return rendered_timestamps
+
+
+def Measurements(values: typing.Sequence[float]) -> typing.Optional[typing.Tuple[float, float, float, float]]:
+    """Return (average, std_dev, minimum, maximum) over `values` after discarding roughly the
+    top/bottom 10% as outliers (alternating from each end), matching nionui-tool's Measurements
+    helper (see DocumentWindow.cpp). Returns None if there are no values left to measure.
+    """
+    sorted_values = sorted(values)
+    discard = len(sorted_values) // 10
+    while discard > 0 and sorted_values:
+        sorted_values.pop(0)
+        discard -= 1
+        if discard > 0 and sorted_values:
+            sorted_values.pop()
+            discard -= 1
+    if not sorted_values:
+        return None
+    average = sum(sorted_values) / len(sorted_values)
+    minimum = min(sorted_values)
+    maximum = max(sorted_values)
+    sum_of_squares = sum((value - average) ** 2 for value in sorted_values)
+    std_dev = math.sqrt(sum_of_squares / len(sorted_values))
+    return average, std_dev, minimum, maximum
+
+
+def MeasurementsText(stats: typing.Optional[typing.Tuple[float, float, float, float]]) -> str:
+    """Format nanosecond-valued stats (average, std_dev, minimum, maximum) as milliseconds,
+    matching nionui-tool's Measurements::text() (used for the latency overlay)."""
+    if stats is None:
+        return ""
+    average, std_dev, minimum, maximum = stats
+    if average > 0:
+        return f" {round(average / 1e6):3d} \u00b1 {std_dev / 1e6:4.1f} [{round(minimum / 1e6):3d}:{round(maximum / 1e6):3d}]"
+    return ""
+
+
+def MeasurementsTextF(stats: typing.Optional[typing.Tuple[float, float, float, float]]) -> str:
+    """Format already-in-final-units stats (average, std_dev, minimum, maximum), matching
+    nionui-tool's Measurements::textF() (used for the frame-rate overlay)."""
+    if stats is None:
+        return ""
+    average, std_dev, minimum, maximum = stats
+    if average > 0.0:
+        return f" {average:4.1f} \u00b1 {std_dev:4.1f} [{minimum:4.1f}:{maximum:4.1f}]"
+    return ""
 
 
 class PyCanvasRenderTaskSignals(QtCore.QObject):
@@ -2044,6 +2090,7 @@ class PyCanvas(QtWidgets.QWidget):
             commands = section.commands
             rect = section.rect
             section_id = section.section_id
+            last_rendered_timestamps = section.rendered_timestamps
             section.commands = None
             section.rect = None
         if commands and rect:
@@ -2053,7 +2100,7 @@ class PyCanvas(QtWidgets.QWidget):
             painter.begin(image)
             try:
                 painter.setRenderHints(DEFAULT_RENDER_HINTS)
-                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache, section_id=section_id)
+                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache, section_id=section_id, last_rendered_timestamps=last_rendered_timestamps)
             finally:
                 painter.end()
 
@@ -2064,7 +2111,13 @@ class PyCanvas(QtWidgets.QWidget):
                 for rendered_timestamp in rendered_timestamps:
                     transform = rendered_timestamp.transform
                     transform.translate(rect.left(), rect.top())
-                    section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp, rendered_timestamp.section_id))
+                    section.rendered_timestamps.append(RenderedTimestamp(transform, rendered_timestamp.timestamp_ns, rendered_timestamp.section_id, rendered_timestamp.elapsed_ns, rendered_timestamp.text))
+                # mirrors nionui-tool's RenderResult::record_latency: a real render just
+                # happened (there were commands to render), so paintEvent should add exactly
+                # one new latency/frame-rate sample for this section the next time it runs,
+                # rather than adding a sample on every repaint regardless of whether a new
+                # frame was actually rendered.
+                section.record_latency = True
         return rect
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
@@ -2073,58 +2126,76 @@ class PyCanvas(QtWidgets.QWidget):
         try:
             with QtCore.QMutexLocker(self.__commands_mutex):
                 sections = list(self.__sections.values())
+            # (line, text, world_transform) entries to draw once outside the per-section
+            # bookkeeping below (mirrors nionui-tool's drawnTexts list in PyCanvas::paintEvent).
+            drawn_texts: typing.List[typing.Tuple[int, str, QtGui.QTransform]] = list()
+            current_time_ns = time.perf_counter_ns()
             for section in sections:
                 with QtCore.QMutexLocker(section.mutex):
                     image = section.image
                     image_rect = section.image_rect
-                    rendered_timestamps = section.rendered_timestamps
-                if image and image_rect.intersects(event.rect()):
+                    rendered_timestamps = list(section.rendered_timestamps)
+                if image and image_rect and image_rect.intersects(event.rect()):
                     painter.drawImage(image_rect.topLeft(), image)
 
+                # fill in elapsed_ns (render-to-first-paint latency) the first time each
+                # rendered_timestamp is seen by a paint event, then remember it (mirrors
+                # nionui-tool: "if (!rendered_timestamp.elapsed_ns) elapsed_ns = current_time_ns
+                # - timestamp_ns") so the measurement reflects the actual latency from render
+                # to the first paint, not an ever-growing value across repeated repaints.
+                updated_rendered_timestamps = list()
                 for rendered_timestamp in rendered_timestamps:
-                    painter.save()
-                    painter.setRenderHints(DEFAULT_RENDER_HINTS)
-                    dt = rendered_timestamp.timestamp
-                    millisecondsDiff = dt.msecsTo(QtCore.QDateTime.currentDateTimeUtc())
-                    latency_min = 1000
-                    latency_average = 0
-                    latency_max = 0
-                    latency_std_dev = 0
-                    if rendered_timestamp.section_id > 0:
-                        with QtCore.QMutexLocker(self.__commands_mutex):
-                            section = self.__sections[rendered_timestamp.section_id]
-                        with QtCore.QMutexLocker(section.latencies_mutex):
-                            section.latencies.append(millisecondsDiff)
-                            if len(section.latencies) > 100:
-                                section.latencies.pop(0)
-                            for latency in section.latencies:
-                                latency_average += latency
-                                latency_min = min(latency_min, latency)
-                                latency_max = max(latency_max, latency)
-                            latency_average_f = latency_average / len(section.latencies)
-                            latency_average //= len(section.latencies)
-                            sum_of_squares = 0
-                            for latency in section.latencies:
-                                sum_of_squares += (latency - latency_average_f) * (latency - latency_average_f)
-                            latency_std_dev = math.sqrt(sum_of_squares / len(section.latencies))
-                    text = "Latency " + f"{millisecondsDiff:0.4f}"
-                    if latency_average > 0:
-                        text += ": " + f"{latency_average:0.3f}" + " ± " + f"{latency_std_dev:0.3f}" + "[" + f"{latency_min:0.3f}" + " - " + f"{latency_max:0.3f}" + "]"
-                    text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
-                    fm = QtGui.QFontMetricsF(text_font)
-                    text_width = fm.horizontalAdvance(text)
-                    text_ascent = fm.ascent()
-                    text_height = fm.height()
-                    text_pos = QtCore.QPointF(12, 12 + text_height + 16)
-                    world_transform = rendered_timestamp.transform
-                    painter.setWorldTransform(world_transform)
-                    background = QtGui.QPainterPath()
-                    background.addRect(text_pos.x() - 4, text_pos.y() - 4, text_width + 8, text_height + 8)
-                    painter.fillPath(background, QtCore.Qt.GlobalColor.white)
-                    path = QtGui.QPainterPath()
-                    path.addText(text_pos.x(), text_pos.y() + text_ascent, text_font, text)
-                    painter.fillPath(path, QtCore.Qt.GlobalColor.black)
-                    painter.restore()
+                    if not rendered_timestamp.elapsed_ns and rendered_timestamp.section_id > 0:
+                        rendered_timestamp = rendered_timestamp._replace(elapsed_ns=current_time_ns - rendered_timestamp.timestamp_ns)
+                    updated_rendered_timestamps.append(rendered_timestamp)
+                with QtCore.QMutexLocker(section.mutex):
+                    section.rendered_timestamps = updated_rendered_timestamps
+
+                for rendered_timestamp in updated_rendered_timestamps:
+                    if rendered_timestamp.section_id <= 0:
+                        continue
+                    with QtCore.QMutexLocker(section.latencies_mutex):
+                        # add exactly one new sample per real render (see
+                        # CanvasSection.record_latency / render_section), not one per repaint.
+                        if section.record_latency:
+                            section.latencies_ns.append(rendered_timestamp.elapsed_ns)
+                            section.timestamps_ns.append(rendered_timestamp.timestamp_ns)
+                            section.record_latency = False
+                        latencies_ns = list(section.latencies_ns)
+                        timestamps_ns = list(section.timestamps_ns)
+
+                    frame_rates = list()
+                    for i in range(len(timestamps_ns) - 1):
+                        delta_ns = timestamps_ns[i + 1] - timestamps_ns[i]
+                        if delta_ns > 0:
+                            frame_rates.append(1.0e9 / delta_ns)
+
+                    latency_text = "Latency " + f"{round(rendered_timestamp.elapsed_ns / 1e6):4d}" + MeasurementsText(Measurements(latencies_ns))
+                    frame_rate_text = "Frame Rate" + MeasurementsTextF(Measurements(frame_rates))
+
+                    drawn_texts.append((0, frame_rate_text, rendered_timestamp.transform))
+                    drawn_texts.append((1, latency_text, rendered_timestamp.transform))
+
+            for line, text, world_transform in drawn_texts:
+                painter.save()
+                painter.setRenderHints(DEFAULT_RENDER_HINTS)
+                text_font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+                fm = QtGui.QFontMetricsF(text_font)
+                text_width = fm.horizontalAdvance(text)
+                text_ascent = fm.ascent()
+                text_height = fm.height()
+                text_pos = QtCore.QPointF(12, text_height + (text_height + 12) * line)
+                painter.setWorldTransform(world_transform)
+                background = QtGui.QPainterPath()
+                background.addRect(text_pos.x() - 4, text_pos.y() - 4, text_width + 8, text_height + 8)
+                painter.fillPath(background, QtCore.Qt.GlobalColor.white)
+                # use a separate local variable; see the identical comment in PaintCommands'
+                # fillText/strokeText branch about why reusing a shared `path` name would
+                # corrupt state for the rest of the loop.
+                text_path = QtGui.QPainterPath()
+                text_path.addText(text_pos.x(), text_pos.y() + text_ascent, text_font, text)
+                painter.fillPath(text_path, QtCore.Qt.GlobalColor.black)
+                painter.restore()
         finally:
             painter.end()
 
@@ -2294,8 +2365,17 @@ class PyCanvas(QtWidgets.QWidget):
             self.rendered_timestamps: typing.List[RenderedTimestamp] = list()
             self.rendering = False
             self.time = 0.0
+            # rolling history (most recent 40 samples, matching nionui-tool) used to compute the
+            # frame rate/latency overlay in paintEvent. latencies_ns holds render-to-first-paint
+            # elapsed times; timestamps_ns holds the raw per-frame timestamps (their consecutive
+            # deltas give the frame rate). record_latency is set (mirroring nionui-tool's
+            # RenderResult::record_latency) whenever a render actually produced new commands, so
+            # that paintEvent knows to add exactly one new sample per real render rather than
+            # once per repaint.
             self.latencies_mutex = QtCore.QMutex()
-            self.latencies: typing.List[int] = list()
+            self.latencies_ns: typing.Deque[int] = collections.deque(maxlen=40)
+            self.timestamps_ns: typing.Deque[int] = collections.deque(maxlen=40)
+            self.record_latency = False
             # set by removeSection while waiting for an in-flight render to finish; once set,
             # no new render task may be scheduled or started for this section. mirrors
             # nionui-tool's CanvasSection::closing (see b12e61c/87cd69b).

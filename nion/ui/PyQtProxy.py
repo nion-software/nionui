@@ -1920,12 +1920,11 @@ class PyCanvasRenderTask(QtCore.QRunnable):
     def __init__(self, canvas: "PyCanvas"):
         super().__init__()
         self.__canvas = canvas
-        self.signals = PyCanvasRenderTaskSignals()
 
     def run(self):
         repaint_rect = self.__canvas.render_one()
         if repaint_rect is not None:
-            self.signals.renderingReady.emit(repaint_rect)
+            self.__canvas.signals.renderingReady.emit(repaint_rect)
 
 
 class PyCanvas(QtWidgets.QWidget):
@@ -1942,6 +1941,13 @@ class PyCanvas(QtWidgets.QWidget):
         # against an in-flight render task resurrecting/touching a section after the widget
         # has begun closing. mirrors nionui-tool's PyCanvas::m_closing.
         self.__closing = False
+        # a single, long-lived signals object owned by (and living on the same thread as) this
+        # canvas. render tasks emit through this shared object rather than each creating and
+        # discarding their own QObject; letting a per-task QObject be torn down by QRunnable's
+        # auto-delete from the thread-pool worker thread (rather than the GUI thread that
+        # created it) is undefined behavior in Qt and was observed to crash intermittently.
+        self.signals = PyCanvasRenderTaskSignals()
+        self.signals.renderingReady.connect(self.repaint_rect)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
 
@@ -2289,7 +2295,6 @@ class PyCanvas(QtWidgets.QWidget):
         if self.__closing:
             return
         task = PyCanvasRenderTask(self)
-        task.signals.renderingReady.connect(self.repaint_rect)
         QtCore.QThreadPool.globalInstance().start(task)
 
     def removeSection(self, section_id: int) -> None:

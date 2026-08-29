@@ -1923,9 +1923,19 @@ class PyCanvasRenderTask(QtCore.QRunnable):
         self.__canvas = canvas
 
     def run(self):
-        repaint_rect = self.__canvas.render_one()
-        if repaint_rect is not None:
-            self.__canvas.signals.renderingReady.emit(repaint_rect)
+        # this method is a QRunnable virtual override invoked directly by C++ (via
+        # QThreadPool). Qt/PySide6 treats an exception escaping a virtual override as fatal
+        # and aborts the entire process, unlike a
+        # normal Python exception which would just print a traceback. so any exception here
+        # (e.g. from PaintCommands failing on bad/unexpected drawing commands) must be
+        # caught and logged rather than allowed to propagate.
+        try:
+            repaint_rect = self.__canvas.render_one()
+            if repaint_rect is not None:
+                self.__canvas.signals.renderingReady.emit(repaint_rect)
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
 
 class PyCanvas(QtWidgets.QWidget):
@@ -2000,11 +2010,16 @@ class PyCanvas(QtWidgets.QWidget):
                     next_section.rendering = True
                 else:
                     return None
-            rect = self.render_section(next_section)
-            with QtCore.QMutexLocker(next_section.mutex):
-                # mark this section as being finished. no race condition. just clear it and update the time.
-                next_section.rendering = False
-                next_section.time = time.perf_counter()
+            try:
+                rect = self.render_section(next_section)
+            finally:
+                # always clear the rendering flag, even if render_section raised, so a
+                # failed render doesn't permanently stall this section (it would never be
+                # considered for rendering again, since render_one skips sections whose
+                # `rendering` flag is stuck set).
+                with QtCore.QMutexLocker(next_section.mutex):
+                    next_section.rendering = False
+                    next_section.time = time.perf_counter()
             # do not schedule further rendering or touch self if the canvas is closing; self
             # may already be in the process of being deleted by Qt/PySide6.
             if not self.__closing and not next_section.closing:

@@ -29,6 +29,13 @@ lastVisitedDir = str()
 
 g_timer = None
 g_timer_offset_ns = 0
+# guards g_timer/g_timer_offset_ns and timer_map/times_map/count_map (defined below), all of
+# which are module-level dicts/state mutated by PaintCommands' "statistics"/"latency" debug
+# commands. PaintCommands runs concurrently on multiple QThreadPool worker threads (one per
+# canvas section being rendered), so unsynchronized access to this shared state is a real
+# cross-thread data race that can corrupt these dicts (observed to manifest later as
+# unrelated-looking heap corruption/crashes, e.g. crash6.txt).
+g_debug_stats_mutex = QtCore.QMutex()
 
 g_stylesheet = None
 
@@ -1477,7 +1484,7 @@ RenderedTimestamp = collections.namedtuple("RenderedTimestamp", ["transform", "t
 
 
 def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCommand],
-                  image_cache: typing.MutableMapping[int, PaintImageCacheEntry], display_scaling: float = 1.0, *,
+                  image_cache: typing.MutableMapping[int, PaintImageCacheEntry], display_scaling: typing.Optional[float] = None, *,
                   layer_cache: typing.MutableMapping[int, LayerCacheEntry] = None,
                   section_id: int = 0,
                   last_rendered_timestamps: typing.Optional[typing.List["RenderedTimestamp"]] = None) -> typing.List[RenderedTimestamp]:
@@ -1489,7 +1496,16 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
 
     rendered_timestamps: typing.List[RenderedTimestamp] = list()
 
-    display_scaling = GetDisplayScaling()
+    # display_scaling must be captured on the GUI thread and passed in explicitly when this
+    # function is called from a render worker thread (see PyCanvas.render_section /
+    # CanvasSection.display_scaling): GetDisplayScaling() calls
+    # app.primaryScreen().logicalDotsPerInch(), which touches GUI-thread-affine
+    # QGuiApplication/QScreen objects and is unsafe to call from a worker thread (observed to
+    # cause intermittent crashes/heap corruption under heavy repaint load, e.g. dragging a
+    # line plot's y-axis). only fall back to querying it here for GUI-thread-only callers that
+    # don't supply one.
+    if display_scaling is None:
+        display_scaling = GetDisplayScaling()
 
     path = QtGui.QPainterPath()
 
@@ -1654,31 +1670,35 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
         elif cmd == "statistics":
             label = args[0].strip()
 
-            timer = timer_map.setdefault(label, QtCore.QElapsedTimer())
-            times = times_map.setdefault(label, collections.deque(maxlen=50))
-            count_ref = count_map.setdefault(label, [0])
+            # timer_map/times_map/count_map are shared module-level state that can be mutated
+            # concurrently by PaintCommands running on multiple QThreadPool worker threads
+            # (one per rendering canvas section); guard all access with g_debug_stats_mutex.
+            with QtCore.QMutexLocker(g_debug_stats_mutex):
+                timer = timer_map.setdefault(label, QtCore.QElapsedTimer())
+                times = times_map.setdefault(label, collections.deque(maxlen=50))
+                count_ref = count_map.setdefault(label, [0])
 
-            if timer.isValid():
-                times.append(timer.elapsed() / 1000)
+                if timer.isValid():
+                    times.append(timer.elapsed() / 1000)
 
-                count_ref[0] += 1
-                if count_ref[0] == 50:
-                    sum = 0.0
-                    mn = 9999.0
-                    mx = 0.0
-                    for t in times:
-                        sum += t
-                        mn = min(mn, t)
-                        mx = max(mx, t)
-                    mean = sum / times.length()
-                    sum_of_squares = 0.0
-                    for t in times:
-                        sum_of_squares += (t - mean) * (t - mean)
-                    std_dev = math.sqrt(sum_of_squares / times.length())
-                    print(f"{label} fps {int(100 * (1.0 / mean))/100.0} mean {mean} dev {std_dev} min {mn} max {mx}")
-                    count_ref[0] = 0
+                    count_ref[0] += 1
+                    if count_ref[0] == 50:
+                        sum = 0.0
+                        mn = 9999.0
+                        mx = 0.0
+                        for t in times:
+                            sum += t
+                            mn = min(mn, t)
+                            mx = max(mx, t)
+                        mean = sum / len(times)
+                        sum_of_squares = 0.0
+                        for t in times:
+                            sum_of_squares += (t - mean) * (t - mean)
+                        std_dev = math.sqrt(sum_of_squares / len(times))
+                        print(f"{label} fps {int(100 * (1.0 / mean))/100.0} mean {mean} dev {std_dev} min {mn} max {mx}")
+                        count_ref[0] = 0
 
-            timer.restart()
+                timer.restart()
         elif cmd == "image":
             image_id = args[3]
 
@@ -1847,9 +1867,12 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
             duration = args[0] * 1000000
             QtCore.QThread.usleep(duration)
         elif cmd == "latency":
-            if g_timer is None:
-                g_timer = QtCore.QElapsedTimer()
-            print(f"Latency {g_timer.nsecsElapsed() - (args[0] * 1E9 - g_timer_offset_ns) / 1E6}ms")
+            # g_timer/g_timer_offset_ns are shared module-level state; guard with the same
+            # mutex as the "statistics" command above (see g_debug_stats_mutex).
+            with QtCore.QMutexLocker(g_debug_stats_mutex):
+                if g_timer is None:
+                    g_timer = QtCore.QElapsedTimer()
+                print(f"Latency {g_timer.nsecsElapsed() - (args[0] * 1E9 - g_timer_offset_ns) / 1E6}ms")
         elif cmd == "message":
             print(args[0])
         elif cmd == "timestamp":
@@ -2000,12 +2023,30 @@ class PyCanvasRenderTask(QtCore.QRunnable):
         # (e.g. from PaintCommands failing on bad/unexpected drawing commands) must be
         # caught and logged rather than allowed to propagate.
         try:
-            repaint_rect = self.__canvas.render_one()
-            if repaint_rect is not None:
-                self.__canvas.signals.renderingReady.emit(repaint_rect)
+            # loop rendering ready sections on this single task/worker thread until none
+            # remain, rather than having each render chain to a brand new task (the old
+            # per-call wakeRenderer() behavior). Spawning a fresh QRunnable for every single
+            # section render meant dozens of tasks could be alive concurrently across the
+            # thread pool under heavy repaint load (e.g. dragging a plot axis), all
+            # contending on the same section mutexes -- excessive task churn under load.
+            # Deduplicating to a single in-flight task per canvas (see wakeRenderer) and
+            # looping here until render_one finds nothing left to render mirrors
+            # nionui-tool's per-section single-in-flight-task design (see 26836ea/6343926).
+            while True:
+                found, repaint_rect = self.__canvas.render_one()
+                if repaint_rect is not None:
+                    self.__canvas.signals.renderingReady.emit(repaint_rect)
+                if found:
+                    continue
+                if not self.__canvas._keep_rendering():
+                    break
         except Exception:
             import traceback
             traceback.print_exc()
+            # an exception aborted the render loop before it could naturally settle
+            # __task_active via _keep_rendering(); clear it directly here so a future
+            # wakeRenderer() call isn't permanently blocked believing a task is still active.
+            self.__canvas._clear_task_active()
         finally:
             # always signal completion (even on exception) so the GUI thread can drop its
             # reference to this task; see the comment in __init__ for why this must not
@@ -2039,13 +2080,34 @@ class PyCanvas(QtWidgets.QWidget):
         # Instead each task is kept alive here (referenced from the GUI thread that created it)
         # until it signals completion via taskFinished, at which point it is discarded -- so the
         # only Python refcount drop/deallocation happens on the GUI thread.
+        # __pending_tasks is mutated both from the GUI thread (setSectionCommands ->
+        # wakeRenderer) and from a render worker thread's __task_active/__render_requested
+        # bookkeeping (see wakeRenderer/_keep_rendering) -- so it must be protected by a
+        # mutex; a bare Python set() mutated concurrently from two threads corrupts its
+        # internal hash table (observed to crash confusingly later, e.g. as garbled
+        # QMutexLocker/QRunnable argument-type errors or heap-corruption aborts, since the
+        # corruption is written on one thread and only crashes when read/resized on another).
         self.__pending_tasks: typing.Set[PyCanvasRenderTask] = set()
+        self.__pending_tasks_mutex = QtCore.QMutex()
+        # single-flight render task dedup, mirroring nionui-tool's per-section m_render_task
+        # check (see 26836ea/6343926): without this, every setSectionCommands() call (and
+        # every render_one() chaining call) used to spawn a brand new PyCanvasRenderTask, so
+        # under heavy repaint load (e.g. dragging an axis) dozens of tasks ran concurrently
+        # across the thread pool, all contending on the same section mutexes -- excessive
+        # task churn under load. Now at most one task is ever in flight for this canvas;
+        # __render_requested records that new work arrived (or may have arrived) since the
+        # running task last checked, so it is not lost if it arrives just as the task is
+        # about to decide there is nothing left to do. both fields are guarded by
+        # __pending_tasks_mutex.
+        self.__task_active = False
+        self.__render_requested = False
         self.signals.taskFinished.connect(self.__task_finished, QtCore.Qt.ConnectionType.QueuedConnection)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
 
     def __task_finished(self, task: "PyCanvasRenderTask") -> None:
-        self.__pending_tasks.discard(task)
+        with QtCore.QMutexLocker(self.__pending_tasks_mutex):
+            self.__pending_tasks.discard(task)
 
     def repaint_rect(self, rect: QtCore.QRect) -> None:
         if not self.__closing:
@@ -2069,7 +2131,13 @@ class PyCanvas(QtWidgets.QWidget):
                 traceback.print_exc()
         super().focusOutEvent(event)
 
-    def render_one(self) -> typing.Optional[QtCore.QRect]:
+    def render_one(self) -> typing.Tuple[bool, typing.Optional[QtCore.QRect]]:
+        # returns (found, rect): `found` indicates whether a ready section was actually
+        # rendered (regardless of whether painting produced a non-empty rect), so the caller
+        # (PyCanvasRenderTask.run's loop) knows whether to keep looping looking for more work
+        # or stop. this replaces the old design where this method itself scheduled the next
+        # render via a fresh wakeRenderer() call/task; now a single task loops here until
+        # nothing is left, see the comment on __task_active in __init__.
         rect = None
         with QtCore.QMutexLocker(self.__commands_mutex):
             # do not consider any sections for rendering if the canvas itself is closing;
@@ -2085,37 +2153,35 @@ class PyCanvas(QtWidgets.QWidget):
                     # if so, make this the new next section
                     if next_section is None or section.time < next_section.time:
                         next_section = section
-        if next_section:
+        if next_section is None:
+            return False, None
+        with QtCore.QMutexLocker(next_section.mutex):
+            # mark this section as being rendered, but check to make sure it's not being rendered
+            # on another thread (avoids race condition). also check to see if it was deleted or
+            # is being closed (removeSection waits on section.rendering, so once this flag is set
+            # it is safe to proceed even if closing started concurrently).
+            if not next_section.rendering and not next_section.closing and next_section.commands:
+                next_section.rendering = True
+            else:
+                return False, None
+        try:
+            rect = self.render_section(next_section)
+        finally:
+            # always clear the rendering flag, even if render_section raised, so a
+            # failed render doesn't permanently stall this section (it would never be
+            # considered for rendering again, since render_one skips sections whose
+            # `rendering` flag is stuck set).
             with QtCore.QMutexLocker(next_section.mutex):
-                # mark this section as being rendered, but check to make sure it's not being rendered
-                # on another thread (avoids race condition). also check to see if it was deleted or
-                # is being closed (removeSection waits on section.rendering, so once this flag is set
-                # it is safe to proceed even if closing started concurrently).
-                if not next_section.rendering and not next_section.closing and next_section.commands:
-                    next_section.rendering = True
-                else:
-                    return None
-            try:
-                rect = self.render_section(next_section)
-            finally:
-                # always clear the rendering flag, even if render_section raised, so a
-                # failed render doesn't permanently stall this section (it would never be
-                # considered for rendering again, since render_one skips sections whose
-                # `rendering` flag is stuck set).
-                with QtCore.QMutexLocker(next_section.mutex):
-                    next_section.rendering = False
-                    next_section.time = time.perf_counter()
-            # do not schedule further rendering or touch self if the canvas is closing; self
-            # may already be in the process of being deleted by Qt/PySide6.
-            if not self.__closing and not next_section.closing:
-                self.wakeRenderer()
-        return rect
+                next_section.rendering = False
+                next_section.time = time.perf_counter()
+        return True, rect
 
     def render_section(self, section) -> typing.Optional[QtCore.QRect]:
         with QtCore.QMutexLocker(section.mutex):
             commands = section.commands
             rect = section.rect
             section_id = section.section_id
+            display_scaling = section.display_scaling
             last_rendered_timestamps = section.rendered_timestamps
             section.commands = None
             section.rect = None
@@ -2126,7 +2192,7 @@ class PyCanvas(QtWidgets.QWidget):
             painter.begin(image)
             try:
                 painter.setRenderHints(DEFAULT_RENDER_HINTS)
-                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, layer_cache=section.layer_cache, section_id=section_id, last_rendered_timestamps=last_rendered_timestamps)
+                rendered_timestamps = PaintCommands(painter, commands, section.image_cache, display_scaling, layer_cache=section.layer_cache, section_id=section_id, last_rendered_timestamps=last_rendered_timestamps)
             finally:
                 painter.end()
 
@@ -2384,6 +2450,13 @@ class PyCanvas(QtWidgets.QWidget):
             self.mutex = QtCore.QMutex()
             self.commands = commands
             self.rect = rect
+            # display scaling captured on the GUI thread (see setSectionCommands) and carried
+            # through to PaintCommands from the render worker thread; PaintCommands must not
+            # re-query GetDisplayScaling() itself since that touches GUI-thread-affine
+            # QGuiApplication/QScreen APIs, which is unsafe from a worker thread even though
+            # PySide6/Qt objects used exclusively within one thread (e.g. QPainter/QImage on the
+            # render thread) are otherwise fine.
+            self.display_scaling = GetDisplayScaling()
             self.image_rect = None
             self.image = None
             self.image_cache: typing.Dict[int, PaintImageCacheEntry] = dict()
@@ -2424,17 +2497,48 @@ class PyCanvas(QtWidgets.QWidget):
                 return
             section.commands = commands
             section.rect = rect
+            section.display_scaling = display_scaling
         self.wakeRenderer()
 
     def wakeRenderer(self) -> None:
-        if self.__closing:
-            return
-        task = PyCanvasRenderTask(self)
-        # keep a strong reference until the task signals completion (see __init__/__task_finished);
-        # otherwise this would be the only reference and it would be dropped as soon as this method
-        # returns, deallocating the task while it may still be running on the worker thread.
-        self.__pending_tasks.add(task)
+        # dedup to a single in-flight PyCanvasRenderTask per canvas (see comment in
+        # __init__): if a task is already running, just flag that more work has arrived and
+        # let that task pick it up when it finishes its current pass, rather than starting a
+        # second concurrent task. called from both the GUI thread (setSectionCommands) and
+        # potentially other callers, so __pending_tasks_mutex guards this decision too.
+        with QtCore.QMutexLocker(self.__pending_tasks_mutex):
+            if self.__closing:
+                return
+            if self.__task_active:
+                self.__render_requested = True
+                return
+            self.__task_active = True
+            self.__render_requested = False
+            task = PyCanvasRenderTask(self)
+            # keep a strong reference until the task signals completion (see
+            # __init__/__task_finished); otherwise this would be the only reference and it
+            # would be dropped as soon as this method returns, deallocating the task while it
+            # may still be running on the worker thread.
+            self.__pending_tasks.add(task)
         QtCore.QThreadPool.globalInstance().start(task)
+
+    def _keep_rendering(self) -> bool:
+        # called by PyCanvasRenderTask.run() after render_one() reports no more ready
+        # sections. returns True if the task should loop and check again (because a
+        # setSectionCommands()/wakeRenderer() call arrived while this task was busy and
+        # might otherwise be lost), or False if the task should stop and clear the
+        # in-flight flag so a future wakeRenderer() call starts a fresh task.
+        with QtCore.QMutexLocker(self.__pending_tasks_mutex):
+            if self.__render_requested and not self.__closing:
+                self.__render_requested = False
+                return True
+            self.__task_active = False
+            return False
+
+    def _clear_task_active(self) -> None:
+        # see the comment where this is called in PyCanvasRenderTask.run()'s except clause.
+        with QtCore.QMutexLocker(self.__pending_tasks_mutex):
+            self.__task_active = False
 
     def removeSection(self, section_id: int) -> None:
         with QtCore.QMutexLocker(self.__commands_mutex):
@@ -2458,20 +2562,21 @@ class PyCanvas(QtWidgets.QWidget):
 
     def shutdown_rendering(self) -> None:
         # called from Widget_removeWidget before the underlying QWidget is torn down. blocks
-        # until no section is currently rendering, so no PyCanvasRenderTask can touch this
-        # canvas (or its sections) after the C++/PySide6 widget object is deleted. mirrors
-        # nionui-tool's PyCanvas::~PyCanvas().
+        # until no section is currently rendering AND no PyCanvasRenderTask is active for
+        # this canvas at all (not just mid-render_section), so no PyCanvasRenderTask can
+        # touch this canvas (or its sections/mutexes) after the C++/PySide6 widget object is
+        # deleted. checking only section.rendering is not enough: a task can be alive and
+        # spinning in its render_one()/_keep_rendering() loop (e.g. between sections, or
+        # about to loop again) without any section.rendering flag set, and if the widget is
+        # torn down at that moment the task's next access to self's mutexes can hit a
+        # partially/fully destroyed object -- this was the cause of intermittent
+        # heap-corruption crashes seen in stress testing even after per-canvas task dedup.
+        # mirrors nionui-tool's PyCanvas::~PyCanvas().
         self.__closing = True
         while True:
-            with QtCore.QMutexLocker(self.__commands_mutex):
-                sections = list(self.__sections.values())
-            is_rendering = False
-            for section in sections:
-                with QtCore.QMutexLocker(section.mutex):
-                    if section.rendering:
-                        is_rendering = True
-                        break
-            if not is_rendering:
+            with QtCore.QMutexLocker(self.__pending_tasks_mutex):
+                task_active = self.__task_active
+            if not task_active:
                 break
             time.sleep(0.001)
 

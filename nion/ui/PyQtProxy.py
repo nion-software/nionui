@@ -2185,7 +2185,7 @@ class PyCanvas(QtWidgets.QWidget):
             last_rendered_timestamps = section.rendered_timestamps
             section.commands = None
             section.rect = None
-        if commands and rect:
+        if commands and rect and not rect.isEmpty():
             image = QtGui.QImage(rect.size(), QtGui.QImage.Format.Format_ARGB32)
             image.fill(QtGui.QColor(0, 0, 0, 0))
             painter = QtGui.QPainter()

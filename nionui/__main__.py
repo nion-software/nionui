@@ -1,7 +1,5 @@
 import argparse
 import os
-import subprocess
-import sys
 
 
 parser = argparse.ArgumentParser(
@@ -91,33 +89,21 @@ for ui in order:
         app.run()
         break
     else:
-        # launch using the tool frontend, or an explicitly overridden executable if provided.
-        if parsed_args.executable:
-            exe_path = parsed_args.executable
-        elif sys.platform == "darwin":
-            exe_path = os.path.join(sys.exec_prefix, "bin", "Nion UI Launcher.app", "Contents", "MacOS", "Nion UI Launcher")
-        elif sys.platform == "linux":
-            exe_path = os.path.join(sys.exec_prefix, "bin", "NionUILauncher", "NionUILauncher")
-        elif sys.platform == "win32":
-            exe_path = os.path.join(sys.exec_prefix, "Scripts", "NionUILauncher", "NionUILauncher.exe")
-        else:
-            exe_path = None
-        if exe_path and not os.path.exists(exe_path):
-            print(f"Tool launcher executable not found, skipping: {exe_path}")
-            exe_path = None
-        if exe_path:
-            python_prefix = sys.prefix
-            # forward any unrecognized "--key[=value]" flags (e.g. "--canvas") through to the
-            # native launcher's bootstrap.py, which extracts them the same way. omit app_id
-            # entirely if it wasn't specified, so bootstrap.py falls through to its "look for
-            # main in the current working directory" fallback.
-            launch_args = [exe_path, python_prefix]
-            if app_id is not None:
-                launch_args.append(app_id)
-            launch_args += extra_args
-            proc = subprocess.Popen(launch_args, universal_newlines=True)
-            proc.communicate()
+        # launch using the tool frontend, delegating exe lookup/spawning to nion.ui.command's
+        # shared launch_tool helper (also used by the "nionui" console script), so there is a
+        # single implementation of "find the native launcher and spawn it". forward any
+        # unrecognized "--key[=value]" flags (e.g. "--canvas") through to the native launcher's
+        # bootstrap.py, which extracts them the same way. omit app_id entirely if it wasn't
+        # specified, so bootstrap.py falls through to its "look for main in the current working
+        # directory" fallback.
+        from nion.ui import command as ui_command
+        tool_argv = ["python -m nionui"]
+        if app_id is not None:
+            tool_argv.append(app_id)
+        tool_argv += extra_args
+        if ui_command.launch_tool(tool_argv, executable=parsed_args.executable):
             break
+        print(f"Tool launcher executable not found, skipping (executable: {parsed_args.executable or ui_command.find_tool_executable()})")
 else:
     print(f"Unable to launch (tried: {', '.join(order)}). Please install 'nionui-tool' (for --ui=tool) or "
           f"'pyside6' (for --ui=qt), or pass a valid --executable path.")

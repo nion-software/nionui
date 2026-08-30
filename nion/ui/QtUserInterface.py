@@ -1545,6 +1545,15 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
 class QtCanvasWidgetBehavior(QtWidgetBehavior):
 
+    # Diagnostics only: display pipeline latency/performance instrumentation (queue/render/repaint-
+    # wait/paint timings; see PyCanvas::getPerformanceStatistics in nionui-tool for what each stage
+    # measures), printed to the console at most once per second per canvas widget, for every
+    # section currently in use on that widget (each DisplayPanel in a workspace is a section of the
+    # workspace's single shared canvas widget). Off by default and does not need any UI: to enable
+    # temporarily, uncomment the following line (e.g. from a debugger or scripted console) --
+    # QtCanvasWidgetBehavior.PRINT_PERFORMANCE_STATS = True
+    PRINT_PERFORMANCE_STATS = False
+
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "canvas", properties)
         self.proxy.Canvas_connect(self.widget, self)
@@ -1566,6 +1575,8 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
         self.__focusable = False
+        self.__section_ids: typing.Set[int] = set()
+        self.__last_performance_stats_time = 0.0
 
     def close(self) -> None:
         self.on_mouse_entered = None
@@ -1609,13 +1620,40 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images)
 
     def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        self.__section_ids.add(section_id)
         if hasattr(self.proxy, "Canvas_drawSection_binary"):
             self.proxy.Canvas_drawSection_binary(self.widget, section_id, drawing_context.binary_commands, drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
         else:
             self.proxy.Canvas_drawSection(self.widget, section_id, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
 
     def remove_section(self, section_id: int) -> None:
+        self.__section_ids.discard(section_id)
         self.proxy.Canvas_removeSection(self.widget, section_id)
+
+    def periodic(self) -> None:
+        super().periodic()
+        if QtCanvasWidgetBehavior.PRINT_PERFORMANCE_STATS:
+            self.__print_performance_stats()
+
+    def __print_performance_stats(self) -> None:
+        if not hasattr(self.proxy, "Canvas_getPerformanceStatistics"):
+            return
+        now = time.monotonic()
+        if now - self.__last_performance_stats_time < 1.0:
+            return
+        self.__last_performance_stats_time = now
+        stage_names = ("embed_wait", "queue_wait", "render", "repaint_wait", "paint_wait", "total_latency", "frame_interval")
+        # section 0 covers non-sectioned drawing (draw()); other ids are per-DisplayPanel sections.
+        for section_id in sorted(self.__section_ids | {0}):
+            stats = self.proxy.Canvas_getPerformanceStatistics(self.widget, section_id)
+            if not stats:
+                continue
+            stage_text = " ".join(
+                "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
+                for stage in stage_names if stage in stats
+            )
+            if stage_text:
+                print(f"[canvas {id(self.widget)} section {section_id}] frames={stats.get('frame_count', 0)} {stage_text}")
 
     def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         cursor_shape = cursor_shape or "arrow"

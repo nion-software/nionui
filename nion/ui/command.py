@@ -5,6 +5,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import sysconfig
 import typing
 
 
@@ -178,13 +179,39 @@ def extract_ui_override(args: typing.Sequence[str]) -> typing.Tuple[typing.Optio
     return ui, fallback, remaining
 
 
-def _try_tool(args: typing.Sequence[typing.Any]) -> bool:
-    try:
-        from nion.nionui_tool import command
-        command.launch(args)
-        return True
-    except ImportError:
+def find_tool_executable() -> typing.Optional[str]:
+    """Return the conventional install location of the native nionui-tool launcher for this platform.
+
+    Returns None on unsupported platforms.
+    """
+    scripts_dir = sysconfig.get_paths()["scripts"]
+    if sys.platform == "darwin":
+        return os.path.join(scripts_dir, "Nion UI Launcher.app", "Contents", "MacOS", "Nion UI Launcher")
+    elif sys.platform == "linux":
+        return os.path.join(scripts_dir, "NionUILauncher", "NionUILauncher")
+    elif sys.platform == "win32":
+        return os.path.join(scripts_dir, "NionUILauncher", "NionUILauncher.exe")
+    return None
+
+
+def launch_tool(args: typing.Sequence[typing.Any], executable: typing.Optional[str] = None) -> bool:
+    """Locate (or use the given override) the native nionui-tool launcher executable and run it.
+
+    "args[1:]" (the app id and/or any extra "--key[=value]" bootstrap flags, e.g. the non-standard
+    "--canvas" flag) is forwarded to the launcher unchanged; the launcher's own bootstrap.py
+    extracts those flags the same way extract_bootstrap_args does here.
+
+    Returns True if the executable was found and spawned (regardless of its exit code), or False
+    if it could not be located, so callers can fall back to another ui frontend.
+    """
+    exe_path = executable or find_tool_executable()
+    if not exe_path or not os.path.exists(exe_path):
         return False
+    python_prefix = sys.prefix
+    args = list(args)
+    proc = subprocess.Popen([exe_path, python_prefix] + args[1:], universal_newlines=True)
+    proc.communicate()
+    return True
 
 
 def _try_qt(args: typing.Sequence[typing.Any]) -> bool:
@@ -206,11 +233,13 @@ def main() -> None:
 
     # allow an explicit override of which executable is used to launch the ui (e.g. a custom
     # or debug build of nionui-tool), specified via "--executable <path>" or "--executable=<path>".
-    # this is checked before attempting to auto-detect/import nionui-tool so it always takes
-    # precedence.
+    # this always forces the tool launcher (regardless of "--ui"), since it is only meaningful
+    # for testing a specific tool build, so it is checked before frontend selection.
     executable, remaining_args = extract_executable_override(sys.argv)
     if executable:
-        sys.exit(subprocess.call([executable] + remaining_args[1:]))
+        if not launch_tool(remaining_args, executable=executable):
+            print(f"Error: unable to launch specified executable: {executable}")
+        return
 
     # allow an explicit override of which frontend is used ("--ui=tool" or "--ui=qt"), and
     # whether to fall back to the other frontend if the requested one is unavailable
@@ -219,7 +248,7 @@ def main() -> None:
     ui, fallback, remaining_args = extract_ui_override(remaining_args)
 
     if ui == "tool":
-        if _try_tool(remaining_args):
+        if launch_tool(remaining_args):
             return
         if fallback:
             _try_qt(remaining_args)
@@ -228,7 +257,7 @@ def main() -> None:
     elif ui == "qt":
         _try_qt(remaining_args)
     else:
-        if _try_tool(remaining_args):
+        if launch_tool(remaining_args):
             return
         if fallback:
             _try_qt(remaining_args)

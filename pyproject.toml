@@ -9,7 +9,7 @@ authors = [
     { name = "Nion Software", email = "swift@nion.com" }
 ]
 description = "Nion UI framework."
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 classifiers = [

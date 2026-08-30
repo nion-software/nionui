@@ -138,6 +138,70 @@ def extract_executable_override(args: typing.Sequence[str]) -> typing.Tuple[typi
     return executable, remaining
 
 
+def extract_ui_override(args: typing.Sequence[str]) -> typing.Tuple[typing.Optional[str], bool, typing.List[str]]:
+    """Pull an explicit "--ui tool|qt" (or "--ui=tool|qt") and "--fallback"/"--no-fallback" out of args.
+
+    Mirrors the frontend selection options supported by "python -m nionui" so the "nionui"
+    console script can also force a specific frontend (and control whether it falls back to the
+    other frontend if the requested one is unavailable) instead of always trying nionui-tool
+    first, then falling back to pyside6.
+
+    Returns the requested ui ("tool", "qt", or None if not specified), whether to fall back to
+    the other frontend if the requested one is unavailable (default True), and the remaining args
+    with these options removed.
+    """
+    ui: typing.Optional[str] = None
+    fallback = True
+    remaining: typing.List[str] = []
+    index = 0
+    args = list(args)
+    while index < len(args):
+        arg = args[index]
+        if arg == "--ui" and index + 1 < len(args):
+            ui = args[index + 1]
+            index += 2
+            continue
+        if arg.startswith("--ui="):
+            ui = arg[len("--ui="):]
+            index += 1
+            continue
+        if arg == "--fallback":
+            fallback = True
+            index += 1
+            continue
+        if arg == "--no-fallback":
+            fallback = False
+            index += 1
+            continue
+        remaining.append(arg)
+        index += 1
+    return ui, fallback, remaining
+
+
+def _try_tool(args: typing.Sequence[typing.Any]) -> bool:
+    try:
+        from nion.nionui_tool import command
+        command.launch(args)
+        return True
+    except ImportError:
+        return False
+
+
+def _try_qt(args: typing.Sequence[typing.Any]) -> bool:
+    try:
+        from PySide6 import QtCore
+    except ImportError:
+        print("Please install 'pyside6' using pip or conda; or use nionui-tool to launch.")
+        return False
+    app, error = bootstrap_main(args)
+    if app:
+        app.run()
+        return True
+    if error:
+        print("Error: " + error)
+    return False
+
+
 def main() -> None:
 
     # allow an explicit override of which executable is used to launch the ui (e.g. a custom
@@ -148,33 +212,28 @@ def main() -> None:
     if executable:
         sys.exit(subprocess.call([executable] + remaining_args[1:]))
 
-    # first attempt to launch using nionui-launcher
-    try:
-        from nion.nionui_tool import command
-        command.launch(sys.argv)
-        return
-    except ImportError:
-        pass
+    # allow an explicit override of which frontend is used ("--ui=tool" or "--ui=qt"), and
+    # whether to fall back to the other frontend if the requested one is unavailable
+    # ("--fallback"/"--no-fallback", default True). without "--ui", the previous default
+    # behavior is preserved: try nionui-tool first, then fall back to pyside6.
+    ui, fallback, remaining_args = extract_ui_override(remaining_args)
 
-    success = False
-
-    # next attempt to launch using pyside6
-    try:
-        from PySide6 import QtCore
-        success = True
-    except ImportError:
-        pass
-
-    if not success:
-        print("Please install 'pyside6' using pip or conda; or use nionui-tool to launch.")
-
-    if success:
-        app, error = bootstrap_main(sys.argv)
-
-        if app:
-            app.run()
-        elif error:
-            print("Error: " + error)
+    if ui == "tool":
+        if _try_tool(remaining_args):
+            return
+        if fallback:
+            _try_qt(remaining_args)
+        else:
+            print("Error: nionui-tool is not available and --no-fallback was specified.")
+    elif ui == "qt":
+        _try_qt(remaining_args)
+    else:
+        if _try_tool(remaining_args):
+            return
+        if fallback:
+            _try_qt(remaining_args)
+        else:
+            print("Error: nionui-tool is not available and --no-fallback was specified.")
 
 
 if __name__ == '__main__':

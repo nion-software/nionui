@@ -1642,7 +1642,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         if now - self.__last_performance_stats_time < 1.0:
             return
         self.__last_performance_stats_time = now
-        stage_names = ("embed_wait", "queue_wait", "render", "repaint_wait", "paint_wait", "total_latency", "frame_interval")
+        stage_names = ("embed_wait", "queue_wait", "render", "repaint_wait", "paint_wait", "paint_duration", "total_latency", "frame_interval")
         # section 0 covers non-sectioned drawing (draw()); other ids are per-DisplayPanel sections.
         for section_id in sorted(self.__section_ids | {0}):
             stats = self.proxy.Canvas_getPerformanceStatistics(self.widget, section_id)
@@ -1652,6 +1652,9 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
                 "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
                 for stage in stage_names if stage in stats
             )
+            if "thread_pool_active" in stats:
+                tp = stats["thread_pool_active"]
+                stage_text += " thread_pool_active={:.1f}±{:.1f}[{:.0f}:{:.0f}]/{}".format(tp["average"], tp["std_dev"], tp["minimum"], tp["maximum"], stats.get("thread_pool_max", "?"))
             if stage_text:
                 print(f"[canvas {id(self.widget)} section {section_id}] frames={stats.get('frame_count', 0)} {stage_text}")
 
@@ -2125,6 +2128,15 @@ class QtWindow(UserInterface.Window):
             "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
             for stage in stage_names if stage in stats
         )
+        # not a native measurement: approximate, average-based estimate of GUI-thread time spent
+        # on something other than periodic() or draining repaints between repaint_timer ticks
+        # (other Qt/OS event processing, unrelated widgets, etc). only meaningful once
+        # repaint_timer_interval is well above its nominal 5ms -- a large positive value here
+        # means periodic_duration + repaint_update_duration do NOT fully explain the slowdown.
+        if "repaint_timer_interval" in stats:
+            accounted_ms = stats.get("periodic_duration", {}).get("average_ms", 0.0) + stats.get("repaint_update_duration", {}).get("average_ms", 0.0)
+            unaccounted_ms = stats["repaint_timer_interval"]["average_ms"] - accounted_ms
+            stage_text += f" unaccounted_gui_time~{unaccounted_ms:.1f}ms"
         if stage_text:
             print(f"[window {id(self.native_document_window)}] {stage_text}")
 

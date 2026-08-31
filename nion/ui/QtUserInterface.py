@@ -1985,12 +1985,21 @@ class QtMenu(UserInterface.Menu):
 
 class QtWindow(UserInterface.Window):
 
+    # Diagnostics only: GUI event loop instrumentation (periodic_duration, repaint_timer_interval;
+    # see DocumentWindow::getEventLoopStatistics in nionui-tool for what each stage measures),
+    # printed to the console at most once per second per top-level window. Off by default and does
+    # not need any UI: to enable temporarily, uncomment the following line (e.g. from a debugger or
+    # scripted console) -- QtWindow.PRINT_EVENT_LOOP_STATS = True
+    PRINT_EVENT_LOOP_STATS = False
+
     def __init__(self, proxy: _QtProxy, parent: typing.Optional[UserInterface.Window], title: str) -> None:
         super().__init__(parent, title)
         self.proxy = proxy
         parent_native: typing.Optional[_QtObject] = typing.cast(QtWindow, parent).native_document_window if parent else None
         self.native_document_window: _QtObject = self.proxy.DocumentWindow_create(parent_native, title)
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
+        self.__last_event_loop_stats_time = 0.0
+
 
     def close(self) -> None:
         # this is a callback and should not be invoked directly from Python;
@@ -2100,6 +2109,24 @@ class QtWindow(UserInterface.Window):
 
     def periodic(self) -> None:
         self._handle_periodic()
+        if QtWindow.PRINT_EVENT_LOOP_STATS:
+            self.__print_event_loop_stats()
+
+    def __print_event_loop_stats(self) -> None:
+        if not hasattr(self.proxy, "DocumentWindow_getEventLoopStatistics"):
+            return
+        now = time.monotonic()
+        if now - self.__last_event_loop_stats_time < 1.0:
+            return
+        self.__last_event_loop_stats_time = now
+        stats = self.proxy.DocumentWindow_getEventLoopStatistics(self.native_document_window)
+        stage_names = ("periodic_duration", "repaint_timer_interval", "repaint_update_duration")
+        stage_text = " ".join(
+            "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
+            for stage in stage_names if stage in stats
+        )
+        if stage_text:
+            print(f"[window {id(self.native_document_window)}] {stage_text}")
 
     def aboutToShow(self) -> None:
         self._register_ui_activity()

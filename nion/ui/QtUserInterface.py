@@ -2140,6 +2140,20 @@ class QtWindow(UserInterface.Window):
             accounted_ms = stats.get("periodic_duration", {}).get("average_ms", 0.0) + stats.get("repaint_update_duration", {}).get("average_ms", 0.0)
             unaccounted_ms = stats["repaint_timer_interval"]["average_ms"] - accounted_ms
             stage_text += f" unaccounted_gui_time~{unaccounted_ms:.1f}ms"
+        # CPU/priority contention diagnostics (Windows only -- see DocumentWindow::getEventLoopStatistics).
+        # process_priority_class/gui_thread_priority reveal whether this process or its GUI thread has
+        # been given (or denied) a favorable OS scheduling priority (e.g. by a hardware-support DLL);
+        # system_cpu_percent is the system-WIDE (all processes) CPU utilization at the moment of this
+        # sample, so a high value here (even while this process itself is idle/waiting) indicates other
+        # processes are contending for CPU rather than this process's own code being slow.
+        if "process_priority_class" in stats:
+            stage_text += " process_priority_class={}".format(stats["process_priority_class"])
+        if "gui_thread_priority" in stats:
+            stage_text += " gui_thread_priority={}".format(stats["gui_thread_priority"])
+        if "system_cpu_percent" in stats:
+            stage_text += " system_cpu_percent={:.0f}%".format(stats["system_cpu_percent"])
+        if "logical_processor_count" in stats:
+            stage_text += " logical_processor_count={}".format(stats["logical_processor_count"])
         if stage_text:
             print(f"[window {id(self.native_document_window)}] {stage_text}")
 

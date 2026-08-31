@@ -1642,7 +1642,7 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         if now - self.__last_performance_stats_time < 1.0:
             return
         self.__last_performance_stats_time = now
-        stage_names = ("embed_wait", "queue_wait", "render", "repaint_wait", "paint_wait", "paint_duration", "total_latency", "frame_interval")
+        stage_names = ("embed_wait", "queue_wait", "render", "gil_wait", "gil_wait_periodic", "image_convert", "repaint_wait", "paint_wait", "paint_duration", "total_latency", "frame_interval")
         # section 0 covers non-sectioned drawing (draw()); other ids are per-DisplayPanel sections.
         for section_id in sorted(self.__section_ids | {0}):
             stats = self.proxy.Canvas_getPerformanceStatistics(self.widget, section_id)
@@ -1655,6 +1655,9 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             if "thread_pool_active" in stats:
                 tp = stats["thread_pool_active"]
                 stage_text += " thread_pool_active={:.1f}±{:.1f}[{:.0f}:{:.0f}]/{}".format(tp["average"], tp["std_dev"], tp["minimum"], tp["maximum"], stats.get("thread_pool_max", "?"))
+            if "gil_wait" in stats and "gil_wait_periodic" in stats and stats["gil_wait"]["average_ms"] > 0:
+                pct = 100.0 * stats["gil_wait_periodic"]["average_ms"] / stats["gil_wait"]["average_ms"]
+                stage_text += " gil_wait_periodic_pct={:.0f}%".format(pct)
             if stage_text:
                 print(f"[canvas {id(self.widget)} section {section_id}] frames={stats.get('frame_count', 0)} {stage_text}")
 

@@ -2133,7 +2133,14 @@ class QtWindow(UserInterface.Window):
             return
         self.__last_event_loop_stats_time = now
         stats = self.proxy.DocumentWindow_getEventLoopStatistics(self.native_document_window)
-        stage_names = ("periodic_duration", "repaint_timer_interval", "repaint_update_duration")
+        # periodic_gil_wait/periodic_invoke_duration are a sub-breakdown of periodic_duration:
+        # periodic_gil_wait is time blocked waiting for another thread (e.g. a render worker) to
+        # release the GIL before periodic() could even start; periodic_invoke_duration is
+        # everything after the GIL was acquired (the actual "periodic" call, plus lookup/argument/
+        # result conversion overhead). A periodic_duration spike dominated by periodic_gil_wait
+        # points to GIL contention elsewhere; one dominated by periodic_invoke_duration points to
+        # genuinely slow python-side work inside periodic() (or whatever it calls).
+        stage_names = ("periodic_duration", "periodic_gil_wait", "periodic_invoke_duration", "repaint_timer_interval", "repaint_update_duration")
         stage_text = " ".join(
             "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}|{:.0f}]ms".format(
                 stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"],

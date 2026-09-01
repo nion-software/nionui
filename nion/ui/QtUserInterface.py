@@ -1545,6 +1545,15 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
 
 class QtCanvasWidgetBehavior(QtWidgetBehavior):
 
+    # Diagnostics only: display pipeline latency/performance instrumentation (queue/render/repaint-
+    # wait/paint timings; see PyCanvas::getPerformanceStatistics in nionui-tool for what each stage
+    # measures), printed to the console at most once per second per canvas widget, for every
+    # section currently in use on that widget (each DisplayPanel in a workspace is a section of the
+    # workspace's single shared canvas widget). Off by default and does not need any UI: to enable
+    # temporarily, uncomment the following line (e.g. from a debugger or scripted console) --
+    # QtCanvasWidgetBehavior.PRINT_PERFORMANCE_STATS = True
+    PRINT_PERFORMANCE_STATS = False
+
     def __init__(self, proxy: _QtProxy, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
         super().__init__(proxy, "canvas", properties)
         self.proxy.Canvas_connect(self.widget, self)
@@ -1566,6 +1575,8 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.on_tool_tip: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
         self.on_pan_gesture: typing.Optional[typing.Callable[[int, int], bool]] = None
         self.__focusable = False
+        self.__section_ids: typing.Set[int] = set()
+        self.__last_performance_stats_time = 0.0
 
     def close(self) -> None:
         self.on_mouse_entered = None
@@ -1609,13 +1620,53 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images)
 
     def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        self.__section_ids.add(section_id)
         if hasattr(self.proxy, "Canvas_drawSection_binary"):
             self.proxy.Canvas_drawSection_binary(self.widget, section_id, drawing_context.binary_commands, drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
         else:
             self.proxy.Canvas_drawSection(self.widget, section_id, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
 
     def remove_section(self, section_id: int) -> None:
+        self.__section_ids.discard(section_id)
         self.proxy.Canvas_removeSection(self.widget, section_id)
+
+    def periodic(self) -> None:
+        super().periodic()
+        if QtCanvasWidgetBehavior.PRINT_PERFORMANCE_STATS:
+            self.__print_performance_stats()
+
+    def __print_performance_stats(self) -> None:
+        if not hasattr(self.proxy, "Canvas_getPerformanceStatistics"):
+            return
+        now = time.monotonic()
+        if now - self.__last_performance_stats_time < 1.0:
+            return
+        self.__last_performance_stats_time = now
+        stage_names = ("embed_wait", "queue_wait", "render", "gil_wait", "gil_wait_periodic", "image_convert", "repaint_wait", "paint_wait", "paint_duration", "total_latency", "frame_interval")
+        # section 0 covers non-sectioned drawing (draw()); other ids are per-DisplayPanel sections.
+        for section_id in sorted(self.__section_ids | {0}):
+            stats = self.proxy.Canvas_getPerformanceStatistics(self.widget, section_id)
+            if not stats:
+                continue
+            stage_text = " ".join(
+                # maximum_ms is trimmed (drops the top/bottom 10% of samples, see the native-side
+                # Measurements struct); raw_maximum_ms is the untrimmed worst-case sample in the
+                # window, so an intermittent tail-latency spike is still visible here even when it
+                # is rare enough to be trimmed away from maximum_ms. Fall back to maximum_ms for
+                # raw_maximum_ms so this still works against an older nionui-tool build.
+                "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}|{:.0f}]ms".format(
+                    stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"],
+                    stats[stage].get("raw_maximum_ms", stats[stage]["maximum_ms"]))
+                for stage in stage_names if stage in stats
+            )
+            if "thread_pool_active" in stats:
+                tp = stats["thread_pool_active"]
+                stage_text += " thread_pool_active={:.1f}±{:.1f}[{:.0f}:{:.0f}]/{}".format(tp["average"], tp["std_dev"], tp["minimum"], tp["maximum"], stats.get("thread_pool_max", "?"))
+            if "gil_wait" in stats and "gil_wait_periodic" in stats and stats["gil_wait"]["average_ms"] > 0:
+                pct = 100.0 * stats["gil_wait_periodic"]["average_ms"] / stats["gil_wait"]["average_ms"]
+                stage_text += " gil_wait_periodic_pct={:.0f}%".format(pct)
+            if stage_text:
+                print(f"[canvas {id(self.widget)} section {section_id}] frames={stats.get('frame_count', 0)} {stage_text}")
 
     def set_cursor_shape(self, cursor_shape: typing.Optional[str]) -> None:
         cursor_shape = cursor_shape or "arrow"
@@ -1947,12 +1998,21 @@ class QtMenu(UserInterface.Menu):
 
 class QtWindow(UserInterface.Window):
 
+    # Diagnostics only: GUI event loop instrumentation (periodic_duration, repaint_timer_interval;
+    # see DocumentWindow::getEventLoopStatistics in nionui-tool for what each stage measures),
+    # printed to the console at most once per second per top-level window. Off by default and does
+    # not need any UI: to enable temporarily, uncomment the following line (e.g. from a debugger or
+    # scripted console) -- QtWindow.PRINT_EVENT_LOOP_STATS = True
+    PRINT_EVENT_LOOP_STATS = False
+
     def __init__(self, proxy: _QtProxy, parent: typing.Optional[UserInterface.Window], title: str) -> None:
         super().__init__(parent, title)
         self.proxy = proxy
         parent_native: typing.Optional[_QtObject] = typing.cast(QtWindow, parent).native_document_window if parent else None
         self.native_document_window: _QtObject = self.proxy.DocumentWindow_create(parent_native, title)
         self.proxy.DocumentWindow_connect(self.native_document_window, self)
+        self.__last_event_loop_stats_time = 0.0
+
 
     def close(self) -> None:
         # this is a callback and should not be invoked directly from Python;
@@ -2062,6 +2122,59 @@ class QtWindow(UserInterface.Window):
 
     def periodic(self) -> None:
         self._handle_periodic()
+        if QtWindow.PRINT_EVENT_LOOP_STATS:
+            self.__print_event_loop_stats()
+
+    def __print_event_loop_stats(self) -> None:
+        if not hasattr(self.proxy, "DocumentWindow_getEventLoopStatistics"):
+            return
+        now = time.monotonic()
+        if now - self.__last_event_loop_stats_time < 1.0:
+            return
+        self.__last_event_loop_stats_time = now
+        stats = self.proxy.DocumentWindow_getEventLoopStatistics(self.native_document_window)
+        # periodic_gil_wait/periodic_invoke_duration are a sub-breakdown of periodic_duration:
+        # periodic_gil_wait is time blocked waiting for another thread (e.g. a render worker) to
+        # release the GIL before periodic() could even start; periodic_invoke_duration is
+        # everything after the GIL was acquired (the actual "periodic" call, plus lookup/argument/
+        # result conversion overhead). A periodic_duration spike dominated by periodic_gil_wait
+        # points to GIL contention elsewhere; one dominated by periodic_invoke_duration points to
+        # genuinely slow python-side work inside periodic() (or whatever it calls).
+        stage_names = ("periodic_duration", "periodic_gil_wait", "periodic_invoke_duration", "repaint_timer_interval", "repaint_update_duration")
+        stage_text = " ".join(
+            "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}|{:.0f}]ms".format(
+                stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"],
+                stats[stage].get("raw_maximum_ms", stats[stage]["maximum_ms"]))
+            for stage in stage_names if stage in stats
+        )
+        # NOT a measurement of idle/hidden GUI-thread cost -- just repaint_timer_interval minus
+        # the two measured contributors (periodic_duration, repaint_update_duration). A large
+        # positive value does NOT by itself prove other Qt/OS event processing is stealing GUI
+        # time; for a lightly-loaded timer (its two measured contributors summing to well under
+        # the ~5ms nominal period) most of this residual is simply normal idle time between timer
+        # ticks. Only treat this as a meaningful signal once repaint_timer_interval itself is well
+        # above its nominal ~5ms period -- i.e. use it to see whether periodic_duration +
+        # repaint_update_duration explain that inflation, not as a standalone "cost".
+        if "repaint_timer_interval" in stats:
+            accounted_ms = stats.get("periodic_duration", {}).get("average_ms", 0.0) + stats.get("repaint_update_duration", {}).get("average_ms", 0.0)
+            unattributed_ms = stats["repaint_timer_interval"]["average_ms"] - accounted_ms
+            stage_text += f" unattributed_gui_time~{unattributed_ms:.1f}ms"
+        # CPU/priority contention diagnostics (Windows only -- see DocumentWindow::getEventLoopStatistics).
+        # process_priority_class/gui_thread_priority reveal whether this process or its GUI thread has
+        # been given (or denied) a favorable OS scheduling priority (e.g. by a hardware-support DLL);
+        # system_cpu_percent is the system-WIDE (all processes) CPU utilization at the moment of this
+        # sample, so a high value here (even while this process itself is idle/waiting) indicates other
+        # processes are contending for CPU rather than this process's own code being slow.
+        if "process_priority_class" in stats:
+            stage_text += " process_priority_class={}".format(stats["process_priority_class"])
+        if "gui_thread_priority" in stats:
+            stage_text += " gui_thread_priority={}".format(stats["gui_thread_priority"])
+        if "system_cpu_percent" in stats:
+            stage_text += " system_cpu_percent={:.0f}%".format(stats["system_cpu_percent"])
+        if "logical_processor_count" in stats:
+            stage_text += " logical_processor_count={}".format(stats["logical_processor_count"])
+        if stage_text:
+            print(f"[window {id(self.native_document_window)}] {stage_text}")
 
     def aboutToShow(self) -> None:
         self._register_ui_activity()

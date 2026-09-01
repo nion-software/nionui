@@ -1,5 +1,6 @@
 import argparse
-import os
+
+from nion.ui import command as ui_command
 
 
 parser = argparse.ArgumentParser(
@@ -48,16 +49,11 @@ parsed_args, extra_args = parser.parse_known_args()
 
 app_id = parsed_args.app_id
 
-# path-like app ids (containing a path separator, ending in .py, or referring to an existing
-# file/directory) are resolved literally by bootstrap_main's path-based loading (including the
-# "look for main in this directory" fallback) -- they are NOT package fragments and must not be
-# prefixed with "nionui_app.". Only bare package fragments get that treatment. if app_id was
-# omitted entirely, leave it as None so bootstrap_main falls through to its "look for main in
-# the current working directory" fallback.
-if app_id is not None:
-    is_path_like = "/" in app_id or os.sep in app_id or app_id.endswith(".py") or os.path.exists(app_id)
-    if not is_path_like:
-        app_id = "nionui_app." + app_id if not app_id.startswith("nionui_app.") else app_id
+# normalize bare package fragments (e.g. "hello_world" -> "nionui_app.hello_world") the same way
+# the "nionui" console script does, so both entry points behave identically; path-like app ids
+# and an omitted app_id (None, meaning "look for main in the current working directory") pass
+# through unchanged.
+app_id = ui_command.normalize_app_id(app_id)
 
 order = list[str]()
 
@@ -77,7 +73,6 @@ for ui in order:
         # launch the app using the pyside6 qt frontend, resolving app_id the same way
         # bootstrap_main does (explicit path, package import, local "main" module, or -- if
         # app_id was omitted -- "main" in the current working directory).
-        from nion.ui import command as ui_command
         bootstrap_argv = ["python -m nionui"]
         if app_id is not None:
             bootstrap_argv.append(app_id)
@@ -96,7 +91,6 @@ for ui in order:
         # bootstrap.py, which extracts them the same way. omit app_id entirely if it wasn't
         # specified, so bootstrap.py falls through to its "look for main in the current working
         # directory" fallback.
-        from nion.ui import command as ui_command
         tool_argv = ["python -m nionui"]
         if app_id is not None:
             tool_argv.append(app_id)

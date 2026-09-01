@@ -54,6 +54,51 @@ def load_module_local(path: typing.Optional[typing.Union[str, pathlib.Path]] = N
     return None
 
 
+def is_path_like(app_id: str) -> bool:
+    """Return True if app_id should be resolved literally as a file/directory path.
+
+    Path-like ids (containing a path separator, ending in ".py", or referring to an existing
+    file/directory) must NOT be treated as importable package fragments, since slash-form and
+    dot-form app ids are not interchangeable: slash means "look for a module at this file/dir
+    path", dot means "import this installed package".
+    """
+    return "/" in app_id or os.sep in app_id or app_id.endswith(".py") or os.path.exists(app_id)
+
+
+def normalize_app_id(app_id: typing.Optional[str]) -> typing.Optional[str]:
+    """Normalize a bare package fragment app id to its full "nionui_app." package name.
+
+    This lets a short fragment like "nionui_examples.ui_demo" be used as shorthand for the full
+    "nionui_app.nionui_examples.ui_demo" package name. Path-like app ids (see is_path_like) and
+    ids already prefixed with "nionui_app." are returned unchanged. None (no app id given) passes
+    through unchanged.
+    """
+    if app_id is None or is_path_like(app_id) or app_id.startswith("nionui_app."):
+        return app_id
+    return "nionui_app." + app_id
+
+
+def normalize_app_id_in_args(args: typing.Sequence[typing.Any]) -> typing.List[typing.Any]:
+    """Find the app id within a raw argument list (e.g. ["nionui", app_id, "--canvas", ...]) and
+    normalize it via normalize_app_id(), leaving args[0] (a program name placeholder) and any
+    "--key[=value]" flags untouched and in their original position/order.
+
+    Used when forwarding args on to something (e.g. the native tool launcher) that does its own
+    positional app id resolution, so the app id needs to be normalized in place ahead of time
+    rather than via bootstrap_main directly.
+    """
+    args = list(args)
+    positional_count = 0
+    for index, arg in enumerate(args):
+        if isinstance(arg, str) and arg.startswith("--") and len(arg) > 2:
+            continue
+        positional_count += 1
+        if positional_count == 2:
+            args[index] = normalize_app_id(arg)
+            break
+    return args
+
+
 def extract_bootstrap_args(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Dict[str, typing.Any], typing.List[typing.Any]]:
     """Pull generic "--key" / "--key=value" style flags out of args.
 
@@ -97,7 +142,9 @@ def bootstrap_main(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Opt
         # try to load as an explicit file path, e.g. `nionui nionui_app/example/main.py`
         main_fn = load_module_as_path(path)
         # try to load as an importable package, e.g. `nionui nionui_app.nionui_examples.ui_demo`
-        main_fn = main_fn or load_module_as_package(args[1])
+        # (bare fragments like `nionui nionui_examples.ui_demo` are normalized to the full
+        # "nionui_app." package name).
+        main_fn = main_fn or load_module_as_package(normalize_app_id(args[1]))
         # try to load "main.py" from within the given directory, e.g. `nionui /path/to/some_dir`
         main_fn = main_fn or load_module_local(path)
         # try to load a module by name relative to the current working directory, e.g.
@@ -237,7 +284,7 @@ def main() -> None:
     # for testing a specific tool build, so it is checked before frontend selection.
     executable, remaining_args = extract_executable_override(sys.argv)
     if executable:
-        if not launch_tool(remaining_args, executable=executable):
+        if not launch_tool(normalize_app_id_in_args(remaining_args), executable=executable):
             print(f"Error: unable to launch specified executable: {executable}")
         return
 
@@ -248,7 +295,7 @@ def main() -> None:
     ui, fallback, remaining_args = extract_ui_override(remaining_args)
 
     if ui == "tool":
-        if launch_tool(remaining_args):
+        if launch_tool(normalize_app_id_in_args(remaining_args)):
             return
         if fallback:
             _try_qt(remaining_args)
@@ -257,7 +304,7 @@ def main() -> None:
     elif ui == "qt":
         _try_qt(remaining_args)
     else:
-        if launch_tool(remaining_args):
+        if launch_tool(normalize_app_id_in_args(remaining_args)):
             return
         if fallback:
             _try_qt(remaining_args)

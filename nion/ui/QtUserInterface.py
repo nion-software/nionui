@@ -1649,7 +1649,14 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
             if not stats:
                 continue
             stage_text = " ".join(
-                "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
+                # maximum_ms is trimmed (drops the top/bottom 10% of samples, see the native-side
+                # Measurements struct); raw_maximum_ms is the untrimmed worst-case sample in the
+                # window, so an intermittent tail-latency spike is still visible here even when it
+                # is rare enough to be trimmed away from maximum_ms. Fall back to maximum_ms for
+                # raw_maximum_ms so this still works against an older nionui-tool build.
+                "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}|{:.0f}]ms".format(
+                    stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"],
+                    stats[stage].get("raw_maximum_ms", stats[stage]["maximum_ms"]))
                 for stage in stage_names if stage in stats
             )
             if "thread_pool_active" in stats:
@@ -2128,18 +2135,23 @@ class QtWindow(UserInterface.Window):
         stats = self.proxy.DocumentWindow_getEventLoopStatistics(self.native_document_window)
         stage_names = ("periodic_duration", "repaint_timer_interval", "repaint_update_duration")
         stage_text = " ".join(
-            "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}]ms".format(stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"])
+            "{}={:.1f}±{:.1f}[{:.0f}:{:.0f}|{:.0f}]ms".format(
+                stage, stats[stage]["average_ms"], stats[stage]["std_dev_ms"], stats[stage]["minimum_ms"], stats[stage]["maximum_ms"],
+                stats[stage].get("raw_maximum_ms", stats[stage]["maximum_ms"]))
             for stage in stage_names if stage in stats
         )
-        # not a native measurement: approximate, average-based estimate of GUI-thread time spent
-        # on something other than periodic() or draining repaints between repaint_timer ticks
-        # (other Qt/OS event processing, unrelated widgets, etc). only meaningful once
-        # repaint_timer_interval is well above its nominal 5ms -- a large positive value here
-        # means periodic_duration + repaint_update_duration do NOT fully explain the slowdown.
+        # NOT a measurement of idle/hidden GUI-thread cost -- just repaint_timer_interval minus
+        # the two measured contributors (periodic_duration, repaint_update_duration). A large
+        # positive value does NOT by itself prove other Qt/OS event processing is stealing GUI
+        # time; for a lightly-loaded timer (its two measured contributors summing to well under
+        # the ~5ms nominal period) most of this residual is simply normal idle time between timer
+        # ticks. Only treat this as a meaningful signal once repaint_timer_interval itself is well
+        # above its nominal ~5ms period -- i.e. use it to see whether periodic_duration +
+        # repaint_update_duration explain that inflation, not as a standalone "cost".
         if "repaint_timer_interval" in stats:
             accounted_ms = stats.get("periodic_duration", {}).get("average_ms", 0.0) + stats.get("repaint_update_duration", {}).get("average_ms", 0.0)
-            unaccounted_ms = stats["repaint_timer_interval"]["average_ms"] - accounted_ms
-            stage_text += f" unaccounted_gui_time~{unaccounted_ms:.1f}ms"
+            unattributed_ms = stats["repaint_timer_interval"]["average_ms"] - accounted_ms
+            stage_text += f" unattributed_gui_time~{unattributed_ms:.1f}ms"
         # CPU/priority contention diagnostics (Windows only -- see DocumentWindow::getEventLoopStatistics).
         # process_priority_class/gui_thread_priority reveal whether this process or its GUI thread has
         # been given (or denied) a favorable OS scheduling priority (e.g. by a hardware-support DLL);

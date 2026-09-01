@@ -117,6 +117,32 @@ def normalize_app_id_in_args(args: typing.Sequence[typing.Any]) -> typing.List[t
     return args
 
 
+def list_apps() -> typing.List[str]:
+    """Discover available apps in the "nionui_app" namespace package.
+
+    Walks each directory contributing to the "nionui_app" namespace (it may be spread across
+    multiple installed packages/repos) looking for subdirectories containing a "main.py" module
+    -- the convention used by every app under "nionui_app" -- without importing any app code (to
+    avoid triggering arbitrary app initialization just to list what's available). Returns the
+    discovered app ids (dotted, relative to "nionui_app", e.g. "nionui_examples.ui_demo"),
+    sorted and de-duplicated.
+    """
+    try:
+        namespace_package = importlib.import_module("nionui_app")
+    except ImportError:
+        return []
+    app_ids: typing.Set[str] = set()
+    for root in list(getattr(namespace_package, "__path__", [])):
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".") and d != "__pycache__"]
+            if "main.py" in filenames and dirpath != root:
+                app_id = os.path.relpath(dirpath, root).replace(os.sep, ".")
+                app_ids.add(app_id)
+                # an app directory is a leaf; do not look for further apps nested inside it.
+                dirnames[:] = []
+    return sorted(app_ids)
+
+
 def extract_bootstrap_args(args: typing.Sequence[typing.Any]) -> typing.Tuple[typing.Dict[str, typing.Any], typing.List[typing.Any]]:
     """Pull generic "--key" / "--key=value" style flags out of args.
 
@@ -295,6 +321,12 @@ def _try_qt(args: typing.Sequence[typing.Any]) -> bool:
 
 
 def main() -> None:
+
+    # list available apps in the "nionui_app" namespace and exit, without launching anything.
+    if "--list" in sys.argv:
+        for app_id in list_apps():
+            print(app_id)
+        return
 
     # allow an explicit override of which executable is used to launch the ui (e.g. a custom
     # or debug build of nionui-tool), specified via "--executable <path>" or "--executable=<path>".

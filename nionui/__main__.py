@@ -45,7 +45,20 @@ parser.add_argument(
     default=None,
 )
 
+parser.add_argument(
+    "--list",
+    dest="list_apps",
+    action="store_true",
+    help="list available apps in the \"nionui_app\" namespace and exit",
+    default=False,
+)
+
 parsed_args, extra_args = parser.parse_known_args()
+
+if parsed_args.list_apps:
+    for app_id in ui_command.list_apps():
+        print(app_id)
+    raise SystemExit(0)
 
 app_id = parsed_args.app_id
 

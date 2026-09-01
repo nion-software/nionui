@@ -49,6 +49,16 @@ To run Nion Swift, use the following command (application identifier is 'nionswi
 nionui nionswift
 ```
 
+The `nionui_app` namespace also exists so that apps in external packages/repos can be discovered
+by a short name (e.g. `nionui_examples.ui_demo`), and apps do not need to live there at all -- a
+fully qualified, independently importable package (e.g. `my.app.calculator`) can be used directly
+as the application identifier without any prefix. Use `--list` to see the apps currently
+discoverable under the `nionui_app` namespace:
+
+```
+nionui --list
+```
+
 The remaining sections below use `nionui` for their examples; `python -m nionui` works identically
 in every case shown.
 

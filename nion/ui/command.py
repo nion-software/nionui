@@ -1,6 +1,7 @@
 # type: ignore
 
 import importlib
+import importlib.util
 import os
 import pathlib
 import subprocess
@@ -65,15 +66,32 @@ def is_path_like(app_id: str) -> bool:
     return "/" in app_id or os.sep in app_id or app_id.endswith(".py") or os.path.exists(app_id)
 
 
+def is_importable(package: str) -> bool:
+    """Return True if package independently resolves to an importable module/package.
+
+    Uses find_spec (rather than actually importing) to check resolvability without running the
+    package's code, other than any parent packages along the dotted path, which find_spec does
+    need to import to walk into their submodule_search_locations.
+    """
+    try:
+        return importlib.util.find_spec(package) is not None
+    except (ImportError, ValueError):
+        return False
+
+
 def normalize_app_id(app_id: typing.Optional[str]) -> typing.Optional[str]:
     """Normalize a bare package fragment app id to its full "nionui_app." package name.
 
     This lets a short fragment like "nionui_examples.ui_demo" be used as shorthand for the full
-    "nionui_app.nionui_examples.ui_demo" package name. Path-like app ids (see is_path_like) and
-    ids already prefixed with "nionui_app." are returned unchanged. None (no app id given) passes
+    "nionui_app.nionui_examples.ui_demo" package name. The "nionui_app" namespace exists so that
+    apps in external packages can be discovered by a short name, but apps are not required to
+    live there -- a fully qualified, independently importable package/app id (e.g. "nionswift",
+    or an external "my.app.calculator") is left unchanged and is not treated as a "nionui_app"
+    fragment. Only ids that do NOT already resolve on their own get the "nionui_app." shorthand
+    prefix applied. Path-like app ids (see is_path_like) and None (no app id given) also pass
     through unchanged.
     """
-    if app_id is None or is_path_like(app_id) or app_id.startswith("nionui_app."):
+    if app_id is None or is_path_like(app_id) or app_id.startswith("nionui_app.") or is_importable(app_id):
         return app_id
     return "nionui_app." + app_id
 

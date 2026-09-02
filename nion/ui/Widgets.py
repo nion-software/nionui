@@ -564,7 +564,9 @@ class SectionWidget(UserInterface.Widget):
         section_title_row.add(section_title_label)
         section_title_row.add_stretch()
         section_widget.add(section_title_row)
-        section_content_row = ui.create_row_widget()
+        # collapsible so that this row's reported height shrinks when section_content_column is hidden
+        # (canvas UI only; ignored by other UI backends)
+        section_content_row = ui.create_row_widget(properties={"collapsible": True})
         section_content_column = ui.create_column_widget()
         section_content_column.add_spacing(4)
         section_content_column.add(section)

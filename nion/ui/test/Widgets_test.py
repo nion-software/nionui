@@ -50,6 +50,58 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(scroll_canvas_rect.height, 200)
             self.assertEqual(scroll_content_rect.height, 20)
 
+    def test_push_button_shows_both_text_and_icon_when_both_are_set(self) -> None:
+        from nion.ui import Bitmap
+        from nion.ui import Widgets
+        import numpy
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
+        bitmap = Bitmap.promote_bitmap(numpy.zeros((16, 16), dtype=numpy.uint32))
+        controller.set_text("Text")
+        controller.set_icon(bitmap)
+        stack = controller.widget_source.canvas_item
+        icon_canvas_item, text_canvas_item = stack.canvas_items
+        # both the icon and the text should be visible and contribute to the overall width.
+        self.assertTrue(icon_canvas_item.visible)
+        self.assertTrue(text_canvas_item.visible)
+        self.assertEqual(stack.layout_sizing.preferred_width_int,
+                         icon_canvas_item.layout_sizing.preferred_width_int + text_canvas_item.layout_sizing.preferred_width_int)
+        # setting the icon back to None should hide only the icon, leaving the text visible.
+        controller.set_icon(None)
+        self.assertFalse(icon_canvas_item.visible)
+        self.assertTrue(text_canvas_item.visible)
+        # setting the text back to None should hide only the text, leaving nothing visible.
+        controller.set_text(None)
+        self.assertFalse(icon_canvas_item.visible)
+        self.assertFalse(text_canvas_item.visible)
+
+    def test_push_button_shows_only_icon_when_only_icon_is_set(self) -> None:
+        from nion.ui import Bitmap
+        from nion.ui import Widgets
+        import numpy
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
+        bitmap = Bitmap.promote_bitmap(numpy.zeros((16, 16), dtype=numpy.uint32))
+        controller.set_icon(bitmap)
+        controller.set_text(None)
+        stack = controller.widget_source.canvas_item
+        icon_canvas_item, text_canvas_item = stack.canvas_items
+        self.assertTrue(icon_canvas_item.visible)
+        self.assertFalse(text_canvas_item.visible)
+        self.assertEqual(stack.layout_sizing.preferred_width_int, icon_canvas_item.layout_sizing.preferred_width_int)
+
+    def test_push_button_shows_only_text_when_only_text_is_set(self) -> None:
+        from nion.ui import Widgets
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
+        controller.set_text("Hello")
+        controller.set_icon(None)
+        stack = controller.widget_source.canvas_item
+        icon_canvas_item, text_canvas_item = stack.canvas_items
+        self.assertFalse(icon_canvas_item.visible)
+        self.assertTrue(text_canvas_item.visible)
+        self.assertEqual(stack.layout_sizing.preferred_width_int, text_canvas_item.layout_sizing.preferred_width_int)
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

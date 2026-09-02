@@ -473,13 +473,20 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         super().__init__(ui)
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
-        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(width=self.__horizontal_text_padding, height=0))
+        # a shared group controller keeps the text and triangle cells' hover/pressed state (and
+        # hence their mouse-over highlight) in sync, so the combo box highlights as a single unit
+        # rather than only the specific cell under the mouse.
+        self.__group_controller = CanvasItem.CellGroupController()
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(width=self.__horizontal_text_padding, height=0), group_controller=self.__group_controller)
         self.__text_button_canvas_item.text_align = "left"
         self.__text_button_canvas_item.text_measure = typing.cast(CanvasItem.TextMeasure, ui)
-        self.__row.background_color = "white"
+        # the "base" background is the combo box's normal, non-hovered appearance; it is what
+        # set_background_color changes, and what the hover/press tint is computed relative to.
+        self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"
+        self.__row.background_color = self.__base_background_color
         self.__row.border_color = "#c0c0c0"
         self.__row.border_width = 0.5
-        self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}")
+        self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}", group_controller=self.__group_controller)
         self.__triangle.wants_mouse_events = True
         self.__row.add_canvas_item(self.__text_button_canvas_item)
         self.__row.add_canvas_item(self.__triangle)
@@ -503,8 +510,20 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
                 pos = window_pos + self.__row.map_to_base_container(Geometry.IntPoint(y=y_pos))
                 menu.popup(pos.x, pos.y)
 
-        self.__text_button_canvas_item.on_clicked = handle_clicked
-        self.__triangle.on_clicked = handle_clicked
+        def handle_style_changed(hover: bool, pressed: bool) -> None:
+            # only tint the background when it is still the plain "white" default; an explicitly
+            # set custom background color (via set_background_color) is left alone.
+            if self.__base_background_color == "white":
+                if pressed:
+                    self.__row.background_color = "#d0d0d0"
+                elif hover:
+                    self.__row.background_color = "#e8e8e8"
+                else:
+                    self.__row.background_color = self.__base_background_color
+                self.__row.update()
+
+        self.__group_controller.on_clicked = handle_clicked
+        self.__group_controller.on_style_changed = handle_style_changed
 
     @property
     def widget_source(self) -> Widgets.WidgetSource:
@@ -564,7 +583,8 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         self.__text_button_canvas_item.tool_tip = tool_tip
 
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
-        self.__text_button_canvas_item.background_color = background_color
+        self.__base_background_color = background_color
+        self.__row.background_color = background_color
 
 
 class BasicSliderWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController):

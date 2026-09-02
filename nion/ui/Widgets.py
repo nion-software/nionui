@@ -243,14 +243,22 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         super().__init__(ui)
 
+        # a shared group controller keeps the icon and text cells' hover/pressed state (and hence
+        # their mouse-over highlight) in sync, so the button highlights as a single unit rather than
+        # only the specific cell under the mouse.
+        self.__group_controller = CanvasItem.CellGroupController()
+
         # no per-item horizontal padding, so the icon and text sit tight against each other with no
         # gap between them; the button's outer horizontal padding is provided by the row's own
         # margins instead, applied once around the combo rather than doubled up per item.
-        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0))
-        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0))
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
+        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
         self.__stack = CanvasItem.CanvasItemComposition()
         self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
-        self.__stack.background_color = "white"
+        # the "base" background is the button's normal, non-hovered appearance; it is what
+        # set_background_color changes, and what the hover/press tint is computed relative to.
+        self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"
+        self.__stack.background_color = self.__base_background_color
         self.__stack.border_color = "#c0c0c0"
         self.__stack.border_width = 0.5
         self.__stack.corner_radius = 3
@@ -267,8 +275,20 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
             if callable(self.on_clicked):
                 self.on_clicked()
 
-        self.__text_button_canvas_item.on_button_clicked = handle_clicked
-        self.__icon_button_canvas_item.on_button_clicked = handle_clicked
+        def handle_style_changed(hover: bool, pressed: bool) -> None:
+            # only tint the background when it is still the plain "white" default; an explicitly
+            # set custom background color (via set_background_color) is left alone.
+            if self.__base_background_color == "white":
+                if pressed:
+                    self.__stack.background_color = "#d0d0d0"
+                elif hover:
+                    self.__stack.background_color = "#e8e8e8"
+                else:
+                    self.__stack.background_color = self.__base_background_color
+                self.__stack.update()
+
+        self.__group_controller.on_clicked = handle_clicked
+        self.__group_controller.on_style_changed = handle_style_changed
 
     @property
     def widget_source(self) -> WidgetSource:
@@ -334,6 +354,7 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.tool_tip = tool_tip
 
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
+        self.__base_background_color = background_color
         self.__stack.background_color = background_color
 
     def set_border_color(self, border_color: typing.Optional[str]) -> None:

@@ -237,16 +237,15 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         super().__init__(ui)
 
-        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
-        self.__text_button_canvas_item.background_color = "#f0f0f0"
-        self.__text_button_canvas_item.border_color = "gray"
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(4, 4))
         self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(4, 4))
-        self.__icon_button_canvas_item.background_color = "#f0f0f0"
-        self.__icon_button_canvas_item.border_color = "gray"
         self.__stack = CanvasItem.CanvasItemComposition()
-        self.__stack.layout = CanvasItem.CanvasItemLayout()
-        self.__stack.add_canvas_item(self.__text_button_canvas_item)
+        self.__stack.layout = CanvasItem.CanvasItemRowLayout()
+        self.__stack.background_color = "#f0f0f0"
+        self.__stack.border_color = "gray"
+        # icon (if any) is shown to the left of the text (if any); both can be visible at once.
         self.__stack.add_canvas_item(self.__icon_button_canvas_item)
+        self.__stack.add_canvas_item(self.__text_button_canvas_item)
 
         self.__properties = dict(properties) if properties else dict()
 
@@ -264,41 +263,40 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def widget_source(self) -> WidgetSource:
         return WidgetSource(self.ui, None, self.__stack)
 
+    def __update_sizing(self) -> None:
+        self.__stack.size_to_content()
+        if callable(self.on_size_changed):
+            canvas_item_sizing = self.__stack.layout_sizing
+            self.on_size_changed(Geometry.IntSize(width=canvas_item_sizing.preferred_width_int,
+                                                  height=canvas_item_sizing.preferred_height_int))
+
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         self.__text_button_canvas_item.size_to_content(get_font_metrics_fn)
         self.__icon_button_canvas_item.size_to_content(get_font_metrics_fn)
+        self.__stack.size_to_content()
 
     def set_text(self, value: typing.Optional[str]) -> None:
-        self.__text_button_canvas_item.visible = True
-        self.__icon_button_canvas_item.visible = False
+        # only the text button's own visibility/content is affected; the icon button is left as is,
+        # so that a button configured with both text and an icon shows both simultaneously.
         self.__text_button_canvas_item.text = value or str()
+        self.__text_button_canvas_item.visible = bool(value)
         self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__icon_button_canvas_item.bitmap = None
-        self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
         apply_sizing_properties(self.__text_button_canvas_item, self.__properties)
-        apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
-        if callable(self.on_size_changed):
-            canvas_item_sizing = self.__text_button_canvas_item.layout_sizing
-            self.on_size_changed(Geometry.IntSize(width=canvas_item_sizing.preferred_width_int,
-                                                  height=canvas_item_sizing.preferred_height_int))
+        self.__update_sizing()
 
     def set_icon(self, bitmap: typing.Optional[Bitmap.BitmapOrArray]) -> None:
-        self.__text_button_canvas_item.visible = False
-        self.__icon_button_canvas_item.visible = True
-        self.__icon_button_canvas_item.bitmap = Bitmap.promote_bitmap(bitmap)
+        # only the icon button's own visibility/content is affected; the text button is left as is,
+        # so that a button configured with both text and an icon shows both simultaneously.
+        promoted_bitmap = Bitmap.promote_bitmap(bitmap)
+        self.__icon_button_canvas_item.bitmap = promoted_bitmap
+        self.__icon_button_canvas_item.visible = promoted_bitmap is not None
         self.__icon_button_canvas_item.size_to_content(self.ui.get_font_metrics)
-        self.__text_button_canvas_item.text = str()
-        self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
 
-        apply_sizing_properties(self.__text_button_canvas_item, self.__properties)
         apply_sizing_properties(self.__icon_button_canvas_item, self.__properties)
 
-        if callable(self.on_size_changed):
-            canvas_item_sizing = self.__icon_button_canvas_item.layout_sizing
-            self.on_size_changed(Geometry.IntSize(width=canvas_item_sizing.preferred_width_int,
-                                                  height=canvas_item_sizing.preferred_height_int))
+        self.__update_sizing()
 
     def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
@@ -309,12 +307,10 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__icon_button_canvas_item.tool_tip = tool_tip
 
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
-        self.__text_button_canvas_item.background_color = background_color
-        self.__icon_button_canvas_item.background_color = background_color
+        self.__stack.background_color = background_color
 
     def set_border_color(self, border_color: typing.Optional[str]) -> None:
-        self.__text_button_canvas_item.border_color = border_color
-        self.__icon_button_canvas_item.border_color = border_color
+        self.__stack.border_color = border_color
 
 
 class TabWidgetCanvasItemController(BaseWidgetCanvasItemController):

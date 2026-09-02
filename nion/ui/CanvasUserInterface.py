@@ -919,19 +919,25 @@ class GroupWidgetBehavior(WidgetBehavior):
         # indent the title a bit from the left edge of the frame, matching the typical inset of a
         # native group box's title/legend.
         self.__title_row = CanvasItem.CanvasItemComposition()
-        self.__title_row.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=0), alignment="start")
+        self.__title_row.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(top=0, left=4, bottom=0, right=0), alignment="start")
         self.__title_row.add_canvas_item(self.__title_item)
         self.__title_row.visible = False
         self.__content_composition = CanvasItem.CanvasItemComposition()
-        self.__column = CanvasItem.CanvasItemComposition()
-        self.__column.layout = CanvasItem.CanvasItemColumnLayout(spacing=4, alignment="start")
-        self.__column.add_canvas_item(self.__title_row)
-        self.__column.add_canvas_item(self.__content_composition)
+        # wrap the content in its own box so the background/border only cover the content area, not the
+        # title row -- matching Qt's QGroupBox, where the title is drawn above/outside the frame rather
+        # than on top of its filled background. pad the content away from the frame's edges.
+        self.__content_box = CanvasItem.CanvasItemComposition()
+        self.__content_box.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(top=8, left=8, bottom=8, right=8))
+        self.__content_box.add_canvas_item(self.__content_composition)
         # give the group box a distinct background and a border so it reads visually as a group,
         # matching Qt's native QGroupBox frame.
-        self.__column.background_color = "rgba(0, 0, 0, 0.04)"
-        self.__column.border_color = "#dadada"  # sRGB(0.855, 0.855, 0.855)
-        self.__column.border_width = 0.5
+        self.__content_box.background_color = "rgba(0, 0, 0, 0.04)"
+        self.__content_box.border_color = "#dadada"  # sRGB(0.855, 0.855, 0.855)
+        self.__content_box.border_width = 0.5
+        self.__column = CanvasItem.CanvasItemComposition()
+        self.__column.layout = CanvasItem.CanvasItemColumnLayout(spacing=0, alignment="start")
+        self.__column.add_canvas_item(self.__title_row)
+        self.__column.add_canvas_item(self.__content_box)
         # collapsible so that this composition's own (live) sizing excludes the title row when it is
         # hidden (no title set), instead of needing to freeze/re-snapshot sizing on every content change.
         self.__column.update_sizing(self.__column.sizing.with_collapsible(True))

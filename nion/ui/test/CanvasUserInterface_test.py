@@ -1,4 +1,6 @@
 # standard libraries
+import asyncio
+import typing
 import unittest
 
 # local libraries
@@ -6,6 +8,7 @@ from nion.ui import CanvasItem
 from nion.ui import CanvasUserInterface
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui import UserInterface
 from nion.utils import Geometry
 
 
@@ -257,6 +260,71 @@ class TestLineEditCanvasSizingAndAppearance(unittest.TestCase):
 
         fill_style_commands = [command for command in drawing_context.commands if command[0] == "fillStyle"]
         self.assertIn(("fillStyle", "white"), fill_style_commands)
+
+
+class TestCanvasWindowSizing(unittest.TestCase):
+    # verifies the window auto-grows (but never auto-shrinks) to keep its live content minimum
+    # visible, and that the live minimum is pushed down as a native minimum window size so manual
+    # user shrinking is clamped to it but not below it.
+
+    def setUp(self) -> None:
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
+
+    def tearDown(self) -> None:
+        self.event_loop.stop()
+        self.event_loop.run_forever()
+        self.event_loop.close()
+
+    def _make_window(self) -> typing.Tuple[CanvasUserInterface.CanvasWindow, UserInterface.BoxWidget, typing.List[Geometry.IntSize], typing.List[Geometry.IntSize]]:
+        ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+        window = CanvasUserInterface.CanvasWindow(ui, "test")
+        resize_calls: typing.List[Geometry.IntSize] = []
+        minimum_size_calls: typing.List[Geometry.IntSize] = []
+        root_window = window._root_window
+        # CanvasWindow calls the public resize()/set_minimum_size() dispatch methods on the window.
+        root_window.resize = resize_calls.append  # type: ignore[assignment]
+        root_window.set_minimum_size = minimum_size_calls.append  # type: ignore[assignment]
+
+        # a column with a single collapsible row so toggling its child's visibility changes the
+        # column's own live minimum height, similar to a twist-down section collapsing.
+        column = ui.create_column_widget()
+        row = ui.create_row_widget(properties={"collapsible": True})
+        self.spacer_widget = ui.create_row_widget(properties={"height": 200})
+        row.add(self.spacer_widget)
+        column.add(row)
+        window._attach_root_widget(column)
+        window.show()
+        return window, column, resize_calls, minimum_size_calls
+
+    def test_window_grows_when_live_content_minimum_exceeds_current_size(self) -> None:
+        window, column, resize_calls, minimum_size_calls = self._make_window()
+        self.assertEqual(len(resize_calls), 0)
+
+        # simulate adding more content by growing the collapsible row's child.
+        self.spacer_widget._behavior.canvas_item.update_sizing(  # type: ignore[attr-defined]
+            self.spacer_widget._behavior.canvas_item.sizing.with_fixed_height(400))  # type: ignore[attr-defined]
+        window.periodic()
+
+        self.assertEqual(len(resize_calls), 1)
+        self.assertGreaterEqual(resize_calls[-1].height, 400)
+        self.assertEqual(minimum_size_calls[-1].height, resize_calls[-1].height)
+
+    def test_window_does_not_shrink_when_live_content_minimum_decreases(self) -> None:
+        window, column, resize_calls, minimum_size_calls = self._make_window()
+        self.spacer_widget._behavior.canvas_item.update_sizing(  # type: ignore[attr-defined]
+            self.spacer_widget._behavior.canvas_item.sizing.with_fixed_height(400))  # type: ignore[attr-defined]
+        window.periodic()
+        grown_size = resize_calls[-1]
+
+        # now hide the content; the live minimum drops, but the window must not shrink itself.
+        self.spacer_widget.visible = False
+        window.periodic()
+
+        self.assertEqual(len(resize_calls), 1)  # no additional (shrinking) resize call
+        self.assertEqual(window._CanvasWindow__current_size, grown_size)  # type: ignore[attr-defined]
+        # but the enforced minimum should have dropped, allowing the user to manually shrink later.
+        self.assertLess(minimum_size_calls[-1].height, grown_size.height)
 
 
 if __name__ == '__main__':

@@ -488,6 +488,12 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         self.__row.border_width = 0.5
         self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}", group_controller=self.__group_controller)
         self.__triangle.wants_mouse_events = True
+        # a thin vertical line between the text and the down-arrow gives a visual indication that
+        # they are two distinct (but still jointly clickable/hoverable, via the group controller)
+        # regions of the combo box, similar to Qt's combo box appearance.
+        border = CanvasItem.CellBorder()
+        border.border_left = CanvasItem.CellBorderProperties(Color.Color("#d8d8d8"), width=0.5)
+        self.__triangle.border = border
         self.__row.add_canvas_item(self.__text_button_canvas_item)
         self.__row.add_canvas_item(self.__triangle)
         self.__items: typing.List[str] = list()

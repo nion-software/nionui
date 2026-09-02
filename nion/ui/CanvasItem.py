@@ -919,6 +919,7 @@ class AbstractCanvasItem:
         self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
         self.__border_color: typing.Optional[str] = None
         self.__border_width: typing.Optional[float] = None
+        self.__corner_radius: typing.Optional[float] = None
         self.__visible = True
         self.__enabled = True
         self.__thread = threading.current_thread()
@@ -1047,6 +1048,16 @@ class AbstractCanvasItem:
     @border_width.setter
     def border_width(self, border_width: typing.Optional[float]) -> None:
         self.__border_width = border_width
+        self.update()
+
+    @property
+    def corner_radius(self) -> typing.Optional[float]:
+        """The radius (in pixels) used to round the background/border corners. None/0 means square corners."""
+        return self.__corner_radius
+
+    @corner_radius.setter
+    def corner_radius(self, corner_radius: typing.Optional[float]) -> None:
+        self.__corner_radius = corner_radius
         self.update()
 
     @property
@@ -2131,13 +2142,15 @@ class CanvasItemCompositionComposer(BaseComposer):
                  child_composers: typing.Sequence[BaseComposer],
                  background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
                  border_color: typing.Optional[str],
-                 border_width: typing.Optional[float] = None) -> None:
+                 border_width: typing.Optional[float] = None,
+                 corner_radius: typing.Optional[float] = None) -> None:
         super().__init__(canvas_item, layout_sizing, composer_cache)
         self.__layout = layout
         self.__child_composers = child_composers
         self.__background_color = background_color
         self.__border_color = border_color
         self.__border_width = border_width
+        self.__corner_radius = corner_radius
 
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
@@ -2157,19 +2170,24 @@ class CanvasItemCompositionComposer(BaseComposer):
                 if visible_rect.intersects_rect(child_canvas_rect):
                     child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
 
+    def __path_rounded_rect(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect) -> None:
+        drawing_context.begin_path()
+        if self.__corner_radius:
+            drawing_context.round_rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height, self.__corner_radius)
+        else:
+            drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+
     def __draw_background(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if background_color:
             with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                self.__path_rounded_rect(drawing_context, canvas_bounds)
                 drawing_context.fill_style = background_color
                 drawing_context.fill()
 
     def __draw_border(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, border_color: typing.Optional[str], border_width: typing.Optional[float] = None) -> None:
         if border_color:
             with drawing_context.saver():
-                drawing_context.begin_path()
-                drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
+                self.__path_rounded_rect(drawing_context, canvas_bounds)
                 drawing_context.stroke_style = border_color
                 if border_width is not None:
                     drawing_context.line_width = border_width
@@ -2415,7 +2433,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self._get_composition_composer(child_composers, composer_cache)
 
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
-        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.border_width)
+        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.border_width, self.corner_radius)
 
     def get_composer_immediate(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         child_composers = list[BaseComposer]()

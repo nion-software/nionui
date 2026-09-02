@@ -476,8 +476,9 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(width=self.__horizontal_text_padding, height=0))
         self.__text_button_canvas_item.text_align = "left"
         self.__text_button_canvas_item.text_measure = typing.cast(CanvasItem.TextMeasure, ui)
-        self.__row.background_color = "#f0f0f0"
-        self.__row.border_color = "gray"
+        self.__row.background_color = "white"
+        self.__row.border_color = "#c0c0c0"
+        self.__row.border_width = 0.5
         self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}")
         self.__triangle.wants_mouse_events = True
         self.__row.add_canvas_item(self.__text_button_canvas_item)

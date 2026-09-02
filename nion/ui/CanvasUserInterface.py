@@ -1684,10 +1684,20 @@ class CanvasWindow(UserInterface.Window):
         self.__ui = ui
         self.__window = ui.create_document_window(title, parent_window)
         self.__window.on_periodic = self.periodic
+        self.__window.on_size_changed = self.__window_size_changed
         self.__canvas_widget: typing.Optional[UserInterface.CanvasWidget] = None
         self.__canvas_item: CanvasItem.AbstractCanvasItem = typing.cast(typing.Any, None)
         self.__pending_size: typing.Optional[Geometry.IntSize] = None
         self.__event_loop = asyncio.get_event_loop()
+        # the current actual size of the window, as last reported by the host window system (via
+        # __window_size_changed) or as last requested by us (via show()/__grow_to_fit_content). used
+        # to auto-grow (never auto-shrink) the window to keep its live content minimum visible; the
+        # user can still shrink it manually, but never below that live minimum.
+        self.__current_size: typing.Optional[Geometry.IntSize] = None
+        self.__pushed_minimum_size: typing.Optional[Geometry.IntSize] = None
+
+    def __window_size_changed(self, width: int, height: int) -> None:
+        self.__current_size = Geometry.IntSize(width=width, height=height)
 
     def close(self) -> None:
         self.__ui.destroy_document_window(self.__window)
@@ -1760,10 +1770,51 @@ class CanvasWindow(UserInterface.Window):
     def _get_display_scaling(self) -> float:
         return self.__window._get_display_scaling()
 
+    def __get_live_content_minimum_size(self) -> typing.Optional[Geometry.IntSize]:
+        # returns the current, live (non-cached) minimum size required to display the root widget's
+        # content, bypassing any explicit sizing override (e.g. the fixed-size snapshot applied in
+        # _attach_root_widget) so that later content changes (e.g. expanding/collapsing a section) are
+        # reflected immediately.
+        canvas_item = self.__canvas_item
+        layout = getattr(canvas_item, "layout", None)
+        if layout is None or not hasattr(canvas_item, "visible_canvas_items"):
+            return None
+        live_sizing = layout.get_sizing(canvas_item.visible_canvas_items)
+
+        def _as_int(value: typing.Any) -> int:
+            return int(value) if isinstance(value, (int, float)) else 0
+
+        return Geometry.IntSize(width=_as_int(live_sizing.minimum_width), height=_as_int(live_sizing.minimum_height))
+
+    def __update_window_size_for_content(self) -> None:
+        # enforce (and keep up to date) a native minimum window size matching the live content
+        # minimum, and grow (but never shrink) the window's actual size if that live minimum now
+        # exceeds it. the user can still manually shrink the window, but never below the live
+        # minimum, since that is enforced natively (where supported) via set_minimum_size.
+        if not self.__canvas_widget or self.__current_size is None:
+            return
+        minimum_size = self.__get_live_content_minimum_size()
+        if minimum_size is None:
+            return
+        if minimum_size != self.__pushed_minimum_size:
+            self.__window.set_minimum_size(minimum_size)
+            self.__pushed_minimum_size = minimum_size
+        current_size = self.__current_size
+        if minimum_size.width > current_size.width or minimum_size.height > current_size.height:
+            new_size = Geometry.IntSize(width=max(minimum_size.width, current_size.width),
+                                        height=max(minimum_size.height, current_size.height))
+            self.__current_size = new_size
+            self.__window.resize(new_size)
+
     def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
         layout_sizing = self.__canvas_widget.canvas_item.layout_sizing if self.__canvas_widget else None
         if not size and layout_sizing:
             size = Geometry.IntSize(width=layout_sizing.preferred_width_int or 400, height=layout_sizing.preferred_height_int or 200)
+        self.__current_size = size
+        minimum_size = self.__get_live_content_minimum_size()
+        if minimum_size is not None:
+            self.__window.set_minimum_size(minimum_size)
+            self.__pushed_minimum_size = minimum_size
         self.__window.show(size, position)
 
     def activate(self) -> None:
@@ -1791,6 +1842,7 @@ class CanvasWindow(UserInterface.Window):
         self._handle_periodic()
         if self.__canvas_widget:
             self.__canvas_widget.periodic()
+        self.__update_window_size_for_content()
 
     def aboutToShow(self) -> None:
         # TODO

@@ -2039,6 +2039,14 @@ class QtWindow(UserInterface.Window):
         self.proxy.DocumentWindow_setPosition(self.native_document_window, 0, 0)
         self.proxy.DocumentWindow_setSize(self.native_document_window, screen_size.width, screen_size.height)
 
+    def _set_minimum_size(self, size: typing.Optional[Geometry.IntSize]) -> None:
+        if self.proxy.has_method("DocumentWindow_setMinimumSize"):
+            size = size or Geometry.IntSize()
+            self.proxy.DocumentWindow_setMinimumSize(self.native_document_window, size.width, size.height)
+
+    def _resize(self, size: Geometry.IntSize) -> None:
+        self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
+
     def _set_title(self, value: str) -> None:
         self.proxy.DocumentWindow_setTitle(self.native_document_window, notnone(value))
 

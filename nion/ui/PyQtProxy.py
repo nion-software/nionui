@@ -3342,6 +3342,12 @@ class PyQtProxy:
         assert document_window is not None
         document_window.resize(QtCore.QSize(width, height))
 
+    def DocumentWindow_setMinimumSize(self, document_window: PyDocumentWindow, width: int, height: int) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert document_window is not None
+        document_window.setMinimumSize(QtCore.QSize(width, height))
+
     def DocumentWindow_setTitle(self, document_window: PyDocumentWindow, title: str) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()

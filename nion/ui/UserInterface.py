@@ -1,5 +1,11 @@
 """
-Provides a user interface object that can render to an Qt host.
+Provides backend-agnostic user interface objects; concrete backends (Qt, canvas, test) implement
+the abstract hooks to render and interact with a specific host.
+
+Naming convention: a public method (e.g. resize) is the API external callers should use; it
+delegates to a single-underscore-prefixed hook (e.g. _resize) that subclasses override to implement
+backend-specific behavior. The underscore-prefixed hook should only be called by its own public
+method, never directly by external code.
 """
 from __future__ import annotations
 
@@ -3649,6 +3655,26 @@ class Window:
 
     def fill_screen(self) -> None:
         raise NotImplementedError()
+
+    def set_minimum_size(self, size: typing.Optional[Geometry.IntSize]) -> None:
+        # enforce a native minimum window size (e.g. to prevent the user from manually resizing the
+        # window smaller than its live content requires).
+        self._set_minimum_size(size)
+
+    def _set_minimum_size(self, size: typing.Optional[Geometry.IntSize]) -> None:
+        # default is a no-op; backends that have a native concept of window minimum size (e.g. Qt)
+        # should override this.
+        pass
+
+    def resize(self, size: Geometry.IntSize) -> None:
+        # resize the window without the side effects of show() (e.g. raising/re-showing it). used to
+        # grow the window when live content requires more space than it currently has.
+        self._resize(size)
+
+    def _resize(self, size: Geometry.IntSize) -> None:
+        # default is a no-op; backends that support programmatic resizing after show() should
+        # override this.
+        pass
 
     @property
     def title(self) -> str:

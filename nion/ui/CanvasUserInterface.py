@@ -246,11 +246,12 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         """ Size the canvas item to the text content. """
         horizontal_padding = 4
-        vertical_padding = 3
+        vertical_padding = 1
+        radio_button_size = 14
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
         new_sizing = self.copy_sizing()
         new_sizing = new_sizing.with_fixed_width(font_metrics.width + 2 * horizontal_padding + 14 + 4)
-        new_sizing = new_sizing.with_fixed_height(font_metrics.height + 2 * vertical_padding)
+        new_sizing = new_sizing.with_fixed_height(max(font_metrics.height, radio_button_size) + 2 * vertical_padding)
         self.update_sizing(new_sizing)
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext) -> None:

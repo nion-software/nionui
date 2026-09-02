@@ -93,7 +93,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         pages.append(u.create_column(instance, u.create_stretch()))
         items.append(page_title)
 
-    chooser_combo_box = u.create_combo_box(items=items, on_current_index_changed="select_page")
+    chooser_combo_box = u.create_row(u.create_combo_box(items=items, on_current_index_changed="select_page"), u.create_stretch())
 
     page_stack = u.create_stack(*pages, name="page_stack")
 

@@ -59,16 +59,16 @@ class Handler(Declarative.Handler):
         u = Declarative.DeclarativeUI()
         if resource_id == "shape":
             if item.type == "rectangle":
-                width_row = u.create_row(u.create_label(text="Width:"), u.create_label(text="@binding(shape.width)"), spacing=8)
-                height_row = u.create_row(u.create_label(text="Height:"), u.create_label(text="@binding(shape.height)"), spacing=8)
-                return u.define_component(u.create_group(u.create_column(width_row, height_row, spacing=8), title="@binding(shape.label)"))
+                width_row = u.create_row(u.create_label(text="Width:"), u.create_label(text="@binding(shape.width)"), u.create_stretch(), spacing=8)
+                height_row = u.create_row(u.create_label(text="Height:"), u.create_label(text="@binding(shape.height)"), u.create_stretch(), spacing=8)
+                return u.define_component(u.create_group(u.create_column(width_row, height_row, spacing=8), title="@binding(shape.label)", size_policy_horizontal="expanding"))
             elif item.type == "circle":
-                radius_row = u.create_row(u.create_label(text="Radius:"), u.create_label(text="@binding(shape.radius)"), spacing=8)
-                return u.define_component(u.create_group(u.create_column(radius_row, spacing=8), title="@binding(shape.label)"))
+                radius_row = u.create_row(u.create_label(text="Radius:"), u.create_label(text="@binding(shape.radius)"), u.create_stretch(), spacing=8)
+                return u.define_component(u.create_group(u.create_column(radius_row, spacing=8), title="@binding(shape.label)", size_policy_horizontal="expanding"))
             elif item.type == "interval":
-                left_row = u.create_row(u.create_label(text="Left:"), u.create_label(text="@binding(shape.left)"), spacing=8)
-                right_row = u.create_row(u.create_label(text="Right:"), u.create_label(text="@binding(shape.right)"), spacing=8)
-                return u.define_component(u.create_group(u.create_column(left_row, right_row, spacing=8), title="@binding(shape.label)"))
+                left_row = u.create_row(u.create_label(text="Left:"), u.create_label(text="@binding(shape.left)"), u.create_stretch(), spacing=8)
+                right_row = u.create_row(u.create_label(text="Right:"), u.create_label(text="@binding(shape.right)"), u.create_stretch(), spacing=8)
+                return u.define_component(u.create_group(u.create_column(left_row, right_row, spacing=8), title="@binding(shape.label)", size_policy_horizontal="expanding"))
         return None
 
 

@@ -5790,10 +5790,11 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
         """ Size the canvas item to the text content. """
         horizontal_padding = 4
-        vertical_padding = 3
+        vertical_padding = 1
+        check_box_size = 14
         font_metrics = get_font_metrics_fn(self.__font, self.__text)
         new_width = font_metrics.width + 2 * horizontal_padding + 14 + 4
-        new_height = font_metrics.height + 2 * vertical_padding
+        new_height = max(font_metrics.height, check_box_size) + 2 * vertical_padding
         self.intrinsic_size = Geometry.IntSize(new_height, new_width)
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:

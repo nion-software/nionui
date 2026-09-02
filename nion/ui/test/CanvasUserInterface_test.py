@@ -87,5 +87,31 @@ class TestLabelCanvasAlignment(unittest.TestCase):
         self.assertEqual(fill_text_commands[1][2], float(label2_canvas_rect.left))
 
 
+class TestCheckBoxAndRadioButtonCanvasSizing(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = TestUI.UserInterface()
+
+    def tearDown(self) -> None:
+        pass
+
+    def test_check_box_height_is_not_padded_beyond_the_check_box_glyph_size(self) -> None:
+        # the check box row height should be governed by the larger of the text height or the
+        # check box glyph (14px) plus a small fixed padding, not by an oversized vertical padding
+        # applied on top of the text height. an overly large padding here causes checked rows in
+        # a column to appear more spaced out in canvas UI than in Qt UI, even with identical
+        # explicit column spacing.
+        controller = CanvasUserInterface.BasicCheckBoxWidgetCanvasItemController(self.ui)
+        controller.text = "Enable All"
+        height = controller.widget_source.canvas_item.sizing.preferred_height_int
+        self.assertEqual(height, 16)
+
+    def test_radio_button_height_is_not_padded_beyond_the_radio_button_glyph_size(self) -> None:
+        controller = CanvasUserInterface.RadioButtonCanvasItem(text="Option")
+        controller.size_to_content(self.ui.get_font_metrics)
+        height = controller.sizing.preferred_height_int
+        self.assertEqual(height, 16)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -2465,6 +2465,31 @@ class QtUserInterface(UserInterface.UserInterface):
             rounded_font_str = round_font_size(font_str)
             return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(rounded_font_str, text)))
 
+    def get_text_offsets(self, font_str: str, text: str) -> typing.Sequence[float]:
+        if self.proxy.has_method("Core_getTextOffsets"):
+            return typing.cast(typing.Sequence[float], self.proxy.Core_getTextOffsets(font_str, text))
+        # fallback for older proxies: derive offsets from repeated get_font_metrics calls on
+        # successive prefixes, which guarantees consistency with get_font_metrics either way.
+        offsets = [0.0]
+        for i in range(1, len(text) + 1):
+            offsets.append(self.get_font_metrics(font_str, text[:i]).width)
+        return offsets
+
+    def get_font_families(self) -> typing.Sequence[str]:
+        if self.proxy.has_method("Core_getFontFamilies"):
+            return typing.cast(typing.Sequence[str], self.proxy.Core_getFontFamilies())
+        return list()
+
+    def resolve_font_family(self, font_str: str) -> str:
+        if self.proxy.has_method("Core_resolveFontFamily"):
+            return typing.cast(str, self.proxy.Core_resolveFontFamily(font_str))
+        return str()
+
+    def get_line_break_opportunities(self, text: str) -> typing.Sequence[int]:
+        if self.proxy.has_method("Core_getLineBreakOpportunities"):
+            return typing.cast(typing.Sequence[int], self.proxy.Core_getLineBreakOpportunities(text))
+        return list()
+
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
         if self.proxy.has_method("Core_truncateToWidth"):
             return typing.cast(str, self.proxy.Core_truncateToWidth(font_str, text, pixel_width, int(mode)))

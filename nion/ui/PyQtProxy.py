@@ -1387,16 +1387,18 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
                 family += current
     family_list.append(family.strip())
 
-    families = [f.lower() for f in QtGui.QFontDatabase.families()]
+    families = QtGui.QFontDatabase.families()
+    families_lower = [f.lower() for f in families]
     for family in family_list:
-        if family in families:
-            font.setFamily(family)
+        family_lower = family.lower()
+        if family_lower in families_lower:
+            font.setFamily(families[families_lower.index(family_lower)])
             break
-        elif family == "monospace":
+        elif family_lower == "monospace":
             font.setFamily(QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont).family())
-        elif family == "serif":
+        elif family_lower == "serif":
             font.setStyleHint(QtGui.QFont.StyleHint.Serif)
-        elif family == "sans-serif":
+        elif family_lower == "sans-serif":
             font.setStyleHint(QtGui.QFont.StyleHint.SansSerif)
 
     font.setStyleStrategy(QtGui.QFont.StyleStrategy.PreferAntialias)
@@ -3067,12 +3069,34 @@ class PyQtProxy:
         assert combobox is not None
         combobox.setCurrentText(text)
 
+    def Core_getFontFamilies(self) -> typing.Sequence[str]:
+        return list(QtGui.QFontDatabase.families())
+
     def Core_getFontMetrics(self, font_str: str, text: str) -> typing.Tuple[float, float, float, float, float]:
         text = text if text else str()
         display_scaling = GetDisplayScaling()
         font = ParseFontString(font_str, display_scaling)
         font_metrics = QtGui.QFontMetricsF(font)
         return font_metrics.horizontalAdvance(text) / display_scaling, font_metrics.height() / display_scaling, font_metrics.ascent() / display_scaling, font_metrics.descent() / display_scaling, font_metrics.leading() / display_scaling
+
+    def Core_getLineBreakOpportunities(self, text: str) -> typing.Sequence[int]:
+        text = text if text else str()
+        boundary_finder = QtCore.QTextBoundaryFinder(QtCore.QTextBoundaryFinder.BoundaryType.Line, text)
+        result = list()
+        position = boundary_finder.toNextBoundary()
+        while position != -1:
+            result.append(position)
+            position = boundary_finder.toNextBoundary()
+        return result
+
+    def Core_getTextOffsets(self, font_str: str, text: str) -> typing.Sequence[float]:
+        text = text if text else str()
+        display_scaling = GetDisplayScaling()
+        font = ParseFontString(font_str, display_scaling)
+        font_metrics = QtGui.QFontMetricsF(font)
+        # computed via successive prefixes (not per-glyph advances) so the final
+        # offset always agrees exactly with Core_getFontMetrics / Core_truncateToWidth.
+        return [0.0] + [font_metrics.horizontalAdvance(text[:i]) / display_scaling for i in range(1, len(text) + 1)]
 
     def Core_getQtVersion(self) -> str:
         return QtCore.qVersion()
@@ -3103,6 +3127,10 @@ class PyQtProxy:
 
     def Core_pathToURL(self, path: str) -> str:
         return QtCore.QUrl.fromLocalFile(path).toString()
+
+    def Core_resolveFontFamily(self, font_str: str) -> str:
+        font = ParseFontString(font_str)
+        return QtGui.QFontInfo(font).family()
 
     def Core_readImageToBinary(self, filename: str) -> typing.Optional[numpy.ndarray]:
         reader = QtGui.QImageReader(filename)

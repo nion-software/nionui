@@ -2263,6 +2263,18 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def get_font_metrics(self, font: str, text: str) -> UserInterface.FontMetrics:
         return self.__ui.get_font_metrics(font, text)
 
+    def get_text_offsets(self, font: str, text: str) -> typing.Sequence[float]:
+        return self.__ui.get_text_offsets(font, text)
+
+    def get_font_families(self) -> typing.Sequence[str]:
+        return self.__ui.get_font_families()
+
+    def resolve_font_family(self, font: str) -> str:
+        return self.__ui.resolve_font_family(font)
+
+    def get_line_break_opportunities(self, text: str) -> typing.Sequence[int]:
+        return self.__ui.get_line_break_opportunities(text)
+
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
         return self.__ui.truncate_string_to_width(font_str, text, pixel_width, mode)
 

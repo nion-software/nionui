@@ -64,6 +64,17 @@ class TestFontMetrics:
                                                descent=self._font_metrics_descent / self._display_scaling,
                                                leading=self._font_metrics_leading / self._display_scaling)
 
+    def get_text_offsets(self, font_str: str, text: str) -> typing.Sequence[float]:
+        def get_char_width(c: str) -> int:
+            return self._font_width_by_char.get(c, self._default_char_width)
+
+        offsets = [0.0]
+        cumulative = 0
+        for c in text:
+            cumulative += get_char_width(c)
+            offsets.append(cumulative / self._display_scaling)
+        return offsets
+
 
 def calculate_font_metric_info_for_tests(font_str: str, display_scaling: float) -> str:
     """
@@ -1468,6 +1479,18 @@ class UserInterface(UserInterfaceModule.UserInterface):
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterfaceModule.FontMetrics:
         return self._font_metrics.get_font_metrics(font_str, text)
+
+    def get_text_offsets(self, font_str: str, text: str) -> typing.Sequence[float]:
+        return self._font_metrics.get_text_offsets(font_str, text)
+
+    def get_font_families(self) -> typing.Sequence[str]:
+        return list()
+
+    def resolve_font_family(self, font_str: str) -> str:
+        return str()
+
+    def get_line_break_opportunities(self, text: str) -> typing.Sequence[int]:
+        return list()
 
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterfaceModule.TruncateModeType) -> str:
         return text

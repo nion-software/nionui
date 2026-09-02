@@ -854,9 +854,14 @@ class BoxWidgetBehavior(WidgetBehavior):
 
     def remove(self, child: UserInterface.Widget) -> None:
         child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        if child_canvas_item in self.__box_canvas_item.canvas_items:
+            self.__box_canvas_item.remove_canvas_item(child_canvas_item)
+            return
         for alignment_canvas_item in self.__box_canvas_item.canvas_items:
             if child_canvas_item in alignment_canvas_item.canvas_items:
                 self.__box_canvas_item.remove_canvas_item(alignment_canvas_item)
+                return
 
     def add_stretch(self) -> UserInterface.Widget:
         return UserInterface.Widget(WidgetBehavior(self.__box_canvas_item.add_stretch(), False, None))

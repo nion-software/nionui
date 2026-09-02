@@ -401,11 +401,18 @@ class ComboBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController)
 
 
 class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController):
+
+    # extra horizontal space (on each side) reserved around the text so it does not draw flush
+    # against the box border when left-aligned.
+    __horizontal_text_padding = 4
+
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         super().__init__(ui)
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
-        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem()
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(width=self.__horizontal_text_padding, height=0))
+        self.__text_button_canvas_item.text_align = "left"
+        self.__text_button_canvas_item.text_measure = typing.cast(CanvasItem.TextMeasure, ui)
         self.__row.background_color = "#f0f0f0"
         self.__row.border_color = "gray"
         self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}")
@@ -413,6 +420,7 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         self.__row.add_canvas_item(self.__text_button_canvas_item)
         self.__row.add_canvas_item(self.__triangle)
         self.__items: typing.List[str] = list()
+        self.__item_text_size = Geometry.IntSize()
         self.__window: typing.Optional[CanvasWindow] = None
 
         def handle_clicked() -> None:
@@ -450,6 +458,20 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         else:
             self.__window = None
 
+    def __compute_item_text_size(self) -> Geometry.IntSize:
+        # measure every item (not just the current one) so the combo box has a stable width that
+        # does not change as the user picks different items, matching Qt's behavior where the
+        # combo box is sized to accommodate the widest item.
+        font = self.__text_button_canvas_item.text_font or "12px"
+        widths = [self.ui.get_font_metrics(font, item).width for item in self.__items]
+        heights = [self.ui.get_font_metrics(font, item).height for item in self.__items]
+        max_width = max(widths, default=0)
+        max_height = max(heights, default=0)
+        # account for the text button's own padding, which is not included in the raw font metrics.
+        if max_width:
+            max_width += 2 * self.__horizontal_text_padding
+        return Geometry.IntSize(width=max_width, height=max_height)
+
     @property
     def current_text(self) -> str:
         return self.__text_button_canvas_item.text
@@ -458,7 +480,7 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
     def current_text(self, value: str) -> None:
         if value:  # only update if value, matches Qt behavior
             self.__text_button_canvas_item.text = value
-            self.__text_button_canvas_item.size_to_content(self.ui.get_font_metrics)
+            self.__text_button_canvas_item.intrinsic_size = self.__item_text_size
             self.__triangle.size_to_content(self.ui.get_font_metrics)
             self.__row.size_to_content()
             if callable(self.on_size_changed):
@@ -468,6 +490,7 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
     def set_item_strings(self, strings: typing.Sequence[str]) -> None:
         index = self.__items.index(self.current_text) if self.current_text else 0
         self.__items = list(strings)
+        self.__item_text_size = self.__compute_item_text_size()
         self.current_text = self.__items[index] if 0 <= index < len(self.__items) else str()
 
     def set_enabled(self, enabled: bool) -> None:

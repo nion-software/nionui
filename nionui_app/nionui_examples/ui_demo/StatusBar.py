@@ -17,5 +17,5 @@ def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     left = u.create_label(text="LEFT")
     right = u.create_label(text="RIGHT")
     group_row = u.create_row(left, u.create_stretch(), right, spacing=8)
-    status_bar = u.create_group(group_row)
+    status_bar = u.create_group(group_row, margin=4)
     return u.create_column(content, u.create_stretch(), status_bar, spacing=8)

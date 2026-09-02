@@ -35,5 +35,6 @@ def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     section2 = create_section("Third", "THREE", "Check 3", "Push THREE", 2)
 
     button = u.create_push_button(text="3", on_clicked="switch3")
+    button_row = u.create_row(button, u.create_stretch())
 
-    return u.create_column(section0, section1, section2, button)
+    return u.create_column(section0, section1, section2, button_row)

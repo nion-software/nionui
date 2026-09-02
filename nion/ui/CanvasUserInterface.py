@@ -1003,6 +1003,78 @@ class GroupWidgetBehavior(WidgetBehavior):
         self.__column.update()
 
 
+class ScrollAreaWidgetBehavior(WidgetBehavior, UserInterface.ScrollAreaWidgetBehavior):
+    """Scroll area for the canvas UI backend.
+
+    Wraps CanvasItem.ScrollAreaCanvasItem and CanvasItem.ScrollBarCanvasItem (already used internally,
+    e.g. by Widgets.ListWidget) to provide real scrolling of arbitrary content with a visible vertical
+    scroll bar. Mouse wheel scrolling of the content area itself is not yet implemented -- content can
+    also be scrolled programmatically via `scroll_to`.
+    """
+
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        self.__scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem()
+        # wrap the scroll area and its scroll bar in a row so the scroll bar is visible alongside the
+        # content, matching Qt's QScrollArea (which always shows a vertical scroll bar when needed).
+        self.__scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        # give the scroll area a white background and a frame border, matching Qt's QScrollArea, which
+        # is visually distinct (lighter) than the surrounding panel/group box background.
+        self.__scroll_group_canvas_item.background_color = "#ececec"  # sRGB(0.925, 0.925, 0.925), matching Qt's window background
+        self.__scroll_group_canvas_item.border_color = "gray"
+        self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_area_canvas_item)
+        self.__scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.__scroll_area_canvas_item)
+        self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_bar_canvas_item)
+        super().__init__(self.__scroll_group_canvas_item, False, properties)
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__content_widget: typing.Optional[UserInterface.Widget] = None
+        self.on_size_changed: typing.Optional[typing.Callable[[int, int], None]] = None
+        self.on_viewport_changed: typing.Optional[typing.Callable[[Geometry.RectIntTuple], None]] = None
+
+        def content_updated() -> None:
+            self.__notify_viewport_changed()
+
+        self.__content_updated_listener = self.__scroll_area_canvas_item.content_updated_event.listen(content_updated)
+
+        def canvas_size_changed(canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
+            if canvas_size is not None:
+                size = Geometry.IntSize.make(canvas_size)
+                if callable(self.on_size_changed):
+                    self.on_size_changed(size.width, size.height)
+            self.__notify_viewport_changed()
+
+        self.__canvas_size_changed_action = Stream.ValueStreamAction(self.__scroll_area_canvas_item._canvas_size_stream, canvas_size_changed)
+
+    def close(self) -> None:
+        self.__content_updated_listener.close()
+        self.__content_updated_listener = typing.cast(typing.Any, None)
+        self.__canvas_size_changed_action = typing.cast(typing.Any, None)
+        self.__content_widget = None
+        super().close()
+
+    def __notify_viewport_changed(self) -> None:
+        if callable(self.on_viewport_changed):
+            content_origin = self.__scroll_area_canvas_item.content_origin
+            size = self.__scroll_area_canvas_item.canvas_size or Geometry.IntSize()
+            viewport = Geometry.IntRect(origin=Geometry.IntPoint(x=-content_origin.x, y=-content_origin.y), size=size)
+            self.on_viewport_changed(viewport.as_tuple())
+
+    def set_content(self, content: typing.Optional[UserInterface.Widget]) -> None:
+        self.__content_widget = content
+        content_canvas_item = extract_canvas_item(content) if content else None
+        if content_canvas_item:
+            self.__scroll_area_canvas_item.content = content_canvas_item
+
+    def scroll_to(self, x: int, y: int) -> None:
+        self.__scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(x=-x, y=-y))
+
+    def set_scrollbar_policies(self, horizontal_policy: str, vertical_policy: str) -> None:
+        self.__scroll_bar_canvas_item.visible = vertical_policy != "off"
+
+    def info(self) -> None:
+        pass
+
+
 class LabelWidgetBehavior(WidgetBehavior):
 
     def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], text_measure: typing.Optional[CanvasItem.TextMeasure] = None) -> None:
@@ -2060,8 +2132,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.GroupWidget(GroupWidgetBehavior(properties, self.get_font_metrics, typing.cast(CanvasItem.TextMeasure, self)))
 
     def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ScrollAreaWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.ScrollAreaWidget(ScrollAreaWidgetBehavior(properties, self.get_font_metrics))
 
     def create_combo_box_widget(self, items: typing.Optional[typing.Sequence[typing.Any]] = None, item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ComboBoxWidget:
         return UserInterface.ComboBoxWidget(ComboBoxWidgetBehavior(self, properties), items or list(), item_getter or (lambda x: str(x)))

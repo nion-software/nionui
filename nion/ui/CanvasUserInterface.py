@@ -714,6 +714,8 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_width(value).with_preferred_width(value))
             if key == "min-height":
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_height(value).with_preferred_height(value))
+            if key == "collapsible":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_collapsible(bool(value)))
 
     def set_property(self, key: str, value: typing.Any) -> None:
         # TODO

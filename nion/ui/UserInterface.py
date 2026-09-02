@@ -4144,6 +4144,22 @@ class UserInterface(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def get_text_offsets(self, font: str, text: str) -> typing.Sequence[float]:
+        ...
+
+    @abc.abstractmethod
+    def get_font_families(self) -> typing.Sequence[str]:
+        ...
+
+    @abc.abstractmethod
+    def resolve_font_family(self, font: str) -> str:
+        ...
+
+    @abc.abstractmethod
+    def get_line_break_opportunities(self, text: str) -> typing.Sequence[int]:
+        ...
+
+    @abc.abstractmethod
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: TruncateModeType) -> str:
         ...
 

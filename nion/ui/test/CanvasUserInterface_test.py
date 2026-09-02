@@ -2,6 +2,7 @@
 import unittest
 
 # local libraries
+from nion.ui import CanvasItem
 from nion.ui import CanvasUserInterface
 from nion.ui import DrawingContext
 from nion.ui import TestUI
@@ -111,6 +112,84 @@ class TestCheckBoxAndRadioButtonCanvasSizing(unittest.TestCase):
         controller.size_to_content(self.ui.get_font_metrics)
         height = controller.sizing.preferred_height_int
         self.assertEqual(height, 16)
+
+
+class TestGroupBoxCanvas(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def _layout(self, canvas_item: CanvasItem.CanvasItemComposition, width: int = 200, height: int = 100) -> None:
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=width, height=height))
+        canvas_item.layout_immediate(Geometry.IntSize(width=width, height=height))
+
+    def test_group_box_draws_a_distinct_background_and_border(self) -> None:
+        # a group box should read visually as a group (background fill + border), matching Qt's
+        # native QGroupBox frame, rather than being visually indistinguishable from its surroundings.
+        group = self.ui.create_group_widget()
+        group.add(self.ui.create_label_widget(text="Hi"))
+        canvas_item = group._behavior.canvas_item  # type: ignore[attr-defined]
+        self._layout(canvas_item)
+
+        drawing_context = DrawingContext.DrawingContext()
+        canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=100))
+
+        self.assertTrue(any(command[0] == "fill" for command in drawing_context.commands))
+        self.assertTrue(any(command[0] == "stroke" for command in drawing_context.commands))
+
+    def test_group_box_border_uses_expected_color_and_half_width(self) -> None:
+        group = self.ui.create_group_widget()
+        group.add(self.ui.create_label_widget(text="Hi"))
+        canvas_item = group._behavior.canvas_item  # type: ignore[attr-defined]
+        self._layout(canvas_item)
+
+        drawing_context = DrawingContext.DrawingContext()
+        canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=100))
+
+        stroke_style_commands = [command for command in drawing_context.commands if command[0] == "strokeStyle"]
+        line_width_commands = [command for command in drawing_context.commands if command[0] == "lineWidth"]
+        self.assertIn(("strokeStyle", "#dadada"), stroke_style_commands)
+        self.assertIn(("lineWidth", 0.5), line_width_commands)
+
+    def test_group_box_draws_its_title_left_aligned(self) -> None:
+        group = self.ui.create_group_widget()
+        group.add(self.ui.create_label_widget(text="Hi"))
+        group.title = "My Group"
+        canvas_item = group._behavior.canvas_item  # type: ignore[attr-defined]
+        self._layout(canvas_item)
+
+        drawing_context = DrawingContext.DrawingContext()
+        canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=100))
+
+        fill_text_commands = [command for command in drawing_context.commands if command[0] == "fillText"]
+        title_commands = [command for command in fill_text_commands if command[1] == "My Group"]
+        self.assertEqual(len(title_commands), 1)
+        # the title should be indented from the left edge, not centered across the group's width.
+        self.assertLess(title_commands[0][2], 20)
+
+    def test_group_box_height_does_not_change_when_title_is_cleared_after_being_set(self) -> None:
+        # the group's sizing must be recomputed whenever content is added/removed, not only when
+        # the title changes; otherwise a group created without ever setting a title starts out with
+        # stale/incorrect sizing.
+        group = self.ui.create_group_widget()
+        group.add(self.ui.create_label_widget(text="Hi"))
+        canvas_item = group._behavior.canvas_item  # type: ignore[attr-defined]
+        self._layout(canvas_item)
+        height_without_title = canvas_item.layout_sizing.preferred_height_int
+
+        group.title = "My Group"
+        self._layout(canvas_item)
+        height_with_title = canvas_item.layout_sizing.preferred_height_int
+
+        group.title = None
+        self._layout(canvas_item)
+        height_after_clearing_title = canvas_item.layout_sizing.preferred_height_int
+
+        self.assertGreater(height_with_title, height_without_title)
+        self.assertEqual(height_without_title, height_after_clearing_title)
 
 
 if __name__ == '__main__':

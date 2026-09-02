@@ -832,9 +832,29 @@ class StackWidgetBehavior(WidgetBehavior):
 
 class GroupWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
-        self.__canvas_item = CanvasItem.CanvasItemComposition()
-        super().__init__(self.__canvas_item, False, properties)
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], text_measure: typing.Optional[CanvasItem.TextMeasure] = None) -> None:
+        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__title_item = CanvasItem.TextCanvasItem(str(), padding=Geometry.IntSize(width=4, height=2))
+        self.__title_item.text_align = "left"
+        self.__title_item.text_measure = text_measure
+        self.__title_item.visible = False
+        # indent the title a bit from the left edge of the frame, matching the typical inset of a
+        # native group box's title/legend.
+        self.__title_row = CanvasItem.CanvasItemComposition()
+        self.__title_row.layout = CanvasItem.CanvasItemColumnLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=0), alignment="start")
+        self.__title_row.add_canvas_item(self.__title_item)
+        self.__title_row.visible = False
+        self.__content_composition = CanvasItem.CanvasItemComposition()
+        self.__column = CanvasItem.CanvasItemComposition()
+        self.__column.layout = CanvasItem.CanvasItemColumnLayout(spacing=4, alignment="start")
+        self.__column.add_canvas_item(self.__title_row)
+        self.__column.add_canvas_item(self.__content_composition)
+        # give the group box a distinct background and a border so it reads visually as a group,
+        # matching Qt's native QGroupBox frame.
+        self.__column.background_color = "rgba(0, 0, 0, 0.04)"
+        self.__column.border_color = "#dadada"  # sRGB(0.855, 0.855, 0.855)
+        self.__column.border_width = 0.5
+        super().__init__(self.__column, False, properties)
         self.__title: typing.Optional[str] = None
 
     @property
@@ -844,16 +864,26 @@ class GroupWidgetBehavior(WidgetBehavior):
     @title.setter
     def title(self, title: typing.Optional[str]) -> None:
         self.__title = title
+        self.__title_item.text = title or str()
+        self.__title_item.visible = bool(title)
+        self.__title_row.visible = bool(title)
+        if title:
+            self.__title_item.size_to_content(self.__get_font_metrics_fn)
+        self.__column.size_to_content()
 
     def add(self, child: UserInterface.Widget) -> None:
         child_canvas_item = extract_canvas_item(child)
         assert child_canvas_item is not None
-        self.__canvas_item.add_canvas_item(child_canvas_item)
+        self.__content_composition.add_canvas_item(child_canvas_item)
+        self.__content_composition.size_to_content()
+        self.__column.size_to_content()
 
     def remove(self, child: UserInterface.Widget) -> None:
         child_canvas_item = extract_canvas_item(child)
         assert child_canvas_item is not None
-        self.__canvas_item.remove_canvas_item(child_canvas_item)
+        self.__content_composition.remove_canvas_item(child_canvas_item)
+        self.__content_composition.size_to_content()
+        self.__column.size_to_content()
 
 
 class LabelWidgetBehavior(WidgetBehavior):
@@ -1796,7 +1826,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.StackWidget(StackWidgetBehavior(properties))
 
     def create_group_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.GroupWidget:
-        return UserInterface.GroupWidget(GroupWidgetBehavior(properties))
+        return UserInterface.GroupWidget(GroupWidgetBehavior(properties, self.get_font_metrics, typing.cast(CanvasItem.TextMeasure, self)))
 
     def create_scroll_area_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.ScrollAreaWidget:
         # TODO

@@ -918,6 +918,7 @@ class AbstractCanvasItem:
         self.__tool_tip: typing.Optional[str] = None
         self.__background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None
         self.__border_color: typing.Optional[str] = None
+        self.__border_width: typing.Optional[float] = None
         self.__visible = True
         self.__enabled = True
         self.__thread = threading.current_thread()
@@ -1037,6 +1038,15 @@ class AbstractCanvasItem:
     @border_color.setter
     def border_color(self, border_color: typing.Optional[str]) -> None:
         self.__border_color = border_color
+        self.update()
+
+    @property
+    def border_width(self) -> typing.Optional[float]:
+        return self.__border_width
+
+    @border_width.setter
+    def border_width(self, border_width: typing.Optional[float]) -> None:
+        self.__border_width = border_width
         self.update()
 
     @property
@@ -2120,12 +2130,14 @@ class CanvasItemCompositionComposer(BaseComposer):
                  layout: CanvasItemAbstractLayout,
                  child_composers: typing.Sequence[BaseComposer],
                  background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
-                 border_color: typing.Optional[str]) -> None:
+                 border_color: typing.Optional[str],
+                 border_width: typing.Optional[float] = None) -> None:
         super().__init__(canvas_item, layout_sizing, composer_cache)
         self.__layout = layout
         self.__child_composers = child_composers
         self.__background_color = background_color
         self.__border_color = border_color
+        self.__border_width = border_width
 
     def _update_layout(self, canvas_bounds: Geometry.IntRect) -> None:
         self.__layout.layout(Geometry.IntPoint(), canvas_bounds.size, self.__child_composers)
@@ -2133,7 +2145,7 @@ class CanvasItemCompositionComposer(BaseComposer):
     def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         self.__draw_background(drawing_context, canvas_rect, self.__background_color)
         self._repaint_children(drawing_context, canvas_rect, visible_rect, self.__child_composers)
-        self.__draw_border(drawing_context, canvas_rect, self.__border_color)
+        self.__draw_border(drawing_context, canvas_rect, self.__border_color, self.__border_width)
         self._draw_unique_marker(drawing_context, canvas_rect)
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
@@ -2153,12 +2165,14 @@ class CanvasItemCompositionComposer(BaseComposer):
                 drawing_context.fill_style = background_color
                 drawing_context.fill()
 
-    def __draw_border(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, border_color: typing.Optional[str]) -> None:
+    def __draw_border(self, drawing_context: DrawingContext.DrawingContext, canvas_bounds: Geometry.IntRect, border_color: typing.Optional[str], border_width: typing.Optional[float] = None) -> None:
         if border_color:
             with drawing_context.saver():
                 drawing_context.begin_path()
                 drawing_context.rect(canvas_bounds.left, canvas_bounds.top, canvas_bounds.width, canvas_bounds.height)
                 drawing_context.stroke_style = border_color
+                if border_width is not None:
+                    drawing_context.line_width = border_width
                 drawing_context.stroke()
 
 
@@ -2401,7 +2415,7 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self._get_composition_composer(child_composers, composer_cache)
 
     def _get_composition_composer(self, child_composers: typing.Sequence[BaseComposer], composer_cache: ComposerCache) -> BaseComposer:
-        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color)
+        return CanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self.border_width)
 
     def get_composer_immediate(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         child_composers = list[BaseComposer]()

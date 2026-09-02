@@ -64,8 +64,10 @@ class TestCanvasItemClass(unittest.TestCase):
         # both the icon and the text should be visible and contribute to the overall width.
         self.assertTrue(icon_canvas_item.visible)
         self.assertTrue(text_canvas_item.visible)
-        self.assertEqual(stack.layout_sizing.preferred_width_int,
-                         icon_canvas_item.layout_sizing.preferred_width_int + text_canvas_item.layout_sizing.preferred_width_int)
+        # the stack should be at least as wide as its content, but never narrower than the
+        # button's sensible default minimum width.
+        content_width = icon_canvas_item.layout_sizing.preferred_width_int + text_canvas_item.layout_sizing.preferred_width_int
+        self.assertEqual(stack.layout_sizing.preferred_width_int, max(content_width, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
         # setting the icon back to None should hide only the icon, leaving the text visible.
         controller.set_icon(None)
         self.assertFalse(icon_canvas_item.visible)
@@ -88,7 +90,8 @@ class TestCanvasItemClass(unittest.TestCase):
         icon_canvas_item, text_canvas_item = stack.canvas_items
         self.assertTrue(icon_canvas_item.visible)
         self.assertFalse(text_canvas_item.visible)
-        self.assertEqual(stack.layout_sizing.preferred_width_int, icon_canvas_item.layout_sizing.preferred_width_int)
+        self.assertEqual(stack.layout_sizing.preferred_width_int,
+                          max(icon_canvas_item.layout_sizing.preferred_width_int, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
 
     def test_push_button_shows_only_text_when_only_text_is_set(self) -> None:
         from nion.ui import Widgets
@@ -100,7 +103,8 @@ class TestCanvasItemClass(unittest.TestCase):
         icon_canvas_item, text_canvas_item = stack.canvas_items
         self.assertFalse(icon_canvas_item.visible)
         self.assertTrue(text_canvas_item.visible)
-        self.assertEqual(stack.layout_sizing.preferred_width_int, text_canvas_item.layout_sizing.preferred_width_int)
+        self.assertEqual(stack.layout_sizing.preferred_width_int,
+                          max(text_canvas_item.layout_sizing.preferred_width_int, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
 
 
 if __name__ == '__main__':

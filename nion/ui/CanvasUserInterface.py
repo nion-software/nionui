@@ -997,9 +997,12 @@ class TextEditCell(CanvasItem.Cell):
             text_color = self.__text_color or "black"
             drawing_context.font = text_font
             drawing_context.text_baseline = "middle"
-            drawing_context.text_align = "center"
+            # draw left-aligned, flush against the left edge of the cell, matching the way a label
+            # draws its text; the border/background occupy the (padded) cell but do not shift where
+            # the text itself is drawn.
+            drawing_context.text_align = "left"
             drawing_context.fill_style = text_color
-            drawing_context.fill_text(self.__text, rect.center.x, rect.center.y + 1)
+            drawing_context.fill_text(self.__text, rect.left, rect.center.y + 1)
 
 
 class TextEditCanvasItem(CanvasItem.CellCanvasItem):
@@ -1064,17 +1067,31 @@ class TextEditCanvasItem(CanvasItem.CellCanvasItem):
             self.border_color = None
 
     def size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
-        # override to have minimum width
-        self.update_sizing(self.sizing.with_minimum_width(40))
+        # size the line edit to fit its text (or placeholder, if text is empty) content height, plus
+        # a small horizontal/vertical padding for the border and caret; use a minimum width so the
+        # field is usable even when empty, matching Qt's QLineEdit sizeHint behavior.
+        horizontal_padding = 4
+        vertical_padding = 4
+        minimum_width = 40
+        text_font = self.text_font or "12px"
+        content_text = self.text or self.placeholder_text
+        font_metrics = get_font_metrics_fn(text_font, content_text)
+        new_width = max(minimum_width, font_metrics.width + 2 * horizontal_padding)
+        new_height = font_metrics.height + 2 * vertical_padding
+        new_sizing = self.copy_sizing()
+        new_sizing = new_sizing.with_minimum_width(minimum_width).with_preferred_width(new_width)
+        new_sizing = new_sizing.with_fixed_height(new_height)
+        self.update_sizing(new_sizing)
 
 
 class LineEditWidgetBehavior(WidgetBehavior):
 
     def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
-        self.__canvas_item = TextEditCanvasItem(text, border_color="gray")
+        self.__canvas_item = TextEditCanvasItem(text, background_color="white", border_color="gray")
         super().__init__(self.__canvas_item, False, properties)
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.word_wrap = False  # TODO
+        self.__canvas_item.size_to_content(get_font_metrics_fn)
         self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None

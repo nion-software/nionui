@@ -192,5 +192,72 @@ class TestGroupBoxCanvas(unittest.TestCase):
         self.assertEqual(height_without_title, height_after_clearing_title)
 
 
+class TestLineEditCanvasSizingAndAppearance(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def _layout(self, canvas_item: CanvasItem.AbstractCanvasItem, width: int = 200, height: int = 100) -> None:
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=width, height=height))
+        canvas_item.update_layout_immediate(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=width, height=height))
+
+    def test_line_edit_has_a_non_zero_height_when_empty(self) -> None:
+        # a line edit with no text and no placeholder should still have a sensible line-height, not
+        # collapse to zero height (which would make it invisible/unusable as a placeholder widget).
+        line_edit = self.ui.create_line_edit_widget()
+        height = line_edit._behavior.canvas_item.sizing.preferred_height_int  # type: ignore[attr-defined]
+        self.assertGreater(height, 0)
+
+    def test_line_edit_width_grows_to_fit_placeholder_text(self) -> None:
+        line_edit = self.ui.create_line_edit_widget()
+        narrow_width = line_edit._behavior.canvas_item.sizing.preferred_width_int  # type: ignore[attr-defined]
+
+        line_edit.placeholder_text = "A Considerably Longer Placeholder"
+        wide_width = line_edit._behavior.canvas_item.sizing.preferred_width_int  # type: ignore[attr-defined]
+
+        self.assertGreater(wide_width, narrow_width)
+
+    def test_line_edit_draws_a_white_background(self) -> None:
+        # a line edit should draw a white background so it reads as an editable field, rather than
+        # being transparent and blending into whatever is drawn behind it.
+        line_edit = self.ui.create_line_edit_widget()
+        canvas_item = line_edit._behavior.canvas_item  # type: ignore[attr-defined]
+        container = CanvasItem.CanvasItemComposition()
+        container.add_canvas_item(canvas_item)
+        self._layout(container)
+
+        drawing_context = DrawingContext.DrawingContext()
+        container.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=100))
+
+        fill_style_commands = [command for command in drawing_context.commands if command[0] == "fillStyle"]
+        self.assertIn(("fillStyle", "white"), fill_style_commands)
+
+    def test_line_edit_text_draws_left_aligned_like_a_label(self) -> None:
+        # the line edit's text should draw flush against the (padding-inset) left edge of its box,
+        # the same way a label draws its text, rather than centered; the border and white background
+        # occupy the full (padded) box, effectively surrounding the label-like content area.
+        line_edit = self.ui.create_line_edit_widget()
+        line_edit.text = "Hello"
+        canvas_item = line_edit._behavior.canvas_item  # type: ignore[attr-defined]
+        container = CanvasItem.CanvasItemComposition()
+        container.add_canvas_item(canvas_item)
+        self._layout(container, width=300)
+
+        drawing_context = DrawingContext.DrawingContext()
+        container.repaint_immediate(drawing_context, Geometry.IntSize(width=300, height=100))
+
+        fill_text_commands = [command for command in drawing_context.commands if command[0] == "fillText"]
+        self.assertEqual(len(fill_text_commands), 1)
+        # the text should draw near the left edge (inset only by the cell's own small padding), not
+        # centered across the (much wider) box.
+        self.assertLess(fill_text_commands[0][2], 10)
+
+        fill_style_commands = [command for command in drawing_context.commands if command[0] == "fillStyle"]
+        self.assertIn(("fillStyle", "white"), fill_style_commands)
+
+
 if __name__ == '__main__':
     unittest.main()

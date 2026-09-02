@@ -32,6 +32,7 @@ from . import Sliders
 from . import Stacks
 from . import StatusBar
 from . import Tabs
+from . import TextAreas
 
 _ = gettext.gettext
 
@@ -76,6 +77,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (Stacks, "stacks", _("Stacks")),
         (StatusBar, "status_bar", _("Status Bar")),
         (Tabs, "tabs", _("Tabs")),
+        (TextAreas, "text_areas", _("Text Areas")),
         (ComponentLayout, "component_layout", _("Component Layout")),
         (ComponentStack, "component_stack", _("Component Stack")),
         (ComponentContent, "component_content", _("Component Content")),

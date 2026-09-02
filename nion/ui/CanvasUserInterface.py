@@ -1336,6 +1336,51 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
         pass
 
 
+class TextBrowserWidgetBehavior(WidgetBehavior, UserInterface.TextBrowserWidgetBehavior):
+    """Placeholder implementation of a text browser for the canvas UI backend.
+
+    Rich text/markdown/html rendering is not yet implemented here, and the underlying cell used for
+    the placeholder does not wrap or clip long unwrapped text to its bounds, so the given text,
+    markdown, or html source is intentionally *not* drawn -- this is a blank, empty-looking
+    placeholder rather than an approximation that could overflow its bounds. This lets a text
+    browser still be constructed and shown like any other widget rather than raising
+    NotImplementedError and preventing whatever contains it from being built at all.
+    """
+
+    def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+        text_browser_canvas_item = TextEditCanvasItem(str(), background_color="#f0f0f0", border_color="gray")
+        font_metrics = get_font_metrics_fn(str(), "x")
+        text_browser_canvas_item.update_sizing(text_browser_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
+        super().__init__(text_browser_canvas_item, False, properties)
+        self.__canvas_item = text_browser_canvas_item
+        self.on_anchor_clicked: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_load_image_resource: typing.Optional[typing.Callable[[str], typing.Optional[DrawingContext.RGBA32Type]]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+
+    def set_html(self, str: typing.Optional[str]) -> None:
+        pass
+
+    def set_markdown(self, str: typing.Optional[str]) -> None:
+        pass
+
+    def set_text(self, str: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_background_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_color(self, color: typing.Optional[str]) -> None:
+        pass
+
+    def set_text_font(self, font_str: typing.Optional[str]) -> None:
+        pass
+
+    def scroll_to_anchor(self, anchor: str) -> None:
+        pass
+
+
 class PushButtonWidgetBehavior(WidgetBehavior):
 
     def __init__(self, ui: CanvasUserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
@@ -2049,8 +2094,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.LineEditWidget(LineEditWidgetBehavior(str(), properties, self.get_font_metrics))
 
     def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextBrowserWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.TextBrowserWidget(TextBrowserWidgetBehavior(properties, self.get_font_metrics))
 
     def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextEditWidget:
         return UserInterface.TextEditWidget(TextEditWidgetBehavior(str(), properties, self.get_font_metrics))

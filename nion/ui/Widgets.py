@@ -243,13 +243,13 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def __init__(self, ui: UserInterface.UserInterface, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         super().__init__(ui)
 
-        # 8px of horizontal padding around the text gives short labels breathing room; this does not
-        # widen the button beyond default_minimum_width, since that floor is enforced as a max(), not
-        # an addition -- it only matters once content (text + padding) naturally exceeds the floor.
-        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=8))
-        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(4, 4))
+        # no per-item horizontal padding, so the icon and text sit tight against each other with no
+        # gap between them; the button's outer horizontal padding is provided by the row's own
+        # margins instead, applied once around the combo rather than doubled up per item.
+        self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0))
+        self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0))
         self.__stack = CanvasItem.CanvasItemComposition()
-        self.__stack.layout = CanvasItem.CanvasItemRowLayout()
+        self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
         self.__stack.background_color = "white"
         self.__stack.border_color = "#c0c0c0"
         self.__stack.border_width = 0.5
@@ -284,8 +284,13 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
             if len(content_button_canvas_items) == 1:
                 button_canvas_item = content_button_canvas_items[0]
                 button_sizing = button_canvas_item.layout_sizing
-                if button_sizing.preferred_width_int < self.default_minimum_width:
-                    button_canvas_item.update_sizing(button_sizing.with_preferred_width(self.default_minimum_width).with_minimum_width(self.default_minimum_width))
+                stack_margins = self.__stack.layout.margins
+                # the stack's own fixed margins already contribute to the overall button width, so
+                # the item only needs to grow enough to make the total (item + margins) reach the
+                # default minimum width.
+                minimum_item_width = self.default_minimum_width - stack_margins.left - stack_margins.right
+                if button_sizing.preferred_width_int < minimum_item_width:
+                    button_canvas_item.update_sizing(button_sizing.with_preferred_width(minimum_item_width).with_minimum_width(minimum_item_width))
         self.__stack.size_to_content()
         if callable(self.on_size_changed):
             canvas_item_sizing = self.__stack.layout_sizing

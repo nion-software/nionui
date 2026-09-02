@@ -857,8 +857,12 @@ class GroupWidgetBehavior(WidgetBehavior):
 
 class LabelWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics], text_measure: typing.Optional[CanvasItem.TextMeasure] = None) -> None:
         self.__canvas_item = CanvasItem.TextCanvasItem(text, padding=Geometry.IntSize())
+        # match the default (left) alignment of Qt's QLabel; without a text_measure, text_align has no
+        # effect and the text always draws centered (see TextButtonCell._paint_cell).
+        self.__canvas_item.text_align = "left"
+        self.__canvas_item.text_measure = text_measure
         super().__init__(self.__canvas_item, False, properties)
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.word_wrap = False  # TODO
@@ -884,7 +888,7 @@ class LabelWidgetBehavior(WidgetBehavior):
         self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
 
     def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None:
-        pass
+        self.__canvas_item.text_align = alignment or "left"
 
     def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None:
         pass
@@ -1813,7 +1817,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.CheckBoxWidget(CheckBoxWidgetBehavior(self, properties), text)
 
     def create_label_widget(self, text: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LabelWidget:
-        return UserInterface.LabelWidget(LabelWidgetBehavior(text or str(), properties, self.get_font_metrics), text)
+        return UserInterface.LabelWidget(LabelWidgetBehavior(text or str(), properties, self.get_font_metrics, typing.cast(CanvasItem.TextMeasure, self)), text)
 
     def create_slider_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SliderWidget:
         return UserInterface.SliderWidget(SliderWidgetBehavior(self, properties))

@@ -3,7 +3,9 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasUserInterface
+from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.utils import Geometry
 
 
 class TestComboBoxCanvasSizing(unittest.TestCase):
@@ -48,6 +50,41 @@ class TestComboBoxCanvasSizing(unittest.TestCase):
         wide_width = controller.widget_source.canvas_item.sizing.preferred_width_int
 
         self.assertGreater(wide_width, narrow_width)
+
+
+class TestLabelCanvasAlignment(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def test_label_text_draws_left_aligned_within_its_box(self) -> None:
+        # a label that is wider than its text content (e.g. an explicit fixed width) should draw its
+        # text flush against the left edge of its box, matching Qt's default QLabel alignment, rather
+        # than centered (which visually looks like extra space between it and a preceding widget).
+        row = self.ui.create_row_widget()
+        label1 = self.ui.create_label_widget(text="L")
+        label2 = self.ui.create_label_widget(text="M", properties={"width": 30})
+        row.add(label1)
+        row.add(label2)
+
+        canvas_item = row._behavior.canvas_item  # type: ignore[attr-defined]
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=200, height=30))
+        canvas_item.layout_immediate(Geometry.IntSize(width=200, height=30))
+
+        drawing_context = DrawingContext.DrawingContext()
+        canvas_item.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=30))
+
+        fill_text_commands = [command for command in drawing_context.commands if command[0] == "fillText"]
+        self.assertEqual(len(fill_text_commands), 2)
+
+        label2_canvas_rect = canvas_item.canvas_items[1].canvas_rect
+        assert label2_canvas_rect
+
+        # the "M" label's text should be drawn at the left edge of its (wider) box, not its center.
+        self.assertEqual(fill_text_commands[1][2], float(label2_canvas_rect.left))
 
 
 if __name__ == '__main__':

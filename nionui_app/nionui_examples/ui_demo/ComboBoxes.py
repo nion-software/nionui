@@ -39,6 +39,12 @@ def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     cb4 = u.create_combo_box(items_ref="@binding(numeros.value)", current_index="@binding(cb2_current_index_model.value)")
     button = u.create_push_button(text="Change Items", on_clicked="change_items")
 
-    cb_group = u.create_column(cb1, cb2, cb3, cb4, button, spacing=12)
+    cb_group = u.create_column(
+        u.create_row(cb1, u.create_stretch()),
+        u.create_row(cb2, u.create_stretch()),
+        u.create_row(cb3, u.create_stretch()),
+        u.create_row(cb4, u.create_stretch()),
+        u.create_row(button, u.create_stretch()),
+        spacing=12)
 
     return cb_group

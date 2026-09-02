@@ -313,13 +313,16 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 self.__needs_size_to_content = True
 
     def _update_child(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        # propagate the update unless we can positively confirm the item is scrolled out of view; otherwise
+        # updates would never reach the screen when this canvas item is not embedded in a scroll area.
         index = self._grid_flow_item_canvas_items.index(typing.cast(GridFlowItemCanvasItem, canvas_item))
         rect = self._rect_for_index(index)
         scroll_area = self.container
         if isinstance(scroll_area, CanvasItem.ScrollAreaCanvasItem):
             visible_rect = scroll_area.visible_rect
-            if visible_rect and rect.intersects_rect(visible_rect):
-                self.update()
+            if visible_rect and not rect.intersects_rect(visible_rect):
+                return
+        self.update()
 
     def _batch_update_ended(self) -> None:
         if self.__needs_handle_selection_changed:

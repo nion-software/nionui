@@ -37,6 +37,9 @@ class Handler(Declarative.Handler):
     def image_click(self, widget: Widgets.ImageWidget) -> None:
         self.image_model.value = make_icon(16, 16)
 
+    def minimal_click(self, widget: UserInterface.PushButtonWidget) -> None:
+        pass
+
 
 def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     text_only_button = u.create_push_button(text="Change Button Icon", on_clicked="click")
@@ -44,11 +47,20 @@ def construct_ui(u: Declarative.DeclarativeUI) -> Declarative.UIDescription:
     text_and_icon_button = u.create_push_button(text="Text", icon="@binding(icon1)")
     image_button = u.create_image(image="@binding(image_model.value)", height=16, width=16, on_clicked="image_click")
 
+    # a "minimal" style button has no border and a transparent background, so it takes on the
+    # appearance of its surroundings until hovered/pressed -- shown here over a colored background,
+    # matching how it is typically used (e.g. toolbar-like controls drawn over a colored panel).
+    minimal_button = u.create_push_button(text="Minimal", on_clicked="minimal_click", border_color="transparent",
+                                          background_color="rgba(0,0,0,0.0)", style="minimal")
+    minimal_row = u.create_row(minimal_button, u.create_stretch(), background_color="#a0d0a0", margin=4)
+
     hellos = u.create_column(
         u.create_row(text_only_button, u.create_stretch()),
         u.create_row(icon_only_button, u.create_stretch()),
         u.create_row(text_and_icon_button, u.create_stretch()),
         u.create_row(u.create_label(text="Image (click me):"), image_button, u.create_stretch(), spacing=8),
+        u.create_row(u.create_label(text="Minimal style (hover to test):"), u.create_stretch(), spacing=8),
+        minimal_row,
         u.create_stretch(),
         spacing=12)
 

@@ -4933,6 +4933,33 @@ class Cell(CellLike):
                 drawing_context.stroke()
 
 
+def blend_color_overlay(base_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]], overlay_color: str, overlay_alpha: float) -> typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]:
+    """Return base_color with overlay_color blended on top of it at overlay_alpha.
+
+    Used to produce a consistent-looking mouse-over/pressed tint regardless of a control's own
+    background color -- including a fully or partially transparent background drawn over some other
+    (e.g. colored) panel -- rather than only working for a hardcoded, known base color such as white.
+    """
+    if base_color is not None and not isinstance(base_color, str):
+        # gradients (or other non-string backgrounds) can't be blended arithmetically; leave as-is.
+        return base_color
+    base = Color.Color(base_color) if base_color else None
+    if base and base.is_valid:
+        base_r, base_g, base_b, base_a255 = base.to_rgba_255()
+        base_a = base_a255 / 255.0
+    else:
+        base_r, base_g, base_b, base_a = 0, 0, 0, 0.0
+    overlay = Color.Color(overlay_color)
+    overlay_r, overlay_g, overlay_b, _ = overlay.to_rgba_255()
+    out_a = overlay_alpha + base_a * (1.0 - overlay_alpha)
+    if out_a <= 0.0:
+        return None
+    out_r = (overlay_r * overlay_alpha + base_r * base_a * (1.0 - overlay_alpha)) / out_a
+    out_g = (overlay_g * overlay_alpha + base_g * base_a * (1.0 - overlay_alpha)) / out_a
+    out_b = (overlay_b * overlay_alpha + base_b * base_a * (1.0 - overlay_alpha)) / out_a
+    return f"rgba({int(round(out_r))}, {int(round(out_g))}, {int(round(out_b))}, {out_a:.3f})"
+
+
 class CellCanvasItemComposer(BaseComposer):
 
     def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, cell: CellLike, style: typing.Set[str]) -> None:

@@ -276,16 +276,16 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
                 self.on_clicked()
 
         def handle_style_changed(hover: bool, pressed: bool) -> None:
-            # only tint the background when it is still the plain "white" default; an explicitly
-            # set custom background color (via set_background_color) is left alone.
-            if self.__base_background_color == "white":
-                if pressed:
-                    self.__stack.background_color = "#d0d0d0"
-                elif hover:
-                    self.__stack.background_color = "#e8e8e8"
-                else:
-                    self.__stack.background_color = self.__base_background_color
-                self.__stack.update()
+            # tint the background relative to whatever base color is currently set (including a
+            # transparent/None "minimal" style background drawn over some other panel), rather than
+            # only working when the base is the plain "white" default.
+            if pressed:
+                self.__stack.background_color = CanvasItem.blend_color_overlay(self.__base_background_color, "black", 0.18)
+            elif hover:
+                self.__stack.background_color = CanvasItem.blend_color_overlay(self.__base_background_color, "black", 0.09)
+            else:
+                self.__stack.background_color = self.__base_background_color
+            self.__stack.update()
 
         self.__group_controller.on_clicked = handle_clicked
         self.__group_controller.on_style_changed = handle_style_changed

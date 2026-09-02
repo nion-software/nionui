@@ -97,7 +97,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
 
     page_stack = u.create_stack(*pages, name="page_stack")
 
-    page_group = u.create_group(page_stack, margin=8)
+    page_group = u.create_group(page_stack, margin=8, size_policy_vertical="expanding")
 
     main_column = u.create_column(chooser_combo_box, page_group, spacing=8)
 

@@ -716,6 +716,14 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_height(value).with_preferred_height(value))
             if key == "collapsible":
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_collapsible(bool(value)))
+            if key == "size-policy-horizontal" and str(value).lower() in ("expanding", "minimum-expanding"):
+                # allow this item to grow beyond its natural (children-derived) preferred width to fill
+                # available leftover space in its container, while leaving its minimum/maximum untouched.
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_preferred_width(CanvasItem.SizingEnum.UNRESTRAINED))
+            if key == "size-policy-vertical" and str(value).lower() in ("expanding", "minimum-expanding"):
+                # same as above, but for height (e.g. a group box that should fill remaining vertical
+                # space in a column but never shrink below what its current content requires).
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_preferred_height(CanvasItem.SizingEnum.UNRESTRAINED))
 
     def set_property(self, key: str, value: typing.Any) -> None:
         # TODO
@@ -918,6 +926,9 @@ class GroupWidgetBehavior(WidgetBehavior):
         self.__column.background_color = "rgba(0, 0, 0, 0.04)"
         self.__column.border_color = "#dadada"  # sRGB(0.855, 0.855, 0.855)
         self.__column.border_width = 0.5
+        # collapsible so that this composition's own (live) sizing excludes the title row when it is
+        # hidden (no title set), instead of needing to freeze/re-snapshot sizing on every content change.
+        self.__column.update_sizing(self.__column.sizing.with_collapsible(True))
         super().__init__(self.__column, False, properties)
         self.__title: typing.Optional[str] = None
 
@@ -933,21 +944,25 @@ class GroupWidgetBehavior(WidgetBehavior):
         self.__title_row.visible = bool(title)
         if title:
             self.__title_item.size_to_content(self.__get_font_metrics_fn)
-        self.__column.size_to_content()
+        # trigger a re-layout without freezing this composition's own sizing (layout_sizing already
+        # derives live from its children; calling size_to_content() here would bake a static size and
+        # prevent it from tracking later content changes, e.g. an expanding size policy or content
+        # that grows/shrinks after being added).
+        self.__column.update()
 
     def add(self, child: UserInterface.Widget) -> None:
         child_canvas_item = extract_canvas_item(child)
         assert child_canvas_item is not None
         self.__content_composition.add_canvas_item(child_canvas_item)
-        self.__content_composition.size_to_content()
-        self.__column.size_to_content()
+        self.__content_composition.update()
+        self.__column.update()
 
     def remove(self, child: UserInterface.Widget) -> None:
         child_canvas_item = extract_canvas_item(child)
         assert child_canvas_item is not None
         self.__content_composition.remove_canvas_item(child_canvas_item)
-        self.__content_composition.size_to_content()
-        self.__column.size_to_content()
+        self.__content_composition.update()
+        self.__column.update()
 
 
 class LabelWidgetBehavior(WidgetBehavior):

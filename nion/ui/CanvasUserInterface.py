@@ -132,6 +132,70 @@ class RadioButtonWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemControll
     def checked(self, value: bool) -> None: ...
 
 
+class RadioButtonCanvasItemComposer(CanvasItem.BaseComposer):
+    def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
+                 checked: bool, enabled: bool, mouse_inside: bool, mouse_pressed: bool,
+                 text: str, text_color: str, text_disabled_color: str, font: str) -> None:
+        super().__init__(canvas_item, layout_sizing, cache)
+        self.__checked = checked
+        self.__enabled = enabled
+        self.__mouse_inside = mouse_inside
+        self.__mouse_pressed = mouse_pressed
+        self.__text = text
+        self.__text_color = text_color
+        self.__text_disabled_color = text_disabled_color
+        self.__font = font
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+        canvas_size = canvas_rect.size
+        checked = self.__checked
+        enabled = self.__enabled
+        mouse_inside = self.__mouse_inside
+        mouse_pressed = self.__mouse_pressed
+        font = self.__font
+        text_color = self.__text_color
+        text_disabled_color = self.__text_disabled_color
+        text = self.__text
+        with drawing_context.saver():
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            tx = 4 + 14 + 4
+            cx = 4 + 7
+            cy = canvas_size.height * 0.5
+            size = 14
+            size_half = 7
+            drawing_context.begin_path()
+            drawing_context.move_to(4 + size, cy)
+            drawing_context.arc(4 + size_half, cy, size_half, 0, math.pi * 2)
+            drawing_context.close_path()
+            if checked:
+                drawing_context.fill_style = "#FFF"
+                drawing_context.fill()
+            if enabled and mouse_inside and mouse_pressed:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.5)"
+                drawing_context.fill()
+            elif enabled and mouse_inside:
+                drawing_context.fill_style = "rgba(128, 128, 128, 0.1)"
+                drawing_context.fill()
+            drawing_context.stroke_style = "#888"
+            drawing_context.line_width = 1.5
+            drawing_context.stroke()
+            if checked:
+                drawing_context.begin_path()
+                drawing_context.move_to(4 + size - 3.5, cy)
+                drawing_context.arc(4 + size_half, cy, size_half - 3.5, 0, math.pi * 2)
+                drawing_context.close_path()
+                drawing_context.stroke_style = "#000"
+                drawing_context.fill_style = "#000"
+                drawing_context.line_width = 1.0
+                drawing_context.stroke()
+                drawing_context.fill()
+            drawing_context.font = font
+            drawing_context.text_align = 'left'
+            drawing_context.text_baseline = 'middle'
+            drawing_context.fill_style = text_color if enabled else text_disabled_color
+            drawing_context.fill_text(text, tx, cy + 1)
+
+
 class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
 
     def __init__(self, text: typing.Optional[str] = None) -> None:
@@ -289,12 +353,10 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.line_width = 1.0
                     drawing_context.stroke()
                     drawing_context.fill()
-                drawing_context.font = self.__font
-                drawing_context.text_align = 'left'
-                drawing_context.text_baseline = 'middle'
-                drawing_context.fill_style = self.__text_color if self.__enabled else self.__text_disabled_color
-                drawing_context.fill_text(self.__text, tx, cy + 1)
-        super()._repaint(drawing_context)
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return RadioButtonCanvasItemComposer(self, self.layout_sizing, composer_cache, self.checked, self.enabled,
+                                              self.__mouse_inside, self.__mouse_pressed, self.__text,
+                                              self.__text_color, self.__text_disabled_color, self.__font)
 
 
 class BasicRadioButtonWidgetCanvasItemController(RadioButtonWidgetCanvasItemController):

@@ -23,7 +23,11 @@ class Handler(Declarative.Handler):
         self.item_removed_event = Event.Event()
         self.sections.append(Section("Apples"))
         self.sections.append(Section("Oranges"))
-        self.title_model = Model.PropertyModel[str]()
+        # the title model is used for adding new sections. it defaults to an increasing integer, since the line
+        # edit's binding is not yet functional in the canvas UI backend and the add button requires the title to
+        # be non-empty.
+        self.__next_title_index = 1
+        self.title_model = Model.PropertyModel[str](str(self.__next_title_index))
 
     def add(self, widget: UserInterface.PushButtonWidget) -> None:
         title = self.title_model.value
@@ -32,6 +36,8 @@ class Handler(Declarative.Handler):
             index = len(self.sections)
             self.sections.append(section)
             self.item_inserted_event.fire("sections", section, index)
+            self.__next_title_index += 1
+            self.title_model.value = str(self.__next_title_index)
 
     def remove(self, section: Section) -> None:
         index = self.sections.index(section)

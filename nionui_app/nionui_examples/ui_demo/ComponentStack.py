@@ -41,9 +41,12 @@ class Handler(Declarative.Handler):
 
         self.model = typing.cast(typing.Any, StructuredModel.build_model(schema))
 
-        # the title model is used for adding new modes. it is not part of the structured model.
+        # the title model is used for adding new modes. it is not part of the structured model. it defaults to an
+        # increasing integer, since the line edit's binding is not yet functional in the canvas UI backend and the
+        # add button requires the title to be non-empty.
 
-        self.title_model = Model.PropertyModel[str]()
+        self.__next_title_index = 1
+        self.title_model = Model.PropertyModel[str](str(self.__next_title_index))
 
         # the mode titles model is a property containing a list of mode titles. it is not part of the structured
         # model, but needs to be rebuilt when the list of modes in the model changes. add a listener for items
@@ -85,6 +88,9 @@ class Handler(Declarative.Handler):
             # delay this for one cycle until combo box gets updated
             assert self._event_loop
             self._event_loop.create_task(update_index())
+
+            self.__next_title_index += 1
+            self.title_model.value = str(self.__next_title_index)
 
     def remove(self, mode: Mode) -> None:
         # when the user clicks to delete a mode, just delete it from the model. everything else will update

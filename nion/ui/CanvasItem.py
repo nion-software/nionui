@@ -4945,6 +4945,60 @@ class CellCanvasItemComposer(BaseComposer):
             self.__cell.paint_cell(drawing_context, canvas_rect.to_float_rect(), self.__style)
 
 
+class CellGroupController:
+    """Shares hover/pressed/click state across a group of CellCanvasItems.
+
+    Useful when a control is composed of multiple separate cells (e.g. an icon cell and a text
+    cell forming a push button, or a text cell and an arrow cell forming a combo box) but should
+    behave and highlight as a single hoverable/pressable/clickable unit rather than each cell
+    reacting independently to the mouse.
+
+    `on_style_changed(hover, pressed)` can be used to drive additional appearance changes -- for
+    example tinting the control's own background -- that live outside of any individual member cell.
+    """
+
+    def __init__(self) -> None:
+        self.__members: typing.List[CellCanvasItem] = list()
+        self.__mouse_inside = False
+        self.__mouse_pressed = False
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.on_style_changed: typing.Optional[typing.Callable[[bool, bool], None]] = None
+
+    def add(self, cell_canvas_item: CellCanvasItem) -> None:
+        self.__members.append(cell_canvas_item)
+
+    def remove(self, cell_canvas_item: CellCanvasItem) -> None:
+        if cell_canvas_item in self.__members:
+            self.__members.remove(cell_canvas_item)
+
+    def mouse_entered(self) -> None:
+        self.__mouse_inside = True
+        self.__update()
+
+    def mouse_exited(self) -> None:
+        self.__mouse_inside = False
+        self.__update()
+
+    def mouse_pressed(self) -> None:
+        self.__mouse_pressed = True
+        self.__update()
+
+    def mouse_released(self) -> None:
+        self.__mouse_pressed = False
+        self.__update()
+
+    def mouse_clicked(self) -> None:
+        if callable(self.on_clicked):
+            self.on_clicked()
+
+    def __update(self) -> None:
+        for member in self.__members:
+            member._mouse_inside = self.__mouse_inside
+            member._mouse_pressed = self.__mouse_pressed
+        if callable(self.on_style_changed):
+            self.on_style_changed(self.__mouse_inside, self.__mouse_pressed)
+
+
 class CellCanvasItem(AbstractCanvasItem):
 
     """ Canvas item to draw and respond to user events for a cell.
@@ -4960,7 +5014,7 @@ class CellCanvasItem(AbstractCanvasItem):
         hover, active (default is none)
     """
 
-    def __init__(self, cell: typing.Optional[CellLike] = None) -> None:
+    def __init__(self, cell: typing.Optional[CellLike] = None, *, group_controller: typing.Optional[CellGroupController] = None) -> None:
         super().__init__()
         self.__enabled = True
         self.__check_state = "unchecked"
@@ -4973,8 +5027,20 @@ class CellCanvasItem(AbstractCanvasItem):
         # on_button_clicked is deprecated; use on_clicked instead
         self.on_button_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+        # mouse events are always routed through a group controller, so this cell's hover/pressed
+        # state (and that of any other member cells) stay in sync as a single unit. when no
+        # controller is explicitly shared with other cells, a private one is created so this cell
+        # behaves exactly as it would on its own.
+        # an explicitly shared controller means this cell is part of a composite control (e.g. an
+        # icon+text button or a text+arrow combo box) whose own background already provides the
+        # mouse-over/pressed visual feedback, so this cell's own hover/active style highlighting
+        # (which would otherwise double up on top of that shared background) is suppressed.
+        self.__suppress_own_hover_style = group_controller is not None
+        self.__group_controller = group_controller if group_controller is not None else CellGroupController()
+        self.__group_controller.add(self)
 
     def close(self) -> None:
+        self.__group_controller.remove(self)
         self.on_button_clicked = None
         self.on_clicked = None
         self.cell = None
@@ -5073,13 +5139,15 @@ class CellCanvasItem(AbstractCanvasItem):
         self.style.discard('checked')
         if self.check_state == "checked":
             self.style.add('checked')
-        # hover state
+        # hover state -- suppressed when this cell is a member of a shared group controller, since
+        # the group's own background already provides the mouse-over/pressed visual feedback.
         self.style.discard('hover')
         self.style.discard('active')
-        if self._mouse_inside and self._mouse_pressed:
-            self.style.add('active')
-        elif self.__mouse_inside:
-            self.style.add('hover')
+        if not self.__suppress_own_hover_style:
+            if self._mouse_inside and self._mouse_pressed:
+                self.style.add('active')
+            elif self.__mouse_inside:
+                self.style.add('hover')
         if self.style != old_style:
             self.update()
 
@@ -5113,31 +5181,32 @@ class CellCanvasItem(AbstractCanvasItem):
 
     def mouse_entered(self) -> bool:
         if self.wants_mouse_events:
-            self._mouse_inside = True
+            self.__group_controller.mouse_entered()
             return True
         return super().mouse_entered()
 
     def mouse_exited(self) -> bool:
         if self.wants_mouse_events:
-            self._mouse_inside = False
+            self.__group_controller.mouse_exited()
             return True
         return super().mouse_exited()
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.wants_mouse_events:
-            self._mouse_pressed = True
+            self.__group_controller.mouse_pressed()
             return True
         return super().mouse_pressed(x, y, modifiers)
 
     def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.wants_mouse_events:
-            self._mouse_pressed = False
+            self.__group_controller.mouse_released()
             return True
         return super().mouse_released(x, y, modifiers)
 
     def mouse_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         if self.wants_mouse_events:
             if self.enabled:
+                self.__group_controller.mouse_clicked()
                 if callable(self.on_button_clicked):
                     self.on_button_clicked()
                 if callable(self.on_clicked):
@@ -5302,8 +5371,8 @@ class TextCanvasItem(CellCanvasItem):
                  border_color: str | None = None, padding: Geometry.IntSize | None = None, *,
                  text_font: str | None = None, text_color: str | None = None, text_baseline: str | None = None,
                  text_align: str | None = None, truncation_mode: str | None = None,
-                 text_measure: TextMeasure | None = None) -> None:
-        super().__init__()
+                 text_measure: TextMeasure | None = None, group_controller: CellGroupController | None = None) -> None:
+        super().__init__(group_controller=group_controller)
         border = CellBorder()
         if border_color:
             border.border = CellBorderProperties(Color.Color(border_color))
@@ -5390,8 +5459,9 @@ class TextCanvasItem(CellCanvasItem):
 class TextButtonCanvasItem(TextCanvasItem):
 
     def __init__(self, text: typing.Optional[str] = None, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
-                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
-        super().__init__(text, background_color, border_color, padding)
+                 border_color: typing.Optional[str] = None, padding: typing.Optional[Geometry.IntSize] = None, *,
+                 group_controller: CellGroupController | None = None) -> None:
+        super().__init__(text, background_color, border_color, padding, group_controller=group_controller)
         self.wants_mouse_events = True
 
 
@@ -5540,8 +5610,9 @@ class BitmapCanvasItem(CellCanvasItem):
                  bitmap: typing.Optional[Bitmap.Bitmap] = None,
                  background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
                  border_color: typing.Optional[str] = None,
-                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
-        super().__init__()
+                 padding: typing.Optional[Geometry.IntSize] = None,
+                 group_controller: CellGroupController | None = None) -> None:
+        super().__init__(group_controller=group_controller)
         padding = padding or Geometry.IntSize()  # for backwards compatibility
         border = CellBorder()
         if border_color:
@@ -5584,17 +5655,18 @@ class BitmapButtonCanvasItem(BitmapCanvasItem):
     def __init__(self, bitmap: typing.Optional[Bitmap.BitmapOrArray] = None, *,
                  background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
                  border_color: typing.Optional[str] = None,
-                 padding: typing.Optional[Geometry.IntSize] = None) -> None:
+                 padding: typing.Optional[Geometry.IntSize] = None,
+                 group_controller: CellGroupController | None = None) -> None:
         bitmap = Bitmap.promote_bitmap(bitmap)
-        super().__init__(bitmap=bitmap, background_color=background_color, border_color=border_color, padding=padding)
+        super().__init__(bitmap=bitmap, background_color=background_color, border_color=border_color, padding=padding, group_controller=group_controller)
         self.wants_mouse_events = True
 
 
 class StaticTextCanvasItem(TextCanvasItem):
     # for backwards compatibility
 
-    def __init__(self, text: typing.Optional[str] = None) -> None:
-        super().__init__(text, padding=Geometry.IntSize(4, 4))
+    def __init__(self, text: typing.Optional[str] = None, *, group_controller: CellGroupController | None = None) -> None:
+        super().__init__(text, padding=Geometry.IntSize(4, 4), group_controller=group_controller)
 
     @property
     def font(self) -> typing.Optional[str]:

@@ -1156,7 +1156,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
 
 class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavior):
     def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
-        text_edit_canvas_item = TextEditCanvasItem(text, border_color="gray")
+        text_edit_canvas_item = TextEditCanvasItem(text, background_color="white", border_color="gray")
         font_metrics = get_font_metrics_fn(str(), "x")
         text_edit_canvas_item.update_sizing(text_edit_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
         super().__init__(text_edit_canvas_item, False, properties)

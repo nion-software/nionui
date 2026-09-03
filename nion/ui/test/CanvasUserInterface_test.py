@@ -350,5 +350,211 @@ class TestScrollAreaWidgetSizing(unittest.TestCase):
         self.assertTrue(width_without_scroll_bar is None or width_without_scroll_bar < width_with_scroll_bar)
 
 
+class TestLineEditCanvasIntegration(unittest.TestCase):
+    """Integration tests exercising the LineEditWidget/LineEditWidgetBehavior/LineEditCanvasItem
+    wiring end-to-end (mouse/key/focus events flowing through to TextEditing.LineEditCore and back
+    out via the on_text_edited/on_editing_finished/on_return_pressed/on_escape_pressed callbacks)."""
+
+    def setUp(self) -> None:
+        self.test_ui = TestUI.UserInterface()
+        self.ui = CanvasUserInterface.CanvasUserInterface(self.test_ui)
+
+    def _key(self, text: str = str(), key: str = str(), *, shift: bool = False, control: bool = False,
+              alt: bool = False) -> UserInterface.Key:
+        modifiers = CanvasItem.KeyboardModifiers(shift=shift, control=control, alt=alt)
+        return TestUI.Key(text, key, modifiers)
+
+    def _make_line_edit(self) -> typing.Tuple[UserInterface.LineEditWidget, typing.Any]:
+        widget = self.ui.create_line_edit_widget()
+        canvas_item = widget._behavior._canvas_item  # type: ignore[attr-defined]
+        # give the item a real canvas_rect (needed for hit-testing coordinates) by laying it out
+        # inside a composition, matching how it would be positioned inside a real window.
+        composition = CanvasItem.CanvasItemComposition()
+        composition.add_canvas_item(canvas_item)
+        composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=200, h=24))
+        return widget, canvas_item
+
+    def test_text_property_round_trips_through_behavior(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        widget.text = "hello"
+        self.assertEqual(widget.text, "hello")
+        self.assertEqual(canvas_item.line_edit_core.buffer.text, "hello")
+
+    def test_placeholder_text_round_trips(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        widget.placeholder_text = "enter value"
+        self.assertEqual(widget.placeholder_text, "enter value")
+        self.assertEqual(canvas_item.placeholder_text, "enter value")
+
+    def test_typing_updates_text_and_fires_on_text_edited(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        edited_values: typing.List[str] = list()
+        widget.on_text_edited = edited_values.append
+        canvas_item._set_focused(True)
+        for ch in "hi":
+            canvas_item.key_pressed(self._key(text=ch))
+        self.assertEqual(widget.text, "hi")
+        self.assertEqual(edited_values, ["h", "hi"])
+
+    def test_focus_lost_fires_editing_finished(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        finished_values: typing.List[str] = list()
+        widget.on_editing_finished = finished_values.append
+        canvas_item._set_focused(True)
+        canvas_item.key_pressed(self._key(text="x"))
+        canvas_item._set_focused(False)
+        self.assertEqual(finished_values, ["x"])
+
+    def test_return_pressed_fires_editing_finished_and_return_callback(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        finished_values: typing.List[str] = list()
+        return_calls: typing.List[bool] = list()
+        widget.on_editing_finished = finished_values.append
+
+        def _on_return_pressed() -> bool:
+            return_calls.append(True)
+            return True
+
+        widget.on_return_pressed = _on_return_pressed
+        canvas_item._set_focused(True)
+        canvas_item.key_pressed(self._key(text="a"))
+        self.assertTrue(canvas_item.key_pressed(self._key(key="enter")))
+        self.assertEqual(finished_values, ["a"])
+        self.assertEqual(return_calls, [True])
+
+    def test_escape_pressed_fires_escape_callback(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        escape_calls: typing.List[bool] = list()
+
+        def _on_escape_pressed() -> bool:
+            escape_calls.append(True)
+            return True
+
+        widget.on_escape_pressed = _on_escape_pressed
+        canvas_item._set_focused(True)
+        self.assertTrue(canvas_item.key_pressed(self._key(key="escape")))
+        self.assertEqual(escape_calls, [True])
+
+    def test_select_all_and_selected_text(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        widget.text = "hello"
+        widget.select_all()
+        self.assertEqual(widget.selected_text, "hello")
+
+    def test_caret_not_drawn_while_there_is_a_selection(self) -> None:
+        # the caret should be hidden whenever there is an active (non-empty) selection, matching
+        # standard text-field UX (e.g. QLineEdit does not draw a caret over selected text).
+        widget = self.ui.create_line_edit_widget()
+        canvas_item = widget._behavior._canvas_item  # type: ignore[attr-defined]
+        widget.text = "hello"
+        canvas_item._set_focused(True)
+        canvas_item.line_edit_core.caret_visible = True
+
+        composition = CanvasItem.CanvasItemComposition()
+        composition.add_canvas_item(canvas_item)
+        composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=200, h=24))
+
+        # no selection: caret should be drawn (an extra "stroke" command beyond the cell's own
+        # border stroke).
+        drawing_context = DrawingContext.DrawingContext()
+        composition.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=24))
+        stroke_commands_without_selection = [command for command in drawing_context.commands if command[0] == "stroke"]
+
+        # with a selection: caret should be suppressed even though caret_visible is still True --
+        # only the cell's own border stroke should remain.
+        widget.select_all()
+        self.assertTrue(canvas_item.line_edit_core.caret_visible)
+        drawing_context = DrawingContext.DrawingContext()
+        composition.repaint_immediate(drawing_context, Geometry.IntSize(width=200, height=24))
+        stroke_commands_with_selection = [command for command in drawing_context.commands if command[0] == "stroke"]
+        self.assertEqual(len(stroke_commands_with_selection), len(stroke_commands_without_selection) - 1)
+
+    def test_mouse_click_places_cursor_and_double_click_selects_word(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        widget.text = "the quick fox"
+        canvas_item._set_focused(True)
+        # click near the start of "quick" - since TestUI's font metrics are deterministic (not all
+        # characters the same width), just verify a click moves the cursor away from its initial
+        # end-of-text position, and a double click selects a non-empty word.
+        initial_cursor = canvas_item.line_edit_core.buffer.cursor_position
+        canvas_item.mouse_pressed(canvas_item.padding.width + 5, 5, CanvasItem.KeyboardModifiers())
+        canvas_item.mouse_released(0, 0, CanvasItem.KeyboardModifiers())
+        self.assertNotEqual(canvas_item.line_edit_core.buffer.cursor_position, initial_cursor)
+        canvas_item.mouse_double_clicked(canvas_item.padding.width + 25, 5, CanvasItem.KeyboardModifiers())
+        self.assertTrue(len(canvas_item.line_edit_core.buffer.selected_text) > 0)
+
+    def test_double_click_then_drag_selects_whole_words(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        widget.text = "the quick brown fox"
+        canvas_item._set_focused(True)
+        padding = canvas_item.padding.width
+        # double-click somewhere inside "quick", then drag into "brown" - the selection should
+        # extend by whole words, not character-by-character.
+        canvas_item.mouse_double_clicked(padding + 25, 5, CanvasItem.KeyboardModifiers())
+        first_word = canvas_item.line_edit_core.buffer.selected_text
+        canvas_item.mouse_position_changed(padding + 65, 5, CanvasItem.KeyboardModifiers())
+        dragged_selection = canvas_item.line_edit_core.buffer.selected_text
+        self.assertTrue(dragged_selection.startswith(first_word))
+        self.assertGreater(len(dragged_selection), len(first_word))
+        # a space-joined multi-word selection should not end mid-word.
+        self.assertFalse(dragged_selection.endswith(" "))
+        canvas_item.mouse_released(0, 0, CanvasItem.KeyboardModifiers())
+        # after release, a plain drag should go back to character-wise selection.
+        canvas_item.mouse_pressed(padding, 5, CanvasItem.KeyboardModifiers())
+        canvas_item.mouse_position_changed(padding + 5, 5, CanvasItem.KeyboardModifiers())
+        self.assertLessEqual(len(canvas_item.line_edit_core.buffer.selected_text), 2)
+
+    def test_double_click_drag_stops_after_mouse_released_at_container_level(self) -> None:
+        # regression test: this reproduces the real event path (container-level double-click
+        # dispatch, not calling canvas_item.mouse_double_clicked/mouse_released directly), which is
+        # what surfaced a bug where RootCanvasItem's mouse-double-click dispatch never recorded the
+        # canvas item as "mouse grabbed", so the mouse_released event that follows a double click
+        # (Qt's event order is press, release, double-click, release) was silently dropped and the
+        # word-wise drag-selection state was left stuck active forever, even after the mouse button
+        # was released.
+        canvas_widget = self.test_ui.create_canvas_widget()
+        self.addCleanup(canvas_widget.close)
+        widget = self.ui.create_line_edit_widget()
+        canvas_item = widget._behavior._canvas_item  # type: ignore[attr-defined]
+        canvas_widget.canvas_item.add_canvas_item(canvas_item)
+        canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=200, h=24))
+        widget.text = "the quick brown fox"
+        canvas_item._set_focused(True)
+        padding = canvas_item.padding.width
+        modifiers = CanvasItem.KeyboardModifiers()
+
+        assert callable(canvas_widget.on_mouse_double_clicked)
+        canvas_widget.on_mouse_double_clicked(padding + 25, 5, modifiers)
+        first_word = canvas_item.line_edit_core.buffer.selected_text
+        self.assertTrue(first_word)
+
+        assert callable(canvas_widget.on_mouse_released)
+        canvas_widget.on_mouse_released(padding + 25, 5, modifiers)
+
+        # after the release that follows the double click, further mouse moves (with no button
+        # held) must not keep extending the word-wise selection.
+        assert callable(canvas_widget.on_mouse_position_changed)
+        canvas_widget.on_mouse_position_changed(padding + 65, 5, modifiers)
+        self.assertEqual(canvas_item.line_edit_core.buffer.selected_text, first_word)
+
+    def test_caret_blinks_via_periodic(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        behavior = typing.cast(typing.Any, widget._behavior)
+        canvas_item._set_focused(True)
+        self.assertTrue(canvas_item.line_edit_core.caret_visible)
+        behavior._LineEditWidgetBehavior__last_periodic_time -= CanvasUserInterface.TextEditing.CARET_BLINK_INTERVAL + 0.01  # type: ignore[attr-defined]
+        behavior.periodic()
+        self.assertFalse(canvas_item.line_edit_core.caret_visible)
+
+    def test_not_focused_does_not_blink(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        behavior = typing.cast(typing.Any, widget._behavior)
+        self.assertFalse(canvas_item.focused)
+        behavior._LineEditWidgetBehavior__last_periodic_time -= CanvasUserInterface.TextEditing.CARET_BLINK_INTERVAL + 0.01  # type: ignore[attr-defined]
+        behavior.periodic()
+        # blink state should not have changed since the item never gained focus.
+        self.assertTrue(canvas_item.line_edit_core.caret_visible)
+
+
 if __name__ == '__main__':
     unittest.main()

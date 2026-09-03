@@ -7,12 +7,14 @@ import asyncio
 import functools
 import math
 import pathlib
+import time
 import typing
 
 from nion.ui import Application
 from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.ui import TextEditing
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.utils import Color
@@ -1205,8 +1207,14 @@ class TextEditCanvasItem(CanvasItem.CellCanvasItem):
         border = CanvasItem.CellBorder()
         if border_color:
             border.border = CanvasItem.CellBorderProperties(Color.Color(border_color))
-        self.__text_edit_cell = TextEditCell(text, background_color, border, padding)
+        self.__text_edit_cell = self._create_cell(text, background_color, border, padding)
         self.cell = self.__text_edit_cell
+
+    def _create_cell(self, text: typing.Optional[str], background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                      border: CanvasItem.CellBorder, padding: typing.Optional[Geometry.IntSize]) -> TextEditCell:
+        # overridden by LineEditCanvasItem to substitute a LineEditCell that also draws the
+        # placeholder text, selection highlight, and caret using the owning LineEditCore.
+        return TextEditCell(text, background_color, border, padding)
 
     def _description(self) -> str:
         return self.__class__.__name__ + f" '{self.text}'"
@@ -1276,22 +1284,216 @@ class TextEditCanvasItem(CanvasItem.CellCanvasItem):
         self.update_sizing(new_sizing)
 
 
+class LineEditCell(TextEditCell):
+    """A TextEditCell that also draws placeholder text, the selection highlight, and a blinking
+    caret, using the state of an owning LineEditCore. Used only by LineEditCanvasItem."""
+
+    def __init__(self, line_edit_core: TextEditing.LineEditCore, text: typing.Optional[str] = None,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border: typing.Optional[CanvasItem.CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(text, background_color, border, padding)
+        self.__line_edit_core = line_edit_core
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+        core = self.__line_edit_core
+        buffer = core.buffer
+        text_font = self.text_font or "12px"
+        text_color = self.text_color or "black"
+        focused = "focused" in style
+        drawing_context.font = text_font
+        drawing_context.text_baseline = "middle"
+        drawing_context.text_align = "left"
+
+        # selection highlight, drawn behind the text.
+        selection = buffer.selection
+        if selection is not None and selection.start != selection.end:
+            layout = core.layout()
+            x0, x1 = layout.selection_x_span(selection)
+            drawing_context.begin_path()
+            drawing_context.rect(rect.left + x0, rect.top, x1 - x0, rect.height)
+            drawing_context.fill_style = "rgba(96, 160, 255, 0.4)" if focused else "rgba(160, 160, 160, 0.4)"
+            drawing_context.fill()
+
+        if buffer.text:
+            drawing_context.fill_style = text_color
+            drawing_context.fill_text(buffer.text, rect.left, rect.center.y + 1)
+        elif self.placeholder_text and not focused:
+            drawing_context.fill_style = "rgba(0, 0, 0, 0.4)"
+            drawing_context.fill_text(self.placeholder_text, rect.left, rect.center.y + 1)
+
+        # blinking caret -- suppressed while there is an active selection, matching standard text
+        # field UX (e.g. QLineEdit does not draw a caret while text is selected).
+        if focused and core.caret_visible and (selection is None or selection.start == selection.end):
+            layout = core.layout()
+            caret_x = rect.left + layout.x_for_column(buffer.cursor_position)
+            drawing_context.begin_path()
+            drawing_context.move_to(caret_x, rect.top + 1)
+            drawing_context.line_to(caret_x, rect.bottom - 1)
+            drawing_context.line_width = 1.0
+            drawing_context.stroke_style = text_color
+            drawing_context.stroke()
+
+
+class LineEditCanvasItem(TextEditCanvasItem):
+    """Canvas item for an interactive, editable single-line text field.
+
+    Owns a TextEditing.LineEditCore that holds the actual document/cursor/selection state and
+    interprets keyboard/mouse events; this class only adapts CanvasItem mouse/key/focus events into
+    calls on that core, and adapts the core's state into what LineEditCell paints.
+    """
+
+    def __init__(self, text: typing.Optional[str], background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                 border_color: typing.Optional[str], padding: typing.Optional[Geometry.IntSize],
+                 measurements: TextEditing.TextMeasurements,
+                 clipboard_get_text: typing.Callable[[], str],
+                 clipboard_set_text: typing.Callable[[str], None]) -> None:
+        self.__core = TextEditing.LineEditCore(measurements, "12px", clipboard_get_text, clipboard_set_text)
+        if text:
+            self.__core.buffer.set_text(text)
+        super().__init__(text, background_color, border_color, padding)
+        self.focusable = True
+        self.wants_mouse_events = True
+        self.cursor_shape = "ibeam"
+        self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
+
+    def close(self) -> None:
+        self.on_text_edited = None
+        self.on_return_pressed = None
+        self.on_escape_pressed = None
+        self.on_key_pressed = None
+        self.on_editing_finished = None
+        super().close()
+
+    def _create_cell(self, text: typing.Optional[str], background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]],
+                      border: CanvasItem.CellBorder, padding: typing.Optional[Geometry.IntSize]) -> TextEditCell:
+        return LineEditCell(self.__core, text, background_color, border, padding)
+
+    @property
+    def line_edit_core(self) -> TextEditing.LineEditCore:
+        return self.__core
+
+    @property
+    def text(self) -> str:
+        return self.__core.buffer.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        self.__core.buffer.set_text(text or str())
+        self._text_cell.text = self.__core.buffer.text
+        self.update()
+
+    # note: LineEditCore's layout uses its own internal font_str (default "12px"), independent of
+    # self.text_font (the Cell's painting font, inherited from TextEditCanvasItem). LineEditWidget's
+    # protocol does not currently expose a way to change the line edit's font, so the two can't
+    # drift out of sync today; if font customization is added later, keep them synced here.
+
+    def _set_focused(self, focused: bool) -> None:
+        was_focused = self.focused
+        super()._set_focused(focused)
+        if focused != was_focused:
+            if focused:
+                self.style.add("focused")
+                self.__core.reset_blink()
+            else:
+                self.style.discard("focused")
+                self.__core.handle_mouse_released()
+                if callable(self.on_editing_finished):
+                    self.on_editing_finished(self.__core.buffer.text)
+            self.update()
+
+    def __on_buffer_changed(self, old_text: str) -> None:
+        new_text = self.__core.buffer.text
+        if new_text != old_text:
+            self._text_cell.text = new_text
+            if callable(self.on_text_edited):
+                self.on_text_edited(new_text)
+        self.update()
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if callable(self.on_key_pressed) and self.on_key_pressed(key):
+            return True
+        if key.is_enter_or_return:
+            if callable(self.on_editing_finished):
+                self.on_editing_finished(self.__core.buffer.text)
+            if callable(self.on_return_pressed):
+                return self.on_return_pressed()
+            return True
+        if key.is_escape:
+            if callable(self.on_escape_pressed):
+                return self.on_escape_pressed()
+            return True
+        old_text = self.__core.buffer.text
+        if self.__core.handle_key(key):
+            self.__on_buffer_changed(old_text)
+            return True
+        return super().key_pressed(key)
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        local_x = float(x) - self.padding.width
+        self.__core.handle_mouse_pressed(local_x, modifiers)
+        self.update()
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__core.handle_mouse_released()
+        return True
+
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        local_x = float(x) - self.padding.width
+        if self.__core.handle_mouse_position_changed(local_x):
+            self.update()
+        return True
+
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        local_x = float(x) - self.padding.width
+        if self.__core.handle_double_click(local_x):
+            self.update()
+        return True
+
+
 class LineEditWidgetBehavior(WidgetBehavior):
 
-    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
-        self.__canvas_item = TextEditCanvasItem(text, background_color="white", border_color="gray")
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], ui: UserInterface.UserInterface) -> None:
+        # ui (the owning CanvasUserInterface) is passed in full, rather than just a
+        # get_font_metrics_fn, because it already structurally satisfies TextEditing.TextMeasurements
+        # (get_font_metrics + get_text_offsets) and also provides the clipboard_text/clipboard_set_text
+        # methods LineEditCore needs -- this avoids threading multiple separate callables through.
+        measurements = typing.cast(TextEditing.TextMeasurements, ui)
+        self.__canvas_item = LineEditCanvasItem(text, "white", "gray", None, measurements, ui.clipboard_text, ui.clipboard_set_text)
         super().__init__(self.__canvas_item, False, properties)
-        self.__get_font_metrics_fn = get_font_metrics_fn
+        self.__get_font_metrics_fn = ui.get_font_metrics
         self.word_wrap = False  # TODO
-        self.__canvas_item.size_to_content(get_font_metrics_fn)
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+        self.__last_periodic_time = time.time()
         self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_text_edited: typing.Optional[typing.Callable[[str], None]] = None
+        # forward the canvas item's own (user-interaction driven) callbacks to whichever callables
+        # currently live on self.on_* -- these are looked up dynamically (not captured at bind time)
+        # so they keep working even after LineEditWidget.__init__ replaces self.on_* with its own
+        # wrapped callbacks immediately after constructing this behavior.
+        self.__canvas_item.on_editing_finished = lambda text: self.on_editing_finished(text) if callable(self.on_editing_finished) else None
+        self.__canvas_item.on_escape_pressed = lambda: self.on_escape_pressed() if callable(self.on_escape_pressed) else False
+        self.__canvas_item.on_return_pressed = lambda: self.on_return_pressed() if callable(self.on_return_pressed) else False
+        self.__canvas_item.on_key_pressed = lambda key: self.on_key_pressed(key) if callable(self.on_key_pressed) else False
+        self.__canvas_item.on_text_edited = lambda text: self.on_text_edited(text) if callable(self.on_text_edited) else None
+
+    def close(self) -> None:
+        self.on_editing_finished = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_text_edited = None
+        super().close()
 
     @property
-    def _canvas_item(self) -> TextEditCanvasItem:
+    def _canvas_item(self) -> LineEditCanvasItem:
         return self.__canvas_item
 
     @property
@@ -1314,12 +1516,12 @@ class LineEditWidgetBehavior(WidgetBehavior):
 
     @property
     def editable(self) -> bool:
-        # TODO: editable
+        # TODO: editable (read-only mode)
         return True
 
     @editable.setter
     def editable(self, value: bool) -> None:
-        # TODO: editable
+        # TODO: editable (read-only mode)
         pass
 
     @property
@@ -1333,17 +1535,26 @@ class LineEditWidgetBehavior(WidgetBehavior):
         pass
 
     def editing_finished(self, text: str) -> None:
-        # TODO: editing_finished
-        pass
+        # programmatic trigger (e.g. from tests/external code); mirrors what the canvas item itself
+        # fires on focus-loss/Enter due to user interaction.
+        if callable(self.on_editing_finished):
+            self.on_editing_finished(text)
 
     @property
     def selected_text(self) -> typing.Optional[str]:
-        # TODO: selected_text
-        return str()
+        return self.__canvas_item.line_edit_core.buffer.selected_text
 
     def select_all(self) -> None:
-        # TODO: select_all
-        pass
+        if self.__canvas_item.line_edit_core.buffer.select_all():
+            self.__canvas_item.update()
+
+    def periodic(self) -> None:
+        now = time.time()
+        dt = now - self.__last_periodic_time
+        self.__last_periodic_time = now
+        if self.__canvas_item.focused:
+            if self.__canvas_item.line_edit_core.tick(dt):
+                self.__canvas_item.update()
 
 
 class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavior):
@@ -2165,7 +2376,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return progress_bar_widget
 
     def create_line_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.LineEditWidget:
-        return UserInterface.LineEditWidget(LineEditWidgetBehavior(str(), properties, self.get_font_metrics))
+        return UserInterface.LineEditWidget(LineEditWidgetBehavior(str(), properties, self))
 
     def create_text_browser_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextBrowserWidget:
         return UserInterface.TextBrowserWidget(TextBrowserWidgetBehavior(properties, self.get_font_metrics))

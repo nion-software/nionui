@@ -556,5 +556,222 @@ class TestLineEditCanvasIntegration(unittest.TestCase):
         self.assertTrue(canvas_item.line_edit_core.caret_visible)
 
 
+class TestTextEditCanvasIntegration(unittest.TestCase):
+    """Integration tests exercising the TextEditWidget/TextEditWidgetBehavior/MultiLineEditCanvasItem
+    wiring end-to-end (mouse/key/focus events flowing through to TextEditing.TextEditCore and back
+    out via the on_text_changed/on_cursor_position_changed/on_selection_changed/on_escape_pressed/
+    on_return_pressed callbacks), mirroring TestLineEditCanvasIntegration's structure."""
+
+    def setUp(self) -> None:
+        self.test_ui = TestUI.UserInterface()
+        self.ui = CanvasUserInterface.CanvasUserInterface(self.test_ui)
+
+    def _key(self, text: str = str(), key: str = str(), *, shift: bool = False, control: bool = False,
+             alt: bool = False) -> UserInterface.Key:
+        modifiers = CanvasItem.KeyboardModifiers(shift=shift, control=control, alt=alt)
+        return TestUI.Key(text, key, modifiers)
+
+    def _make_text_edit(self, width: int = 200, height: int = 100) -> typing.Tuple[UserInterface.TextEditWidget, typing.Any]:
+        widget = self.ui.create_text_edit_widget()
+        top_canvas_item = widget._behavior.canvas_item  # type: ignore[attr-defined]
+        canvas_item = widget._behavior._content_canvas_item  # type: ignore[attr-defined]
+        # give the item a real canvas_rect (needed for hit-testing coordinates) by laying it out
+        # inside a composition, matching how it would be positioned inside a real window.
+        composition = CanvasItem.CanvasItemComposition()
+        composition.add_canvas_item(top_canvas_item)
+        composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=width, h=height))
+        self.__composition = composition
+        return widget, canvas_item
+
+    def _relayout(self, width: int = 200, height: int = 100) -> None:
+        # word wrap/content-height sizing changes require an explicit fresh layout pass to actually
+        # take effect on canvas_size (matching how a real window's next layout pass would pick up a
+        # sizing change -- update_sizing() alone only marks the item for repaint, not re-layout).
+        self.__composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=width, h=height))
+
+    def test_text_property_round_trips_through_behavior(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        self.assertEqual(widget.text, "hello world")
+        self.assertEqual(canvas_item.text_edit_core.buffer.text, "hello world")
+
+    def test_placeholder_text_round_trips(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.placeholder = "enter value"
+        self.assertEqual(widget.placeholder, "enter value")
+        self.assertEqual(canvas_item.placeholder_text, "enter value")
+
+    def test_typing_incl_newlines_updates_text_and_fires_on_text_changed(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        changed_values: typing.List[typing.Optional[str]] = list()
+        widget.on_text_changed = changed_values.append
+        canvas_item._set_focused(True)
+        canvas_item.key_pressed(self._key("a", "a"))
+        canvas_item.key_pressed(self._key(str(), "enter"))
+        canvas_item.key_pressed(self._key("b", "b"))
+        self.assertEqual(canvas_item.text, "a\nb")
+        self.assertEqual(changed_values, ["a", "a\n", "a\nb"])
+
+    def test_enter_inserts_newline_rather_than_finishing_editing(self) -> None:
+        # unlike LineEditCanvasItem, Enter is not intercepted here -- it's ordinary text insertion.
+        widget, canvas_item = self._make_text_edit()
+        canvas_item._set_focused(True)
+        consumed = canvas_item.key_pressed(self._key(str(), "enter"))
+        self.assertTrue(consumed)
+        self.assertEqual(canvas_item.text, "\n")
+
+    def test_select_all_and_selected_text(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        widget.select_all()
+        self.assertEqual(widget.selected_text, "hello world")
+
+    def test_cursor_position_and_selection_properties(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        widget.select_all()
+        self.assertEqual(widget.cursor_position.position, len("hello world"))
+        self.assertEqual(widget.selection, UserInterface.Selection(0, len("hello world")))
+
+    def test_cursor_position_changed_and_selection_changed_callbacks_fire(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        cursor_positions: typing.List[UserInterface.CursorPosition] = list()
+        selections: typing.List[UserInterface.Selection] = list()
+        widget.on_cursor_position_changed = cursor_positions.append
+        widget.on_selection_changed = selections.append
+        canvas_item._set_focused(True)
+        canvas_item.key_pressed(self._key(key="left", shift=True))
+        self.assertTrue(cursor_positions)
+        self.assertTrue(selections)
+
+    def test_escape_pressed_fires_escape_callback(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        escape_calls = list()
+
+        def on_escape_pressed() -> bool:
+            escape_calls.append(True)
+            return True
+
+        widget.on_escape_pressed = on_escape_pressed
+        canvas_item._set_focused(True)
+        consumed = canvas_item.key_pressed(self._key(str(), "escape"))
+        self.assertTrue(consumed)
+        self.assertEqual(escape_calls, [True])
+
+    def test_move_cursor_position(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        widget.move_cursor_position("start")
+        self.assertEqual(canvas_item.text_edit_core.buffer.cursor_position, 0)
+        widget.move_cursor_position("end")
+        self.assertEqual(canvas_item.text_edit_core.buffer.cursor_position, len("hello world"))
+
+    def test_append_text_and_insert_text(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello"
+        widget.append_text(" world")
+        self.assertEqual(widget.text, "hello world")
+        widget.move_cursor_position("start")
+        widget.insert_text("X")
+        self.assertEqual(widget.text, "Xhello world")
+
+    def test_remove_selected_text_and_clear_selection(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "hello world"
+        widget.select_all()
+        widget.remove_selected_text()
+        self.assertEqual(widget.text, str())
+        widget.text = "hello world"
+        widget.select_all()
+        widget.clear_selection()
+        self.assertEqual(widget.selection.start, widget.selection.end)
+
+    def test_word_wrap_mode_wraps_text_across_multiple_rows(self) -> None:
+        widget, canvas_item = self._make_text_edit(width=100, height=100)
+        widget.word_wrap_mode = "word"
+        widget.text = "a long line of text that should wrap across several visual rows"
+        self._relayout(width=100, height=100)
+        self.assertGreater(canvas_item.text_edit_core.layout().row_count, 1)
+
+    def test_scrolling_via_wrapped_scroll_area(self) -> None:
+        widget, canvas_item = self._make_text_edit(width=200, height=40)
+        widget.word_wrap_mode = "word"
+        widget.text = "\n".join(f"line {i}" for i in range(20))
+        # re-layout after the text change so the fixed content-height sizing takes effect.
+        self._relayout(width=200, height=40)
+        # content is much taller than the 40px viewport -- real scrolling should be available.
+        self.assertGreater(canvas_item.canvas_size.height, 40)
+
+    def test_mouse_click_places_cursor_and_double_click_selects_word(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "the quick brown fox"
+        modifiers = CanvasItem.KeyboardModifiers()
+        padding = canvas_item.padding.width
+        canvas_item.mouse_pressed(padding + 5, 5, modifiers)
+        self.assertGreaterEqual(canvas_item.text_edit_core.buffer.cursor_position, 0)
+        canvas_item.mouse_double_clicked(padding + 25, 5, modifiers)
+        self.assertTrue(canvas_item.text_edit_core.buffer.selected_text)
+
+    def test_double_click_then_drag_selects_whole_words(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        widget.text = "the quick brown fox"
+        modifiers = CanvasItem.KeyboardModifiers()
+        padding = canvas_item.padding.width
+        canvas_item.mouse_double_clicked(padding + 25, 5, modifiers)
+        first_word = canvas_item.text_edit_core.buffer.selected_text
+        self.assertTrue(first_word)
+        canvas_item.mouse_position_changed(padding + 65, 5, modifiers)
+        dragged = canvas_item.text_edit_core.buffer.selected_text
+        self.assertNotEqual(dragged, first_word)
+        canvas_item.mouse_released(padding + 65, 5, modifiers)
+
+    def test_double_click_drag_stops_after_mouse_released_at_container_level(self) -> None:
+        # regression test mirroring TestLineEditCanvasIntegration's equivalent: reproduces the real
+        # event path (container-level double-click dispatch) since the earlier fix (recording the
+        # double-clicked canvas item as "mouse grabbed" in RootCanvasItem/ThreadedCanvasItem) is
+        # shared infrastructure that a fresh canvas item type should still exercise directly.
+        canvas_widget = self.test_ui.create_canvas_widget()
+        self.addCleanup(canvas_widget.close)
+        widget = self.ui.create_text_edit_widget()
+        top_canvas_item = widget._behavior.canvas_item  # type: ignore[attr-defined]
+        canvas_item = widget._behavior._content_canvas_item  # type: ignore[attr-defined]
+        canvas_widget.canvas_item.add_canvas_item(top_canvas_item)
+        canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=200, h=60))
+        widget.text = "the quick brown fox"
+        canvas_item._set_focused(True)
+        padding = canvas_item.padding.width
+        modifiers = CanvasItem.KeyboardModifiers()
+
+        assert callable(canvas_widget.on_mouse_double_clicked)
+        canvas_widget.on_mouse_double_clicked(padding + 25, 5, modifiers)
+        first_word = canvas_item.text_edit_core.buffer.selected_text
+        self.assertTrue(first_word)
+
+        assert callable(canvas_widget.on_mouse_released)
+        canvas_widget.on_mouse_released(padding + 25, 5, modifiers)
+
+        assert callable(canvas_widget.on_mouse_position_changed)
+        canvas_widget.on_mouse_position_changed(padding + 65, 5, modifiers)
+        self.assertEqual(canvas_item.text_edit_core.buffer.selected_text, first_word)
+
+    def test_caret_blinks_via_periodic(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        behavior = typing.cast(typing.Any, widget._behavior)
+        canvas_item._set_focused(True)
+        self.assertTrue(canvas_item.text_edit_core.caret_visible)
+        behavior._TextEditWidgetBehavior__last_periodic_time -= CanvasUserInterface.TextEditing.CARET_BLINK_INTERVAL + 0.01  # type: ignore[attr-defined]
+        behavior.periodic()
+        self.assertFalse(canvas_item.text_edit_core.caret_visible)
+
+    def test_not_focused_does_not_blink(self) -> None:
+        widget, canvas_item = self._make_text_edit()
+        behavior = typing.cast(typing.Any, widget._behavior)
+        self.assertFalse(canvas_item.focused)
+        behavior._TextEditWidgetBehavior__last_periodic_time -= CanvasUserInterface.TextEditing.CARET_BLINK_INTERVAL + 0.01  # type: ignore[attr-defined]
+        behavior.periodic()
+        self.assertTrue(canvas_item.text_edit_core.caret_visible)
+
+
 if __name__ == '__main__':
     unittest.main()

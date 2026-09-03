@@ -20,6 +20,7 @@ from nion.ui import Widgets
 from nion.utils import Color
 from nion.utils import Geometry
 from nion.utils import Model
+from nion.utils import ReferenceCounting
 from nion.utils import Stream
 
 
@@ -1557,18 +1558,387 @@ class LineEditWidgetBehavior(WidgetBehavior):
                 self.__canvas_item.update()
 
 
+class _MultiLineEditCellCanvasItemComposer(CanvasItem.CellCanvasItemComposer):
+    """A CellCanvasItemComposer that enforces a minimum offered canvas height from its own sizing.
+
+    CellCanvasItemComposer (the base class MultiLineEditCanvasItem would otherwise use) does not
+    clamp the canvas bounds it's given to its own sizing -- ScrollAreaLayout's auto_resize_contents
+    path offers the content whatever box the viewport currently has, unconditionally. Real vertical
+    scrolling needs this content item to grow past that offered box when its wrapped content is
+    taller (so the surrounding ScrollAreaCanvasItem/ScrollBarCanvasItem see a content canvas_size
+    taller than the viewport and can scroll it) -- exactly the same problem ListCanvasItem already
+    solves by overriding _adjust_canvas_bounds the same way (see
+    ListCanvasItemComposer._adjust_canvas_bounds in ListCanvasItem.py). Unlike ListCanvasItem's
+    version, this only enforces a *minimum* (never clamps the height back down), so short content
+    still expands to fill the whole offered viewport rather than leaving a gap below a short,
+    bordered content box.
+    """
+
+    def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
+        # only enforce a *minimum* (the content's own wrapped height) -- never clamp downward, so
+        # short content still expands to fill the offered viewport box (matching QTextEdit's own
+        # look, where the bordered text area always fills the scroll area even with only a line or
+        # two of text) while taller content still forces the offered box up to its full height,
+        # which is what makes it scrollable in the first place.
+        sizing = self.layout_sizing
+        height = canvas_bounds.height
+        minimum_height = sizing.minimum_height
+        if isinstance(minimum_height, (int, float)):
+            height = max(height, int(minimum_height))
+        return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(height=height, width=canvas_bounds.width))
+
+
+class MultiLineEditCell(CanvasItem.Cell):
+    """A Cell that paints a word-wrapped, multi-row TextEditCore's buffer.
+
+    Draws placeholder text (when empty & unfocused), per-row selection highlight rects, the
+    wrapped text rows themselves, and a blinking caret (suppressed during an active selection,
+    matching the same rule established for LineEditCell). Used only by MultiLineEditCanvasItem.
+    """
+
+    def __init__(self, text_edit_core: TextEditing.TextEditCore,
+                 background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = None,
+                 border: typing.Optional[CanvasItem.CellBorder] = None, padding: typing.Optional[Geometry.IntSize] = None) -> None:
+        super().__init__(background_color, border, padding)
+        self.__core = text_edit_core
+        self.__placeholder_text = str()
+        self.__text_color: typing.Optional[str] = None
+        self.__text_font: typing.Optional[str] = None
+
+    @property
+    def placeholder_text(self) -> str:
+        return self.__placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, placeholder_text: typing.Optional[str]) -> None:
+        placeholder_text = placeholder_text if placeholder_text is not None else str()
+        if self.__placeholder_text != placeholder_text:
+            self.__placeholder_text = placeholder_text
+            self._update()
+
+    @property
+    def text_color(self) -> typing.Optional[str]:
+        return self.__text_color
+
+    @text_color.setter
+    def text_color(self, value: typing.Optional[str]) -> None:
+        if self.__text_color != value:
+            self.__text_color = value
+            self._update()
+
+    @property
+    def text_font(self) -> typing.Optional[str]:
+        return self.__text_font
+
+    @text_font.setter
+    def text_font(self, value: typing.Optional[str]) -> None:
+        if self.__text_font != value:
+            self.__text_font = value
+            self._update()
+
+    def _size_to_content(self, get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> Geometry.IntSize:
+        # not used -- MultiLineEditCanvasItem manages its own (fixed, content-driven) height sizing
+        # directly from the core's layout; see MultiLineEditCanvasItem._refresh_sizing.
+        return Geometry.IntSize()
+
+    def _paint_cell(self, drawing_context: DrawingContext.DrawingContext, rect: Geometry.FloatRect, style: typing.Set[str]) -> None:
+        core = self.__core
+        buffer = core.buffer
+        text_font = self.__text_font or "12px"
+        text_color = self.__text_color or "black"
+        focused = "focused" in style
+        drawing_context.font = text_font
+        drawing_context.text_baseline = "middle"
+        drawing_context.text_align = "left"
+
+        layout = core.layout()
+        row_height = layout.row_height(0)
+
+        # selection highlight, drawn behind the text (one rect per row it touches).
+        selection = buffer.selection
+        if selection is not None and selection.start != selection.end:
+            for selection_rect in layout.selection_rects(selection):
+                drawing_context.begin_path()
+                drawing_context.rect(rect.left + selection_rect.left, rect.top + selection_rect.top,
+                                      selection_rect.width, selection_rect.height)
+                drawing_context.fill_style = "rgba(96, 160, 255, 0.4)" if focused else "rgba(160, 160, 160, 0.4)"
+                drawing_context.fill()
+
+        if buffer.text:
+            drawing_context.fill_style = text_color
+            for row in range(layout.row_count):
+                start, end = layout.row_range(row)
+                row_text = buffer.text[start:end]
+                if row_text:
+                    row_top = rect.top + layout.row_top(row)
+                    drawing_context.fill_text(row_text, rect.left, row_top + row_height / 2 + 1)
+        elif self.__placeholder_text and not focused:
+            drawing_context.fill_style = "rgba(0, 0, 0, 0.4)"
+            drawing_context.fill_text(self.__placeholder_text, rect.left, rect.top + row_height / 2 + 1)
+
+        # blinking caret -- suppressed while there is an active selection, matching LineEditCell.
+        if focused and core.caret_visible and (selection is None or selection.start == selection.end):
+            point = layout.point_for_position(buffer.cursor_position)
+            caret_x = rect.left + point.x
+            caret_top = rect.top + point.y
+            drawing_context.begin_path()
+            drawing_context.move_to(caret_x, caret_top + 1)
+            drawing_context.line_to(caret_x, caret_top + row_height - 1)
+            drawing_context.line_width = 1.0
+            drawing_context.stroke_style = text_color
+            drawing_context.stroke()
+
+
+class MultiLineEditCanvasItem(CanvasItem.CellCanvasItem):
+    """Canvas item for an interactive, editable, word-wrapped, scrollable multi-line text field.
+
+    Owns a TextEditing.TextEditCore that holds the document/cursor/selection state and interprets
+    keyboard/mouse events; this class only adapts CanvasItem mouse/key/focus events into calls on
+    that core, and adapts the core's state into what MultiLineEditCell paints.
+
+    Intended to be used as the content of a CanvasItem.ScrollAreaCanvasItem constructed with
+    auto_resize_contents = True (see TextEditWidgetBehavior below) -- that setting makes the
+    surrounding scroll layout re-offer this item the viewport's current box on every layout pass
+    (needed so word wrap can track the viewport width as it's resized), while this item's own fixed
+    height sizing (kept in sync with the wrapped content's total height via _refresh_sizing) wins
+    over that offered box's height, giving genuine vertical scrolling -- the same pattern already
+    established by ListCanvasItem/Widgets.ListWidget for other growing scrollable content.
+    """
+
+    def __init__(self, text: typing.Optional[str], measurements: TextEditing.TextMeasurements,
+                 clipboard_get_text: typing.Callable[[], str],
+                 clipboard_set_text: typing.Callable[[str], None]) -> None:
+        self.__core = TextEditing.TextEditCore(measurements, "12px", clipboard_get_text, clipboard_set_text)
+        if text:
+            self.__core.buffer.set_text(text)
+        super().__init__()
+        border = CanvasItem.CellBorder()
+        border.border = CanvasItem.CellBorderProperties(Color.Color("gray"))
+        self.__multi_line_edit_cell = MultiLineEditCell(self.__core, "white", border, Geometry.IntSize(4, 4))
+        self.cell = self.__multi_line_edit_cell
+        self.focusable = True
+        self.wants_mouse_events = True
+        self.cursor_shape = "ibeam"
+        self.on_text_changed: typing.Optional[typing.Callable[[typing.Optional[str]], None]] = None
+        self.on_cursor_position_changed: typing.Optional[typing.Callable[[UserInterface.CursorPosition], None]] = None
+        self.on_selection_changed: typing.Optional[typing.Callable[[UserInterface.Selection], None]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
+        self.__canvas_size_changed_action = Stream.ValueStreamAction(self._canvas_size_stream, ReferenceCounting.weak_partial(MultiLineEditCanvasItem.__handle_canvas_size_changed, self))
+        self._refresh_sizing()
+
+    def close(self) -> None:
+        self.__canvas_size_changed_action = typing.cast(typing.Any, None)
+        self.on_text_changed = None
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_return_pressed = None
+        self.on_escape_pressed = None
+        self.on_key_pressed = None
+        super().close()
+
+    def _description(self) -> str:
+        return self.__class__.__name__ + f" '{self.text}'"
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        if cell := self.cell:
+            return _MultiLineEditCellCanvasItemComposer(self, self.layout_sizing, composer_cache, cell, self.style)
+        return None
+
+    @property
+    def text_edit_core(self) -> TextEditing.TextEditCore:
+        return self.__core
+
+    @property
+    def text(self) -> str:
+        return self.__core.buffer.text
+
+    @text.setter
+    def text(self, text: typing.Optional[str]) -> None:
+        old_text = self.__core.buffer.text
+        text = text if text is not None else str()
+        if text != old_text:
+            self.__core.buffer.set_text(text)
+            self._refresh_sizing()
+            self.update()
+            if callable(self.on_text_changed):
+                self.on_text_changed(self.__core.buffer.text)
+
+    @property
+    def placeholder_text(self) -> str:
+        return self.__multi_line_edit_cell.placeholder_text
+
+    @placeholder_text.setter
+    def placeholder_text(self, placeholder_text: typing.Optional[str]) -> None:
+        self.__multi_line_edit_cell.placeholder_text = placeholder_text or str()
+
+    @property
+    def word_wrap_mode(self) -> str:
+        return self.__core.word_wrap_mode
+
+    @word_wrap_mode.setter
+    def word_wrap_mode(self, word_wrap_mode: str) -> None:
+        self.__core.word_wrap_mode = word_wrap_mode
+        self._refresh_sizing()
+        self.update()
+
+    @property
+    def text_color(self) -> typing.Optional[str]:
+        return self.__multi_line_edit_cell.text_color
+
+    @text_color.setter
+    def text_color(self, value: typing.Optional[str]) -> None:
+        self.__multi_line_edit_cell.text_color = value
+
+    @property
+    def text_font(self) -> typing.Optional[str]:
+        return self.__multi_line_edit_cell.text_font
+
+    @text_font.setter
+    def text_font(self, value: typing.Optional[str]) -> None:
+        self.__multi_line_edit_cell.text_font = value
+        self._refresh_sizing()
+
+    def __handle_canvas_size_changed(self, canvas_size: typing.Optional[Geometry.IntSize]) -> None:
+        self._refresh_sizing()
+
+    def _refresh_sizing(self) -> None:
+        # word wrap needs to know the available width, and the scroll bar needs to know the total
+        # content height -- both are derived here from the core's own layout, kept in sync with the
+        # canvas item's current (viewport-tracking) width via auto_resize_contents on the scroll area.
+        canvas_size = self.canvas_size
+        width = float(canvas_size.width) if canvas_size else 300.0
+        if self.__core.word_wrap_mode == "word":
+            self.__core.set_wrap_width(max(10.0, width - 2 * self.padding.width))
+        else:
+            self.__core.set_wrap_width(None)
+        content_height = self.__core.layout().total_height + 2 * self.padding.height
+        new_height = max(1, int(math.ceil(content_height)))
+        # only a minimum, not a fixed min==max -- letting the maximum float means short content
+        # still expands to fill whatever (taller) box the scroll area's viewport offers, while the
+        # minimum still forces the offered box up past the viewport when content is taller than it,
+        # which is what makes real scrolling happen (see _MultiLineEditCellCanvasItemComposer).
+        new_sizing = self.copy_sizing()
+        new_sizing = new_sizing.with_minimum_height(new_height).with_maximum_height(None)
+        self.update_sizing(new_sizing)
+
+    def _set_focused(self, focused: bool) -> None:
+        was_focused = self.focused
+        super()._set_focused(focused)
+        if focused != was_focused:
+            if focused:
+                self.style.add("focused")
+                self.__core.reset_blink()
+            else:
+                self.style.discard("focused")
+                self.__core.handle_mouse_released()
+            self.update()
+
+    def __after_interaction(self, old_text: str, old_cursor: UserInterface.CursorPosition,
+                             old_selection: typing.Optional[UserInterface.Selection]) -> None:
+        core = self.__core
+        new_text = core.buffer.text
+        if new_text != old_text:
+            self._refresh_sizing()
+            if callable(self.on_text_changed):
+                self.on_text_changed(new_text)
+        new_cursor = core.buffer.cursor_position_info()
+        if new_cursor != old_cursor and callable(self.on_cursor_position_changed):
+            self.on_cursor_position_changed(new_cursor)
+        old_selection_norm = old_selection or UserInterface.Selection(old_cursor.position, old_cursor.position)
+        new_selection_norm = core.buffer.selection or UserInterface.Selection(new_cursor.position, new_cursor.position)
+        if new_selection_norm != old_selection_norm and callable(self.on_selection_changed):
+            self.on_selection_changed(new_selection_norm)
+        self.update()
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        if callable(self.on_key_pressed) and self.on_key_pressed(key):
+            return True
+        if key.is_escape:
+            if callable(self.on_escape_pressed):
+                return self.on_escape_pressed()
+            return True
+        # note: unlike LineEditCanvasItem, Enter is not special-cased here -- TextEditCore.handle_key
+        # always inserts a newline for Enter (matching QTextEdit); on_return_pressed is still exposed
+        # (for the same app-level "Enter submits" conventions some callers layer on top of LineEdit),
+        # but this canvas item does not fire it itself, since Enter's default action here is to type,
+        # not to finish editing.
+        old_text = self.__core.buffer.text
+        old_cursor = self.__core.buffer.cursor_position_info()
+        old_selection = self.__core.buffer.selection
+        if self.__core.handle_key(key):
+            self.__after_interaction(old_text, old_cursor, old_selection)
+            return True
+        return super().key_pressed(key)
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        old_text = self.__core.buffer.text
+        old_cursor = self.__core.buffer.cursor_position_info()
+        old_selection = self.__core.buffer.selection
+        local_x = float(x) - self.padding.width
+        local_y = float(y) - self.padding.height
+        self.__core.handle_mouse_pressed(local_x, local_y, modifiers)
+        self.__after_interaction(old_text, old_cursor, old_selection)
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.__core.handle_mouse_released()
+        return True
+
+    def mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        old_text = self.__core.buffer.text
+        old_cursor = self.__core.buffer.cursor_position_info()
+        old_selection = self.__core.buffer.selection
+        local_x = float(x) - self.padding.width
+        local_y = float(y) - self.padding.height
+        if self.__core.handle_mouse_position_changed(local_x, local_y):
+            self.__after_interaction(old_text, old_cursor, old_selection)
+        return True
+
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        old_text = self.__core.buffer.text
+        old_cursor = self.__core.buffer.cursor_position_info()
+        old_selection = self.__core.buffer.selection
+        local_x = float(x) - self.padding.width
+        local_y = float(y) - self.padding.height
+        if self.__core.handle_double_click(local_x, local_y):
+            self.__after_interaction(old_text, old_cursor, old_selection)
+        return True
+
+
 class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavior):
-    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], get_font_metrics_fn: typing.Callable[[str, str], UserInterface.FontMetrics]) -> None:
-        text_edit_canvas_item = TextEditCanvasItem(text, background_color="white", border_color="gray")
-        font_metrics = get_font_metrics_fn(str(), "x")
-        text_edit_canvas_item.update_sizing(text_edit_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
-        super().__init__(text_edit_canvas_item, False, properties)
-        self.__get_font_metrics_fn = get_font_metrics_fn
-        self.__canvas_item = text_edit_canvas_item
-        self.text: typing.Optional[str]
-        self.placeholder: typing.Optional[str]
-        self.editable: bool
-        self.word_wrap_mode: str
+    """Interactive, word-wrapped, scrollable multi-line text edit for the canvas UI backend.
+
+    Wraps a MultiLineEditCanvasItem in a CanvasItem.ScrollAreaCanvasItem + CanvasItem.ScrollBarCanvasItem,
+    composed the same way ScrollAreaWidgetBehavior already composes arbitrary scrollable content
+    (white background, gray frame border, vertical scroll bar).
+    """
+
+    def __init__(self, text: str, properties: typing.Optional[typing.Mapping[str, typing.Any]], ui: UserInterface.UserInterface) -> None:
+        # ui (the owning CanvasUserInterface) is passed in full for the same reason LineEditWidgetBehavior
+        # takes it: it already structurally satisfies TextEditing.TextMeasurements and also provides
+        # the clipboard_text/clipboard_set_text methods TextEditCore needs.
+        measurements = typing.cast(TextEditing.TextMeasurements, ui)
+        self.__canvas_item = MultiLineEditCanvasItem(text, measurements, ui.clipboard_text, ui.clipboard_set_text)
+        self.__scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__canvas_item)
+        # auto_resize_contents makes the scroll area re-offer the content its current viewport box on
+        # every layout pass (needed so word wrap tracks the viewport width as it's resized); the
+        # content's own fixed height sizing (kept in sync with its wrapped total height, see
+        # MultiLineEditCanvasItem._refresh_sizing) wins over the offered box's height, which is what
+        # actually makes it scrollable -- the same pattern ListCanvasItem/Widgets.ListWidget already
+        # use for their own growing scrollable content.
+        self.__scroll_area_canvas_item.auto_resize_contents = True
+        self.__scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        self.__scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        self.__scroll_group_canvas_item.border_color = "gray"
+        self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_area_canvas_item)
+        self.__scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.__scroll_area_canvas_item)
+        self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_bar_canvas_item)
+        font_metrics = ui.get_font_metrics(str(), "x")
+        self.__scroll_group_canvas_item.update_sizing(self.__scroll_group_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
+        super().__init__(self.__scroll_group_canvas_item, False, properties)
+        self.__last_periodic_time = time.time()
 
         self.on_cursor_position_changed: typing.Optional[typing.Callable[[UserInterface.CursorPosition], None]] = None
         self.on_selection_changed: typing.Optional[typing.Callable[[UserInterface.Selection], None]] = None
@@ -1579,47 +1949,147 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterface.Key], bool]] = None
         self.on_insert_mime_data: typing.Optional[typing.Callable[[UserInterface.MimeData], None]] = None
 
+        # forward the canvas item's own (user-interaction driven) callbacks to whichever callables
+        # currently live on self.on_* -- looked up dynamically (not captured at bind time) since
+        # TextEditWidget.__init__ immediately replaces self.on_* with its own wrapped callbacks right
+        # after constructing this behavior (same reasoning as LineEditWidgetBehavior).
+        self.__canvas_item.on_text_changed = lambda text: self.on_text_changed(text) if callable(self.on_text_changed) else None
+        self.__canvas_item.on_cursor_position_changed = lambda cursor_position: self.on_cursor_position_changed(cursor_position) if callable(self.on_cursor_position_changed) else None
+        self.__canvas_item.on_selection_changed = lambda selection: self.on_selection_changed(selection) if callable(self.on_selection_changed) else None
+        self.__canvas_item.on_escape_pressed = lambda: self.on_escape_pressed() if callable(self.on_escape_pressed) else False
+        self.__canvas_item.on_return_pressed = lambda: self.on_return_pressed() if callable(self.on_return_pressed) else False
+        self.__canvas_item.on_key_pressed = lambda key: self.on_key_pressed(key) if callable(self.on_key_pressed) else False
+
+    def close(self) -> None:
+        self.on_cursor_position_changed = None
+        self.on_selection_changed = None
+        self.on_text_changed = None
+        self.on_text_edited = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_key_pressed = None
+        self.on_insert_mime_data = None
+        super().close()
+
+    @property
+    def _content_canvas_item(self) -> MultiLineEditCanvasItem:
+        # note: deliberately *not* named `_canvas_item` -- that name is the base WidgetBehavior
+        # contract used by extract_canvas_item() to find the item to insert into a parent container,
+        # and here that must stay the outer scroll_group_canvas_item (self.canvas_item), not this
+        # inner content item, or the box-insertion path ends up inserting an item that's already
+        # been inserted once (as the scroll area's content), tripping CanvasItem's container-reuse
+        # assertion. This property exists purely so tests can reach the inner item directly.
+        return self.__canvas_item
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__canvas_item.text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        self.__canvas_item.text = value
+
+    @property
+    def placeholder(self) -> typing.Optional[str]:
+        return self.__canvas_item.placeholder_text
+
+    @placeholder.setter
+    def placeholder(self, value: typing.Optional[str]) -> None:
+        self.__canvas_item.placeholder_text = value
+
+    @property
+    def editable(self) -> bool:
+        # TODO: editable (read-only mode) -- deferred, mirroring the same stub on LineEditWidgetBehavior.
+        return True
+
+    @editable.setter
+    def editable(self, value: bool) -> None:
+        # TODO: editable (read-only mode)
+        pass
+
+    @property
+    def word_wrap_mode(self) -> str:
+        return self.__canvas_item.word_wrap_mode
+
+    @word_wrap_mode.setter
+    def word_wrap_mode(self, value: str) -> None:
+        self.__canvas_item.word_wrap_mode = value
+
     @property
     def selected_text(self) -> typing.Optional[str]:
-        raise NotImplementedError()
+        return self.__canvas_item.text_edit_core.buffer.selected_text
 
     @property
     def cursor_position(self) -> UserInterface.CursorPosition:
-        raise NotImplementedError()
+        return self.__canvas_item.text_edit_core.buffer.cursor_position_info()
 
     @property
     def selection(self) -> UserInterface.Selection:
-        raise NotImplementedError()
+        buffer = self.__canvas_item.text_edit_core.buffer
+        return buffer.selection or UserInterface.Selection(buffer.cursor_position, buffer.cursor_position)
 
     def append_text(self, value: str) -> None:
-        pass
+        buffer = self.__canvas_item.text_edit_core.buffer
+        old_text = buffer.text
+        buffer.move_to_end(False)
+        if buffer.insert_text(value):
+            self.__canvas_item._refresh_sizing()
+            self.__canvas_item.update()
+            if buffer.text != old_text and callable(self.__canvas_item.on_text_changed):
+                self.__canvas_item.on_text_changed(buffer.text)
 
     def insert_text(self, value: str) -> None:
-        pass
+        buffer = self.__canvas_item.text_edit_core.buffer
+        old_text = buffer.text
+        if buffer.insert_text(value):
+            self.__canvas_item.update()
+            if buffer.text != old_text and callable(self.__canvas_item.on_text_changed):
+                self.__canvas_item.on_text_changed(buffer.text)
 
     def clear_selection(self) -> None:
-        pass
+        buffer = self.__canvas_item.text_edit_core.buffer
+        buffer.set_cursor(buffer.cursor_position, False)
+        self.__canvas_item.update()
 
     def remove_selected_text(self) -> None:
-        pass
+        buffer = self.__canvas_item.text_edit_core.buffer
+        old_text = buffer.text
+        if buffer.delete_selection():
+            self.__canvas_item.update()
+            if callable(self.__canvas_item.on_text_changed):
+                self.__canvas_item.on_text_changed(buffer.text)
 
     def select_all(self) -> None:
-        pass
+        if self.__canvas_item.text_edit_core.buffer.select_all():
+            self.__canvas_item.update()
 
     def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
-        pass
+        core = self.__canvas_item.text_edit_core
+        for _ in range(max(1, n)):
+            core.move_cursor_position(operation, mode or "move")
+        self.__canvas_item.update()
 
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
+        # TODO: proportional line height (row height is currently always exactly the font's natural
+        # metrics height -- see TextEditLayout). Deferred; accepted but not yet effective.
         pass
 
     def set_text_background_color(self, color: typing.Optional[str]) -> None:
-        pass
+        self.__canvas_item.background_color = color
 
     def set_text_color(self, color: typing.Optional[str]) -> None:
-        pass
+        self.__canvas_item.text_color = color
 
     def set_text_font(self, font_str: typing.Optional[str]) -> None:
-        pass
+        self.__canvas_item.text_font = font_str
+
+    def periodic(self) -> None:
+        now = time.time()
+        dt = now - self.__last_periodic_time
+        self.__last_periodic_time = now
+        if self.__canvas_item.focused:
+            if self.__canvas_item.text_edit_core.tick(dt):
+                self.__canvas_item.update()
 
 
 class TextBrowserWidgetBehavior(WidgetBehavior, UserInterface.TextBrowserWidgetBehavior):
@@ -2382,7 +2852,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.TextBrowserWidget(TextBrowserWidgetBehavior(properties, self.get_font_metrics))
 
     def create_text_edit_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TextEditWidget:
-        return UserInterface.TextEditWidget(TextEditWidgetBehavior(str(), properties, self.get_font_metrics))
+        return UserInterface.TextEditWidget(TextEditWidgetBehavior(str(), properties, self))
 
     def create_canvas_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None, *, layout_render: typing.Optional[str] = None) -> UserInterface.CanvasWidget:
         return UserInterface.CanvasWidget(CanvasWidgetBehavior(properties, self.get_font_metrics))

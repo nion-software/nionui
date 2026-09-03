@@ -402,7 +402,11 @@ class Key(UserInterfaceModule.Key):
 
     @property
     def is_delete(self) -> bool:
-        return self.__key == "delete"
+        return self.__key == "delete" or self.__key == "backspace"
+
+    @property
+    def is_backspace(self) -> bool:
+        return self.__key == "backspace"
 
     @property
     def is_enter_or_return(self) -> bool:

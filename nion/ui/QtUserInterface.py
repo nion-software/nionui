@@ -132,6 +132,10 @@ class QtKey(UserInterface.Key):
         return len(self.text) == 1 and (ord(self.text[0]) == 127 or ord(self.text[0]) == 8)
 
     @property
+    def is_backspace(self) -> bool:
+        return self.key == 0x1000003 or (len(self.text) == 1 and ord(self.text[0]) == 8)
+
+    @property
     def is_enter_or_return(self) -> bool:
         return len(self.text) == 1 and (ord(self.text[0]) == 3 or ord(self.text[0]) == 13)
 

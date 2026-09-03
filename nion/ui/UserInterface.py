@@ -158,6 +158,16 @@ class Key(typing.Protocol):
 
     @property
     @abc.abstractmethod
+    def is_backspace(self) -> bool:
+        # True only for the Backspace key specifically (deletes character before the cursor).
+        # `is_delete` remains True for *either* Backspace or the forward-Delete key (matching its
+        # existing use in list/grid/tree widgets, where either key means "remove selection"); text
+        # editing needs to distinguish the two, so `is_delete and not is_backspace` identifies
+        # forward-delete specifically.
+        ...
+
+    @property
+    @abc.abstractmethod
     def is_enter_or_return(self) -> bool:
         ...
 

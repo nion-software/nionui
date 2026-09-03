@@ -153,6 +153,79 @@ class TestTextBuffer(unittest.TestCase):
         self.assertIsNone(buffer.selection)
 
 
+class TestTextBufferMultiParagraph(unittest.TestCase):
+    """Covers TextBuffer(allow_newlines=True), the multi-line (TextEdit) mode."""
+
+    def test_newlines_are_dropped_by_default(self) -> None:
+        buffer = TextEditing.TextBuffer("a\nb")
+        self.assertEqual(buffer.text, "ab")
+
+    def test_newlines_preserved_when_allowed(self) -> None:
+        buffer = TextEditing.TextBuffer("a\nb", allow_newlines=True)
+        self.assertEqual(buffer.text, "a\nb")
+
+    def test_carriage_returns_normalized_to_newline(self) -> None:
+        buffer = TextEditing.TextBuffer("a\r\nb\rc", allow_newlines=True)
+        self.assertEqual(buffer.text, "a\nb\nc")
+
+    def test_insert_newline_splits_paragraph(self) -> None:
+        buffer = TextEditing.TextBuffer("hello", allow_newlines=True)
+        buffer.set_cursor(2, False)
+        self.assertTrue(buffer.insert_newline())
+        self.assertEqual(buffer.text, "he\nllo")
+        self.assertEqual(buffer.cursor_position, 3)
+
+    def test_insert_newline_is_a_no_op_without_allow_newlines(self) -> None:
+        buffer = TextEditing.TextBuffer("hello")
+        buffer.set_cursor(2, False)
+        self.assertFalse(buffer.insert_newline())
+        self.assertEqual(buffer.text, "hello")
+
+    def test_paragraph_bounds_single_paragraph(self) -> None:
+        buffer = TextEditing.TextBuffer("hello", allow_newlines=True)
+        self.assertEqual(buffer.paragraph_bounds(), [(0, 5)])
+
+    def test_paragraph_bounds_multiple_paragraphs(self) -> None:
+        buffer = TextEditing.TextBuffer("ab\ncd\ne", allow_newlines=True)
+        self.assertEqual(buffer.paragraph_bounds(), [(0, 2), (3, 5), (6, 7)])
+
+    def test_paragraph_bounds_trailing_newline_yields_empty_final_paragraph(self) -> None:
+        buffer = TextEditing.TextBuffer("ab\n", allow_newlines=True)
+        self.assertEqual(buffer.paragraph_bounds(), [(0, 2), (3, 3)])
+
+    def test_cursor_position_info_reports_correct_block_and_column(self) -> None:
+        buffer = TextEditing.TextBuffer("ab\ncd\ne", allow_newlines=True)
+        buffer.set_cursor(0, False)
+        self.assertEqual(buffer.cursor_position_info(), UserInterface.CursorPosition(0, 0, 0))
+        buffer.set_cursor(4, False)  # 'd' in second paragraph ("cd", starting at index 3)
+        self.assertEqual(buffer.cursor_position_info(), UserInterface.CursorPosition(4, 1, 1))
+        buffer.set_cursor(7, False)  # end of text, third paragraph ("e", starting at index 6)
+        self.assertEqual(buffer.cursor_position_info(), UserInterface.CursorPosition(7, 2, 1))
+
+    def test_cursor_position_info_at_paragraph_boundary_belongs_to_earlier_paragraph(self) -> None:
+        # cursor position 2 is the newline boundary between "ab" (0-2) and "cd" (3-5); it should be
+        # reported as the end of the first paragraph, not the start of the second (matches the
+        # convention that a position exactly at a paragraph's end belongs to that paragraph).
+        buffer = TextEditing.TextBuffer("ab\ncd", allow_newlines=True)
+        buffer.set_cursor(2, False)
+        self.assertEqual(buffer.cursor_position_info(), UserInterface.CursorPosition(2, 0, 2))
+
+    def test_backspace_across_paragraph_boundary_joins_paragraphs(self) -> None:
+        buffer = TextEditing.TextBuffer("ab\ncd", allow_newlines=True)
+        buffer.set_cursor(3, False)
+        self.assertTrue(buffer.backspace())
+        self.assertEqual(buffer.text, "abcd")
+
+    def test_word_left_right_selection_and_delete_all_work_across_newlines(self) -> None:
+        # backspace/delete/move/selection are unmodified by allow_newlines -- a "\n" is just another
+        # character to those operations.
+        buffer = TextEditing.TextBuffer("ab\ncd", allow_newlines=True)
+        buffer.select_all()
+        self.assertEqual(buffer.selected_text, "ab\ncd")
+        self.assertTrue(buffer.delete_selection())
+        self.assertEqual(buffer.text, "")
+
+
 class TestTextLayout(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -184,6 +257,109 @@ class TestTextLayout(unittest.TestCase):
     def test_selection_x_span(self) -> None:
         layout = TextEditing.TextLayout(self.measurements, "ignored", "hello world")
         self.assertEqual(layout.selection_x_span(UserInterface.Selection(0, 5)), (0.0, 50.0))
+
+
+class TestTextEditLayout(unittest.TestCase):
+    """Covers TextEditLayout, the word-wrapped multi-row layout used by TextEditCore."""
+
+    def setUp(self) -> None:
+        self.measurements = FakeMeasurements()  # 10px/char, 16px row height
+
+    def test_no_wrap_mode_puts_one_row_per_paragraph(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd\ne", None, "none")
+        self.assertEqual(layout.row_count, 3)
+        self.assertEqual(layout.row_range(0), (0, 2))
+        self.assertEqual(layout.row_range(1), (3, 5))
+        self.assertEqual(layout.row_range(2), (6, 7))
+
+    def test_no_wrap_mode_ignores_wrap_width(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "hello world", 30.0, "none")
+        self.assertEqual(layout.row_count, 1)
+
+    def test_empty_text_has_a_single_empty_row(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "", None, "none")
+        self.assertEqual(layout.row_count, 1)
+        self.assertEqual(layout.row_range(0), (0, 0))
+
+    def test_word_wrap_splits_at_word_boundaries(self) -> None:
+        # "the quick fox", 10px/char: "the " = 40px, "quick " = 60px, "fox" = 30px; wrap at 60px.
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "the quick fox", 60.0, "word")
+        self.assertEqual(layout.row_count, 3)
+        self.assertEqual(layout.row_range(0), (0, 4))  # "the "
+        self.assertEqual(layout.row_range(1), (4, 10))  # "quick "
+        self.assertEqual(layout.row_range(2), (10, 13))  # "fox"
+
+    def test_word_wrap_hard_breaks_a_single_overlong_word(self) -> None:
+        # "abcdefghij" (10 chars, 100px) with wrap_width=35px (3.5 chars) must hard-break every 3
+        # characters (offsets [0,10,20,30,40,...]; largest k with offsets[k] <= 35 is k=3).
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "abcdefghij", 35.0, "word")
+        self.assertEqual([layout.row_range(i) for i in range(layout.row_count)],
+                          [(0, 3), (3, 6), (6, 9), (9, 10)])
+
+    def test_word_wrap_paragraph_boundaries_still_apply(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab cd\nef", 100.0, "word")
+        self.assertEqual(layout.row_count, 2)
+        self.assertEqual(layout.row_range(0), (0, 5))
+        self.assertEqual(layout.row_range(1), (6, 8))
+
+    def test_total_height_and_row_height(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd", None, "none")
+        self.assertEqual(layout.row_count, 2)
+        self.assertEqual(layout.row_height(0), 16.0)
+        self.assertEqual(layout.total_height, 32.0)
+
+    def test_row_top(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd\nef", None, "none")
+        self.assertEqual([layout.row_top(i) for i in range(layout.row_count)], [0.0, 16.0, 32.0])
+
+    def test_content_width_is_widest_row(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "a\nabc", None, "none")
+        self.assertEqual(layout.content_width, 30.0)
+
+    def test_row_for_position_lands_before_newline_in_earlier_row(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd", None, "none")
+        self.assertEqual(layout.row_for_position(2), 0)  # right at the "\n" -> end of row 0
+        self.assertEqual(layout.row_for_position(3), 1)  # right after the "\n" -> start of row 1
+
+    def test_row_for_position_at_wrap_boundary_lands_in_next_row(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "the quick fox", 60.0, "word")
+        self.assertEqual(layout.row_for_position(4), 1)  # boundary between "the " and "quick "
+
+    def test_point_for_position_and_position_for_point_round_trip(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncdef", None, "none")
+        for position in range(len("ab\ncdef") + 1):
+            point = layout.point_for_position(position)
+            self.assertEqual(layout.position_for_point(point.x, point.y), position)
+
+    def test_position_for_point_clamps_out_of_range_y(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd", None, "none")
+        self.assertEqual(layout.position_for_point(0.0, -100.0), 0)
+        self.assertEqual(layout.position_for_point(1e6, 1e6), 5)
+
+    def test_position_for_row_column(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncdef", None, "none")
+        self.assertEqual(layout.position_for_row_column(1, 2), 5)
+
+    def test_selection_rects_within_one_row(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "hello", None, "none")
+        rects = layout.selection_rects(UserInterface.Selection(1, 3))
+        self.assertEqual(len(rects), 1)
+        self.assertEqual((rects[0].left, rects[0].width), (10.0, 20.0))
+
+    def test_selection_rects_span_multiple_rows(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "ab\ncd\nef", None, "none")
+        rects = layout.selection_rects(UserInterface.Selection(1, 7))
+        self.assertEqual(len(rects), 3)
+        # first row: from column 1 to end of "ab" (full remaining width).
+        self.assertEqual((rects[0].left, rects[0].width), (10.0, 10.0))
+        # middle row "cd": selection fully covers it.
+        self.assertEqual((rects[1].left, rects[1].width), (0.0, 20.0))
+        # last row "ef": selection covers only the first column.
+        self.assertEqual((rects[2].left, rects[2].width), (0.0, 10.0))
+
+    def test_selection_rects_empty_for_collapsed_selection(self) -> None:
+        layout = TextEditing.TextEditLayout(self.measurements, "ignored", "hello", None, "none")
+        self.assertEqual(layout.selection_rects(UserInterface.Selection(2, 2)), [])
 
 
 class TestLineEditCore(unittest.TestCase):
@@ -328,6 +504,135 @@ class TestLineEditCore(unittest.TestCase):
     def test_enter_and_escape_are_not_consumed(self) -> None:
         self.assertFalse(self.core.handle_key(make_key(key="enter")))
         self.assertFalse(self.core.handle_key(make_key(key="escape")))
+
+
+class TestTextEditCore(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.clipboard = str()
+
+        def clipboard_get_text() -> str:
+            return self.clipboard
+
+        def clipboard_set_text(text: str) -> None:
+            self.clipboard = text
+
+        self.core = TextEditing.TextEditCore(FakeMeasurements(), "ignored", clipboard_get_text, clipboard_set_text)
+
+    def test_enter_inserts_newline_rather_than_being_swallowed(self) -> None:
+        self.core.buffer.set_text("hello")
+        self.core.buffer.move_to_end(False)
+        self.assertTrue(self.core.handle_key(make_key(key="enter")))
+        self.assertEqual(self.core.buffer.text, "hello\n")
+
+    def test_typing_and_backspace_work_as_in_line_edit(self) -> None:
+        self.assertTrue(self.core.handle_key(make_key(text="h")))
+        self.assertTrue(self.core.handle_key(make_key(text="i")))
+        self.assertEqual(self.core.buffer.text, "hi")
+        self.assertTrue(self.core.handle_key(make_key(key="backspace")))
+        self.assertEqual(self.core.buffer.text, "h")
+
+    def test_word_wrap_mode_setter_approximates_unimplemented_modes_onto_word(self) -> None:
+        self.core.word_wrap_mode = "none"
+        self.assertEqual(self.core.word_wrap_mode, "none")
+        for mode in ("word", "manual", "anywhere", "optional"):
+            self.core.word_wrap_mode = mode
+            self.assertEqual(self.core.word_wrap_mode, "word")
+
+    def test_down_then_up_round_trips_using_preferred_x(self) -> None:
+        # "ab" (row 0, y=0) / "cdef" (row 1, y=16); place cursor after "ab" (x=20), press Down: it
+        # should land at the column nearest x=20 in "cdef" (column 2 -> position 5), then Up should
+        # return to position 2 (reusing the preferred x, not recomputing from the new column).
+        self.core.buffer.set_text("ab\ncdef")
+        self.core.buffer.set_cursor(2, False)
+        self.assertTrue(self.core.handle_key(make_key(key="down")))
+        self.assertEqual(self.core.buffer.cursor_position, 5)
+        self.assertTrue(self.core.handle_key(make_key(key="up")))
+        self.assertEqual(self.core.buffer.cursor_position, 2)
+
+    def test_down_at_last_row_does_not_move(self) -> None:
+        self.core.buffer.set_text("ab\ncd")
+        self.core.buffer.move_to_end(False)
+        self.core.handle_key(make_key(key="down"))
+        self.assertEqual(self.core.buffer.cursor_position, 5)
+
+    def test_up_at_first_row_does_not_move(self) -> None:
+        self.core.buffer.set_text("ab\ncd")
+        self.core.buffer.move_to_start(False)
+        self.core.handle_key(make_key(key="up"))
+        self.assertEqual(self.core.buffer.cursor_position, 0)
+
+    def test_shift_down_extends_selection(self) -> None:
+        self.core.buffer.set_text("ab\ncd")
+        self.core.buffer.move_to_start(False)
+        self.core.handle_key(make_key(key="down", shift=True))
+        self.assertEqual(self.core.buffer.selection, UserInterface.Selection(0, 3))
+
+    def test_page_down_and_page_up(self) -> None:
+        self.core.buffer.set_text("a\nb\nc\nd\ne")  # 5 single-char paragraphs, rows at y=0,16,32,48,64
+        self.core.set_viewport_height(32.0)  # 2 rows per page
+        self.core.buffer.move_to_start(False)
+        self.assertTrue(self.core.handle_key(make_key(key="page_down")))
+        self.assertEqual(self.core.buffer.cursor_position, 4)  # row 2 ("c")
+        self.assertTrue(self.core.handle_key(make_key(key="page_down")))
+        self.assertEqual(self.core.buffer.cursor_position, 8)  # row 4 ("e")
+        self.core.handle_key(make_key(key="page_down"))
+        self.assertEqual(self.core.buffer.cursor_position, 8)  # clamped to last row ("e")
+        self.assertTrue(self.core.handle_key(make_key(key="page_up")))
+        self.assertEqual(self.core.buffer.cursor_position, 4)  # back to row 2
+
+    def test_home_end_are_row_aware_when_wrapped(self) -> None:
+        # "the quick fox" wraps (at 60px = 6 chars) into "the "/"quick "/"fox"; Home/End on a
+        # position inside the wrapped second row should go to that row's bounds, not the document's.
+        self.core.word_wrap_mode = "word"
+        self.core.set_wrap_width(60.0)
+        self.core.buffer.set_text("the quick fox")
+        self.core.buffer.set_cursor(7, False)  # inside "quick " (row 1, spanning [4, 10))
+        self.core.handle_key(make_key(key="home"))
+        self.assertEqual(self.core.buffer.cursor_position, 4)
+        self.core.handle_key(make_key(key="end"))
+        self.assertEqual(self.core.buffer.cursor_position, 10)
+
+    def test_mouse_pressed_hit_tests_in_two_dimensions(self) -> None:
+        self.core.buffer.set_text("ab\ncd")
+        self.assertTrue(self.core.handle_mouse_pressed(10.0, 16.0, CanvasItem.KeyboardModifiers()))
+        self.assertEqual(self.core.buffer.cursor_position, 4)  # row 1 ("cd"), column 1
+
+    def test_double_click_then_drag_selects_whole_words_in_two_dimensions(self) -> None:
+        self.core.buffer.set_text("the quick fox")
+        self.assertTrue(self.core.handle_double_click(65.0, 0.0))  # inside "quick"
+        self.assertEqual(self.core.buffer.selected_text, "quick")
+        self.core.handle_mouse_position_changed(115.0, 0.0)  # drag onto "fox"
+        self.assertEqual(self.core.buffer.selected_text, "quick fox")
+        self.core.handle_mouse_released()
+        # a fresh plain click-drag afterward is character-wise again.
+        self.core.handle_mouse_pressed(0.0, 0.0, CanvasItem.KeyboardModifiers())
+        self.core.handle_mouse_position_changed(20.0, 0.0)
+        self.assertEqual(self.core.buffer.selected_text, "th")
+
+    def test_move_cursor_position_operations(self) -> None:
+        self.core.buffer.set_text("ab\ncd\nef")
+        self.core.buffer.set_cursor(4, False)  # 'd' in second paragraph
+        self.assertTrue(self.core.move_cursor_position("start_para", "move"))
+        self.assertEqual(self.core.buffer.cursor_position, 3)
+        self.assertTrue(self.core.move_cursor_position("end_para", "move"))
+        self.assertEqual(self.core.buffer.cursor_position, 5)
+        self.assertTrue(self.core.move_cursor_position("start", "move"))
+        self.assertEqual(self.core.buffer.cursor_position, 0)
+        self.assertTrue(self.core.move_cursor_position("end", "move"))
+        self.assertEqual(self.core.buffer.cursor_position, 8)
+        self.assertTrue(self.core.move_cursor_position("previous", "move"))
+        self.assertEqual(self.core.buffer.cursor_position, 7)
+        self.assertTrue(self.core.move_cursor_position("next", "keep"))
+        self.assertEqual(self.core.buffer.selection, UserInterface.Selection(7, 8))
+
+    def test_caret_blink(self) -> None:
+        self.assertTrue(self.core.tick(TextEditing.CARET_BLINK_INTERVAL))
+        self.assertFalse(self.core.caret_visible)
+
+    def test_enter_key_still_reaches_handle_key_unlike_line_edit(self) -> None:
+        # LineEditCore excludes Enter (returns consumed=False); TextEditCore always consumes it.
+        self.assertTrue(self.core.handle_key(make_key(key="enter")))
 
 
 if __name__ == "__main__":

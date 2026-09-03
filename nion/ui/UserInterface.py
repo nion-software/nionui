@@ -3872,6 +3872,22 @@ class StringPersistentModel(Model.PropertyModel[str]):
             self.__ui.remove_persistent_key(self.__storage_key)
 
 
+class IntegerPersistentModel(Model.PropertyModel[int]):
+    def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[int] = None):
+        self.__storage_key = storage_key
+        self.__ui = ui
+        value_str = self.__ui.get_persistent_string(self.__storage_key, str(value))
+        value = Converter.IntegerToStringConverter(pass_none=True).convert_back(value_str)
+        super().__init__(value)
+
+    def _set_value(self, value: typing.Optional[int]) -> None:
+        super()._set_value(value)
+        if value is not None:
+            self.__ui.set_persistent_string(self.__storage_key, str(value))
+        else:
+            self.__ui.remove_persistent_key(self.__storage_key)
+
+
 class FloatPersistentModel(Model.PropertyModel[float]):
     def __init__(self, ui: UserInterface, storage_key: str, value: typing.Optional[float] = None):
         self.__storage_key = storage_key

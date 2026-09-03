@@ -3921,6 +3921,12 @@ class ThreadedCanvasItem(AbstractCanvasItem):
         if canvas_item:
             self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
             canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            # remember this canvas item as the mouse-grabbed item so that the mouse released event
+            # that follows the double click (Qt's event order is press, release, double-click,
+            # release) is routed back to it -- otherwise a canvas item that starts a drag operation
+            # from mouse_double_clicked (e.g. word-wise drag selection) never sees the matching
+            # mouse_released and the drag state is left stuck active.
+            self.__mouse_canvas_item = canvas_item
             return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
 
@@ -4484,6 +4490,12 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         if canvas_item:
             self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
+            # remember this canvas item as the mouse-grabbed item so that the mouse released event
+            # that follows the double click (Qt's event order is press, release, double-click,
+            # release) is routed back to it -- otherwise a canvas item that starts a drag operation
+            # from mouse_double_clicked (e.g. word-wise drag selection) never sees the matching
+            # mouse_released and the drag state is left stuck active.
+            self.__mouse_canvas_item = canvas_item
             return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
 

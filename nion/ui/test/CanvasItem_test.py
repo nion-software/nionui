@@ -1,6 +1,7 @@
 # standard libraries
 import contextlib
 import logging
+import threading
 import time
 import typing
 import unittest
@@ -1785,6 +1786,71 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(test_canvas_item1_layout_count + 1, test_canvas_item1._layout_count)
             self.assertEqual(inner_composition2_layout_count, inner_composition2._layout_count)
             self.assertEqual(test_canvas_item2_layout_count, test_canvas_item2._layout_count)
+
+    def test_concurrent_parent_and_child_updates_do_not_deadlock(self) -> None:
+        # Regression test for an AB-BA lock-order-inversion deadlock in AbstractCanvasItem's
+        # batch-update mechanism. _end_batch_update used to call subclass hooks
+        # (_batch_update_ended) and the update-propagation chain (_update -> _updated ->
+        # container._update_child -> container.update()) while still holding its own
+        # __update_lock. A composition whose _batch_update_ended pushes an update into a child
+        # (exactly what GridFlowCanvasItem._batch_update_ended does to refresh selection state)
+        # acquires parent-lock-then-child-lock; meanwhile a child's own update finishing and
+        # propagating up to its container acquires child-lock-then-parent-lock. When those two
+        # directions run concurrently on separate threads, they can deadlock: one thread holds
+        # the parent's lock waiting for the child's, while the other holds the child's lock
+        # waiting for the parent's.
+        class CascadingParentCanvasItem(CanvasItem.CanvasItemComposition):
+            def __init__(self, child: CanvasItem.AbstractCanvasItem) -> None:
+                super().__init__()
+                self.__child = child
+                self.__needs_child_update = False
+
+            def request_child_update(self) -> None:
+                self.__needs_child_update = True
+
+            def _batch_update_ended(self) -> None:
+                # mirrors GridFlowCanvasItem._batch_update_ended calling into a child's update,
+                # guarded the same way (a "needs update" flag cleared once handled) so this
+                # terminates instead of ping-ponging forever when the child's own update
+                # propagates back up to the parent (container._update_child -> parent.update()).
+                if self.__needs_child_update:
+                    self.__needs_child_update = False
+                    self.__child.update()
+
+        child = _TestCanvasItem()
+        parent = CascadingParentCanvasItem(child)
+        parent.add_canvas_item(child)
+
+        with contextlib.closing(parent):
+            stop_event = threading.Event()
+            errors: typing.List[BaseException] = list()
+
+            def hammer_parent() -> None:
+                try:
+                    while not stop_event.is_set():
+                        parent.request_child_update()
+                        parent.update()
+                except BaseException as e:
+                    errors.append(e)
+
+            def hammer_child() -> None:
+                try:
+                    while not stop_event.is_set():
+                        child.update()
+                except BaseException as e:
+                    errors.append(e)
+
+            parent_thread = threading.Thread(target=hammer_parent, daemon=True)
+            child_thread = threading.Thread(target=hammer_child, daemon=True)
+            parent_thread.start()
+            child_thread.start()
+            time.sleep(1.0)
+            stop_event.set()
+            parent_thread.join(timeout=5.0)
+            child_thread.join(timeout=5.0)
+            self.assertFalse(parent_thread.is_alive(), "deadlock detected: parent update thread did not finish")
+            self.assertFalse(child_thread.is_alive(), "deadlock detected: child update thread did not finish")
+            self.assertEqual(list(), errors)
 
     def test_canvas_item_layout_triggers_container_layout_if_autosized(self) -> None:
         outer_composition = CanvasItem.CanvasItemComposition()

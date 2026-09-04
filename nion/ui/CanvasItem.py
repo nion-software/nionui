@@ -1315,25 +1315,39 @@ class AbstractCanvasItem:
             self.update()
 
     def _begin_batch_update(self) -> None:
+        # note: _batch_update_started is deliberately called *outside* of __update_lock. subclasses
+        # (e.g. GridFlowCanvasItem) may use this hook to touch other canvas items (children, the
+        # container), which acquire their own __update_lock -- calling out to another canvas item's
+        # lock while still holding this one risks an AB-BA lock-order-inversion deadlock against a
+        # different thread doing the same thing in the opposite direction (e.g. a child's update
+        # propagating up to its container at the same moment the container's update is propagating
+        # down to that same child).
         with self.__update_lock:
-            # Reset state at the start of each outermost batch. Call _batch_update_started to allow subclasses to
-            # know when a batch update is starting.
-            if self.__update_level == 0:
-                self._batch_update_started()
+            # Reset state at the start of each outermost batch.
+            is_outermost = self.__update_level == 0
+            if is_outermost:
                 self.__update_pending = False
             # Count the update level so that the first/last batch update can be determined.
             self.__update_level += 1
+        # Call _batch_update_started to allow subclasses to know when a batch update is starting.
+        if is_outermost:
+            self._batch_update_started()
 
     def _end_batch_update(self) -> None:
+        # note: _batch_update_ended/_update are deliberately called *outside* of __update_lock; see
+        # the comment in _begin_batch_update for why.
         with self.__update_lock:
             # Count the update level so that the first/last batch update can be determined.
             self.__update_level -= 1
-            # When `__update_level` reaches zero, call _batch_update_ended to allow subclasses to know when a batch
-            # update is ending. If an update is pending, call _update to trigger an update.
-            if self.__update_level == 0:
-                self._batch_update_ended()
-                if self.__update_pending:
-                    self._update()
+            # When `__update_level` reaches zero, _batch_update_ended is called (below, outside the
+            # lock) to allow subclasses to know when a batch update is ending, and _update is called
+            # (also below) if an update is pending.
+            is_outermost = self.__update_level == 0
+            update_pending = is_outermost and self.__update_pending
+        if is_outermost:
+            self._batch_update_ended()
+            if update_pending:
+                self._update()
 
     def _batch_update_started(self) -> None:
         pass

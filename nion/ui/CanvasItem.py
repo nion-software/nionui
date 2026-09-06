@@ -5398,12 +5398,17 @@ class TextButtonCell(Cell):
                 text = self.__text_measure.truncate_string_to_width(text_font, text, math.trunc(rect.width + 2), self.__truncation_mode)
             if self.__text_measure:
                 text_width = self.__text_measure.get_font_metrics(text_font, text).width
+                # the positions below are computed as the left edge of the text (not as anchors matching
+                # text_align), so the drawing context's own text alignment must be forced to "left" here to
+                # avoid the backend applying its own (redundant, and for "right" incorrect) alignment on top
+                # of the already-resolved position.
+                drawing_context.text_align = "left"
                 if text_align == "left":
                     text_position = Geometry.FloatPoint(x=rect.left, y=rect.center.y + 1)
                 elif text_align == "right":
                     text_position = Geometry.FloatPoint(x=rect.right - text_width, y=rect.center.y + 1)
                 else:
-                    text_position = Geometry.FloatPoint(x=rect.center.x, y=rect.center.y + 1)
+                    text_position = Geometry.FloatPoint(x=rect.center.x - text_width / 2, y=rect.center.y + 1)
             else:
                 text_position = Geometry.FloatPoint(x=rect.center.x, y=rect.center.y + 1)
             drawing_context.fill_text(text, text_position.x, text_position.y)

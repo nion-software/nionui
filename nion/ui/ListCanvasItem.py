@@ -542,6 +542,18 @@ class ListCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer
                         child_composer.update_layout(Geometry.IntPoint(), child_canvas_rect.size)
                         child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
 
+    def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
+        # preserve the true (scrollable) extent along the item axis, independent of the size given by the
+        # enclosing scroll area. this allows a scroll area with auto_resize_contents enabled to stretch the
+        # cross axis (e.g. width, for a column of fixed-height rows) to match its own size on every layout,
+        # without collapsing the scrollable axis down to the viewport size and breaking scrolling.
+        item_count = len(self.__list_model.items)
+        if self.__item_height:
+            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=canvas_bounds.width, height=item_count * self.__item_height))
+        elif self.__item_width:
+            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=item_count * self.__item_width, height=canvas_bounds.height))
+        return canvas_bounds
+
 
 class ListCanvasItem2(GridFlowCanvasItem.GridFlowCanvasItem):
     """A canvas item that displays a list of items.

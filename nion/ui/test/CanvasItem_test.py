@@ -696,6 +696,31 @@ class TestCanvasItemClass(unittest.TestCase):
             # it should be fully released, not kept alive by a dangling reference to it as the "last focused" item
             self.assertIsNone(canvas_item1_ref())
 
+    def test_removing_hovered_item_releases_mouse_tracking_reference(self) -> None:
+        # regression test: clicking on a canvas item causes the root canvas item to track it as the current
+        # mouse tracking (hover) item, in order to send it mouse_entered/mouse_exited/mouse_position_changed
+        # messages. if the mouse never moves away from the item afterward, that tracking reference is never
+        # cleared through the normal hover-exit path. removing (and closing) that canvas item should not leave
+        # it referenced by a dangling root canvas item reference.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item1.wants_mouse_events = True
+            canvas_item.add_canvas_item(canvas_item1)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            # clicking on canvas_item1 makes it the root canvas item's mouse tracking (hover) item.
+            modifiers = CanvasItem.KeyboardModifiers()
+            canvas_item.canvas_widget.simulate_mouse_click(160, 240, modifiers)
+            canvas_item1_ref = weakref.ref(canvas_item1)
+            del canvas_item1
+            # remove (and close) the previously hovered canvas item without moving the mouse away from it first
+            canvas_item.remove_canvas_item(canvas_item.canvas_items[0])
+            # it should be fully released, not kept alive by a dangling reference to it as the mouse tracking item
+            self.assertIsNone(canvas_item1_ref())
+
     def test_keys_go_to_focused_item(self) -> None:
         # setup canvas
         ui = TestUI.UserInterface()

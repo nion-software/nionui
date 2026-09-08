@@ -5,6 +5,7 @@ import threading
 import time
 import typing
 import unittest
+import weakref
 
 # third party libraries
 # None
@@ -663,6 +664,37 @@ class TestCanvasItemClass(unittest.TestCase):
                 canvas_item.canvas_widget.on_focus_changed(False)
             self.assertFalse(canvas_item.focused)
             self.assertIsNone(canvas_item.focused_item)
+
+    def test_removing_focused_item_releases_it_even_after_focus_is_lost(self) -> None:
+        # regression test: when a canvas item is focused and then loses focus entirely (not to a different
+        # canvas item, e.g. when the window loses focus), the root canvas item remembers it as the "last
+        # focused item" so that focus can be restored later. removing (and closing) that canvas item should
+        # not leave it referenced by a dangling root canvas item reference.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            canvas_item1 = _TestCanvasItem()
+            canvas_item1.focusable = True
+            canvas_item.add_canvas_item(canvas_item1)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            # request focus directly (rather than simulating a mouse click) to focus canvas_item1 without also
+            # exercising unrelated mouse tracking/hover state.
+            modifiers = CanvasItem.KeyboardModifiers()
+            canvas_item1._request_focus(Geometry.IntPoint(x=5, y=5), modifiers)
+            self.assertTrue(canvas_item1.focused)
+            self.assertEqual(canvas_item.focused_item, canvas_item1)
+            canvas_item1_ref = weakref.ref(canvas_item1)
+            del canvas_item1
+            # simulate the window losing focus entirely, without a new item taking focus
+            if callable(canvas_item.canvas_widget.on_focus_changed):
+                canvas_item.canvas_widget.on_focus_changed(False)
+            self.assertIsNone(canvas_item.focused_item)
+            # remove (and close) the previously (but no longer) focused canvas item
+            canvas_item.remove_canvas_item(canvas_item.canvas_items[0])
+            # it should be fully released, not kept alive by a dangling reference to it as the "last focused" item
+            self.assertIsNone(canvas_item1_ref())
 
     def test_keys_go_to_focused_item(self) -> None:
         # setup canvas

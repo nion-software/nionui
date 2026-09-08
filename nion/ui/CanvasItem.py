@@ -853,6 +853,14 @@ class _BaseContainerInterface(typing.Protocol):
         """
         ...
 
+    def _release_focused_item(self, canvas_item: AbstractCanvasItem) -> None:
+        """Tells the base container that canvas_item is closing.
+
+        If canvas_item is the currently focused item or the last focused item, the base container should drop its
+        reference to it so that it does not retain a stale/dangling reference to a closed canvas item.
+        """
+        ...
+
 
 _g_draw_unique_marker = False
 
@@ -939,6 +947,12 @@ class AbstractCanvasItem:
             warnings.warn('CanvasItem closed on different thread')
             import traceback
             traceback.print_stack()
+        # release any stale reference the base container may hold to this item (e.g. as the focused item or the
+        # last focused item) before disconnecting from the container, so that closing an item cannot leave a
+        # dangling strong reference to it elsewhere.
+        base_container = self._base_container
+        if base_container:
+            base_container._release_focused_item(self)
         self.__container = None
         self.on_focus_changed = None
 
@@ -3688,6 +3702,9 @@ class ThreadedCanvasItemContentWrapperCanvasItem(CanvasItemComposition):
     def _bypass_request_focus(self) -> None:
         self.__threaded_canvas_item._bypass_request_focus()
 
+    def _release_focused_item(self, canvas_item: AbstractCanvasItem) -> None:
+        self.__threaded_canvas_item._release_focused_item(canvas_item)
+
 
 class ThreadedCanvasItem(AbstractCanvasItem):
     """A canvas item that wraps another canvas item to do layout and repainting in a thread.
@@ -4024,6 +4041,12 @@ class ThreadedCanvasItem(AbstractCanvasItem):
 
     def _bypass_request_focus(self) -> None:
         self.__request_focus_canvas_item = None
+
+    def _release_focused_item(self, canvas_item: AbstractCanvasItem) -> None:
+        if self.__focused_item is canvas_item:
+            self.__focused_item = None
+        if self.__last_focused_item is canvas_item:
+            self.__last_focused_item = None
 
     def __request_focus(self, canvas_item: AbstractCanvasItem, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         canvas_item_: AbstractCanvasItem | None = canvas_item
@@ -4549,6 +4572,12 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
 
     def _bypass_request_focus(self) -> None:
         self.__request_focus_canvas_item = None
+
+    def _release_focused_item(self, canvas_item: AbstractCanvasItem) -> None:
+        if self.__focused_item is canvas_item:
+            self.__focused_item = None
+        if self.__last_focused_item is canvas_item:
+            self.__last_focused_item = None
 
     def __mouse_position_changed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         if not self.__mouse_tracking:

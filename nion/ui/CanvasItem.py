@@ -1116,8 +1116,17 @@ class AbstractCanvasItem:
     def request_focus(self) -> None:
         """Request focus.
 
+        If this canvas item is not focusable, focus is requested for the nearest focusable
+        ancestor instead. This matches the behavior of mouse-driven focus requests and avoids
+        silently making a non-focusable canvas item the focused item, which would not receive
+        key presses or focus-changed notifications.
+
         Subclasses should not override. Override _request_focus instead."""
-        self._request_focus()
+        canvas_item: typing.Optional[AbstractCanvasItem] = self
+        while canvas_item is not None and not canvas_item.focusable:
+            canvas_item = canvas_item.container
+        if canvas_item is not None:
+            canvas_item._request_focus()
 
     def adjust_secondary_focus(self, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> None:
         """Adjust secondary focus. Default does nothing."""
@@ -4067,7 +4076,11 @@ class ThreadedCanvasItem(AbstractCanvasItem):
     def _request_base_focus(self, canvas_item: AbstractCanvasItem | None, p: Geometry.IntPoint | None, modifiers: UserInterface.KeyboardModifiers | None) -> None:
         if canvas_item is not None and p is not None and modifiers is not None:
             self._set_focused_item(canvas_item, p, modifiers)
-            self.request_focus()
+            # use _request_focus (not the public request_focus) since this threaded canvas item is
+            # itself a focus scope boundary (it forwards focus to/from its content wrapper's own
+            # local focused item tracking) and must become the base container's focused item
+            # directly, regardless of whether it is itself marked focusable.
+            self._request_focus()
 
     @property
     def focused_item(self) -> AbstractCanvasItem | None:

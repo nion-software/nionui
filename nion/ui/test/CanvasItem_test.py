@@ -757,6 +757,45 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(typing.cast(UserInterface.Key, canvas_item1.key).text if canvas_item1.key else None, 'a')  # unknown type error, need cast
             self.assertIsNone(canvas_item2.key)
 
+    def test_request_focus_on_non_focusable_item_focuses_nearest_focusable_ancestor(self) -> None:
+        # calling request_focus directly on a non-focusable canvas item (for instance, a plain
+        # wrapping composition with no key handling of its own, nested inside a focusable container)
+        # should not silently make that non-focusable item the focused item; instead focus (and
+        # subsequent key presses) should go to the nearest focusable ancestor, matching the behavior
+        # of mouse-driven focus requests.
+        class FocusableCanvasItemComposition(CanvasItem.CanvasItemComposition):
+            def __init__(self) -> None:
+                super().__init__()
+                self.key: typing.Optional[UserInterface.Key] = None
+
+            def key_pressed(self, key: UserInterface.Key) -> bool:
+                self.key = key
+                return True
+
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            focusable_container = FocusableCanvasItemComposition()
+            focusable_container.focusable = True
+            wrapping_composition = CanvasItem.CanvasItemComposition()
+            focusable_container.add_canvas_item(wrapping_composition)
+            canvas_item.add_canvas_item(focusable_container)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            # check assumptions
+            self.assertIsNone(canvas_item.focused_item)
+            self.assertFalse(focusable_container.focused)
+            # request focus on the non-focusable wrapping composition, not its focusable container
+            wrapping_composition.request_focus()
+            # focus should have been given to the focusable ancestor, not the wrapping composition
+            self.assertTrue(focusable_container.focused)
+            self.assertEqual(canvas_item.focused_item, focusable_container)
+            # and key presses should be routed to the focusable container
+            if callable(canvas_item.canvas_widget.on_key_pressed):
+                canvas_item.canvas_widget.on_key_pressed(TestUI.Key("a", "a", CanvasItem.KeyboardModifiers()))
+            self.assertEqual(focusable_container.key.text if focusable_container.key else None, 'a')
+
     def test_composition_layout_sizing_has_infinite_maximum_if_first_child_is_finite_and_one_is_infinite(self) -> None:
         composition = CanvasItem.CanvasItemComposition()
         composition.add_canvas_item(CanvasItem.BackgroundCanvasItem("#F00"))

@@ -327,5 +327,28 @@ class TestCanvasWindowSizing(unittest.TestCase):
         self.assertLess(minimum_size_calls[-1].height, grown_size.height)
 
 
+class TestScrollAreaWidgetSizing(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def test_hidden_scroll_bar_does_not_impose_minimum_width(self) -> None:
+        # regression test: the scroll bar's fixed width should not count toward the scroll area's own
+        # minimum width when the scroll bar is hidden (vertical_policy == "off"), only when it is shown.
+        scroll_area = self.ui.create_scroll_area_widget()
+        scroll_area.set_scrollbar_policies("off", "needed")
+        width_with_scroll_bar = scroll_area._behavior.canvas_item.layout_sizing.minimum_width  # type: ignore[attr-defined]
+
+        scroll_area.set_scrollbar_policies("off", "off")
+        width_without_scroll_bar = scroll_area._behavior.canvas_item.layout_sizing.minimum_width  # type: ignore[attr-defined]
+
+        self.assertIsNotNone(width_with_scroll_bar)
+        self.assertGreaterEqual(width_with_scroll_bar, 16)
+        self.assertTrue(width_without_scroll_bar is None or width_without_scroll_bar < width_with_scroll_bar)
+
+
 if __name__ == '__main__':
     unittest.main()

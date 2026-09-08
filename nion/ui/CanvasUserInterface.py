@@ -1025,6 +1025,9 @@ class ScrollAreaWidgetBehavior(WidgetBehavior, UserInterface.ScrollAreaWidgetBeh
         self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_area_canvas_item)
         self.__scroll_bar_canvas_item = CanvasItem.ScrollBarCanvasItem(self.__scroll_area_canvas_item)
         self.__scroll_group_canvas_item.add_canvas_item(self.__scroll_bar_canvas_item)
+        # collapsible so that this row's reported width excludes the scroll bar's fixed width when the
+        # scroll bar is hidden (vertical_policy == "off"), instead of always reserving space for it.
+        self.__scroll_group_canvas_item.update_sizing(self.__scroll_group_canvas_item.sizing.with_collapsible(True))
         super().__init__(self.__scroll_group_canvas_item, False, properties)
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__content_widget: typing.Optional[UserInterface.Widget] = None

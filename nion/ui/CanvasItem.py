@@ -917,6 +917,7 @@ class AbstractCanvasItem:
         self.__composer: typing.Optional[BaseComposer] = None
         self.__composer_last_request_time = 0.0
         self.__composer_last_update_time = 0.0
+        self.__layout_state_lock = threading.Lock()
         self.__cache = cache or ComposerCache()
         self.__container: typing.Optional[CanvasItemComposition] = None
         self._canvas_size_stream = Stream.ValueStream[Geometry.IntSize]()
@@ -1528,16 +1529,21 @@ class AbstractCanvasItem:
         self._repaint_count += 1
 
     def _update_layout_from_composer(self, canvas_bounds: Geometry.IntRect) -> None:
-        did_layout_change = False
-        old_canvas_origin_ = self._canvas_origin_stream.value
-        if (old_canvas_origin_ is None) or (old_canvas_origin_ != canvas_bounds.origin):
-            self._canvas_origin_stream.value = canvas_bounds.origin
-            did_layout_change = True
-        old_canvas_size_ = self._canvas_size_stream.value
-        if (old_canvas_size_ is None) or (old_canvas_size_ != canvas_bounds.size):
-            self._canvas_size_stream.value = canvas_bounds.size
-            did_layout_change = True
-        self._layout_count += 1 if did_layout_change else 0
+        # this can be invoked from more than one composer tree for the same canvas item (e.g. a
+        # threaded LayerCanvasItem repaint running concurrently with a synchronous immediate layout),
+        # so the read-compare-write of the layout state below must be atomic to avoid a data race on
+        # _layout_count and the canvas origin/size streams.
+        with self.__layout_state_lock:
+            did_layout_change = False
+            old_canvas_origin_ = self._canvas_origin_stream.value
+            if (old_canvas_origin_ is None) or (old_canvas_origin_ != canvas_bounds.origin):
+                self._canvas_origin_stream.value = canvas_bounds.origin
+                did_layout_change = True
+            old_canvas_size_ = self._canvas_size_stream.value
+            if (old_canvas_size_ is None) or (old_canvas_size_ != canvas_bounds.size):
+                self._canvas_size_stream.value = canvas_bounds.size
+                did_layout_change = True
+            self._layout_count += 1 if did_layout_change else 0
         if did_layout_change:
             self._layout_changed()
 

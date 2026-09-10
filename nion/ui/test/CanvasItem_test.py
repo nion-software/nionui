@@ -1911,6 +1911,11 @@ class TestCanvasItemClass(unittest.TestCase):
             test_canvas_item_layout_count = test_canvas_item._layout_count
             # update the canvas item and make sure all descendents update layout once
             outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=720, height=540))
+            # the size change just performed triggers _layout_changed on outer_layer and inner_layer (both
+            # LayerCanvasItems), which queues a background repaint for each. wait for those to finish before
+            # checking counts below, otherwise the background repaint's own composer tree can race with (and
+            # double-count on top of) the synchronous immediate layout above.
+            time.sleep(0.05)
             # check the repaint counts were all incremented
             self.assertEqual(outer_layer_layout_count + 1, outer_layer._layout_count)
             self.assertEqual(inner_composition_layout_count + 1, inner_composition._layout_count)
@@ -1945,6 +1950,11 @@ class TestCanvasItemClass(unittest.TestCase):
             # add a row and ensure only siblings are layed out
             test_canvas_item1a = _TestCanvasItem()
             inner_composition.add_canvas_item(test_canvas_item1a)
+            # add_canvas_item triggers update() which, since outer_layer is a LayerCanvasItem, queues a
+            # background repaint that lays out the same descendants using its own composer tree. wait for
+            # that background repaint to finish before doing a synchronous immediate layout below, otherwise
+            # the two composer trees can race on the shared canvas item layout state (_layout_count, etc.).
+            time.sleep(0.05)
             outer_layer.update_layout_immediate(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
             # wait for any thread repainting to finish
             time.sleep(0.05)

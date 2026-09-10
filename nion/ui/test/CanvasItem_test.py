@@ -102,6 +102,35 @@ class _TestCanvasItemComposition(CanvasItem.CanvasItemComposition):
         return "copy"
 
 
+class _TestDoubleClickCanvasItem(CanvasItem.AbstractCanvasItem):
+    """A canvas item used to test whether mouse_released after a double click is routed based on grab_mouse."""
+
+    def __init__(self, grab_mouse_on_double_click: bool) -> None:
+        super().__init__()
+        self.wants_mouse_events = True
+        self.__grab_mouse_on_double_click = grab_mouse_on_double_click
+        self.mouse_pressed_count = 0
+        self.mouse_released_count = 0
+        self.mouse_double_clicked_count = 0
+
+    def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.mouse_pressed_count += 1
+        return True
+
+    def mouse_released(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.mouse_released_count += 1
+        return True
+
+    def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.mouse_double_clicked_count += 1
+        if self.__grab_mouse_on_double_click:
+            self.grab_mouse()
+        return True
+
+    def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
+        return _TestCanvasItemComposer(self, self.layout_sizing, composer_cache)
+
+
 class TestCanvasItemClass(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -165,6 +194,49 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=100, h=100))
             self.simulate_drag(canvas_widget, (50, 50), (-30, 50))
             self.assertTrue(canvas_item._mouse_released)
+
+    def test_mouse_released_after_double_click_is_not_routed_by_default(self) -> None:
+        # the mouse released event following a double click has no matching mouse pressed event of its own. by
+        # default (no grab_mouse call), a canvas item should not receive that extra release, preserving the
+        # invariant that mouse_released is only called after a matching mouse_pressed.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = _TestDoubleClickCanvasItem(grab_mouse_on_double_click=False)
+            canvas_widget.canvas_item.add_canvas_item(canvas_item)
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=100, h=100))
+            modifiers = typing.cast(UserInterface.KeyboardModifiers, CanvasItem.KeyboardModifiers())
+            assert callable(canvas_widget.on_mouse_pressed)
+            assert callable(canvas_widget.on_mouse_released)
+            assert callable(canvas_widget.on_mouse_double_clicked)
+            canvas_widget.on_mouse_pressed(50, 50, modifiers)
+            canvas_widget.on_mouse_released(50, 50, modifiers)
+            canvas_widget.on_mouse_double_clicked(50, 50, modifiers)
+            canvas_widget.on_mouse_released(50, 50, modifiers)  # the trailing release following the double click
+            self.assertEqual(1, canvas_item.mouse_pressed_count)
+            self.assertEqual(1, canvas_item.mouse_double_clicked_count)
+            self.assertEqual(1, canvas_item.mouse_released_count)  # only the first (matching) release
+
+    def test_mouse_released_after_double_click_is_routed_when_mouse_is_grabbed(self) -> None:
+        # a canvas item that calls grab_mouse() from within mouse_double_clicked (e.g. because it started a drag
+        # operation there) should receive the trailing release.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = _TestDoubleClickCanvasItem(grab_mouse_on_double_click=True)
+            canvas_widget.canvas_item.add_canvas_item(canvas_item)
+            canvas_widget.canvas_item.layout_immediate(Geometry.IntSize(w=100, h=100))
+            modifiers = typing.cast(UserInterface.KeyboardModifiers, CanvasItem.KeyboardModifiers())
+            assert callable(canvas_widget.on_mouse_pressed)
+            assert callable(canvas_widget.on_mouse_released)
+            assert callable(canvas_widget.on_mouse_double_clicked)
+            canvas_widget.on_mouse_pressed(50, 50, modifiers)
+            canvas_widget.on_mouse_released(50, 50, modifiers)
+            canvas_widget.on_mouse_double_clicked(50, 50, modifiers)
+            canvas_widget.on_mouse_released(50, 50, modifiers)  # the trailing release following the double click
+            self.assertEqual(1, canvas_item.mouse_pressed_count)
+            self.assertEqual(1, canvas_item.mouse_double_clicked_count)
+            self.assertEqual(2, canvas_item.mouse_released_count)  # matching release plus the grabbed one
 
     def test_layout_uses_minimum_aspect_ratio(self) -> None:
         # test row layout

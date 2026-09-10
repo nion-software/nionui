@@ -863,6 +863,12 @@ class _BaseContainerInterface(typing.Protocol):
         """
         ...
 
+    def _grab_mouse(self, canvas_item: AbstractCanvasItem) -> None:
+        """Tells the base container to route subsequent mouse move and mouse released calls to canvas_item,
+        regardless of the pointer's position, until it releases the grab (see AbstractCanvasItem.grab_mouse).
+        """
+        ...
+
 
 _g_draw_unique_marker = False
 
@@ -1157,6 +1163,22 @@ class AbstractCanvasItem:
         base_container = self._base_container
         if base_container:
             base_container.hide_tool_tip_text()
+
+    def grab_mouse(self) -> None:
+        """Make this canvas item the target of subsequent mouse move and mouse released calls, regardless of
+        where the pointer is, until it is released (i.e. until this item's mouse_released is called).
+
+        mouse_pressed already grants this automatically to whichever canvas item handles the press -- that is
+        why an ordinary press-drag-release sequence keeps going to the same canvas item even after the pointer
+        leaves its bounds. mouse_double_clicked does not grant this automatically, because a double click is
+        normally a discrete, self-contained action rather than the start of a drag. Call this from within
+        mouse_double_clicked if handling the double click begins a drag-like operation (for example, extending a
+        selection while the button stays down) that needs to keep receiving mouse move and mouse released calls
+        until the button comes up.
+        """
+        base_container = self._base_container
+        if base_container:
+            base_container._grab_mouse(self)
 
     @property
     def tool_tip(self) -> typing.Optional[str]:
@@ -3716,6 +3738,9 @@ class ThreadedCanvasItemContentWrapperCanvasItem(CanvasItemComposition):
     def _release_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
         self.__threaded_canvas_item._release_canvas_item(canvas_item)
 
+    def _grab_mouse(self, canvas_item: AbstractCanvasItem) -> None:
+        self.__threaded_canvas_item._grab_mouse(canvas_item)
+
 
 class ThreadedCanvasItem(AbstractCanvasItem):
     """A canvas item that wraps another canvas item to do layout and repainting in a thread.
@@ -3963,14 +3988,13 @@ class ThreadedCanvasItem(AbstractCanvasItem):
         if canvas_item:
             self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
             canvas_item_point = self.__wrapper_canvas_item.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-            # remember this canvas item as the mouse-grabbed item so that the mouse released event
-            # that follows the double click (Qt's event order is press, release, double-click,
-            # release) is routed back to it -- otherwise a canvas item that starts a drag operation
-            # from mouse_double_clicked (e.g. word-wise drag selection) never sees the matching
-            # mouse_released and the drag state is left stuck active.
-            self.__mouse_canvas_item = canvas_item
+            # unlike mouse_pressed, a double click does not automatically grab the mouse -- see
+            # AbstractCanvasItem.grab_mouse for when canvas_item.mouse_double_clicked should call it.
             return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
+
+    def _grab_mouse(self, canvas_item: AbstractCanvasItem) -> None:
+        self.__mouse_canvas_item = canvas_item
 
     def __mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__mouse_position_changed(x, y, modifiers)
@@ -4548,14 +4572,13 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         if canvas_item:
             self.__request_focus(canvas_item, Geometry.IntPoint(x=x, y=y), modifiers)
             canvas_item_point = self.map_to_canvas_item(Geometry.IntPoint(y=y, x=x), canvas_item)
-            # remember this canvas item as the mouse-grabbed item so that the mouse released event
-            # that follows the double click (Qt's event order is press, release, double-click,
-            # release) is routed back to it -- otherwise a canvas item that starts a drag operation
-            # from mouse_double_clicked (e.g. word-wise drag selection) never sees the matching
-            # mouse_released and the drag state is left stuck active.
-            self.__mouse_canvas_item = canvas_item
+            # unlike mouse_pressed, a double click does not automatically grab the mouse -- see
+            # AbstractCanvasItem.grab_mouse for when canvas_item.mouse_double_clicked should call it.
             return canvas_item.mouse_double_clicked(canvas_item_point.x, canvas_item_point.y, modifiers)
         return False
+
+    def _grab_mouse(self, canvas_item: AbstractCanvasItem) -> None:
+        self.__mouse_canvas_item = canvas_item
 
     def __mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         self.__mouse_position_changed(x, y, modifiers)

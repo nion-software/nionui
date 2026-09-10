@@ -1453,6 +1453,11 @@ class LineEditCanvasItem(TextEditCanvasItem):
         local_x = float(x) - self.padding.width
         if self.__core.handle_double_click(local_x):
             self.update()
+        # handle_double_click always arms word-wise drag selection, which needs a matching
+        # mouse_released to end it -- grab the mouse so that release (and any moves before it) keep
+        # being delivered here even though this canvas item never saw a matching mouse_pressed for
+        # the double click.
+        self.grab_mouse()
         return True
 
 
@@ -1904,6 +1909,11 @@ class MultiLineEditCanvasItem(CanvasItem.CellCanvasItem):
         local_y = float(y) - self.padding.height
         if self.__core.handle_double_click(local_x, local_y):
             self.__after_interaction(old_text, old_cursor, old_selection)
+        # handle_double_click always arms word-wise drag selection, which needs a matching
+        # mouse_released to end it -- grab the mouse so that release (and any moves before it) keep
+        # being delivered here even though this canvas item never saw a matching mouse_pressed for
+        # the double click.
+        self.grab_mouse()
         return True
 
 

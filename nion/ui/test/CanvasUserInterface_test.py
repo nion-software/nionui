@@ -506,12 +506,11 @@ class TestLineEditCanvasIntegration(unittest.TestCase):
 
     def test_double_click_drag_stops_after_mouse_released_at_container_level(self) -> None:
         # regression test: this reproduces the real event path (container-level double-click
-        # dispatch, not calling canvas_item.mouse_double_clicked/mouse_released directly), which is
-        # what surfaced a bug where RootCanvasItem's mouse-double-click dispatch never recorded the
-        # canvas item as "mouse grabbed", so the mouse_released event that follows a double click
-        # (Qt's event order is press, release, double-click, release) was silently dropped and the
-        # word-wise drag-selection state was left stuck active forever, even after the mouse button
-        # was released.
+        # dispatch, not calling canvas_item.mouse_double_clicked/mouse_released directly) since a
+        # double click's mouse_released has no matching mouse_pressed of its own and is only
+        # delivered here because mouse_double_clicked calls grab_mouse() -- without that, the
+        # word-wise drag-selection state would be left stuck active forever, even after the mouse
+        # button was released.
         canvas_widget = self.test_ui.create_canvas_widget()
         self.addCleanup(canvas_widget.close)
         widget = self.ui.create_line_edit_widget()

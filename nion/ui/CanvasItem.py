@@ -2274,6 +2274,7 @@ class CanvasItemComposition(AbstractCanvasItem):
     def __init__(self) -> None:
         super().__init__()
         self.__canvas_items: typing.List[AbstractCanvasItem] = list()
+        self.__canvas_items_lock = threading.RLock()
         self.layout: CanvasItemAbstractLayout = CanvasItemLayout()
 
     def close(self) -> None:
@@ -2288,23 +2289,28 @@ class CanvasItemComposition(AbstractCanvasItem):
         super().close()
 
     def _remove_all_canvas_items(self) -> None:
-        self.__canvas_items.clear()
+        with self.__canvas_items_lock:
+            self.__canvas_items.clear()
 
     def _base_insert_canvas_item(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
-        self.__canvas_items.insert(before_index, canvas_item)
+        with self.__canvas_items_lock:
+            self.__canvas_items.insert(before_index, canvas_item)
 
     def _base_remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
-        self.__canvas_items.remove(canvas_item)
+        with self.__canvas_items_lock:
+            self.__canvas_items.remove(canvas_item)
 
     @property
     def canvas_items_count(self) -> int:
         """Return count of canvas items managed by this composition."""
-        return len(self.__canvas_items)
+        with self.__canvas_items_lock:
+            return len(self.__canvas_items)
 
     @property
     def canvas_items(self) -> typing.Sequence[AbstractCanvasItem]:
         """ Return a copy of the canvas items managed by this composition. """
-        return copy.copy(self.__canvas_items)
+        with self.__canvas_items_lock:
+            return copy.copy(self.__canvas_items)
 
     def _description(self) -> str:
         return self.__class__.__name__ + "/" + self.layout.__class__.__name__
@@ -2394,11 +2400,25 @@ class CanvasItemComposition(AbstractCanvasItem):
         return self.insert_stretch(self.canvas_items_count)
 
     def _remove_canvas_item(self, canvas_item: AbstractCanvasItem) -> None:
+        with self.__canvas_items_lock:
+            # guard against a race where another thread (e.g. ThreadedCanvasItem.on_will_repaint,
+            # which is documented to be allowed to mutate the hierarchy from the background repaint
+            # thread) is concurrently removing this same canvas item. atomically claim the removal
+            # from the list first -- this is a fast, non-blocking operation. if the item is already
+            # gone, treat this as a no-op instead of raising (from the underlying list.remove) or
+            # double-closing the canvas item below.
+            if canvas_item not in self.__canvas_items:
+                return
+            self._base_remove_canvas_item(canvas_item)
+        # perform the teardown outside the lock. canvas_item.close() can be arbitrarily slow or even
+        # block (e.g. LayerCanvasItem.close() waits for its background repaint thread to finish), and
+        # _removed() is an overridable subclass hook; calling back out to code like this while still
+        # holding __canvas_items_lock risks an AB-BA deadlock with another thread that is waiting on
+        # this same lock (see _begin_batch_update/_end_batch_update for the same reasoning).
         canvas_item._removed(self)
         canvas_item.close()
         self.layout.remove_canvas_item(canvas_item)
         canvas_item.container = None
-        self._base_remove_canvas_item(canvas_item)
         # trigger layout of both this item and the container.
         self.update()
 

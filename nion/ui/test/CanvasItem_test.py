@@ -5,6 +5,7 @@ import threading
 import time
 import typing
 import unittest
+import warnings
 import weakref
 
 # third party libraries
@@ -1964,6 +1965,53 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(test_canvas_item1_layout_count + 1, test_canvas_item1._layout_count)
             self.assertEqual(inner_composition2_layout_count, inner_composition2._layout_count)
             self.assertEqual(test_canvas_item2_layout_count, test_canvas_item2._layout_count)
+
+    def test_concurrent_remove_of_same_canvas_item_is_race_safe(self) -> None:
+        # Regression test for a race in CanvasItemComposition's canvas item list. ThreadedCanvasItem
+        # documents that its on_will_repaint callback (invoked on the background repaint thread) may
+        # mutate the canvas item hierarchy. If another thread (main thread, another background actor,
+        # etc.) removes the same canvas item at the same time, both removals used to race on the same
+        # underlying list: the loser would crash with "ValueError: list.remove(x): x not in list" (or
+        # double-close the canvas item, since both callers had already snapshotted the item as present).
+        # Removal must be atomic and idempotent instead.
+        composition = CanvasItem.CanvasItemComposition()
+        close_counts: typing.Dict[int, int] = {}
+
+        class _CountingCanvasItem(_TestCanvasItem):
+            def close(self) -> None:
+                close_counts[id(self)] = close_counts.get(id(self), 0) + 1
+                super().close()
+
+        item_to_remove = _CountingCanvasItem()
+        composition.add_canvas_item(item_to_remove)
+        composition.add_canvas_item(_TestCanvasItem())
+
+        errors: typing.List[BaseException] = []
+        barrier = threading.Barrier(2)
+
+        def remove_it() -> None:
+            try:
+                barrier.wait(timeout=5)
+                # both threads believe (correctly, at the time they read canvas_items) that the item
+                # is still present, mirroring the on_will_repaint-vs-other-thread race.
+                composition.remove_canvas_item(item_to_remove)
+            except BaseException as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=remove_it) for _ in range(2)]
+        # the winning thread will close item_to_remove from a thread other than its owner thread,
+        # which is expected here (mirrors the real on_will_repaint background-thread scenario) and
+        # intentionally triggers AbstractCanvasItem.close()'s informational cross-thread warning.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=5)
+
+        self.assertEqual([], errors)
+        self.assertEqual(1, close_counts.get(id(item_to_remove), 0))
+        self.assertEqual(1, composition.canvas_items_count)
 
     def test_concurrent_parent_and_child_updates_do_not_deadlock(self) -> None:
         # Regression test for an AB-BA lock-order-inversion deadlock in AbstractCanvasItem's

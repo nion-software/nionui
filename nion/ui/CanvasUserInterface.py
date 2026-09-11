@@ -1301,38 +1301,50 @@ class LineEditCell(TextEditCell):
         text_font = self.text_font or "12px"
         text_color = self.text_color or "black"
         focused = "focused" in style
+        # keep the caret within the visible (padded) width, scrolling the text horizontally once it
+        # no longer fits -- matches QLineEdit, which scrolls its content rather than letting the
+        # caret (and further typing) run off the edge of the field. Only do this while focused (and
+        # thus editable); an unfocused field always displays from its start, like QLineEdit does.
+        if focused:
+            core.ensure_caret_visible(rect.width)
+        else:
+            core.reset_scroll()
+        scroll_x = core.scroll_x
         drawing_context.font = text_font
         drawing_context.text_baseline = "middle"
         drawing_context.text_align = "left"
 
-        # selection highlight, drawn behind the text.
-        selection = buffer.selection
-        if selection is not None and selection.start != selection.end:
-            layout = core.layout()
-            x0, x1 = layout.selection_x_span(selection)
-            drawing_context.begin_path()
-            drawing_context.rect(rect.left + x0, rect.top, x1 - x0, rect.height)
-            drawing_context.fill_style = "rgba(96, 160, 255, 0.4)" if focused else "rgba(160, 160, 160, 0.4)"
-            drawing_context.fill()
+        with drawing_context.saver():
+            drawing_context.clip_rect(rect.left, rect.top, rect.width, rect.height)
 
-        if buffer.text:
-            drawing_context.fill_style = text_color
-            drawing_context.fill_text(buffer.text, rect.left, rect.center.y + 1)
-        elif self.placeholder_text and not focused:
-            drawing_context.fill_style = "rgba(0, 0, 0, 0.4)"
-            drawing_context.fill_text(self.placeholder_text, rect.left, rect.center.y + 1)
+            # selection highlight, drawn behind the text.
+            selection = buffer.selection
+            if selection is not None and selection.start != selection.end:
+                layout = core.layout()
+                x0, x1 = layout.selection_x_span(selection)
+                drawing_context.begin_path()
+                drawing_context.rect(rect.left + x0 - scroll_x, rect.top, x1 - x0, rect.height)
+                drawing_context.fill_style = "rgba(96, 160, 255, 0.4)" if focused else "rgba(160, 160, 160, 0.4)"
+                drawing_context.fill()
 
-        # blinking caret -- suppressed while there is an active selection, matching standard text
-        # field UX (e.g. QLineEdit does not draw a caret while text is selected).
-        if focused and core.caret_visible and (selection is None or selection.start == selection.end):
-            layout = core.layout()
-            caret_x = rect.left + layout.x_for_column(buffer.cursor_position)
-            drawing_context.begin_path()
-            drawing_context.move_to(caret_x, rect.top + 1)
-            drawing_context.line_to(caret_x, rect.bottom - 1)
-            drawing_context.line_width = 1.0
-            drawing_context.stroke_style = text_color
-            drawing_context.stroke()
+            if buffer.text:
+                drawing_context.fill_style = text_color
+                drawing_context.fill_text(buffer.text, rect.left - scroll_x, rect.center.y + 1)
+            elif self.placeholder_text and not focused:
+                drawing_context.fill_style = "rgba(0, 0, 0, 0.4)"
+                drawing_context.fill_text(self.placeholder_text, rect.left, rect.center.y + 1)
+
+            # blinking caret -- suppressed while there is an active selection, matching standard text
+            # field UX (e.g. QLineEdit does not draw a caret while text is selected).
+            if focused and core.caret_visible and (selection is None or selection.start == selection.end):
+                layout = core.layout()
+                caret_x = rect.left + layout.x_for_column(buffer.cursor_position) - scroll_x
+                drawing_context.begin_path()
+                drawing_context.move_to(caret_x, rect.top + 1)
+                drawing_context.line_to(caret_x, rect.bottom - 1)
+                drawing_context.line_width = 1.0
+                drawing_context.stroke_style = text_color
+                drawing_context.stroke()
 
 
 class LineEditCanvasItem(TextEditCanvasItem):
@@ -1402,6 +1414,7 @@ class LineEditCanvasItem(TextEditCanvasItem):
             else:
                 self.style.discard("focused")
                 self.__core.handle_mouse_released()
+                self.__core.reset_scroll()
                 if callable(self.on_editing_finished):
                     self.on_editing_finished(self.__core.buffer.text)
             self.update()

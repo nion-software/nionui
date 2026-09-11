@@ -554,6 +554,60 @@ class TestLineEditCanvasIntegration(unittest.TestCase):
         # blink state should not have changed since the item never gained focus.
         self.assertTrue(canvas_item.line_edit_core.caret_visible)
 
+    def test_line_edit_scrolls_to_keep_caret_visible_when_text_overflows_the_field(self) -> None:
+        # regression test: previously LineEditCore/LineEditCell had no horizontal scroll concept
+        # at all, so once typed text exceeded the field's width, the caret (and anything typed
+        # after it) simply kept being positioned past the visible area with nothing bringing it
+        # back into view, matching how QLineEdit scrolls its content to keep the caret visible.
+        widget = self.ui.create_line_edit_widget()
+        canvas_item = widget._behavior._canvas_item  # type: ignore[attr-defined]
+        composition = CanvasItem.CanvasItemComposition()
+        composition.add_canvas_item(canvas_item)
+        width = 60
+        composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=width, h=24))
+        widget.text = "a very long line of text that overflows the field"
+        canvas_item._set_focused(True)
+        canvas_item.line_edit_core.buffer.move_to_end(False)
+
+        drawing_context = DrawingContext.DrawingContext()
+        composition.repaint_immediate(drawing_context, Geometry.IntSize(width=width, height=24))
+
+        fill_text_commands = [command for command in drawing_context.commands if command[0] == "fillText"]
+        self.assertEqual(len(fill_text_commands), 1)
+        # the text must now draw scrolled left (negative x), not flush against the field's left edge.
+        self.assertLess(fill_text_commands[0][2], 0.0)
+
+        # the caret itself, however, must stay within the field's visible (padded) width.
+        move_to_commands = [command for command in drawing_context.commands if command[0] == "moveTo"]
+        self.assertTrue(move_to_commands)
+        caret_x = move_to_commands[-1][1]
+        padding = canvas_item.padding.width
+        self.assertGreaterEqual(caret_x, padding - 0.01)
+        self.assertLessEqual(caret_x, width - padding + 0.01)
+
+    def test_line_edit_unfocused_shows_start_of_text_not_scrolled_position(self) -> None:
+        # an unfocused field should always display from the start of its text (like QLineEdit),
+        # even if it was previously scrolled while focused.
+        widget = self.ui.create_line_edit_widget()
+        canvas_item = widget._behavior._canvas_item  # type: ignore[attr-defined]
+        composition = CanvasItem.CanvasItemComposition()
+        composition.add_canvas_item(canvas_item)
+        width = 60
+        composition.update_layout(Geometry.IntPoint(), Geometry.IntSize(w=width, h=24))
+        widget.text = "a very long line of text that overflows the field"
+        canvas_item._set_focused(True)
+        canvas_item.line_edit_core.buffer.move_to_end(False)
+        composition.repaint_immediate(DrawingContext.DrawingContext(), Geometry.IntSize(width=width, height=24))
+        self.assertGreater(canvas_item.line_edit_core.scroll_x, 0.0)
+
+        canvas_item._set_focused(False)
+        drawing_context = DrawingContext.DrawingContext()
+        composition.repaint_immediate(drawing_context, Geometry.IntSize(width=width, height=24))
+        self.assertEqual(canvas_item.line_edit_core.scroll_x, 0.0)
+        fill_text_commands = [command for command in drawing_context.commands if command[0] == "fillText"]
+        self.assertEqual(len(fill_text_commands), 1)
+        self.assertGreaterEqual(fill_text_commands[0][2], 0.0)
+
 
 class TestTextEditCanvasIntegration(unittest.TestCase):
     """Integration tests exercising the TextEditWidget/TextEditWidgetBehavior/MultiLineEditCanvasItem

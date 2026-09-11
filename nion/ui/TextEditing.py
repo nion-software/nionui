@@ -292,6 +292,19 @@ class TextBuffer:
         self.__selection_anchor = None
         return True
 
+    def delete_to(self, end: int) -> bool:
+        """Delete text from the cursor position up to (but not including) end, where end is a
+        caller-computed character index (e.g. the end of the current visual row). Unlike
+        delete_to_end_of_line, this does not reach past end -- used by TextEditCore's
+        delete-to-end-of-line handling so it deletes only through the end of the current line
+        rather than through the end of the whole (possibly multi-paragraph) buffer."""
+        end = max(self.__cursor_position, min(len(self.__text), end))
+        if end == self.__cursor_position:
+            return False
+        self.__text = self.__text[:self.__cursor_position] + self.__text[end:]
+        self.__selection_anchor = None
+        return True
+
 
 class TextLayout:
     """Stateless pixel-position <-> character-index math for a single line of text.
@@ -803,7 +816,7 @@ class TextEditCore:
         elif key.is_move_to_end_of_line or key.is_end:
             changed = self.__move_to_row_end(modifiers.shift)
         elif key.is_delete_to_end_of_line:
-            changed = buffer.delete_to_end_of_line()
+            changed = self.__delete_to_row_end()
         elif key.is_left_arrow:
             changed = buffer.move_word(-1, modifiers.shift) if modifiers.alt else buffer.move_cursor(-1, modifiers.shift)
         elif key.is_right_arrow:
@@ -860,6 +873,15 @@ class TextEditCore:
         row = layout.row_for_position(self.__buffer.cursor_position)
         _, end = layout.row_range(row)
         return self.__buffer.set_cursor(end, extend)
+
+    def __delete_to_row_end(self) -> bool:
+        # deletes only through the end of the current (visual) row -- using the same row concept
+        # as __move_to_row_end/is_end above, rather than TextBuffer.delete_to_end_of_line's
+        # whole-buffer truncation, which would otherwise erase every subsequent paragraph too.
+        layout = self.layout()
+        row = layout.row_for_position(self.__buffer.cursor_position)
+        _, end = layout.row_range(row)
+        return self.__buffer.delete_to(end)
 
     def __move_to_paragraph_start(self, extend: bool) -> bool:
         position = self.__buffer.cursor_position

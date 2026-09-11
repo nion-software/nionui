@@ -144,6 +144,21 @@ class TestTextBuffer(unittest.TestCase):
         self.assertTrue(buffer.delete_to_end_of_line())
         self.assertEqual(buffer.text, "hello")
 
+    def test_delete_to_deletes_only_up_to_given_end(self) -> None:
+        buffer = TextEditing.TextBuffer("hello world", allow_newlines=True)
+        buffer.set_cursor(5, False)
+        self.assertTrue(buffer.delete_to(8))
+        self.assertEqual(buffer.text, "hellorld")
+        self.assertEqual(buffer.cursor_position, 5)
+
+    def test_delete_to_at_or_before_cursor_does_nothing(self) -> None:
+        buffer = TextEditing.TextBuffer("hello world")
+        buffer.set_cursor(5, False)
+        self.assertFalse(buffer.delete_to(5))
+        self.assertEqual(buffer.text, "hello world")
+        self.assertFalse(buffer.delete_to(2))
+        self.assertEqual(buffer.text, "hello world")
+
     def test_set_text_resets_state(self) -> None:
         buffer = TextEditing.TextBuffer("hello")
         buffer.set_cursor(0, True)
@@ -592,6 +607,34 @@ class TestTextEditCore(unittest.TestCase):
         self.assertEqual(self.core.buffer.cursor_position, 4)
         self.core.handle_key(make_key(key="end"))
         self.assertEqual(self.core.buffer.cursor_position, 10)
+
+    def test_delete_to_end_of_line_only_deletes_current_line_not_whole_document(self) -> None:
+        # regression test: TextEditCore.handle_key used to delegate delete-to-end-of-line
+        # (Ctrl/Cmd+K) straight to TextBuffer.delete_to_end_of_line(), which truncates to the end
+        # of the *entire* buffer -- silently destroying every subsequent paragraph in a multi-line
+        # document. It must instead behave like Home/End (row-aware), stopping at the end of the
+        # current line.
+        self.core.buffer.set_text("line one\nline two\nline three")
+        self.core.buffer.set_cursor(4, False)  # after "line" in "line one"
+        self.assertTrue(self.core.handle_key(make_key(key="delete_to_end_of_line")))
+        self.assertEqual(self.core.buffer.text, "line\nline two\nline three")
+        self.assertEqual(self.core.buffer.cursor_position, 4)
+
+    def test_delete_to_end_of_line_is_wrap_row_aware(self) -> None:
+        # when word-wrapped, "end of line" means the end of the current visual row, consistent
+        # with the existing (already row-aware) Home/End handling above.
+        self.core.word_wrap_mode = "word"
+        self.core.set_wrap_width(60.0)
+        self.core.buffer.set_text("the quick fox")
+        self.core.buffer.set_cursor(7, False)  # inside "quick " (row 1, spanning [4, 10))
+        self.assertTrue(self.core.handle_key(make_key(key="delete_to_end_of_line")))
+        self.assertEqual(self.core.buffer.text, "the quifox")
+
+    def test_delete_to_end_of_line_at_row_end_does_nothing(self) -> None:
+        self.core.buffer.set_text("line one\nline two")
+        self.core.buffer.set_cursor(8, False)  # end of "line one", right before the "\n"
+        self.core.handle_key(make_key(key="delete_to_end_of_line"))
+        self.assertEqual(self.core.buffer.text, "line one\nline two")
 
     def test_mouse_pressed_hit_tests_in_two_dimensions(self) -> None:
         self.core.buffer.set_text("ab\ncd")

@@ -602,6 +602,9 @@ class LineEditCore:
         self.__word_drag = _WordDragSelection(self.__buffer)
         self.caret_visible = True
         self.__blink_accumulator = 0.0
+        # horizontal scroll offset (in pixels) applied when painting/hit-testing so the caret stays
+        # visible once the text is wider than the field -- see ensure_caret_visible().
+        self.__scroll_x = 0.0
 
     @property
     def buffer(self) -> TextBuffer:
@@ -617,6 +620,35 @@ class LineEditCore:
 
     def layout(self) -> TextLayout:
         return TextLayout(self.__measurements, self.__font_str, self.__buffer.text)
+
+    @property
+    def scroll_x(self) -> float:
+        return self.__scroll_x
+
+    def reset_scroll(self) -> None:
+        self.__scroll_x = 0.0
+
+    def ensure_caret_visible(self, visible_width: float) -> bool:
+        """Adjust the horizontal scroll offset (in the same pixel space as TextLayout.x_for_column)
+        so the caret stays within [0, visible_width) of the visible window, the way QLineEdit
+        scrolls its content to keep the caret visible once typed text exceeds the field's width.
+        Intended to be called by the painter right before drawing, given the field's inner (padded)
+        width. Returns True if the offset changed (a repaint may be needed)."""
+        if visible_width <= 0:
+            return False
+        layout = self.layout()
+        caret_x = layout.x_for_column(self.__buffer.cursor_position)
+        old_scroll_x = self.__scroll_x
+        scroll_x = old_scroll_x
+        if caret_x - scroll_x > visible_width:
+            scroll_x = caret_x - visible_width
+        elif caret_x - scroll_x < 0.0:
+            scroll_x = caret_x
+        # never scroll past the point where the remaining text would leave blank space on the right.
+        max_scroll_x = max(0.0, layout.width - visible_width)
+        scroll_x = max(0.0, min(scroll_x, max_scroll_x))
+        self.__scroll_x = scroll_x
+        return scroll_x != old_scroll_x
 
     def reset_blink(self) -> None:
         self.caret_visible = True
@@ -685,9 +717,12 @@ class LineEditCore:
         return consumed
 
     # -- mouse --
+    # note: x here is in visible (post-scroll) pixel space, i.e. relative to the field's left edge
+    # as painted; scroll_x is added to convert it into the same buffer-space pixel coordinates
+    # TextLayout works in (see ensure_caret_visible).
 
     def handle_mouse_pressed(self, x: float, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        column = self.layout().column_for_x(x)
+        column = self.layout().column_for_x(x + self.__scroll_x)
         changed = self.__buffer.set_cursor(column, modifiers.shift)
         self.__drag_active = True
         self.__word_drag.clear()
@@ -697,7 +732,7 @@ class LineEditCore:
     def handle_mouse_position_changed(self, x: float) -> bool:
         if not self.__drag_active:
             return False
-        column = self.layout().column_for_x(x)
+        column = self.layout().column_for_x(x + self.__scroll_x)
         if self.__word_drag.active:
             return self.__word_drag.extend(column)
         return self.__buffer.set_cursor(column, True)
@@ -707,7 +742,7 @@ class LineEditCore:
         self.__word_drag.clear()
 
     def handle_double_click(self, x: float) -> bool:
-        column = self.layout().column_for_x(x)
+        column = self.layout().column_for_x(x + self.__scroll_x)
         changed = self.__buffer.select_word_at(column)
         # arm word-wise drag selection: any drag from here on (until mouse released) extends the
         # selection by whole words, anchored to the word that was just double-clicked.

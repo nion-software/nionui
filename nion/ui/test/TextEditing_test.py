@@ -520,6 +520,73 @@ class TestLineEditCore(unittest.TestCase):
         self.assertFalse(self.core.handle_key(make_key(key="enter")))
         self.assertFalse(self.core.handle_key(make_key(key="escape")))
 
+    def test_scroll_x_defaults_to_zero(self) -> None:
+        self.assertEqual(self.core.scroll_x, 0.0)
+
+    def test_ensure_caret_visible_scrolls_once_caret_passes_visible_width(self) -> None:
+        # regression test: previously LineEditCore had no concept of horizontal scroll at all, so
+        # once typed text exceeded the field's width, the caret (and everything typed after it)
+        # went on being positioned past the visible area with nothing bringing it back into view.
+        self.core.buffer.set_text("the quick brown fox jumps")  # 26 chars * 10px = 260px wide
+        self.core.buffer.move_to_end(False)  # caret x = 260
+        changed = self.core.ensure_caret_visible(60.0)  # a 60px-wide field
+        self.assertTrue(changed)
+        # caret must now be at the right edge of the visible window.
+        layout = self.core.layout()
+        caret_x = layout.x_for_column(self.core.buffer.cursor_position)
+        self.assertEqual(caret_x - self.core.scroll_x, 60.0)
+        self.assertGreater(self.core.scroll_x, 0.0)
+
+    def test_ensure_caret_visible_scrolls_back_when_caret_moves_left_of_window(self) -> None:
+        self.core.buffer.set_text("the quick brown fox jumps")
+        self.core.buffer.move_to_end(False)
+        self.core.ensure_caret_visible(60.0)
+        self.assertGreater(self.core.scroll_x, 0.0)
+        self.core.buffer.move_to_start(False)
+        changed = self.core.ensure_caret_visible(60.0)
+        self.assertTrue(changed)
+        self.assertEqual(self.core.scroll_x, 0.0)
+
+    def test_ensure_caret_visible_does_not_scroll_when_text_fits(self) -> None:
+        self.core.buffer.set_text("hi")
+        self.core.buffer.move_to_end(False)
+        changed = self.core.ensure_caret_visible(200.0)
+        self.assertFalse(changed)
+        self.assertEqual(self.core.scroll_x, 0.0)
+
+    def test_ensure_caret_visible_never_scrolls_past_leaving_blank_space(self) -> None:
+        # placing the cursor in the middle of text shorter than the field shouldn't scroll at all,
+        # even though a naive "caret must be within [scroll_x, scroll_x + width)" computation could
+        # otherwise push scroll_x past 0 here.
+        self.core.buffer.set_text("hello")  # 50px wide
+        self.core.buffer.set_cursor(3, False)
+        changed = self.core.ensure_caret_visible(200.0)
+        self.assertFalse(changed)
+        self.assertEqual(self.core.scroll_x, 0.0)
+
+    def test_reset_scroll(self) -> None:
+        self.core.buffer.set_text("the quick brown fox jumps")
+        self.core.buffer.move_to_end(False)
+        self.core.ensure_caret_visible(60.0)
+        self.assertGreater(self.core.scroll_x, 0.0)
+        self.core.reset_scroll()
+        self.assertEqual(self.core.scroll_x, 0.0)
+
+    def test_mouse_hit_testing_accounts_for_scroll_offset(self) -> None:
+        # regression test: once scrolled, mouse x is in visible (post-scroll) space and must be
+        # translated back into buffer-space pixel coordinates before hit-testing, or clicks would
+        # land on the wrong character once the field is scrolled.
+        self.core.buffer.set_text("the quick brown fox jumps")
+        self.core.buffer.move_to_end(False)
+        self.core.ensure_caret_visible(60.0)
+        scroll_x = self.core.scroll_x
+        self.assertGreater(scroll_x, 0.0)
+        # clicking at visible x=0 should land on the character at buffer x=scroll_x, not column 0.
+        self.core.handle_mouse_pressed(0.0, CanvasItem.KeyboardModifiers())
+        expected_column = self.core.layout().column_for_x(scroll_x)
+        self.assertEqual(self.core.buffer.cursor_position, expected_column)
+        self.assertNotEqual(expected_column, 0)
+
 
 class TestTextEditCore(unittest.TestCase):
 

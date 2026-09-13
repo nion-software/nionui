@@ -90,6 +90,28 @@ class TestLabelCanvasAlignment(unittest.TestCase):
         # the "M" label's text should be drawn at the left edge of its (wider) box, not its center.
         self.assertEqual(fill_text_commands[1][2], float(label2_canvas_rect.left))
 
+    def test_label_is_centered_against_a_taller_widget_in_the_same_row(self) -> None:
+        # a label is only as tall as its text, so in a row with a taller widget (here a combo box) it
+        # has to be centered: both draw their text centered within their own box, so sharing a center
+        # is what puts their text on the same line. top-aligning the label would raise its text above
+        # the combo box text by half the difference in their heights.
+        row = self.ui.create_row_widget()
+        row.add(self.ui.create_label_widget(text="Color:"))
+        row.add_spacing(8)
+        row.add(self.ui.create_combo_box_widget(items=["Red", "Green", "Blue"]))
+
+        canvas_item = row._behavior.canvas_item  # type: ignore[attr-defined]
+        canvas_size = Geometry.IntSize(width=200, height=40)
+        canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), canvas_size)
+        canvas_item.layout_immediate(canvas_size)
+
+        label_canvas_rect = canvas_item.canvas_items[0].canvas_rect
+        combo_box_canvas_rect = canvas_item.canvas_items[2].canvas_rect
+        assert label_canvas_rect and combo_box_canvas_rect
+
+        self.assertLess(label_canvas_rect.height, combo_box_canvas_rect.height)  # otherwise nothing is being tested
+        self.assertEqual(label_canvas_rect.center.y, combo_box_canvas_rect.center.y)
+
 
 class TestCheckBoxAndRadioButtonCanvasSizing(unittest.TestCase):
 

@@ -864,7 +864,15 @@ class BoxWidgetBehavior(WidgetBehavior):
         self.__is_row = is_row
         self.__box_canvas_item = CanvasItem.CanvasItemComposition()
         self.__box_canvas_item.layout = CanvasItem.CanvasItemRowLayout() if is_row else CanvasItem.CanvasItemColumnLayout()
-        self.__box_canvas_item.layout.alignment = alignment if alignment else "start"
+        # the layout alignment is the alignment along the cross axis, i.e. vertical for a row and
+        # horizontal for a column. for a row, leave it unspecified (centered) when the caller does not
+        # ask for a specific alignment: a child shorter than the row (a label is only as tall as its
+        # text) has to center so that its text lines up with the text of taller siblings such as a
+        # combo box, which draw their text centered within their own height; "start" would top-align
+        # the label instead, drawing its text above theirs. for a column the cross axis is horizontal,
+        # where "start" keeps a narrower child flush with the left edge, matching the left-aligned
+        # text the widgets draw.
+        self.__box_canvas_item.layout.alignment = alignment if alignment else (None if is_row else "start")
         super().__init__(self.__box_canvas_item, False, properties)
 
     def insert(self, child: UserInterface.Widget, index_or_widget: typing.Optional[typing.Union[UserInterface.Widget, int]],

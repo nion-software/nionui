@@ -1139,13 +1139,23 @@ class QtLabelWidgetBehavior(QtWidgetBehavior):
         self.__text = text if text else ""
         self.proxy.Label_setText(self.widget, self.__text)
 
+    # QLabel's own default alignment (left, vertically centered). the proxy methods below set the
+    # alignment by clearing the horizontal/vertical part of the alignment flags and replacing it with
+    # the parsed alignment; an unrecognized (or None) alignment parses to zero, which would leave the
+    # label with no flag in that direction and Qt would then fall back to top/left. since the label
+    # widget pushes an initial alignment of None (meaning "unspecified") when it is constructed, that
+    # would silently top-align every label, leaving a short label drawn above the text of any taller
+    # widget (e.g. a combo box) sharing its row. map "unspecified" back to the Qt defaults instead.
+    __default_text_alignment_horizontal = "left"
+    __default_text_alignment_vertical = "vcenter"
+
     def set_text_alignment_horizontal(self, alignment: typing.Optional[str]) -> None:
         if self.proxy.has_method("Label_setTextAlignmentHorizontal"):
-            self.proxy.Label_setTextAlignmentHorizontal(self.widget, alignment)
+            self.proxy.Label_setTextAlignmentHorizontal(self.widget, alignment or self.__default_text_alignment_horizontal)
 
     def set_text_alignment_vertical(self, alignment: typing.Optional[str]) -> None:
         if self.proxy.has_method("Label_setTextAlignmentVertical"):
-            self.proxy.Label_setTextAlignmentVertical(self.widget, alignment)
+            self.proxy.Label_setTextAlignmentVertical(self.widget, alignment or self.__default_text_alignment_vertical)
 
     def set_text_color(self, color: typing.Optional[str]) -> None:
         self.proxy.Label_setTextColor(self.widget, *(Color.Color(color or str()).to_rgb_255()))

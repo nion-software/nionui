@@ -1182,8 +1182,8 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_layout_splitter_within_splitter(self) -> None:
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter_outer = CanvasItem.SplitterCanvasItem()
-        splitter_inner = CanvasItem.SplitterCanvasItem()
+        splitter_outer = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter_inner = CanvasItem.SplitterCanvasItem("horizontal")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         canvas_item3 = _TestCanvasItem()
@@ -1203,7 +1203,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
@@ -1224,7 +1224,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_setting_splitter_initial_values_results_in_correct_layout(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
@@ -1240,7 +1240,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_setting_splitter_values_after_adding_item_results_in_correct_layout(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
@@ -1259,8 +1259,8 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_resizing_splitter_in_splitter_results_in_correct_layout(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
-        splitter_in = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter_in = CanvasItem.SplitterCanvasItem("vertical")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         canvas_item3 = _TestCanvasItem()
@@ -1283,9 +1283,9 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_splitters_within_splitter_result_in_correct_origins(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
-        splitter_l = CanvasItem.SplitterCanvasItem("horizontal")
-        splitter_r = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
+        splitter_l = CanvasItem.SplitterCanvasItem("vertical")
+        splitter_r = CanvasItem.SplitterCanvasItem("vertical")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         canvas_item3 = _TestCanvasItem()
@@ -1312,7 +1312,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)
@@ -1323,16 +1323,70 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertAlmostEqual(splitter.splits[0], 0.5)
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=320, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=320, y=0), size=Geometry.IntSize(width=320, height=480)))
-            # drag splitter
-            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
+            # drag the splitter past the minimum, but not far enough past it to collapse the first item
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=40, y=240))
             canvas_item.refresh_layout_immediate()
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=576, height=480)))
 
+    def test_dragging_splitter_to_the_end_collapses_the_child(self) -> None:
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            splitter.add_canvas_item(canvas_item1)
+            splitter.add_canvas_item(canvas_item2)
+            canvas_item.add_canvas_item(splitter)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            # dragging well past the minimum collapses the first item and gives all of the space to the second
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
+            canvas_item.refresh_layout_immediate()
+            self.assertEqual(Geometry.IntSize(width=0, height=480), canvas_item1.canvas_rect.size if canvas_item1.canvas_rect else None)
+            self.assertEqual(Geometry.IntSize(width=640, height=480), canvas_item2.canvas_rect.size if canvas_item2.canvas_rect else None)
+
+    def test_dragging_splitter_does_not_collapse_when_collapsible_is_false(self) -> None:
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
+            splitter.collapsible = False
+            canvas_item1 = _TestCanvasItem()
+            canvas_item2 = _TestCanvasItem()
+            splitter.add_canvas_item(canvas_item1)
+            splitter.add_canvas_item(canvas_item2)
+            canvas_item.add_canvas_item(splitter)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
+            canvas_item.refresh_layout_immediate()
+            self.assertEqual(64, canvas_item1.canvas_rect.width if canvas_item1.canvas_rect else None)
+
+    def test_splitter_uses_the_minimum_size_declared_by_its_children(self) -> None:
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
+            splitter.collapsible = False
+            canvas_item1 = _TestCanvasItem()
+            # a child that declares its own minimum overrides the splitter default of a tenth of the splitter
+            canvas_item1.update_sizing(canvas_item1.sizing.with_minimum_width(150))
+            canvas_item2 = _TestCanvasItem()
+            splitter.add_canvas_item(canvas_item1)
+            splitter.add_canvas_item(canvas_item2)
+            canvas_item.add_canvas_item(splitter)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=320, y=240), Geometry.IntPoint(x=0, y=240))
+            canvas_item.refresh_layout_immediate()
+            self.assertEqual(150, canvas_item1.canvas_rect.width if canvas_item1.canvas_rect else None)
+
     def test_resizing_splitter_keeps_relative_sizes(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
@@ -1351,7 +1405,7 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_resizing_splitter_slowly_keeps_relative_sizes(self) -> None:
         # setup canvas
         canvas_item = CanvasItem.CanvasItemComposition()
-        splitter = CanvasItem.SplitterCanvasItem()
+        splitter = CanvasItem.SplitterCanvasItem("horizontal")
         canvas_item1 = _TestCanvasItem()
         canvas_item2 = _TestCanvasItem()
         splitter.add_canvas_item(canvas_item1)
@@ -1374,7 +1428,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             canvas_item3 = _TestCanvasItem()
@@ -1402,7 +1456,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             canvas_item3 = _TestCanvasItem()
@@ -1433,7 +1487,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             canvas_item3 = _TestCanvasItem()
@@ -1448,8 +1502,8 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=213, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=213, y=0), size=Geometry.IntSize(width=213, height=480)))
             self.assertEqual(canvas_item3.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=426, y=0), size=Geometry.IntSize(width=214, height=480)))
-            # drag splitter
-            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=0, y=240))
+            # drag splitter to just past the minimum size of the first item, which is not far enough to collapse it
+            self.simulate_drag(canvas_widget, Geometry.IntPoint(x=213, y=240), Geometry.IntPoint(x=40, y=240))
             canvas_item.refresh_layout_immediate()
             self.assertEqual(canvas_item1.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=0, y=0), size=Geometry.IntSize(width=64, height=480)))
             self.assertEqual(canvas_item2.canvas_rect, Geometry.IntRect(origin=Geometry.IntPoint(x=64, y=0), size=Geometry.IntSize(width=640 - 64 - 214, height=480)))
@@ -1462,7 +1516,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             canvas_item3 = _TestCanvasItem()
@@ -1495,7 +1549,7 @@ class TestCanvasItemClass(unittest.TestCase):
         canvas_widget = ui.create_canvas_widget()
         with contextlib.closing(canvas_widget):
             canvas_item = canvas_widget.canvas_item
-            splitter = CanvasItem.SplitterCanvasItem()
+            splitter = CanvasItem.SplitterCanvasItem("horizontal")
             canvas_item1 = _TestCanvasItem()
             canvas_item2 = _TestCanvasItem()
             splitter.add_canvas_item(canvas_item1)

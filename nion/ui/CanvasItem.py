@@ -2984,6 +2984,40 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         return False
 
 
+# how far past its limit a divider must be dragged before the child on that side collapses. matches the threshold
+# used by the widget splitter.
+COLLAPSE_THRESHOLD = 40
+
+# the minimum size used for a splitter child that does not declare one of its own, as a fraction of the splitter.
+DEFAULT_MINIMUM = 0.1
+
+
+def constrain_splitter_sizings(orientation: str, sizings: typing.Sequence[Sizing],
+                               layout_items: typing.Sequence[LayoutSizingItem]) -> typing.Sequence[Sizing]:
+    """Apply each child's own minimum size to the splitter sizings.
+
+    The splitter tracks preferred sizes for its children but takes the minimum from each child, so that a child is
+    never laid out smaller than its content needs. A child that has been collapsed keeps a minimum of zero so that
+    it stays collapsed until it is dragged back open.
+    """
+    constrained: typing.List[Sizing] = list()
+    for sizing, layout_item in zip(sizings, layout_items):
+        item_sizing = layout_item.layout_sizing
+        if orientation == "vertical":
+            preferred = sizing.preferred_height
+            minimum = item_sizing.minimum_height
+        else:
+            preferred = sizing.preferred_width
+            minimum = item_sizing.minimum_width
+        if minimum is None or isinstance(minimum, SizingEnum) or (isinstance(preferred, (int, float)) and preferred <= 0):
+            constrained.append(sizing)
+        elif orientation == "vertical":
+            constrained.append(sizing.with_minimum_height(minimum))
+        else:
+            constrained.append(sizing.with_minimum_width(minimum))
+    return constrained
+
+
 class SplitterLayout(CanvasItemLayout):
     def __init__(self, orientation: str, margins: typing.Optional[Geometry.Margins] = None, spacing: typing.Optional[int] = None, sizings: typing.Optional[typing.Sequence[Sizing]] = None) -> None:
         super().__init__(margins, spacing)
@@ -3004,8 +3038,9 @@ class SplitterLayout(CanvasItemLayout):
         sizings = self.sizings
         assert len(canvas_items) == len(sizings)
         if canvas_size:
+            sizings = constrain_splitter_sizings(self.__orientation, sizings, canvas_items)
             layout = SplitterCanvasItem.calculate_layout(self.__orientation, canvas_size, sizings)
-            if self.__orientation == "horizontal":
+            if self.__orientation == "vertical":
                 for canvas_item, (origin, size) in zip(canvas_items, zip(layout.origins, layout.sizes)):
                     canvas_item_origin = Geometry.IntPoint(y=origin, x=0)  # origin within the splitter
                     canvas_item_size = Geometry.IntSize(height=size, width=canvas_size.width)
@@ -3033,6 +3068,20 @@ class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
         self.__child_composers = child_composers
         self.__orientation = orientation
 
+    def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[BaseComposer]) -> None:
+        # each child is clipped to its own bounds so that content too large for its section is cut off at the
+        # divider rather than drawn over the neighboring section.
+        with drawing_context.saver():
+            drawing_context.translate(canvas_rect.left, canvas_rect.top)
+            child_visible_rect = visible_rect - canvas_rect.origin
+            for child_composer in child_composers:
+                child_canvas_rect = child_composer._canvas_bounds
+                if child_visible_rect.intersects_rect(child_canvas_rect):
+                    with drawing_context.saver():
+                        drawing_context.clip_rect(child_canvas_rect.left, child_canvas_rect.top,
+                                                  child_canvas_rect.width, child_canvas_rect.height)
+                        child_composer.repaint(drawing_context, child_canvas_rect, child_visible_rect)
+
     def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         super()._repaint_visible(drawing_context, canvas_rect, visible_rect, composer_cache)
         # this section is only to draw the splitter lines.
@@ -3043,7 +3092,7 @@ class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
                 # space of the parent (the drawing context is not translated here as it is in _repaint_children), so
                 # the origin of this splitter has to be added in.
                 child_canvas_origin = child_composer._canvas_bounds.origin + canvas_rect.origin
-                if self.__orientation == "horizontal":
+                if self.__orientation == "vertical":
                     drawing_context.move_to(canvas_rect.left, child_canvas_origin.y)
                     drawing_context.line_to(canvas_rect.right, child_canvas_origin.y)
                 else:
@@ -3055,10 +3104,20 @@ class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
 
 
 class SplitterCanvasItem(CanvasItemComposition):
+    """A canvas item that arranges its children along an axis with draggable dividers between them.
+
+    The orientation names the axis along which the children are arranged, matching the user interface splitter
+    widget: "horizontal" places the children side by side with dividers that move left and right, and "vertical"
+    stacks the children with dividers that move up and down. The default is "vertical".
+
+    A divider is limited by the minimum size of the children on either side of it. If collapsible is True, dragging
+    a divider well past that limit collapses the child on that side to nothing.
+    """
 
     def __init__(self, orientation: typing.Optional[str] = None) -> None:
         super().__init__()
         self.orientation = orientation if orientation else "vertical"
+        self.collapsible = True
         self.__splitter_layout = SplitterLayout(self.orientation)
         self.layout = self.__splitter_layout
         self.wants_mouse_events = True
@@ -3070,6 +3129,8 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.__tracking_start_index = 0
         self.__tracking_start_preferred = 0
         self.__tracking_start_preferred_next = 0
+        self.__tracking_minimum = 0
+        self.__tracking_minimum_next = 0
         self.on_splits_will_change: typing.Optional[typing.Callable[[], None]] = None
         self.on_splits_changed: typing.Optional[typing.Callable[[], None]] = None
 
@@ -3083,7 +3144,7 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     @classmethod
     def calculate_layout(self, orientation: str, canvas_size: Geometry.IntSize, sizings: typing.Sequence[Sizing]) -> ConstraintResultType:
-        if orientation == "horizontal":
+        if orientation == "vertical":
             content_origin = 0
             content_size = canvas_size.height
             constraints = [sizing.get_height_constraint(content_size) for sizing in sizings]
@@ -3101,7 +3162,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         else:
             canvas_size = Geometry.IntSize(w=640, h=480)
 
-        if self.orientation == "horizontal":
+        if self.orientation == "vertical":
             content_size = canvas_size.height
         else:
             content_size = canvas_size.width
@@ -3119,7 +3180,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             sizings = copy.copy(self.__sizings)
         assert len(splits) == len(sizings)
         for index, (split, sizing) in enumerate(zip(splits, sizings)):
-            if self.orientation == "horizontal":
+            if self.orientation == "vertical":
                 sizings[index] = sizing.with_preferred_height(split)
             else:
                 sizings[index] = sizing.with_preferred_width(split)
@@ -3131,14 +3192,14 @@ class SplitterCanvasItem(CanvasItemComposition):
 
     def _base_insert_canvas_item(self, before_index: int, canvas_item: AbstractCanvasItem) -> None:
         sizing_data = SizingData()
-        if self.orientation == "horizontal":
+        if self.orientation == "vertical":
             sizing_data.preferred_height = None
             if sizing_data.minimum_height is None:
-                sizing_data.minimum_height = 0.1
+                sizing_data.minimum_height = DEFAULT_MINIMUM
         else:
             sizing_data.preferred_width = None
             if sizing_data.minimum_width is None:
-                sizing_data.minimum_width = 0.1
+                sizing_data.minimum_width = DEFAULT_MINIMUM
         with self.__lock:
             self.__sizings.insert(before_index, Sizing(sizing_data))
             self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
@@ -3155,7 +3216,7 @@ class SplitterCanvasItem(CanvasItemComposition):
         self.update()
 
     def canvas_items_at_point(self, x: int, y: int) -> typing.List[AbstractCanvasItem]:
-        if self.orientation == "horizontal":
+        if self.orientation == "vertical":
             for canvas_item in self.canvas_items[1:]:  # don't check the '0' origin
                 if canvas_item.canvas_origin and abs(y - canvas_item.canvas_origin.y) < 6:
                     return [self]
@@ -3184,11 +3245,62 @@ class SplitterCanvasItem(CanvasItemComposition):
         if self._has_layout:
             for index, canvas_item in enumerate(self.canvas_items[1:]):  # don't check the '0' origin
                 if canvas_item.canvas_origin:
-                    if self.orientation == "horizontal" and abs(y - canvas_item.canvas_origin.y) < 6:
-                        return "horizontal", index + 1, y - canvas_item.canvas_origin.y
-                    elif self.orientation == "vertical" and abs(x - canvas_item.canvas_origin.x) < 6:
-                        return  "vertical", index + 1, x - canvas_item.canvas_origin.x
-        return "horizontal", 0, 0
+                    if self.orientation == "vertical" and abs(y - canvas_item.canvas_origin.y) < 6:
+                        return "vertical", index + 1, y - canvas_item.canvas_origin.y
+                    elif self.orientation == "horizontal" and abs(x - canvas_item.canvas_origin.x) < 6:
+                        return  "horizontal", index + 1, x - canvas_item.canvas_origin.x
+        return "vertical", 0, 0
+
+    def __minimum_size(self, index: int) -> int:
+        """Return the effective minimum size of a child along the splitting axis, in pixels.
+
+        A child that declares its own minimum determines its limit. A child that declares none falls back to
+        DEFAULT_MINIMUM, a fraction of the splitter size. The sizings the splitter holds are not consulted, since
+        they are rewritten while a divider is being dragged.
+        """
+        canvas_size = self.canvas_size or Geometry.IntSize()
+        is_vertical = self.orientation == "vertical"
+        content_size = canvas_size.height if is_vertical else canvas_size.width
+        layout_sizing = self.canvas_items[index].layout_sizing
+        minimum = layout_sizing.minimum_height if is_vertical else layout_sizing.minimum_width
+        if minimum is None or isinstance(minimum, SizingEnum):
+            minimum = DEFAULT_MINIMUM
+        # a float of 1.0 or less is a fraction of the splitter size, matching Sizing.get_width_constraint.
+        if isinstance(minimum, float) and minimum <= 1.0:
+            return int(content_size * minimum)
+        return int(minimum)
+
+    def __adjust_offset(self, offset: int) -> int:
+        """Limit a drag offset to the space the two adjacent children allow, collapsing one if dragged far enough.
+
+        This follows the rule used by the widget splitter. The divider is confined to the range left by the minimum
+        sizes of the two children it separates. Dragging past that range does nothing until the overshoot passes
+        both half of the remaining space and COLLAPSE_THRESHOLD, at which point the child on that side collapses.
+        """
+        first = self.__tracking_start_preferred
+        second = self.__tracking_start_preferred_next
+        total = first + second
+        # the position is expressed as the size of the first of the two children.
+        position = first + offset
+        low = min(self.__tracking_minimum, total)
+        high = max(total - self.__tracking_minimum_next, low)
+        far_low = 0 if self.collapsible else low
+        far_high = total if self.collapsible else high
+        if position < low:
+            width = low - far_low
+            delta = low - position
+            if width > 0 and delta > width // 2 and delta >= min(COLLAPSE_THRESHOLD, width):
+                position = far_low
+            else:
+                position = low
+        elif position > high:
+            width = far_high - high
+            delta = position - high
+            if width > 0 and delta > width // 2 and delta >= min(COLLAPSE_THRESHOLD, width):
+                position = far_high
+            else:
+                position = high
+        return position - first
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         orientation, index, adjust = self.__hit_test(x, y, modifiers)
@@ -3204,8 +3316,11 @@ class SplitterCanvasItem(CanvasItemComposition):
             self.__tracking_start_pos = Geometry.IntPoint(y=y, x=x)
             self.__tracking_start_adjust = adjust
             self.__tracking_start_index = index - 1
-            self.__tracking_start_preferred = canvas_size.height if orientation == "horizontal" else canvas_size.width
-            self.__tracking_start_preferred_next = next_canvas_size.height if orientation == "horizontal" else next_canvas_size.width
+            self.__tracking_start_preferred = canvas_size.height if orientation == "vertical" else canvas_size.width
+            self.__tracking_start_preferred_next = next_canvas_size.height if orientation == "vertical" else next_canvas_size.width
+            # capture the minimums now: the drag replaces the stored sizings, so they cannot be read from there later.
+            self.__tracking_minimum = self.__minimum_size(index - 1)
+            self.__tracking_minimum_next = self.__minimum_size(index)
             if callable(self.on_splits_will_change):
                 self.on_splits_will_change()
             # fix the size of all children except for the two in question
@@ -3213,7 +3328,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             for index, (canvas_item, sizing) in enumerate(zip(canvas_items, sizings)):
                 if index != self.__tracking_start_index and index != self.__tracking_start_index + 1:
                     canvas_size = canvas_item.canvas_size or Geometry.IntSize()
-                    if self.orientation == "horizontal":
+                    if self.orientation == "vertical":
                         new_sizings.append(sizing.with_fixed_height(canvas_size.height))
                     else:
                         new_sizings.append(sizing.with_fixed_width(canvas_size.width))
@@ -3237,13 +3352,16 @@ class SplitterCanvasItem(CanvasItemComposition):
         canvas_size = self.canvas_size
         assert canvas_size
         layout = SplitterCanvasItem.calculate_layout(self.orientation, canvas_size, sizings)
-        for layout_size in layout.sizes:
+        for index, layout_size in enumerate(layout.sizes):
             sizing_data = SizingData()
-            if self.orientation == "horizontal":
-                sizing_data.minimum_height = 0.1
+            # a child that ended up collapsed keeps a minimum of zero so that it stays collapsed; the others take
+            # their minimum from their own content.
+            minimum = self.__minimum_size(index) if layout_size > 0 else 0
+            if self.orientation == "vertical":
+                sizing_data.minimum_height = minimum
                 sizing_data.preferred_height = layout_size
             else:
-                sizing_data.minimum_width = 0.1
+                sizing_data.minimum_width = minimum
                 sizing_data.preferred_width = layout_size
             new_sizings.append(Sizing(sizing_data))
         with self.__lock:
@@ -3264,7 +3382,7 @@ class SplitterCanvasItem(CanvasItemComposition):
             snaps: typing.List[int] = list()
             canvas_bounds = self.canvas_bounds
             if canvas_bounds:
-                if self.orientation == "horizontal":
+                if self.orientation == "vertical":
                     offset = y - self.__tracking_start_pos.y
                     if not modifiers.shift:
                         snaps.append((tracking_start_preferred_next - tracking_start_preferred) // 2)
@@ -3274,8 +3392,12 @@ class SplitterCanvasItem(CanvasItemComposition):
                             if abs(offset - snap) < 12:
                                 offset = snap
                                 break
-                    new_sizings[self.__tracking_start_index] = new_sizings[self.__tracking_start_index].with_preferred_height(tracking_start_preferred + offset)
-                    new_sizings[self.__tracking_start_index + 1] = new_sizings[self.__tracking_start_index + 1].with_preferred_height(tracking_start_preferred_next - offset)
+                    offset = self.__adjust_offset(offset)
+                    size = tracking_start_preferred + offset
+                    size_next = tracking_start_preferred_next - offset
+                    # a collapsed child keeps a minimum of zero so that the layout does not push it back open.
+                    new_sizings[self.__tracking_start_index] = new_sizings[self.__tracking_start_index].with_preferred_height(size).with_minimum_height(self.__tracking_minimum if size > 0 else 0)
+                    new_sizings[self.__tracking_start_index + 1] = new_sizings[self.__tracking_start_index + 1].with_preferred_height(size_next).with_minimum_height(self.__tracking_minimum_next if size_next > 0 else 0)
                 else:
                     offset = x - self.__tracking_start_pos.x
                     if not modifiers.shift:
@@ -3286,8 +3408,12 @@ class SplitterCanvasItem(CanvasItemComposition):
                             if abs(offset - snap) < 12:
                                 offset = snap
                                 break
-                    new_sizings[self.__tracking_start_index] = new_sizings[self.__tracking_start_index].with_preferred_width(tracking_start_preferred + offset)
-                    new_sizings[self.__tracking_start_index + 1] = new_sizings[self.__tracking_start_index + 1].with_preferred_width(tracking_start_preferred_next - offset)
+                    offset = self.__adjust_offset(offset)
+                    size = tracking_start_preferred + offset
+                    size_next = tracking_start_preferred_next - offset
+                    # a collapsed child keeps a minimum of zero so that the layout does not push it back open.
+                    new_sizings[self.__tracking_start_index] = new_sizings[self.__tracking_start_index].with_preferred_width(size).with_minimum_width(self.__tracking_minimum if size > 0 else 0)
+                    new_sizings[self.__tracking_start_index + 1] = new_sizings[self.__tracking_start_index + 1].with_preferred_width(size_next).with_minimum_width(self.__tracking_minimum_next if size_next > 0 else 0)
             with self.__lock:
                 self.__sizings = new_sizings
                 self.__splitter_layout = self.__splitter_layout.with_sizings(self.__sizings)
@@ -3296,9 +3422,9 @@ class SplitterCanvasItem(CanvasItemComposition):
             return True
         else:
             control, _, _ = self.__hit_test(x, y, modifiers)
-            if control == "horizontal":
+            if control == "vertical":
                 self.cursor_shape = "split_vertical"
-            elif control == "vertical":
+            elif control == "horizontal":
                 self.cursor_shape = "split_horizontal"
             else:
                 self.cursor_shape = None

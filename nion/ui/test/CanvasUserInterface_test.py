@@ -848,5 +848,60 @@ class TestTextEditCanvasIntegration(unittest.TestCase):
         self.assertTrue(canvas_item.text_edit_core.caret_visible)
 
 
+class TestSplitterWidgetCanvas(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def __make_splitter(self, orientation: typing.Optional[str]) -> typing.Tuple[UserInterface.SplitterWidget, CanvasItem.SplitterCanvasItem]:
+        widget = self.ui.create_splitter_widget(orientation)
+        widget.add(self.ui.create_label_widget("A"))
+        widget.add(self.ui.create_label_widget("B"))
+        canvas_item = typing.cast(CanvasItem.SplitterCanvasItem, CanvasUserInterface.extract_canvas_item(widget))
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=400, height=200))
+        return widget, canvas_item
+
+    def test_horizontal_splitter_arranges_children_side_by_side(self) -> None:
+        # at the user interface level "horizontal" means the children are arranged left to right. the canvas item
+        # uses the opposite convention, so this also covers the translation between them.
+        widget, canvas_item = self.__make_splitter("horizontal")
+        rects = [child.canvas_rect or Geometry.IntRect.empty_rect() for child in canvas_item.canvas_items]
+        self.assertEqual(2, len(rects))
+        self.assertEqual(Geometry.IntPoint(x=0, y=0), rects[0].origin)
+        self.assertEqual(Geometry.IntPoint(x=200, y=0), rects[1].origin)
+        self.assertEqual(200, rects[0].height)
+
+    def test_vertical_splitter_arranges_children_top_to_bottom(self) -> None:
+        widget, canvas_item = self.__make_splitter("vertical")
+        rects = [child.canvas_rect or Geometry.IntRect.empty_rect() for child in canvas_item.canvas_items]
+        self.assertEqual(Geometry.IntPoint(x=0, y=0), rects[0].origin)
+        self.assertEqual(Geometry.IntPoint(x=0, y=100), rects[1].origin)
+        self.assertEqual(400, rects[0].width)
+
+    def test_default_splitter_orientation_stacks_children(self) -> None:
+        # the user interface splitter defaults to "vertical", so an unspecified orientation stacks the children.
+        widget, canvas_item = self.__make_splitter(None)
+        rects = [child.canvas_rect or Geometry.IntRect.empty_rect() for child in canvas_item.canvas_items]
+        self.assertEqual(Geometry.IntPoint(x=0, y=100), rects[1].origin)
+
+    def test_changing_splitter_orientation_is_rejected(self) -> None:
+        widget, canvas_item = self.__make_splitter("horizontal")
+        # setting the same orientation is allowed, since SplitterWidget does this during construction.
+        widget.orientation = "horizontal"
+        with self.assertRaises(NotImplementedError):
+            widget.orientation = "vertical"
+
+    def test_set_sizes_converts_pixel_sizes_to_splits(self) -> None:
+        widget, canvas_item = self.__make_splitter("horizontal")
+        widget.set_sizes([300, 100])
+        canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=400, height=200))
+        rects = [child.canvas_rect or Geometry.IntRect.empty_rect() for child in canvas_item.canvas_items]
+        self.assertEqual(300, rects[0].width)
+        self.assertEqual(100, rects[1].width)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -30,6 +30,7 @@ from . import RadioButtons
 from . import ScrollAreas
 from . import Sections
 from . import Sliders
+from . import Splitters
 from . import Stacks
 from . import StatusBar
 from . import Tabs
@@ -76,6 +77,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (ScrollAreas, "scroll_areas", _("Scroll Areas")),
         (Sections, "sections", _("Sections")),
         (Sliders, "sliders", _("Sliders")),
+        (Splitters, "splitters", _("Splitters")),
         (Stacks, "stacks", _("Stacks")),
         (StatusBar, "status_bar", _("Status Bar")),
         (Tabs, "tabs", _("Tabs")),

@@ -910,6 +910,52 @@ class BoxWidgetBehavior(WidgetBehavior):
         self.__box_canvas_item.remove_all_canvas_items()
 
 
+class SplitterWidgetBehavior(WidgetBehavior):
+
+    def __init__(self, orientation: typing.Optional[str], properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
+        self.__orientation = orientation
+        self.__splitter_canvas_item = CanvasItem.SplitterCanvasItem(orientation)
+        super().__init__(self.__splitter_canvas_item, False, properties)
+        self.__children: typing.List[UserInterface.Widget] = list()
+
+    def close(self) -> None:
+        # note: behavior is responsible for closing the children, matching the other splitter behaviors.
+        for child in self.__children:
+            child.close()
+        self.__children = typing.cast(typing.Any, None)
+        super().close()
+
+    @property
+    def orientation(self) -> typing.Optional[str]:
+        return self.__orientation
+
+    @orientation.setter
+    def orientation(self, value: typing.Optional[str]) -> None:
+        if (value or "vertical") != self.__splitter_canvas_item.orientation:
+            # the canvas splitter builds its layout from the orientation passed to its constructor and the composer
+            # reads that layout directly, so the orientation cannot be changed after the item is created.
+            raise NotImplementedError("changing splitter orientation is not supported on the canvas backend.")
+        self.__orientation = value
+
+    def add(self, child: UserInterface.Widget) -> None:
+        child_canvas_item = extract_canvas_item(child)
+        assert child_canvas_item is not None
+        self.__children.append(child)
+        self.__splitter_canvas_item.add_canvas_item(child_canvas_item)
+
+    def restore_state(self, tag: str) -> None:
+        pass
+
+    def save_state(self, tag: str) -> None:
+        pass
+
+    def set_sizes(self, sizes: typing.Sequence[int]) -> None:
+        # the canvas splitter stores relative splits rather than pixel sizes.
+        total = sum(sizes)
+        if total > 0:
+            self.__splitter_canvas_item.splits = [size / total for size in sizes]
+
+
 class StackWidgetBehavior(WidgetBehavior):
 
     def __init__(self, properties: typing.Optional[typing.Mapping[str, typing.Any]]) -> None:
@@ -2833,8 +2879,7 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return UserInterface.BoxWidget(BoxWidgetBehavior(False, properties, alignment), alignment)
 
     def create_splitter_widget(self, orientation: typing.Optional[str] = None, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.SplitterWidget:
-        # TODO
-        raise NotImplementedError()
+        return UserInterface.SplitterWidget(SplitterWidgetBehavior(orientation, properties), orientation)
 
     def create_tab_widget(self, properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> UserInterface.TabWidget:
         # TODO

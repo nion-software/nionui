@@ -59,7 +59,7 @@ class DeclarativeUI:
     # ----: check box
     # ----: combo box
     # ----: radio buttons
-    # TODO: splitter
+    # ----: splitter
     # ----: image
     # ----: component
     # TODO: part
@@ -375,6 +375,39 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        self.__process_common_properties(d, **kwargs)
+        return d
+
+    def create_splitter(self, *children: UIDescription, name: typing.Optional[UIIdentifier] = None,
+                        orientation: typing.Optional[str] = None,
+                        **kwargs: typing.Any) -> UIDescriptionResult:
+        """Create a splitter UI description with children and an orientation.
+
+        The children are arranged along the orientation axis, separated by draggable splitter handles. The user
+        controls the relative sizes of the children by dragging the handles.
+
+        The orientation is either "horizontal" (children side by side, handles move left/right) or "vertical"
+        (children stacked, handles move up/down). The default is backend dependent.
+
+        Args:
+            children: children to put into the splitter
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            orientation: "horizontal" or "vertical" (optional)
+
+        Returns:
+            a UI description of the splitter
+        """
+        d: UIDescriptionResult = {"type": "splitter"}
+        if name is not None:
+            d["name"] = name
+        if orientation is not None:
+            d["orientation"] = orientation
+        if len(children) > 0:
+            d_children = d.setdefault("children", list())
+            for child in children:
+                d_children.append(child)
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1514,6 +1547,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         return construct_stack(ui, window, d, handler, finishes)
     elif d_type == "scroll_area":
         return construct_scroll_area(ui, window, d, handler, finishes)
+    elif d_type == "splitter":
+        return construct_splitter(ui, window, d, handler, finishes)
     elif d_type == "group":
         return construct_group(ui, window, d, handler, finishes)
     elif d_type == "list_box":
@@ -1630,6 +1665,18 @@ def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window
     widget.set_scrollbar_policies(d.get("horizontal_scroll_bar_policy", "needed"), d.get("vertical_scroll_bar_policy", "needed"))
     content = typing.cast(UIDescription, d.get("content"))
     widget.content = construct(ui, window, content, handler, finishes)
+    if handler:
+        connect_name(widget, d, handler)
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+def construct_splitter(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
+                       handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.SplitterWidget:
+    properties = construct_sizing_properties(d)
+    widget = ui.create_splitter_widget(d.get("orientation"), properties)
+    for child in d.get("children", list()):
+        widget.add(construct(ui, window, child, handler, finishes))
     if handler:
         connect_name(widget, d, handler)
         connect_attributes(widget, d, handler, finishes)

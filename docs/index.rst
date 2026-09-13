@@ -682,7 +682,7 @@ when presenting optional content where the specific content is controlled by ano
 Scroll areas layout their content in a scrollable area with scroll bars.
 
 .. autoclass:: nion.ui.Declarative.DeclarativeUI
-    :members: create_column, create_row, create_spacing, create_stretch, create_stack, create_scroll_area
+    :members: create_column, create_row, create_spacing, create_stretch, create_stack, create_scroll_area, create_splitter
 
 Widgets
 -------

@@ -9,6 +9,8 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import Declarative
+from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.utils import Model
 from nion.utils import Binding
@@ -31,6 +33,42 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def tearDown(self) -> None:
         pass
+
+    def test_splitter_constructs_children_and_orientation(self) -> None:
+        # tests that a declarative splitter description constructs a splitter widget with its children in order.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.splitter: typing.Optional[UserInterface.SplitterWidget] = None
+                self.ui_view = u.create_splitter(u.create_label(text="LEFT"), u.create_label(text="RIGHT"),
+                                                 name="splitter", orientation="horizontal")
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                splitter = typing.cast(UserInterface.SplitterWidget, widget)
+                self.assertIsInstance(splitter, UserInterface.SplitterWidget)
+                self.assertEqual(splitter, handler.splitter)
+                self.assertEqual("horizontal", splitter.orientation)
+                children = typing.cast(typing.Sequence[UserInterface.LabelWidget], splitter._contained_widgets)
+                self.assertEqual(["LEFT", "RIGHT"], [child.text for child in children])
+
+    def test_splitter_constructs_with_no_children(self) -> None:
+        # tests that a splitter with no children constructs without error.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.ui_view = u.create_splitter()
+
+        with event_loop_context() as event_loop:
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, Handler())
+            with contextlib.closing(widget):
+                self.assertIsInstance(widget, UserInterface.SplitterWidget)
 
     def test_update_binding_from_thread(self) -> None:
         # tests that setting the source model on a thread updates the ui model properly using bindable property.

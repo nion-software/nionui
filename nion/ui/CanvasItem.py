@@ -3039,7 +3039,10 @@ class SplitterCanvasItemComposer(CanvasItemCompositionComposer):
         with drawing_context.saver():
             drawing_context.begin_path()
             for child_composer in self.__child_composers[1:]:
-                child_canvas_origin = child_composer._canvas_bounds.origin
+                # the child canvas bounds are relative to this splitter, but the lines are drawn in the coordinate
+                # space of the parent (the drawing context is not translated here as it is in _repaint_children), so
+                # the origin of this splitter has to be added in.
+                child_canvas_origin = child_composer._canvas_bounds.origin + canvas_rect.origin
                 if self.__orientation == "horizontal":
                     drawing_context.move_to(canvas_rect.left, child_canvas_origin.y)
                     drawing_context.line_to(canvas_rect.right, child_canvas_origin.y)

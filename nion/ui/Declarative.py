@@ -10,10 +10,12 @@ import typing
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import Dialog
+from nion.ui import GridFlowCanvasItem
 from nion.ui import UserInterface
 from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
+from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Registry
 from nion.utils import Selection
@@ -1496,6 +1498,90 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
 
     getattr(handler, "_closer").push_closeable(container.item_inserted_event.listen(row_item_inserted))
     getattr(handler, "_closer").push_closeable(container.item_removed_event.listen(row_item_removed))
+
+
+class DeclarativeItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
+    """Create and destroy a declarative component for each item of a list.
+
+    This is the item template used by the list-like canvas items: `create` instantiates the component described by
+    `item_component_id` for an item and returns the canvas item displaying it; `destroy` releases that component when
+    its canvas item goes away, either because the item was removed from the list or because the list itself closed.
+
+    The component is established using the same techniques as `connect_items`. First, if the handler responds to
+    `get_resource`, it is called with the `item_component_id`, `item`, and `container`; otherwise the `resources` map
+    on the handler is consulted. Either may supply the component content. Next, `create_handler` is called with the
+    `component_id`, `item`, and `container`; if the resulting handler defines `ui_view`, that is used as the component
+    content instead.
+
+    The component is constructed against a `CanvasUserInterface` so that it reduces to a canvas item, which is what
+    the list canvas item is able to display for an item. This is independent of the backend of the `ui` passed in:
+    the list canvas item is drawn within a canvas widget in either case.
+    """
+
+    def __init__(self, ui: UserInterface.UserInterface, window: Window.Window, handler: HandlerLike,
+                 item_component_id: str, container: typing.Any) -> None:
+        from nion.ui import CanvasUserInterface  # avoid circular reference
+        # construct items against a canvas ui so that each item reduces to a canvas item. wrapping an existing canvas
+        # ui again would work, but adds a pointless layer.
+        self.__ui = ui if isinstance(ui, CanvasUserInterface.CanvasUserInterface) else CanvasUserInterface.CanvasUserInterface(ui)
+        self.__window = window
+        self.__handler = handler
+        self.__item_component_id = item_component_id
+        self.__container = container
+        # the handler and widget for each item are needed at destroy time, but only the canvas item is passed back.
+        self.__components = dict[CanvasItem.AbstractCanvasItem, typing.Tuple[typing.Optional[HandlerLike], UserInterface.Widget]]()
+
+    def create(self, item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+        from nion.ui import CanvasUserInterface  # avoid circular reference
+        handler = self.__handler
+        item_component_id = self.__item_component_id
+        container = self.__container
+        component_content: typing.Optional[UIDescription] = None
+        component = None
+        if callable(getattr(handler, "get_resource", None)):
+            component = getattr(handler, "get_resource")(item_component_id, item=item, container=container)
+        component = component or getattr(handler, "resources", dict()).get(item_component_id)
+        if component:
+            assert component.get("type") == "component"
+            # the component will have a content portion, which is a widget description. component events are
+            # ignored in this case.
+            component_content = component.get("content")
+        assert callable(getattr(handler, "create_handler", None))
+        # create the handler first, but don't initialize it.
+        component_handler = typing.cast(typing.Optional[HandlerLike],
+                                        getattr(handler, "create_handler")(component_id=item_component_id, item=item,
+                                                                           container=container))
+        # make and attach closer for the component handler and link it to the container handler.
+        if component_handler:
+            setattr(component_handler, "_closer", Closer())
+            getattr(handler, "_closer").push_closeable(component_handler)
+            component_content = getattr(component_handler, "ui_view", component_content)
+        assert component_content, f"missing component content {item_component_id=}"
+        item_finishes: _FinishesListType = list()
+        # now construct the widget
+        # construct tolerates a missing handler (it skips the handler connections), same as for other item components.
+        widget = construct(self.__ui, self.__window, component_content, typing.cast(HandlerLike, component_handler), item_finishes)
+        # since the handler is custom to the widget, make a way to retrieve it from the widget
+        setattr(widget, "handler", component_handler)
+        for finish in item_finishes:
+            finish()
+        if component_handler:
+            setattr(component_handler, "_event_loop", self.__window.event_loop)
+            init_handler = getattr(component_handler, "init_handler", None)
+            if callable(init_handler):
+                init_handler()
+        canvas_item = CanvasUserInterface.extract_canvas_item(widget)
+        assert canvas_item, f"component {item_component_id} does not produce a canvas item."
+        self.__components[canvas_item] = (component_handler, widget)
+        return canvas_item
+
+    def destroy(self, item_canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        component_handler, widget = self.__components.pop(item_canvas_item)
+        # the canvas item is closed by the canvas item hierarchy that owns it; closing the widget here releases the
+        # widget level bindings and listeners, but leaves the canvas item itself alone.
+        widget.close()
+        if component_handler:
+            getattr(self.__handler, "_closer").pop_closeable(component_handler)
 
 
 class DeclarativeConstructor(typing.Protocol):

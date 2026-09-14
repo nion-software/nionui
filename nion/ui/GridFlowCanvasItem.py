@@ -63,20 +63,69 @@ class GridFlowItemAdornmentsCanvasItem(CanvasItem.AbstractCanvasItem):
 GridFlowItemFactory = typing.Callable[[typing.Any, Model.PropertyModel[bool]], CanvasItem.AbstractCanvasItem]
 
 
+class GridFlowItemFactoryLike(typing.Protocol):
+    """Create and destroy the canvas item displaying a single item.
+
+    `create` is called when an item is inserted into the list model. The returned canvas item is added to the canvas
+    item representing the item in the grid flow; that canvas item closes it when the item is removed from the list
+    model or when the grid flow itself closes.
+
+    `destroy` is called immediately before the canvas item is closed, giving the factory a chance to release anything
+    it associated with the canvas item but which is not part of the canvas item hierarchy, such as a handler or a
+    listener. The factory must not close the canvas item itself.
+    """
+
+    def create(self, item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem: ...
+
+    def destroy(self, item_canvas_item: CanvasItem.AbstractCanvasItem) -> None: ...
+
+
+# a factory can be supplied either as the full protocol or as a plain callable that only creates the canvas item.
+GridFlowItemFactoryType = typing.Union[GridFlowItemFactoryLike, GridFlowItemFactory]
+
+
+class CallableGridFlowItemFactory(GridFlowItemFactoryLike):
+    """Adapt a plain create-callable to the factory protocol. Destroying such an item does nothing."""
+
+    def __init__(self, item_factory: GridFlowItemFactory) -> None:
+        self.__item_factory = item_factory
+
+    def create(self, item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+        return self.__item_factory(item, is_selected_model)
+
+    def destroy(self, item_canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        pass
+
+
+def make_grid_flow_item_factory(item_factory: GridFlowItemFactoryType) -> GridFlowItemFactoryLike:
+    """Return a factory protocol object for the given factory, which may be a plain create-callable."""
+    if hasattr(item_factory, "create"):
+        return typing.cast(GridFlowItemFactoryLike, item_factory)
+    return CallableGridFlowItemFactory(typing.cast(GridFlowItemFactory, item_factory))
+
+
 class GridFlowItemCanvasItem(CanvasItem.CanvasItemComposition):
-    def __init__(self, grid_flow_canvas_item: GridFlowCanvasItem, item: typing.Any, item_factory: GridFlowItemFactory) -> None:
+    def __init__(self, grid_flow_canvas_item: GridFlowCanvasItem, item: typing.Any, item_factory: GridFlowItemFactoryLike) -> None:
         super().__init__()
         self.__grid_flow_canvas_item_ref = weakref.ref(grid_flow_canvas_item)
         self.__item = item
+        self.__item_factory = item_factory
         self.__is_selected_model = Model.PropertyModel(False)
         self.__is_focused_model = Model.PropertyModel(False)
         self.__is_dropping_model = Model.PropertyModel(False)
         self.__background_canvas_item = CanvasItem.BackgroundCanvasItem(None, None)  # no fallback color
         self.__adornments_canvas_item = GridFlowItemAdornmentsCanvasItem(grid_flow_canvas_item, item)
         self.add_canvas_item(self.__background_canvas_item)
-        self._canvas_item = item_factory(item, self.__is_selected_model)
+        self._canvas_item = item_factory.create(item, self.__is_selected_model)
         self.add_canvas_item(self._canvas_item)
         self.add_canvas_item(self.__adornments_canvas_item)
+
+    def close(self) -> None:
+        # give the factory a chance to release anything associated with the canvas item before it gets closed as part
+        # of closing this composition. this is the single point where the factory-created canvas item goes away, both
+        # when the item is removed from the list model and when the entire grid flow closes.
+        self.__item_factory.destroy(self._canvas_item)
+        super().close()
 
     @property
     def __grid_flow_canvas_item(self) -> GridFlowCanvasItem:
@@ -226,14 +275,14 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     from being modified when items are inserted or removed.
     """
 
-    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, layout: CanvasItem.CanvasItemAbstractLayout, item_factory: GridFlowItemFactory, delegate: GridFlowCanvasItemDelegate, *, key: str | None = None, is_shared_selection: bool = False) -> None:
+    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, layout: CanvasItem.CanvasItemAbstractLayout, item_factory: GridFlowItemFactoryType, delegate: GridFlowCanvasItemDelegate, *, key: str | None = None, is_shared_selection: bool = False) -> None:
         super().__init__()
         # store parameters
         self.__list_model = list_model
         self.__list_model_key = key or "items"
         self.__selection = selection
         self.__layout = layout
-        self.__item_factory = item_factory
+        self.__item_factory = make_grid_flow_item_factory(item_factory)
         self.__delegate = delegate
         self.__is_shared_selection = is_shared_selection
         # configure super

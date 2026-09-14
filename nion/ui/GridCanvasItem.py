@@ -516,7 +516,7 @@ class GridCanvasItem2(GridFlowCanvasItem.GridFlowCanvasItem):
     from being modified when items are inserted or removed.
     """
 
-    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, item_factory: GridFlowCanvasItem.GridFlowItemFactory, delegate: GridFlowCanvasItem.GridFlowCanvasItemDelegate, item_size: Geometry.IntSize | None = None, *, key: typing.Optional[str] = None, is_shared_selection: bool = False) -> None:
+    def __init__(self, list_model: ListModel.ListModelLike, selection: Selection.IndexedSelection, item_factory: GridFlowCanvasItem.GridFlowItemFactoryType, delegate: GridFlowCanvasItem.GridFlowCanvasItemDelegate, item_size: Geometry.IntSize | None = None, *, key: typing.Optional[str] = None, is_shared_selection: bool = False) -> None:
         self.__item_size = item_size or Geometry.IntSize(80, 80)
         super().__init__(list_model, selection, GridLayout(self.__item_size), item_factory, delegate, key=key, is_shared_selection=is_shared_selection)
 

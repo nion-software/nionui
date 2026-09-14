@@ -9,6 +9,7 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import CanvasItem
 from nion.ui import Declarative
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
@@ -89,6 +90,44 @@ class ListViewHandler(ItemsHandler):
         self.list_view: typing.Optional[Widgets.ListViewWidget] = None
         self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
                                           name="list_view")
+
+
+class ListViewEventsHandler(ItemsHandler):
+    """A handler with a list view whose current index is bound and whose callbacks are recorded."""
+
+    def __init__(self, items: typing.Sequence[str]) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.list_model = ListModel.ListModel[str]("items", items=list(items))
+        self.current_index_model = Model.PropertyModel(0)
+        self.changed_indexes: typing.List[int] = list()
+        self.selected_indexes: typing.List[int] = list()
+        self.context_menu_indexes: typing.List[typing.Optional[int]] = list()
+        self.escape_count = 0
+        self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+        self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
+                                          name="list_view",
+                                          current_index="@binding(current_index_model.value)",
+                                          on_item_changed="item_changed",
+                                          on_item_selected="item_selected",
+                                          on_escape_pressed="escape_pressed",
+                                          on_item_handle_context_menu="item_context_menu")
+
+    def item_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+        self.changed_indexes.append(current_index)
+
+    def item_selected(self, widget: Declarative.UIWidget, current_index: int) -> bool:
+        self.selected_indexes.append(current_index)
+        return True
+
+    def escape_pressed(self, widget: Declarative.UIWidget) -> bool:
+        self.escape_count += 1
+        return True
+
+    def item_context_menu(self, widget: Declarative.UIWidget, index: typing.Optional[int], x: int, y: int,
+                          gx: int, gy: int) -> bool:
+        self.context_menu_indexes.append(index)
+        return True
 
 
 @contextlib.contextmanager
@@ -269,3 +308,48 @@ class TestCanvasItemClass(unittest.TestCase):
                 handler.list_model.remove_item(0)
                 list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
                 self.assertEqual(Geometry.IntSize(width=200, height=40), list_canvas_item.canvas_size)
+
+    def test_list_view_current_index_binding_follows_the_selection(self) -> None:
+        # tests that clicking an item updates the bound current index, and that setting it updates the selection.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=10))
+                self.assertEqual(1, handler.current_index_model.value)
+                self.assertEqual(1, handler.changed_indexes[-1])
+                handler.current_index_model.value = 2
+                self.assertEqual({2}, list_view.selection.indexes)
+
+    def test_list_view_reports_an_item_chosen_by_double_click_or_return(self) -> None:
+        # tests that choosing an item reports it exactly once, whether by double click or by pressing return.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.mouse_double_clicked(10, 30, CanvasItem.KeyboardModifiers())
+                self.assertEqual([1], handler.selected_indexes)
+                list_canvas_item.key_pressed(ui.create_key_by_id("return"))
+                self.assertEqual([1, 1], handler.selected_indexes)
+
+    def test_list_view_reports_escape_and_context_menu(self) -> None:
+        # tests the remaining callbacks: escape is passed to the handler, and the context menu reports the item index.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.key_pressed(ui.create_key_by_id("escape"))
+                self.assertEqual(1, handler.escape_count)
+                list_canvas_item._grid_flow_item_canvas_items[2].context_menu_event(5, 5, 105, 205)
+                self.assertEqual([2], handler.context_menu_indexes)

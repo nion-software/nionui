@@ -15,6 +15,8 @@ from nion.ui import UserInterface
 from nion.ui import Window
 from nion.ui import Widgets
 from nion.utils import Binding
+from nion.utils import Event
+from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Observable
 from nion.utils import Registry
@@ -986,6 +988,51 @@ class DeclarativeUI:
         self.__process_common_properties(d, **kwargs)
         return d
 
+    def create_list_view(self, *,
+                         name: typing.Optional[UIIdentifier] = None,
+                         items: typing.Optional[UIIdentifier] = None,
+                         item_component_id: typing.Optional[str] = None,
+                         item_height: typing.Optional[UIPoints] = None,
+                         selection_style: typing.Optional[str] = None,
+                         **kwargs: typing.Any) -> UIDescriptionResult:
+        """Create a list view UI description with items, an item component, and the item height.
+
+        A list view displays one component for each item of an observable list. The component is described by
+        `item_component_id` and constructed for each item the same way as the dynamic children of a column, row, or
+        stack: the handler must implement `create_handler`, which will receive the `component_id`, `item`, and
+        `container` keyword arguments and return a handler with a `ui_view` describing the item.
+
+        Unlike a list box, whose items are strings drawn by the list box itself, the items of a list view can be
+        arbitrary UI, such as a row with an icon and a label.
+
+        Keyword Args:
+            name: handler property in which to store widget (optional)
+            items: handler reference of the observable list of items (required)
+            item_component_id: identifier of the component describing an item (required)
+            item_height: height of each item in points (required)
+            selection_style: one of "none", "single", "single_or_none" (default), or "multiple"
+
+        Returns:
+            UI description of the list view
+
+        The `items` reference names an observable list property on the handler, following the dotted path if one is
+        given, e.g. `document.entries`. The list must send `item_inserted_event` and `item_removed_event` so that the
+        list view can add and remove the item components as the list changes.
+        """
+        d: UIDescriptionResult = {"type": "list_view"}
+        if name is not None:
+            d["name"] = name
+        if items is not None:
+            d["items"] = items
+        if item_component_id is not None:
+            d["item_component_id"] = item_component_id
+        if item_height is not None:
+            d["item_height"] = item_height
+        if selection_style is not None:
+            d["selection_style"] = selection_style
+        self.__process_common_properties(d, **kwargs)
+        return d
+
     def create_modeless_dialog(self, content: UIDescription, *, title: typing.Optional[str] = None,
                                resources: typing.Optional[UIResources] = None,
                                **kwargs: typing.Any) -> UIDescriptionResult:
@@ -1384,6 +1431,41 @@ def construct_margins(d: UIDescription) -> UIMargins:
 
 
 # to properly type the container widget needs more work. substitute typing.Any for now.
+def parse_items_path(handler: HandlerLike, items: UIIdentifier) -> typing.Tuple[typing.Any, str]:
+    """Return the container and key for an items reference such as `entries` or `document.entries`."""
+    items_parts = items.split('.')
+    container: typing.Any = handler
+    for items_part in items_parts[:-1]:
+        container = getattr(container, items_part.strip())
+    return container, items_parts[-1]
+
+
+class ItemsListModel(ListModel.ListModelLike):
+    """Present an observable list property of a container as a list model.
+
+    The canvas items displaying a list take a list model, whose items are always available as `items`; a declarative
+    items reference can name any property on any container, so this adapts one to the other. The insert and remove
+    events are the container's own, filtered by the property key, which is what the canvas item does with the `key`
+    it is given.
+    """
+
+    def __init__(self, container: typing.Any, items_key: str) -> None:
+        self.__container = container
+        self.__items_key = items_key
+
+    @property
+    def item_inserted_event(self) -> Event.Event:
+        return typing.cast(Event.Event, self.__container.item_inserted_event)
+
+    @property
+    def item_removed_event(self) -> Event.Event:
+        return typing.cast(Event.Event, self.__container.item_removed_event)
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return typing.cast(typing.Sequence[typing.Any], getattr(self.__container, self.__items_key))
+
+
 def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: UserInterface.BoxWidget | UserInterface.StackWidget,
                   handler: HandlerLike, items: str, item_component_id: str, is_column: bool = True, spacing: int | None = None) -> None:
     """Connect list of item components to container widget.
@@ -1407,11 +1489,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     to respond to the `item_component_id`.
     """
     assert window is not None
-    items_parts = items.split('.')
-    container: typing.Any = handler
-    for items_part in items_parts[:-1]:
-        container = getattr(container, items_part.strip())
-    items_key = items_parts[-1]
+    container, items_key = parse_items_path(handler, items)
 
     # the _closer should have been set on the handler, even if no close method is present. insert_item makes this
     # assumption so that subcomponents have a path by which to get closed.
@@ -1639,6 +1717,8 @@ def construct(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescr
         return construct_group(ui, window, d, handler, finishes)
     elif d_type == "list_box":
         return construct_list_box(ui, d, handler, finishes)
+    elif d_type == "list_view":
+        return construct_list_view(ui, window, d, handler, finishes)
     elif d_type == "component":
         return construct_component(ui, window, d, handler, finishes)
     else:
@@ -1701,6 +1781,37 @@ def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handle
         connect_event(widget, widget, d, handler, "on_escape_pressed", [])
         connect_event(widget, widget, d, handler, "on_return_pressed", [])
         connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
+        connect_attributes(widget, d, handler, finishes)
+    return widget
+
+
+_selection_styles = {
+    "none": Selection.Style.none,
+    "single": Selection.Style.single,
+    "single_or_none": Selection.Style.single_or_none,
+    "multiple": Selection.Style.multiple,
+}
+
+
+def construct_list_view(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription, handler: HandlerLike,
+                        finishes: _FinishesListType) -> Widgets.ListViewWidget:
+    properties = construct_sizing_properties(d)
+    items = typing.cast(typing.Optional[UIIdentifier], d.get("items"))
+    item_component_id = typing.cast(typing.Optional[str], d.get("item_component_id"))
+    item_height = typing.cast(typing.Optional[int], d.get("item_height"))
+    assert items, "list_view requires 'items', naming an observable list property on the handler."
+    assert item_component_id, "list_view requires 'item_component_id', naming the component describing an item."
+    assert item_height, "list_view requires 'item_height'; items are laid out with a uniform height."
+    selection_style = _selection_styles[str(d.get("selection_style", "single_or_none"))]
+    # the items reference names an observable list on the handler; the container is what sends the insert and remove
+    # events, and it is also what gets passed to create_handler for each item.
+    container, items_key = parse_items_path(handler, items)
+    item_factory = DeclarativeItemFactory(ui, window, handler, item_component_id, container)
+    widget = Widgets.ListViewWidget(ui, ItemsListModel(container, items_key), item_factory, item_height=item_height,
+                                    key=items_key, selection_style=selection_style, border_color="#888",
+                                    properties=properties)
+    if handler:
+        connect_name(widget, d, handler)
         connect_attributes(widget, d, handler, finishes)
     return widget
 

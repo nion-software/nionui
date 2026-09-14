@@ -14,12 +14,14 @@ import typing
 from nion.ui import Bitmap
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
+from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
 from nion.utils import Binding
 from nion.utils import Color
 from nion.utils import Event
 from nion.utils import Geometry
+from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import Selection
 
@@ -724,6 +726,60 @@ class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
 
     def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
         raise NotImplementedError()
+
+
+class ListViewWidget(UserInterface.Widget):
+    """A widget with a list in a scroll bar, where each item is displayed using a canvas item from an item factory.
+
+    Where ListWidget paints its items using a delegate, the items here are displayed by the canvas items created by
+    the item factory, so an item can be an arbitrary canvas item hierarchy rather than a drawn string.
+
+    The items come from the list model. Inserting or removing an item in the list model creates or destroys the canvas
+    item for that item; the item factory is told about both (see GridFlowCanvasItem.GridFlowItemFactoryLike).
+    """
+
+    def __init__(self, ui: UserInterface.UserInterface, list_model: ListModel.ListModelLike,
+                 item_factory: GridFlowCanvasItem.GridFlowItemFactoryType, *, item_height: int,
+                 key: typing.Optional[str] = None,
+                 selection_style: typing.Optional[Selection.Style] = None,
+                 selection: typing.Optional[Selection.IndexedSelection] = None,
+                 border_color: typing.Optional[str] = None, v_scroll_enabled: bool = True,
+                 properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
+        column_widget = ui.create_column_widget()
+        super().__init__(CompositeWidgetBehavior(column_widget))
+        self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
+        self.__list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, self.__selection, item_factory,
+                                                                 GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                                 item_height=item_height, key=key)
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
+        scroll_area_canvas_item.auto_resize_contents = True
+        scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
+        if border_color is not None:
+            scroll_group_canvas_item.border_color = border_color
+        scroll_group_canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+        scroll_group_canvas_item.add_canvas_item(scroll_area_canvas_item)
+        if v_scroll_enabled:
+            scroll_group_canvas_item.add_canvas_item(CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item))
+        canvas_widget = ui.create_canvas_widget(properties=properties)
+        canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
+        column_widget.add(canvas_widget)
+        self.__canvas_widget = canvas_widget
+
+    @property
+    def selection(self) -> Selection.IndexedSelection:
+        return self.__selection
+
+    @property
+    def _list_canvas_item(self) -> ListCanvasItem.ListCanvasItem2:
+        return self.__list_canvas_item
+
+    @property
+    def focused(self) -> bool:
+        return self.__canvas_widget.focused and self.__list_canvas_item.focused
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        self.__list_canvas_item.request_focus()
 
 
 class ListWidget(UserInterface.Widget):

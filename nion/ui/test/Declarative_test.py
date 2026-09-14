@@ -14,9 +14,11 @@ from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Model
 from nion.utils import Binding
+from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Selection
 
@@ -75,6 +77,18 @@ class ItemsHandler(Declarative.Handler):
             self.item_handlers.append(item_handler)
             return item_handler
         return None
+
+
+class ListViewHandler(ItemsHandler):
+    """A handler with an observable list of items displayed in a list view."""
+
+    def __init__(self, items: typing.Sequence[str]) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.list_model = ListModel.ListModel[str]("items", items=list(items))
+        self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+        self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
+                                          name="list_view")
 
 
 @contextlib.contextmanager
@@ -209,3 +223,49 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual(["b"], [item_handler.item for item_handler in handler.item_handlers if item_handler.closed])
                 list_canvas_item.close()
                 self.assertEqual(["a", "b", "c"], sorted(item_handler.item for item_handler in handler.item_handlers if item_handler.closed))
+
+    def test_list_view_constructs_an_item_component_for_each_item(self) -> None:
+        # tests that a declarative list view description constructs the item component for each item of the list.
+        with event_loop_context() as event_loop:
+            handler = ListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertIsInstance(handler.list_view, Widgets.ListViewWidget)
+                self.assertEqual(["a", "b", "c"], [item_handler.item for item_handler in handler.item_handlers])
+
+    def test_list_view_follows_inserts_and_removes(self) -> None:
+        # tests that changing the observable list adds and removes item components rather than rebuilding the list.
+        with event_loop_context() as event_loop:
+            handler = ListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                first_item_handler = handler.item_handlers[0]
+                handler.list_model.insert_item(1, "b2")
+                self.assertEqual(["a", "b", "c", "b2"], [item_handler.item for item_handler in handler.item_handlers])
+                handler.list_model.remove_item(2)
+                self.assertEqual(["b"], [item_handler.item for item_handler in handler.item_handlers if item_handler.closed])
+                # the surviving items keep their original handlers; only the removed item is torn down.
+                self.assertEqual(first_item_handler, handler.item_handlers[0])
+                self.assertFalse(first_item_handler.closed)
+
+    def test_list_view_closes_item_handlers_when_closed(self) -> None:
+        # tests that closing the widget releases the item handlers, following the canvas item hierarchy.
+        with event_loop_context() as event_loop:
+            handler = ListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            widget.close()
+            self.assertEqual(["a", "b", "c"], sorted(item_handler.item for item_handler in handler.item_handlers if item_handler.closed))
+
+    def test_list_view_lays_out_one_row_per_item(self) -> None:
+        # tests that the constructed list actually lays out its items, one row of item_height for each item.
+        with event_loop_context() as event_loop:
+            handler = ListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=60), list_canvas_item.canvas_size)
+                handler.list_model.remove_item(0)
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=40), list_canvas_item.canvas_size)

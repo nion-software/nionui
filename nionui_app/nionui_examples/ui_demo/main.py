@@ -25,6 +25,7 @@ from . import Groups
 from . import Layout
 from . import LineEdits
 from . import ListBoxes
+from . import ListViews
 from . import ProgressBars
 from . import RadioButtons
 from . import ScrollAreas
@@ -72,6 +73,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (Groups, "groups", _("Groups")),
         (LineEdits, "line_edits", _("Line Edits")),
         (ListBoxes, "list_boxes", _("List Boxes")),
+        (ListViews, "list_views", _("List Views")),
         (ProgressBars, "progress_bars", _("Progress Bars")),
         (RadioButtons, "radio_buttons", _("Radio Buttons")),
         (ScrollAreas, "scroll_areas", _("Scroll Areas")),

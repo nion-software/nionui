@@ -46,6 +46,28 @@ def make_list_canvas_item(*, item_width: typing.Optional[int] = None, item_heigh
     return ListCanvasItem.ListCanvasItem2(list_model, selection, item_factory, GridFlowCanvasItem.GridFlowCanvasItemDelegate(), item_width=item_width, item_height=item_height, key="items")
 
 
+class TrackingItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
+    """An item factory that records which items have been created and destroyed."""
+
+    def __init__(self) -> None:
+        self.created_items = list[typing.Any]()
+        self.destroyed_items = list[typing.Any]()
+        self.__items_by_canvas_item = dict[CanvasItem.AbstractCanvasItem, typing.Any]()
+
+    @property
+    def live_items(self) -> typing.List[typing.Any]:
+        return list(self.__items_by_canvas_item.values())
+
+    def create(self, item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+        canvas_item = CanvasItem.EmptyCanvasItem()
+        self.created_items.append(item)
+        self.__items_by_canvas_item[canvas_item] = item
+        return canvas_item
+
+    def destroy(self, item_canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        self.destroyed_items.append(self.__items_by_canvas_item.pop(item_canvas_item))
+
+
 class TestListCanvasItemClass(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -99,3 +121,44 @@ class TestListCanvasItemClass(unittest.TestCase):
         self.assertEqual(list_canvas_item.canvas_size, Geometry.IntSize(width=2000, height=300))
         scroll_area_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=400, height=500))
         self.assertEqual(list_canvas_item.canvas_size, Geometry.IntSize(width=2000, height=500))
+
+    def test_item_factory_destroy_is_called_when_item_is_removed(self) -> None:
+        # the factory may associate resources with the canvas item (a handler, listeners) that are not part of the
+        # canvas item hierarchy; removing an item from the list model must give the factory a chance to release them.
+        factory = TrackingItemFactory()
+        list_model = ListModel.ListModel[int]("items", items=[0, 1, 2])
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), factory,
+                                                          GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                          item_height=20, key="items")
+        self.assertEqual([0, 1, 2], factory.created_items)
+        self.assertEqual([], factory.destroyed_items)
+        list_model.remove_item(1)
+        self.assertEqual([1], factory.destroyed_items)
+        self.assertEqual([0, 2], factory.live_items)
+        list_canvas_item.close()
+
+    def test_item_factory_destroy_is_called_for_remaining_items_when_closed(self) -> None:
+        factory = TrackingItemFactory()
+        list_model = ListModel.ListModel[int]("items", items=[0, 1, 2])
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), factory,
+                                                          GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                          item_height=20, key="items")
+        list_canvas_item.close()
+        self.assertEqual([0, 1, 2], sorted(factory.destroyed_items))
+        self.assertEqual([], factory.live_items)
+
+    def test_plain_callable_item_factory_still_works(self) -> None:
+        # a factory supplied as a plain create-callable remains valid; it simply has no destroy behavior.
+        created_items = list[int]()
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            created_items.append(item)
+            return CanvasItem.EmptyCanvasItem()
+
+        list_model = ListModel.ListModel[int]("items", items=[0, 1, 2])
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory,
+                                                          GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                          item_height=20, key="items")
+        self.assertEqual([0, 1, 2], created_items)
+        list_model.remove_item(1)
+        list_canvas_item.close()

@@ -54,6 +54,8 @@ class ItemHandler(Declarative.Handler):
         self.item = item
         self.initialized = False
         self.closed = False
+        # the list view replaces this with a model tracking whether the item is selected.
+        self.is_selected_model = Model.PropertyModel(False)
         self.ui_view = u.create_row(u.create_label(text=item), u.create_stretch())
 
     def init_handler(self) -> None:
@@ -353,3 +355,104 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual(1, handler.escape_count)
                 list_canvas_item._grid_flow_item_canvas_items[2].context_menu_event(5, 5, 105, 205)
                 self.assertEqual([2], handler.context_menu_indexes)
+
+    def test_list_view_exposes_the_item_selection_to_the_item_component(self) -> None:
+        # tests that each item component can see whether its item is selected, so that it can display it differently.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                # the current index binding selects the first item.
+                self.assertEqual([True, False, False], [item_handler.is_selected_model.value for item_handler in handler.item_handlers])
+                list_canvas_item.simulate_click(Geometry.IntPoint(y=50, x=10))
+                self.assertEqual([False, False, True], [item_handler.is_selected_model.value for item_handler in handler.item_handlers])
+
+    def test_list_view_uses_the_component_from_the_handler_resources(self) -> None:
+        # tests the resources path: the item component content comes from the handler resources and there is no item
+        # handler at all, which is the case when the items need no behavior of their own.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_model = ListModel.ListModel[str]("items", items=["a", "b"])
+                self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+                self.resources = {"item": u.define_component(content=u.create_label(text="item"))}
+                self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item",
+                                                  item_height=20, name="list_view")
+
+            def create_handler(self, component_id: str, **kwargs: typing.Any) -> typing.Optional[Declarative.Handler]:
+                return None
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=40), list_canvas_item.canvas_size)
+                handler.list_model.remove_item(0)
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=20), list_canvas_item.canvas_size)
+
+    def test_list_view_allows_a_different_component_per_item(self) -> None:
+        # tests that the item handler chooses the ui view, so items of different kinds can be displayed differently.
+        u = Declarative.DeclarativeUI()
+
+        class RowHandler(Declarative.Handler):
+            def __init__(self, item: str) -> None:
+                super().__init__()
+                self.item = item
+                self.ui_view = u.create_label(text=item) if item.startswith("label") else u.create_push_button(text=item)
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_model = ListModel.ListModel[str]("items", items=["label-a", "button-b"])
+                self.row_handlers: typing.List[RowHandler] = list()
+                self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+                self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item",
+                                                  item_height=20, name="list_view")
+
+            def create_handler(self, component_id: str, item: typing.Any = None,
+                               container: typing.Any = None, **kwargs: typing.Any) -> typing.Optional[RowHandler]:
+                row_handler = RowHandler(item)
+                self.row_handlers.append(row_handler)
+                return row_handler
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertEqual(["label-a", "button-b"], [row_handler.item for row_handler in handler.row_handlers])
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_view._list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=40), list_view._list_canvas_item.canvas_size)
+
+    def test_list_view_selection_style_allows_multiple_selection(self) -> None:
+        # tests that the selection style reaches the selection; the default style allows only one item at a time.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(ItemsHandler):
+            def __init__(self, selection_style: typing.Optional[str]) -> None:
+                super().__init__()
+                self.list_model = ListModel.ListModel[str]("items", items=["a", "b", "c"])
+                self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+                self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
+                                                  name="list_view", selection_style=selection_style)
+
+        with event_loop_context() as event_loop:
+            for selection_style, expected_indexes in (("multiple", {0, 1}), (None, {1})):
+                handler = Handler(selection_style)
+                widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+                with contextlib.closing(widget):
+                    list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                    list_canvas_item = list_view._list_canvas_item
+                    list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                    list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=10))
+                    list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=10), CanvasItem.KeyboardModifiers(shift=True))
+                    self.assertEqual(expected_indexes, list_view.selection.indexes)

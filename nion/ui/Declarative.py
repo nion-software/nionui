@@ -1030,6 +1030,10 @@ class DeclarativeUI:
         The `items` reference names an observable list property on the handler, following the dotted path if one is
         given, e.g. `document.entries`. The list must send `item_inserted_event` and `item_removed_event` so that the
         list view can add and remove the item components as the list changes.
+
+        Each item handler is given an `is_selected_model` property, a boolean property model tracking whether its item
+        is selected. An item component can bind to it, e.g. `@binding(is_selected_model.value)`, to display the item
+        differently when it is selected.
         """
         d: UIDescriptionResult = {"type": "list_view"}
         if name is not None:
@@ -1615,6 +1619,9 @@ class DeclarativeItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
     `component_id`, `item`, and `container`; if the resulting handler defines `ui_view`, that is used as the component
     content instead.
 
+    The component handler is given an `is_selected_model` property before it is constructed, so that the component
+    can bind to the selection state of its item.
+
     The component is constructed against a `CanvasUserInterface` so that it reduces to a canvas item, which is what
     the list canvas item is able to display for an item. This is independent of the backend of the `ui` passed in:
     the list canvas item is drawn within a canvas widget in either case.
@@ -1657,6 +1664,10 @@ class DeclarativeItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
         if component_handler:
             setattr(component_handler, "_closer", Closer())
             getattr(handler, "_closer").push_closeable(component_handler)
+            # give the component access to the selection state of its item, so that the item can be displayed
+            # differently when selected. this is set before the component is constructed so that the component can
+            # bind to it, e.g. `@binding(is_selected_model.value)`.
+            setattr(component_handler, "is_selected_model", is_selected_model)
             component_content = getattr(component_handler, "ui_view", component_content)
         assert component_content, f"missing component content {item_component_id=}"
         item_finishes: _FinishesListType = list()

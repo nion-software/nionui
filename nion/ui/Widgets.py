@@ -9,6 +9,7 @@ import abc
 import gettext
 import functools
 import typing
+import weakref
 
 # local libraries
 from nion.ui import Bitmap
@@ -728,6 +729,39 @@ class ListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
         raise NotImplementedError()
 
 
+class ListViewCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+    """Route the list canvas item events to the list view widget callbacks."""
+
+    def __init__(self, list_view_widget: ListViewWidget) -> None:
+        # the widget owns the canvas item, which owns the delegate; keep a weak reference back to the widget.
+        self.__list_view_widget_ref = weakref.ref(list_view_widget)
+
+    @property
+    def __list_view_widget(self) -> typing.Optional[ListViewWidget]:
+        return self.__list_view_widget_ref()
+
+    def key_pressed_event(self, key_event: GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent) -> bool:
+        # note: the canvas item offers return to select_event first and only sends the key here if it went unhandled,
+        # so handling return here (rather than in select_event) keeps a double click, which also passes through
+        # select_event, from reporting the item as chosen twice.
+        list_view_widget = self.__list_view_widget
+        if list_view_widget:
+            if key_event.key.is_escape:
+                return list_view_widget._handle_escape_pressed()
+            if key_event.key.is_enter_or_return:
+                return list_view_widget._handle_item_selected(key_event.item)
+        return False
+
+    def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
+        # sent for every double click, including one on an already selected item.
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._handle_item_selected(double_clicked_event.item) if list_view_widget else False
+
+    def context_menu_event(self, context_menu_event: GridFlowCanvasItem.GridFlowCanvasItemContextMenuEvent) -> bool:
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._handle_context_menu(context_menu_event.item, context_menu_event.p, context_menu_event.gp) if list_view_widget else False
+
+
 class ListViewWidget(UserInterface.Widget):
     """A widget with a list in a scroll bar, where each item is displayed using a canvas item from an item factory.
 
@@ -747,9 +781,16 @@ class ListViewWidget(UserInterface.Widget):
                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget()
         super().__init__(CompositeWidgetBehavior(column_widget))
+        self.on_selection_changed: typing.Optional[typing.Callable[[typing.AbstractSet[int]], None]] = None
+        self.on_item_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_item_selected: typing.Optional[typing.Callable[[int], bool]] = None
+        self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
+        self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None
+        self.__list_model = list_model
         self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, self.__selection, item_factory,
-                                                                 GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                                 ListViewCanvasItemDelegate(self),
                                                                  item_height=item_height, key=key)
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         scroll_area_canvas_item.auto_resize_contents = True
@@ -765,9 +806,95 @@ class ListViewWidget(UserInterface.Widget):
         column_widget.add(canvas_widget)
         self.__canvas_widget = canvas_widget
 
+        def set_current_index(index: typing.Optional[int]) -> None:
+            if index is not None:
+                self.__selection.set(index)
+            else:
+                self.__selection.clear()
+
+        def validate_current_index(new_value: typing.Optional[int], old_value: typing.Optional[int]) -> typing.Optional[int]:
+            return new_value if new_value is not None and 0 <= new_value < len(self.__list_model.items) else None
+
+        self.__current_index_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[int]](None, set_current_index, validate_current_index)
+
+        def selection_changed() -> None:
+            current_index = self.__selection.current_index
+            self.__current_index_binding_helper.value_changed(current_index or 0)
+            if callable(self.on_selection_changed):
+                self.on_selection_changed(self.__selection.indexes)
+            if callable(self.on_item_changed):
+                self.on_item_changed(current_index or 0)
+
+        self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
+
+        self.current_index = self.__selection.current_index
+
+    def close(self) -> None:
+        self.__selection_changed_event_listener.close()
+        self.__selection_changed_event_listener = typing.cast(typing.Any, None)
+        self.__current_index_binding_helper.close()
+        self.__current_index_binding_helper = typing.cast(typing.Any, None)
+        self.on_selection_changed = None
+        self.on_item_changed = None
+        self.on_item_selected = None
+        self.on_escape_pressed = None
+        self.on_return_pressed = None
+        self.on_item_handle_context_menu = None
+        super().close()
+
+    def __index_for_item(self, item: typing.Any) -> typing.Optional[int]:
+        # the delegate reports the item, but the callbacks are defined in terms of the index, matching ListWidget.
+        # compare by identity first so that a list of equal-but-distinct items still reports the right index.
+        items = self.__list_model.items
+        for index, list_item in enumerate(items):
+            if list_item is item:
+                return index
+        for index, list_item in enumerate(items):
+            if list_item == item:
+                return index
+        return None
+
+    def _handle_item_selected(self, item: typing.Any) -> bool:
+        # the item was chosen, by double click or by pressing return.
+        index = self.__index_for_item(item)
+        handled = False
+        if index is not None and callable(self.on_item_selected):
+            handled = bool(self.on_item_selected(index))
+        if callable(self.on_return_pressed):
+            handled = bool(self.on_return_pressed()) or handled
+        return handled
+
+    def _handle_escape_pressed(self) -> bool:
+        if callable(self.on_escape_pressed):
+            return bool(self.on_escape_pressed())
+        return False
+
+    def _handle_context_menu(self, item: typing.Any, p: Geometry.IntPoint, gp: Geometry.IntPoint) -> bool:
+        if callable(self.on_item_handle_context_menu):
+            return bool(self.on_item_handle_context_menu(index=self.__index_for_item(item), x=p.x, y=p.y, gx=gp.x, gy=gp.y))
+        return False
+
     @property
     def selection(self) -> Selection.IndexedSelection:
         return self.__selection
+
+    @property
+    def selected_items(self) -> typing.AbstractSet[int]:
+        return self.__selection.indexes
+
+    @property
+    def current_index(self) -> typing.Optional[int]:
+        return self.__current_index_binding_helper.value
+
+    @current_index.setter
+    def current_index(self, index: typing.Optional[int]) -> None:
+        self.__current_index_binding_helper.value = index
+
+    def bind_current_index(self, binding: Binding.Binding) -> None:
+        self.__current_index_binding_helper.bind_value(binding)
+
+    def unbind_current_index(self) -> None:
+        self.__current_index_binding_helper.unbind_value()
 
     @property
     def _list_canvas_item(self) -> ListCanvasItem.ListCanvasItem2:

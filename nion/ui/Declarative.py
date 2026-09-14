@@ -994,6 +994,12 @@ class DeclarativeUI:
                          item_component_id: typing.Optional[str] = None,
                          item_height: typing.Optional[UIPoints] = None,
                          selection_style: typing.Optional[str] = None,
+                         current_index: typing.Optional[UIIdentifier] = None,
+                         on_item_changed: typing.Optional[UICallableIdentifier] = None,
+                         on_item_selected: typing.Optional[UICallableIdentifier] = None,
+                         on_escape_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_return_pressed: typing.Optional[UICallableIdentifier] = None,
+                         on_item_handle_context_menu: typing.Optional[UICallableIdentifier] = None,
                          **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a list view UI description with items, an item component, and the item height.
 
@@ -1011,6 +1017,12 @@ class DeclarativeUI:
             item_component_id: identifier of the component describing an item (required)
             item_height: height of each item in points (required)
             selection_style: one of "none", "single", "single_or_none" (default), or "multiple"
+            current_index: current index handler reference (bindable, optional)
+            on_item_changed: callback when the current item changes (optional)
+            on_item_selected: callback when an item is chosen, by double click or return (optional)
+            on_escape_pressed: callback when escape is pressed, return true if handled (optional)
+            on_return_pressed: callback when return is pressed, return true if handled (optional)
+            on_item_handle_context_menu: callback to display context menu, passes gx, gy, index (optional)
 
         Returns:
             UI description of the list view
@@ -1030,6 +1042,18 @@ class DeclarativeUI:
             d["item_height"] = item_height
         if selection_style is not None:
             d["selection_style"] = selection_style
+        if current_index is not None:
+            d["current_index"] = current_index
+        if on_item_changed is not None:
+            d["on_item_changed"] = on_item_changed
+        if on_item_selected is not None:
+            d["on_item_selected"] = on_item_selected
+        if on_escape_pressed is not None:
+            d["on_escape_pressed"] = on_escape_pressed
+        if on_return_pressed is not None:
+            d["on_return_pressed"] = on_return_pressed
+        if on_item_handle_context_menu is not None:
+            d["on_item_handle_context_menu"] = on_item_handle_context_menu
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1812,6 +1836,12 @@ def construct_list_view(ui: UserInterface.UserInterface, window: Window.Window, 
                                     properties=properties)
     if handler:
         connect_name(widget, d, handler)
+        connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)
+        connect_event(widget, widget, d, handler, "on_item_changed", ["current_index"])
+        connect_event(widget, widget, d, handler, "on_item_selected", ["current_index"])
+        connect_event(widget, widget, d, handler, "on_escape_pressed", [])
+        connect_event(widget, widget, d, handler, "on_return_pressed", [])
+        connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
         connect_attributes(widget, d, handler, finishes)
     return widget
 

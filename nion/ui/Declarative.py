@@ -1776,36 +1776,13 @@ def construct_component(ui: UserInterface.UserInterface, window: Window.Window, 
 
 
 def construct_list_box(ui: UserInterface.UserInterface, d: UIDescription, handler: HandlerLike,
-                       finishes: _FinishesListType) -> Widgets.ListWidget:
+                       finishes: _FinishesListType) -> Widgets.StringListViewWidget:
+    # a list box is a list view whose items are displayed as lines of text. the string list view widget supplies that
+    # item display, so the two share one list implementation.
     items = d.get("items", None)
     properties = construct_sizing_properties(d)
-
-    class ListBoxDelegate(Widgets.StringListCanvasItemDelegate):
-        def __init__(self) -> None:
-            super().__init__()
-            self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None
-
-        def item_tool_tip(self, index: int) -> typing.Optional[str]:
-            return typing.cast(typing.Optional[str], getattr(self.items[index], "tool_tip", None))
-
-        def context_menu_event(self, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
-            if callable(self.on_item_handle_context_menu):
-                self.on_item_handle_context_menu(index=index, x=x, y=y, gx=gx, gy=gy)
-            return False
-
-    list_box_delegate = ListBoxDelegate()
-    widget = Widgets.ListWidget(ui, list_box_delegate, items=items, selection_style=Selection.Style.single_or_none,
-                                border_color="#888", properties=properties)
-    widget.on_item_handle_context_menu = None
-
-    def trampoline_handle_context_menu(*args: typing.Any, **kwargs: typing.Any) -> bool:
-        # this will be called from the delegate when the delegate gets a context menu event.
-        # the call is passed on to the widget on_item_handle_context_menu function.
-        if callable(widget.on_item_handle_context_menu):
-            return widget.on_item_handle_context_menu(*args, **kwargs)
-        return False
-
-    list_box_delegate.on_item_handle_context_menu = trampoline_handle_context_menu
+    widget = Widgets.StringListViewWidget(ui, items=items, selection_style=Selection.Style.single_or_none,
+                                          border_color="#888", properties=properties)
     if handler:
         connect_name(widget, d, handler)
         # note: items_ref connects before current_index so that current_index can be valid

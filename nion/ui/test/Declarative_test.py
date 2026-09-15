@@ -456,3 +456,117 @@ class TestCanvasItemClass(unittest.TestCase):
                     list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=10))
                     list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=10), CanvasItem.KeyboardModifiers(shift=True))
                     self.assertEqual(expected_indexes, list_view.selection.indexes)
+
+    def test_list_box_displays_its_items_as_text(self) -> None:
+        # tests that a list box displays one row of text per item, which is what a list box is.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_box: typing.Optional[Widgets.StringListViewWidget] = None
+                self.ui_view = u.create_list_box(items=["Alpha", "Beta", "Gamma"], name="list_box")
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_box = typing.cast(Widgets.StringListViewWidget, handler.list_box)
+                self.assertEqual(["Alpha", "Beta", "Gamma"], list(list_box.items))
+                list_canvas_item = list_box._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=200))
+                self.assertEqual(Geometry.IntSize(width=200, height=60), list_canvas_item.canvas_size)
+                row_canvas_items = [typing.cast(CanvasItem.TextCanvasItem, row._canvas_item) for row in list_canvas_item._grid_flow_item_canvas_items]
+                self.assertEqual(["Alpha", "Beta", "Gamma"], [row_canvas_item.text for row_canvas_item in row_canvas_items])
+
+    def test_list_box_items_ref_updates_only_the_rows_that_changed(self) -> None:
+        # tests that assigning the items updates the list in place, so that unchanged rows are left alone.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.items_model = Model.PropertyModel[typing.List[str]](["Alpha", "Beta"])
+                self.list_box: typing.Optional[Widgets.StringListViewWidget] = None
+                self.ui_view = u.create_list_box(items_ref="@binding(items_model.value)", name="list_box")
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_box = typing.cast(Widgets.StringListViewWidget, handler.list_box)
+                list_canvas_item = list_box._list_canvas_item
+                first_row = list_canvas_item._grid_flow_item_canvas_items[0]
+                handler.items_model.value = ["Alpha", "Beta", "Gamma"]
+                rows = list_canvas_item._grid_flow_item_canvas_items
+                self.assertEqual(3, len(rows))
+                self.assertEqual(first_row, rows[0])
+                self.assertEqual("Gamma", typing.cast(CanvasItem.TextCanvasItem, rows[2]._canvas_item).text)
+                handler.items_model.value = ["Alpha"]
+                self.assertEqual(1, len(list_canvas_item._grid_flow_item_canvas_items))
+
+    def test_list_box_current_index_and_item_selected(self) -> None:
+        # tests that a list box still reports the current index and the chosen item to its handler.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.current_index_model = Model.PropertyModel(0)
+                self.selected_indexes: typing.List[int] = list()
+                self.escape_count = 0
+                self.list_box: typing.Optional[Widgets.StringListViewWidget] = None
+                self.ui_view = u.create_list_box(items=["Alpha", "Beta", "Gamma"], name="list_box",
+                                                 current_index="@binding(current_index_model.value)",
+                                                 on_item_selected="item_selected",
+                                                 on_escape_pressed="escape_pressed")
+
+            def item_selected(self, widget: Declarative.UIWidget, current_index: int) -> bool:
+                self.selected_indexes.append(current_index)
+                return True
+
+            def escape_pressed(self, widget: Declarative.UIWidget) -> bool:
+                self.escape_count += 1
+                return True
+
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = Handler()
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_box = typing.cast(Widgets.StringListViewWidget, handler.list_box)
+                list_canvas_item = list_box._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=200))
+                list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=10))
+                self.assertEqual(1, handler.current_index_model.value)
+                list_canvas_item.key_pressed(ui.create_key_by_id("return"))
+                self.assertEqual([1], handler.selected_indexes)
+                list_canvas_item.key_pressed(ui.create_key_by_id("escape"))
+                self.assertEqual(1, handler.escape_count)
+
+    def test_list_box_item_tool_tips(self) -> None:
+        # tests that an item carrying a tool tip still supplies it to its row.
+        u = Declarative.DeclarativeUI()
+
+        class Item:
+            def __init__(self, text: str, tool_tip: str) -> None:
+                self.text = text
+                self.tool_tip = tool_tip
+
+            def __str__(self) -> str:
+                return self.text
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_box: typing.Optional[Widgets.StringListViewWidget] = None
+                self.ui_view = u.create_list_box(items=[Item("Alpha", "the first one")], name="list_box")
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_box = typing.cast(Widgets.StringListViewWidget, handler.list_box)
+                row = list_box._list_canvas_item._grid_flow_item_canvas_items[0]
+                self.assertEqual("Alpha", typing.cast(CanvasItem.TextCanvasItem, row._canvas_item).text)
+                self.assertEqual("the first one", row.tool_tip)

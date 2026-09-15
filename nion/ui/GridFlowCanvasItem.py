@@ -343,6 +343,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             grid_flow_item_canvas_item = GridFlowItemCanvasItem(self, item, self.__item_factory)
+            # a new item starts out unfocused; give it the focus state of the list, the way _set_focused does for the
+            # items already present, so that selecting a newly inserted item draws it as selected and focused.
+            grid_flow_item_canvas_item.is_focused = self.focused
             with self.batch_update():
                 self.insert_canvas_item(index, grid_flow_item_canvas_item)
                 self.__grid_flow_item_canvas_items.insert(index, grid_flow_item_canvas_item)

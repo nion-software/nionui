@@ -162,3 +162,16 @@ class TestListCanvasItemClass(unittest.TestCase):
         self.assertEqual([0, 1, 2], created_items)
         list_model.remove_item(1)
         list_canvas_item.close()
+
+    def test_item_inserted_while_focused_is_focused(self) -> None:
+        # an item inserted into a focused list must be focused like the items already there; otherwise selecting the
+        # new item draws it with the unfocused selection color even though the list has focus.
+        list_model = ListModel.ListModel[int]("items", items=[0, 1])
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(),
+                                                          TrackingItemFactory(),
+                                                          GridFlowCanvasItem.GridFlowCanvasItemDelegate(),
+                                                          item_height=20, key="items")
+        list_canvas_item._set_focused(True)
+        list_model.append_item(2)
+        self.assertEqual([True, True, True], [item_canvas_item.is_focused for item_canvas_item in list_canvas_item._grid_flow_item_canvas_items])
+        list_canvas_item.close()

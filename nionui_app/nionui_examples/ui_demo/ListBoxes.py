@@ -15,7 +15,7 @@ class Handler(Declarative.Handler):
         self.status_model = Model.PropertyModel("")
         self.__next_item_index = 5
 
-    def item_selected(self, widget: Widgets.ListWidget, current_index: int) -> None:
+    def item_selected(self, widget: Widgets.StringListViewWidget, current_index: int) -> None:
         items = self.items_model.value or list()
         text = items[current_index] if 0 <= current_index < len(items) else None
         self.status_model.value = f"Selected: {text}"
@@ -33,7 +33,7 @@ class Handler(Declarative.Handler):
             del items[current_index]
             self.items_model.value = items
 
-    def item_context_menu(self, widget: Widgets.ListWidget, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
+    def item_context_menu(self, widget: Widgets.StringListViewWidget, index: typing.Optional[int], x: int, y: int, gx: int, gy: int) -> bool:
         self.status_model.value = f"Context menu requested for item {index}"
         return True
 

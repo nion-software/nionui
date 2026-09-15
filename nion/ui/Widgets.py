@@ -752,6 +752,10 @@ class ListViewCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
                 return list_view_widget._handle_item_selected(key_event.item)
         return False
 
+    def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._get_item_tool_tip(item) if list_view_widget else None
+
     def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
         # sent for every double click, including one on an already selected item.
         list_view_widget = self.__list_view_widget
@@ -869,6 +873,14 @@ class ListViewWidget(UserInterface.Widget):
             return bool(self.on_escape_pressed())
         return False
 
+    def _get_item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
+        # items may carry their own tool tip; subclasses can override to get it from somewhere else.
+        return typing.cast(typing.Optional[str], getattr(item, "tool_tip", None))
+
+    def set_selected_index(self, index: int) -> None:
+        self.__selection.set(index)
+        self.__list_canvas_item.make_selection_visible()
+
     def _handle_context_menu(self, item: typing.Any, p: Geometry.IntPoint, gp: Geometry.IntPoint) -> bool:
         if callable(self.on_item_handle_context_menu):
             return bool(self.on_item_handle_context_menu(index=self.__index_for_item(item), x=p.x, y=p.y, gx=gp.x, gy=gp.y))
@@ -907,6 +919,76 @@ class ListViewWidget(UserInterface.Widget):
     @focused.setter
     def focused(self, focused: bool) -> None:
         self.__list_canvas_item.request_focus()
+
+
+class StringListViewWidget(ListViewWidget):
+    """A list view displaying each item as a line of text.
+
+    This is the list view equivalent of StringListWidget: the items are strings, or objects with a string conversion,
+    and each one is displayed by a text canvas item rather than being painted by a delegate. An item may carry a
+    `tool_tip` attribute.
+
+    The items are supplied as a sequence, which can also be bound. Assigning the items updates the underlying list
+    model in place, so that the rows which are unchanged are left alone.
+    """
+
+    def __init__(self, ui: UserInterface.UserInterface, *,
+                 items: typing.Optional[typing.Sequence[typing.Any]] = None,
+                 item_getter: typing.Optional[typing.Callable[[typing.Any], str]] = None,
+                 item_height: int = 20,
+                 selection_style: typing.Optional[Selection.Style] = None,
+                 selection: typing.Optional[Selection.IndexedSelection] = None,
+                 border_color: typing.Optional[str] = None, v_scroll_enabled: bool = True,
+                 properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
+        list_model = ListModel.ListModel[typing.Any]("items")
+        item_getter_ = item_getter or (lambda x: str(x))
+        text_measure = typing.cast(CanvasItem.TextMeasure, ui)
+
+        def item_factory(item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
+            # the appearance the string list delegate painted: black text, inset from the left edge of the row.
+            return CanvasItem.TextCanvasItem(item_getter_(item), padding=Geometry.IntSize(height=0, width=4),
+                                             text_font="12px", text_color="#000", text_align="left",
+                                             text_baseline="middle", text_measure=text_measure)
+
+        super().__init__(ui, list_model, item_factory, item_height=item_height, key="items",
+                         selection_style=selection_style, selection=selection, border_color=border_color,
+                         v_scroll_enabled=v_scroll_enabled, properties=properties)
+        self.__string_list_model = list_model
+        self.__items_binding_helper = UserInterface.BindablePropertyHelper[typing.Sequence[typing.Any]](None, self.__set_items)
+        self.items = list(items) if items else list()
+
+    def close(self) -> None:
+        self.__items_binding_helper.close()
+        self.__items_binding_helper = typing.cast(typing.Any, None)
+        super().close()
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return self.__items_binding_helper.value
+
+    @items.setter
+    def items(self, items: typing.Sequence[typing.Any]) -> None:
+        self.__items_binding_helper.value = items
+
+    def bind_items(self, binding: Binding.Binding) -> None:
+        self.__items_binding_helper.bind_value(binding)
+
+    def unbind_items(self) -> None:
+        self.__items_binding_helper.unbind_value()
+
+    def __set_items(self, items: typing.Sequence[typing.Any]) -> None:
+        # update the list model in place so that the rows which have not changed keep their canvas items, and so that
+        # the selection tracks the change the same way it would for a list that sends its own insert/remove events.
+        list_model = self.__string_list_model
+        new_items = list(items)
+        for index in range(min(len(list_model.items), len(new_items))):
+            if list_model.items[index] != new_items[index]:
+                list_model.remove_item(index)
+                list_model.insert_item(index, new_items[index])
+        while len(list_model.items) > len(new_items):
+            list_model.remove_item(len(list_model.items) - 1)
+        for index in range(len(list_model.items), len(new_items)):
+            list_model.insert_item(index, new_items[index])
 
 
 class ListWidget(UserInterface.Widget):

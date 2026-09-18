@@ -26,6 +26,7 @@ from . import Layout
 from . import LineEdits
 from . import ListBoxes
 from . import ListViews
+from . import Popups
 from . import ProgressBars
 from . import RadioButtons
 from . import ScrollAreas
@@ -40,7 +41,7 @@ from . import TextAreas
 _ = gettext.gettext
 
 
-class Handler(Declarative.Handler):
+class Handler(Declarative.WindowHandler):
 
     def __init__(self, page_list: typing.List[typing.Tuple[typing.Any, str, str]]) -> None:
         super().__init__()
@@ -55,7 +56,10 @@ class Handler(Declarative.Handler):
         if self.page_list and component_id:
             for page_cls, page_id, page_title in self.page_list:
                 if page_id == component_id:
-                    return typing.cast(Declarative.HandlerLike, page_cls.Handler())
+                    page_handler = page_cls.Handler()
+                    # a page which poses a popup needs the window, which it reaches through this handler.
+                    setattr(page_handler, "container_handler", self)
+                    return typing.cast(Declarative.HandlerLike, page_handler)
         return None
 
 
@@ -74,6 +78,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (LineEdits, "line_edits", _("Line Edits")),
         (ListBoxes, "list_boxes", _("List Boxes")),
         (ListViews, "list_views", _("List Views")),
+        (Popups, "popups", _("Popups")),
         (ProgressBars, "progress_bars", _("Progress Bars")),
         (RadioButtons, "radio_buttons", _("Radio Buttons")),
         (ScrollAreas, "scroll_areas", _("Scroll Areas")),
@@ -113,4 +118,12 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
 
     window = u.create_window(main_column, title=_("UI Demo"), margin=12, resources=resources)
 
-    return Application.run_window(args, bootstrap_args, window, handler)
+    # run the window through the handler so that the handler, and the pages it creates, can reach the window.
+    def start() -> bool:
+        handler.run(window, app=app)
+        return True
+
+    app = Application.BaseApplication(Application.make_ui(bootstrap_args), on_start=start)
+    app.initialize()
+
+    return app

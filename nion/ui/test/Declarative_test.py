@@ -102,7 +102,7 @@ class ListViewEventsHandler(ItemsHandler):
         u = Declarative.DeclarativeUI()
         self.list_model = ListModel.ListModel[str]("items", items=list(items))
         self.current_index_model = Model.PropertyModel(0)
-        self.changed_indexes: typing.List[int] = list()
+        self.changed_indexes: typing.List[typing.Optional[int]] = list()
         self.selected_indexes: typing.List[int] = list()
         self.context_menu_indexes: typing.List[typing.Optional[int]] = list()
         self.escape_count = 0
@@ -115,7 +115,7 @@ class ListViewEventsHandler(ItemsHandler):
                                           on_escape_pressed="escape_pressed",
                                           on_item_handle_context_menu="item_context_menu")
 
-    def item_changed(self, widget: Declarative.UIWidget, current_index: int) -> None:
+    def item_changed(self, widget: Declarative.UIWidget, current_index: typing.Optional[int]) -> None:
         self.changed_indexes.append(current_index)
 
     def item_selected(self, widget: Declarative.UIWidget, current_index: int) -> bool:
@@ -570,3 +570,40 @@ class TestCanvasItemClass(unittest.TestCase):
                 row = list_box._list_canvas_item._grid_flow_item_canvas_items[0]
                 self.assertEqual("Alpha", typing.cast(CanvasItem.TextCanvasItem, row._canvas_item).text)
                 self.assertEqual("the first one", row.tool_tip)
+
+    def test_list_view_current_index_follows_a_removal_before_the_selected_item(self) -> None:
+        # tests that removing an item ahead of the selected one keeps the same item selected, with the index moved to
+        # where that item now is. the selection is adjusted by the list, so the bound index has to follow it.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                handler.current_index_model.value = 2
+                handler.list_model.remove_item(0)
+                self.assertEqual(1, handler.current_index_model.value)
+                self.assertEqual({1}, list_view.selection.indexes)
+
+    def test_list_view_current_index_is_cleared_when_the_selected_item_is_removed(self) -> None:
+        # tests that removing the selected item leaves nothing selected and reports it, rather than leaving the bound
+        # index pointing at an item which is no longer there.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                handler.current_index_model.value = 2
+                handler.list_model.remove_item(2)
+                self.assertIsNone(handler.current_index_model.value)
+                self.assertEqual(set(), list_view.selection.indexes)
+                self.assertIsNone(handler.changed_indexes[-1])
+
+    def test_list_view_current_index_is_cleared_when_the_last_item_is_removed(self) -> None:
+        # tests the empty list: nothing can be selected, so the bound index is nothing.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertEqual(0, handler.current_index_model.value)
+                handler.list_model.remove_item(0)
+                self.assertIsNone(handler.current_index_model.value)

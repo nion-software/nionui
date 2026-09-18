@@ -1575,24 +1575,69 @@ class ItemsListModel(ListModel.ListModelLike):
         return typing.cast(typing.Sequence[typing.Any], getattr(self.__container, self.__items_key))
 
 
+def construct_item_component(ui: UserInterface.UserInterface, window: Window.Window, handler: HandlerLike,
+                             item_component_id: str, item: typing.Any, container: typing.Any, *,
+                             is_selected_model: typing.Optional[Model.PropertyModel[bool]] = None
+                             ) -> typing.Tuple[typing.Optional[HandlerLike], typing.Optional[UserInterface.Widget]]:
+    """Construct the component displaying an item, and return its handler and its widget.
+
+    The component is established using several techniques. First, if the handler responds to `get_resource`, it is
+    called with the `item_component_id`, `item`, and `container`; otherwise the `resources` map on the handler is
+    consulted. Either may supply the component content. Next, `create_handler` is called with the `component_id`,
+    `item`, and `container`; if the resulting handler defines `ui_view`, that is used as the component content
+    instead.
+
+    The component handler, when there is one, is given a closer linked to the closer of the container handler, and an
+    `is_selected_model` when one is supplied, before the component is constructed, so that the component can bind to
+    the selection state of its item. The handler is attached to the widget so that it can be retrieved from it.
+    """
+    component_content: typing.Optional[UIDescription] = None
+    component = None
+    if callable(getattr(handler, "get_resource", None)):
+        component = getattr(handler, "get_resource")(item_component_id, item=item, container=container)
+    component = component or getattr(handler, "resources", dict()).get(item_component_id)
+    if component:
+        assert component.get("type") == "component"
+        assert component.get("component_id", item_component_id) == item_component_id, "an item component may not be renamed"
+        # the component will have a content portion, which is a widget description. component events are ignored in
+        # this case.
+        component_content = component.get("content")
+    assert callable(getattr(handler, "create_handler", None))
+    # create the handler first, but don't initialize it.
+    component_handler = typing.cast(typing.Optional[HandlerLike],
+                                    getattr(handler, "create_handler")(component_id=item_component_id, item=item,
+                                                                       container=container))
+    # make and attach closer for the component handler and link it to the container handler.
+    if component_handler:
+        setattr(component_handler, "_closer", Closer())
+        getattr(handler, "_closer").push_closeable(component_handler)
+        if is_selected_model is not None:
+            setattr(component_handler, "is_selected_model", is_selected_model)
+        component_content = getattr(component_handler, "ui_view", component_content)
+    assert component_content, f"missing component content {item_component_id=}"
+    item_finishes: _FinishesListType = list()
+    # now construct the widget. construct tolerates a missing handler; it skips the handler connections.
+    widget = construct(ui, window, component_content, typing.cast(HandlerLike, component_handler), item_finishes)
+    # since the handler is custom to the widget, make a way to retrieve it from the widget
+    setattr(widget, "handler", component_handler)
+    for finish in item_finishes:
+        finish()
+    if component_handler:
+        setattr(component_handler, "_event_loop", window.event_loop)
+        init_handler = getattr(component_handler, "init_handler", None)
+        if callable(init_handler):
+            init_handler()
+    return component_handler, widget
+
+
 def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: UserInterface.BoxWidget | UserInterface.StackWidget,
                   handler: HandlerLike, items: str, item_component_id: str, is_column: bool = True, spacing: int | None = None,
                   deferred_stack_children: typing.Optional[DeferredStackChildren] = None) -> None:
     """Connect list of item components to container widget.
 
     Several declarative elements (columns, rows, stacks) take a list of item components. This method connects the item
-    components to the element.
-
-    When an item gets inserted, this method tries a few techniques to construct the content and handler.
-
-    First it checks whether the current handler responds to `get_resource` and calls it with the `item_component_id` to
-    establish a component. If not successful, it checks whether the `resources` map is defined on the current handler
-    and looks up the `item_component_id`. If either of those succeed, it establishes the `component_id` and
-    `component_content` from established component. Otherwise, it uses the `item_component_id` as the `component_id`
-    and continues.
-
-    Next, it calls `create_handler` with the established `component_id`, `container`, and `item`. If the handler defines a `ui_view`,
-    that is used as the `component_content`; otherwise the `component_content` established earlier is used.
+    components to the element, inserting and removing them as the list changes. The component for each item is
+    constructed by `construct_item_component`, which describes how the content and the handler are established.
 
     The preferred technique for dynamic content is to define `create_handler` to return a handler for the given
     `item_component_id` and associated `item` with a defined `ui_view` and do not define `get_resource` or `resources`
@@ -1625,43 +1670,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
                         item_wrapper_widget.remove(item_wrapper_widget.children[-1])
 
     def build_item_widget(item: typing.Any) -> typing.Optional[UserInterface.Widget]:
-        item_widget = None
-        component_id: typing.Optional[str]
-        component_content: typing.Optional[UIDescription] = None
-        component = None
-        if callable(getattr(handler, "get_resource", None)):
-            component = getattr(handler, "get_resource")(item_component_id, item=item, container=container)
-        component = component or getattr(handler, "resources", dict()).get(item_component_id)
-        if component:
-            assert component.get("type") == "component"
-            # the component will have a content portion, which is a widget description. component events are
-            # ignored in this case.
-            component_id = component.get("component_id", item_component_id)
-            component_content = component.get("content")
-        else:
-            component_id = item_component_id
-        if component_id:
-            assert component_id == item_component_id
-            assert callable(getattr(handler, "create_handler", None))
-            # create the handler first, but don't initialize it.
-            component_handler = getattr(handler, "create_handler")(component_id=component_id, item=item, container=container)
-            # make and attach closer for the component handler and link it to the container handler.
-            if component_handler:
-                component_handler._closer = Closer()
-                getattr(handler, "_closer").push_closeable(component_handler)
-                component_content = getattr(component_handler, "ui_view", component_content)
-            assert component_content, f"missing component content {component_id=}"
-            item_finishes: _FinishesListType = list()
-            # now construct the widget
-            item_widget = construct(ui, window, component_content, component_handler, item_finishes)
-            # since the handler is custom to the widget, make a way to retrieve it from the widget
-            setattr(item_widget, "handler", component_handler)
-            for finish in item_finishes:
-                finish()
-            component_handler._event_loop = window.event_loop
-            if callable(getattr(component_handler, "init_handler", None)):
-                component_handler.init_handler()
-        return item_widget
+        return construct_item_component(ui, window, handler, item_component_id, item, container)[1]
 
     def insert_item(index: int, item: typing.Any) -> None:
         # Wrap each item in its own row/column wrapper so spacing can be toggled independently.
@@ -1711,14 +1720,9 @@ class DeclarativeItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
     `item_component_id` for an item and returns the canvas item displaying it; `destroy` releases that component when
     its canvas item goes away, either because the item was removed from the list or because the list itself closed.
 
-    The component is established using the same techniques as `connect_items`. First, if the handler responds to
-    `get_resource`, it is called with the `item_component_id`, `item`, and `container`; otherwise the `resources` map
-    on the handler is consulted. Either may supply the component content. Next, `create_handler` is called with the
-    `component_id`, `item`, and `container`; if the resulting handler defines `ui_view`, that is used as the component
-    content instead.
-
-    The component handler is given an `is_selected_model` property before it is constructed, so that the component
-    can bind to the selection state of its item.
+    The component is constructed by `construct_item_component`, which describes how the content and the handler are
+    established, and which gives the handler the `is_selected_model` so that the component can bind to the selection
+    state of its item.
 
     The component is constructed against a `CanvasUserInterface` so that it reduces to a canvas item, which is what
     the list canvas item is able to display for an item. This is independent of the backend of the `ui` passed in:
@@ -1740,49 +1744,12 @@ class DeclarativeItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
 
     def create(self, item: typing.Any, is_selected_model: Model.PropertyModel[bool]) -> CanvasItem.AbstractCanvasItem:
         from nion.ui import CanvasUserInterface  # avoid circular reference
-        handler = self.__handler
-        item_component_id = self.__item_component_id
-        container = self.__container
-        component_content: typing.Optional[UIDescription] = None
-        component = None
-        if callable(getattr(handler, "get_resource", None)):
-            component = getattr(handler, "get_resource")(item_component_id, item=item, container=container)
-        component = component or getattr(handler, "resources", dict()).get(item_component_id)
-        if component:
-            assert component.get("type") == "component"
-            # the component will have a content portion, which is a widget description. component events are
-            # ignored in this case.
-            component_content = component.get("content")
-        assert callable(getattr(handler, "create_handler", None))
-        # create the handler first, but don't initialize it.
-        component_handler = typing.cast(typing.Optional[HandlerLike],
-                                        getattr(handler, "create_handler")(component_id=item_component_id, item=item,
-                                                                           container=container))
-        # make and attach closer for the component handler and link it to the container handler.
-        if component_handler:
-            setattr(component_handler, "_closer", Closer())
-            getattr(handler, "_closer").push_closeable(component_handler)
-            # give the component access to the selection state of its item, so that the item can be displayed
-            # differently when selected. this is set before the component is constructed so that the component can
-            # bind to it, e.g. `@binding(is_selected_model.value)`.
-            setattr(component_handler, "is_selected_model", is_selected_model)
-            component_content = getattr(component_handler, "ui_view", component_content)
-        assert component_content, f"missing component content {item_component_id=}"
-        item_finishes: _FinishesListType = list()
-        # now construct the widget
-        # construct tolerates a missing handler (it skips the handler connections), same as for other item components.
-        widget = construct(self.__ui, self.__window, component_content, typing.cast(HandlerLike, component_handler), item_finishes)
-        # since the handler is custom to the widget, make a way to retrieve it from the widget
-        setattr(widget, "handler", component_handler)
-        for finish in item_finishes:
-            finish()
-        if component_handler:
-            setattr(component_handler, "_event_loop", self.__window.event_loop)
-            init_handler = getattr(component_handler, "init_handler", None)
-            if callable(init_handler):
-                init_handler()
+        component_handler, widget = construct_item_component(self.__ui, self.__window, self.__handler,
+                                                             self.__item_component_id, item, self.__container,
+                                                             is_selected_model=is_selected_model)
+        assert widget
         canvas_item = CanvasUserInterface.extract_canvas_item(widget)
-        assert canvas_item, f"component {item_component_id} does not produce a canvas item."
+        assert canvas_item, f"component {self.__item_component_id} does not produce a canvas item."
         self.__components[canvas_item] = (component_handler, widget)
         return canvas_item
 

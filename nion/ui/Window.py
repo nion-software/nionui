@@ -405,6 +405,11 @@ class Window:
         # pass will return False
         return False
 
+    @property
+    def _dialogs(self) -> typing.Sequence[Window]:
+        """Return the dialogs which are open on this window."""
+        return [dialog for dialog in (weak_dialog() for weak_dialog in self.__dialogs) if dialog is not None]
+
     def _close_dialogs(self) -> None:
         # each window may have its own dialogs, but for the most part, this is used for the top level
         # windows. request close will trigger close which will remove items from __dialogs, so be sure

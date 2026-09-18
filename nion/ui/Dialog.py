@@ -265,7 +265,8 @@ def pose_select_item_popup(items: typing.Sequence[typing.Any],
     class Handler:
         def __init__(self) -> None:
             self.is_rejected = True
-            self.index_model = Model.PropertyModel(current_item)
+            # an index outside the items is no selection at all, rather than a selection which cannot be displayed.
+            self.index_model = Model.PropertyModel(current_item if 0 <= current_item < len(items) else None)
             self.item_list: typing.Optional[typing.Any] = None
 
         def close(self) -> None:
@@ -298,23 +299,29 @@ def pose_select_item_popup(items: typing.Sequence[typing.Any],
 
     from nion.ui import Declarative  # avoid circular reference
 
-    # calculate the max string width, add 10%, min 200, max 480
-    width = min(max(int(max([window.get_font_metrics("system", item_getter(c)).width for c in items]) * 1.10), 200), 480)
+    item_strings = [item_getter(c) for c in items]
+
+    # calculate the max string width, add 10%, min 200, max 480. there may be no items, in which case the minimum
+    # width is used.
+    item_widths = [window.get_font_metrics("system", item_string).width for item_string in item_strings]
+    width = min(max(int(max(item_widths, default=0) * 1.10), 200), 480)
 
     size, position = _get_popup_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
 
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Select Item")), u.create_stretch())
-    item_list = u.create_list_box(name="item_list", items=[item_getter(c) for c in items], width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
+    item_list = u.create_list_box(name="item_list", items=item_strings, width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
     button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Select"), on_clicked="handle_select"), spacing=8)
     column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
     popup = PopupWindow(window, column, ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
-        if not ui_handler.is_rejected:
-            computation = items[ui_handler.index_model.value or 0]
-            completion_fn(computation)
+        # complete with nothing when the popup was rejected, and also when nothing is selected, which is the case for
+        # an empty list of items.
+        index = ui_handler.index_model.value
+        if not ui_handler.is_rejected and index is not None and 0 <= index < len(items):
+            completion_fn(items[index])
         else:
             completion_fn(None)
         if callable(old_close):

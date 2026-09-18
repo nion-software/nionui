@@ -1368,9 +1368,10 @@ def run_window(d: UIDescription, handler: HandlerLike, *, app: typing.Optional[A
     window.title = title
     window.on_close = closer.close
     if parent_window:
+        # a window with a parent is a dialog of that window. a window without a parent is not a dialog: it is one of
+        # the windows which keep the application running, so registering it as a dialog would let the application quit
+        # as soon as any other window closed.
         parent_window.register_dialog(window)
-    elif app:
-        app.register_dialog(window)
     # make and attach closer for the handler; put handler into container closer
     setattr(handler, "_closer", Closer())
     closer.push_closeable(handler)

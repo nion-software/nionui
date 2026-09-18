@@ -2608,15 +2608,20 @@ class ProgressBarWidgetBehavior(CanvasWidgetBehavior, UserInterface.ProgressBarW
     pass
 
 
+def host_window(window: typing.Optional[UserInterface.Window]) -> typing.Optional[UserInterface.Window]:
+    """Return the window of the host user interface for a window, which may be a canvas window wrapping one.
+
+    The host user interface knows nothing about canvas windows, so a canvas window passed to it has to be unwrapped.
+    """
+    return window._root_window if isinstance(window, CanvasWindow) else window
+
+
 class CanvasWindow(UserInterface.Window):
 
     def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterface.Window] = None) -> None:
         super().__init__(parent_window, title or str())
         self.__ui = ui
-        # the parent may be another canvas window, which the user interface this window is displayed in knows nothing
-        # about. pass along the window it wraps instead.
-        parent_root_window = parent_window._root_window if isinstance(parent_window, CanvasWindow) else parent_window
-        self.__window = ui.create_document_window(title, parent_root_window)
+        self.__window = ui.create_document_window(title, host_window(parent_window))
         self.__window.on_periodic = self.periodic
         self.__window.on_size_changed = self.__window_size_changed
         # the host closes the window this one wraps; pass that along so that this window, and whatever is displaying
@@ -3072,10 +3077,10 @@ class CanvasUserInterface(UserInterface.UserInterface):
         return self.__ui.get_tolerance(tolerance_type)
 
     def create_context_menu(self, document_window: UserInterface.Window) -> UserInterface.Menu:
-        return self.__ui.create_context_menu(document_window)
+        return self.__ui.create_context_menu(typing.cast(UserInterface.Window, host_window(document_window)))
 
     def create_sub_menu(self, document_window: UserInterface.Window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
-        return self.__ui.create_sub_menu(document_window, title, menu_id)
+        return self.__ui.create_sub_menu(typing.cast(UserInterface.Window, host_window(document_window)), title, menu_id)
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         return self.__ui.get_color_dialog(title, color, show_alpha)

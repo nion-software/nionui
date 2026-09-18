@@ -180,7 +180,7 @@ class MimeData(UserInterfaceModule.MimeData):
         return file_paths
 
     def data_as_string(self, format: str) -> str:
-        return str(self.mime_data.get(format))
+        return str(self.mime_data.get(format, str()))
 
     def set_data_as_string(self, format: str, text: str) -> None:
         self.mime_data[format] = text
@@ -1225,6 +1225,18 @@ class DocumentWindow(UserInterfaceModule.Window):
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
         pass
 
+    # the file dialogs answer with a file in the directory they were given. a test which needs particular paths can
+    # override these.
+
+    def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return [str(pathlib.Path(directory) / "file"), str(pathlib.Path(directory) / "file2")], filter, directory
+
+    def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
+        return [str(pathlib.Path(directory) / "file")], filter, directory
+
+    def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
+        return str(pathlib.Path(directory) / "file"), filter, directory
+
     def set_window_style(self, styles: typing.Sequence[str]) -> None:
         pass
 
@@ -1421,14 +1433,17 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_existing_directory_dialog(self, title: str, directory: str) -> typing.Tuple[str, str]:
         return directory, directory
 
+    # the file dialogs answer with a file in the directory they were given, the way the directory dialog answers with
+    # the directory it was given. a test which needs particular paths can override these.
+
     def get_file_paths_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
-        raise NotImplementedError()
+        return [str(pathlib.Path(directory) / "file"), str(pathlib.Path(directory) / "file2")], filter, directory
 
     def get_file_path_dialog(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[typing.List[str], str, str]:
-        raise NotImplementedError()
+        return [str(pathlib.Path(directory) / "file")], filter, directory
 
     def get_save_file_path(self, title: str, directory: str, filter: str, selected_filter: typing.Optional[str] = None) -> typing.Tuple[str, str, str]:
-        raise NotImplementedError()
+        return str(pathlib.Path(directory) / "file"), filter, directory
 
     # persistence (associated with application)
 

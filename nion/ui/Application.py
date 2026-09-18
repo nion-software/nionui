@@ -67,6 +67,7 @@ class BaseApplication:
         # __windows instead.
         self._should_close_on_last_window = False
         self.__prevent_close_count = 0
+        self.__request_quit = False
 
         self.__on_start = on_start
         logger = logging.getLogger()
@@ -192,7 +193,10 @@ class BaseApplication:
         open_windows = set(self.__windows)
         open_dialogs = set([dialog() for dialog in self.__dialogs if dialog()])
         if not self.__prevent_close_count and not (open_windows - open_dialogs):
-            self.ui.request_quit()
+            # ask to quit during the next periodic rather than now. this runs while a window is closing, and the
+            # window may be closing because the host is already quitting; asking the host to quit from within its own
+            # shutdown re-enters it. this mirrors queue_request_close on the window.
+            self.__request_quit = True
 
     def exit(self) -> None:
         """The exit method should request to close or close the window."""
@@ -208,12 +212,22 @@ class BaseApplication:
             # manually remove it from the list.
             if window in self.__windows:
                 self.__windows.remove(window)
+        # the application is quitting of its own accord here, rather than from within a close which the host started,
+        # so ask the host to quit now instead of waiting for the next periodic.
+        self.__perform_request_quit()
 
     def periodic(self) -> None:
         """The periodic method can be overridden to implement periodic behavior."""
         if event_loop := self._get_event_loop():  # special for shutdown
             event_loop.stop()
             event_loop.run_forever()
+        # perform a quit requested while a window was closing. see _exit_prevent_close_state.
+        self.__perform_request_quit()
+
+    def __perform_request_quit(self) -> None:
+        if self.__request_quit:
+            self.__request_quit = False
+            self.ui.request_quit()
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:

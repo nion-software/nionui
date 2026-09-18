@@ -251,10 +251,28 @@ class TestApplicationWindowsClass(unittest.TestCase):
             self.assertEqual(0, typing.cast(QuitCountingUserInterface, app.ui).quit_count)
 
     def test_closing_the_last_window_quits_the_application(self) -> None:
-        # with no windows left, the application is asked to quit.
+        # with no windows left, the application is asked to quit. the request is made during the next periodic rather
+        # than while the window is closing: the window may be closing because the host is already quitting, and asking
+        # it to quit from within its own shutdown re-enters it.
         with application_context() as (app, handler):
+            quit_counting_ui = typing.cast(QuitCountingUserInterface, app.ui)
             handler.window.request_close()
-            self.assertEqual(1, typing.cast(QuitCountingUserInterface, app.ui).quit_count)
+            self.assertEqual(0, quit_counting_ui.quit_count)
+            app.periodic()
+            self.assertEqual(1, quit_counting_ui.quit_count)
+            # the request is made once, not on every periodic afterwards.
+            app.periodic()
+            self.assertEqual(1, quit_counting_ui.quit_count)
+
+    def test_application_quitting_itself_asks_the_host_to_quit_at_once(self) -> None:
+        # when the application is the one quitting, rather than the host closing its windows, there is no close to
+        # re-enter, and waiting for a periodic which may not come would leave it running with no windows.
+        with application_context() as (app, handler):
+            quit_counting_ui = typing.cast(QuitCountingUserInterface, app.ui)
+            app.exit()
+            self.assertEqual(1, quit_counting_ui.quit_count)
+            app.periodic()
+            self.assertEqual(1, quit_counting_ui.quit_count)
 
 
 if __name__ == '__main__':

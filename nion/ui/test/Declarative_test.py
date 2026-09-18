@@ -10,6 +10,7 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import CanvasUserInterface
 from nion.ui import Declarative
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
@@ -130,6 +131,21 @@ class ListViewEventsHandler(ItemsHandler):
                           gx: int, gy: int) -> bool:
         self.context_menu_indexes.append(index)
         return True
+
+
+class StackItemsHandler(ItemsHandler):
+    """A handler with a stack whose children are built from an observable list of items."""
+
+    def __init__(self, items: typing.Sequence[str], item_construction: typing.Optional[str] = None,
+                 min_height: typing.Optional[int] = None) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.list_model = ListModel.ListModel[str]("items", items=list(items))
+        self.current_index_model = Model.PropertyModel(0)
+        self.stack: typing.Optional[UserInterface.StackWidget] = None
+        self.ui_view = u.create_stack(items="list_model.items", item_component_id="item", name="stack",
+                                      current_index="@binding(current_index_model.value)",
+                                      item_construction=item_construction, min_height=min_height)
 
 
 @contextlib.contextmanager
@@ -607,6 +623,120 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual(0, handler.current_index_model.value)
                 handler.list_model.remove_item(0)
                 self.assertIsNone(handler.current_index_model.value)
+
+    def test_stack_constructs_every_child_by_default(self) -> None:
+        # tests the default: a stack constructs all of its children, whether or not they are displayed.
+        with event_loop_context() as event_loop:
+            handler = StackItemsHandler(["a", "b", "c"], item_construction=None)
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertEqual(["a", "b", "c"], [item_handler.item for item_handler in handler.item_handlers])
+
+    def test_stack_builds_deferred_children_when_displayed(self) -> None:
+        # tests that deferred construction builds the child being displayed and no others, and keeps what it builds.
+        with event_loop_context() as event_loop:
+            handler = StackItemsHandler(["a", "b", "c"], item_construction="deferred")
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                # the child being displayed is built, so the stack is never an empty shell.
+                self.assertEqual(["a"], [item_handler.item for item_handler in handler.item_handlers])
+                handler.current_index_model.value = 2
+                self.assertEqual(["a", "c"], [item_handler.item for item_handler in handler.item_handlers])
+                handler.current_index_model.value = 0
+                # returning to a child which was already built does not build it again.
+                self.assertEqual(["a", "c"], [item_handler.item for item_handler in handler.item_handlers])
+                self.assertFalse(any(item_handler.closed for item_handler in handler.item_handlers))
+
+    def test_stack_removing_an_unbuilt_child_closes_nothing(self) -> None:
+        # tests that removing an item whose child was never built is not an error and closes no handler.
+        with event_loop_context() as event_loop:
+            handler = StackItemsHandler(["a", "b", "c"], item_construction="deferred")
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertEqual(["a"], [item_handler.item for item_handler in handler.item_handlers])
+                handler.list_model.remove_item(1)  # never built
+                self.assertEqual([], [item_handler.item for item_handler in handler.item_handlers if item_handler.closed])
+                handler.current_index_model.value = 0
+                handler.list_model.remove_item(0)  # built
+                self.assertEqual(["a"], [item_handler.item for item_handler in handler.item_handlers if item_handler.closed])
+
+    def test_stack_with_deferred_children_takes_its_size_from_its_properties(self) -> None:
+        # tests the sizing rule for deferred construction: a stack given its own size does not depend on measuring
+        # children which have not been built.
+        with event_loop_context() as event_loop:
+            handler = StackItemsHandler(["a", "b", "c"], item_construction="deferred", min_height=60)
+            # construct against the canvas ui so that the sizing of the stack can be measured.
+            canvas_ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+            widget = Declarative.construct_widget(canvas_ui, event_loop, handler)
+            with contextlib.closing(widget):
+                stack_canvas_item = CanvasUserInterface.extract_canvas_item(typing.cast(UserInterface.Widget, handler.stack))
+                assert stack_canvas_item
+                self.assertEqual(60, stack_canvas_item.layout_sizing.preferred_height_int)
+                handler.current_index_model.value = 2
+                self.assertEqual(60, stack_canvas_item.layout_sizing.preferred_height_int)
+
+    def test_stack_builds_deferred_static_children_when_displayed(self) -> None:
+        # tests deferred construction for children given directly rather than from a list of items, which is how a
+        # stack of pages is usually described.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(ItemsHandler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.current_index_model = Model.PropertyModel(0)
+                self.ui_view = u.create_stack(u.create_component_instance("item"),
+                                              u.create_component_instance("item"),
+                                              u.create_component_instance("item"),
+                                              current_index="@binding(current_index_model.value)",
+                                              item_construction="deferred")
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                self.assertEqual(1, len(handler.item_handlers))
+                handler.current_index_model.value = 2
+                self.assertEqual(2, len(handler.item_handlers))
+                handler.current_index_model.value = 0
+                self.assertEqual(2, len(handler.item_handlers))
+
+    def test_stack_with_deferred_children_reports_the_largest_child_built(self) -> None:
+        # tests that a child which has not been built contributes a known nothing to the size of the stack. a child of
+        # unknown size would make the size of the whole stack unknown, leaving it with no size at all until every
+        # child had been built.
+        u = Declarative.DeclarativeUI()
+
+        class PageHandler(Declarative.Handler):
+            def __init__(self, height: int) -> None:
+                super().__init__()
+                self.ui_view = u.create_column(u.create_label(text="x", height=height, width=50))
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.page_stack: typing.Optional[UserInterface.StackWidget] = None
+                self.ui_view = u.create_stack(u.create_component_instance("short"),
+                                              u.create_component_instance("tall"),
+                                              name="page_stack", item_construction="deferred")
+
+            def create_handler(self, component_id: str, **kwargs: typing.Any) -> typing.Optional[PageHandler]:
+                return PageHandler(20 if component_id == "short" else 90)
+
+        with event_loop_context() as event_loop:
+            canvas_ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+            handler = Handler()
+            widget = Declarative.construct_widget(canvas_ui, event_loop, handler)
+            with contextlib.closing(widget):
+                page_stack = typing.cast(UserInterface.StackWidget, handler.page_stack)
+                stack_canvas_item = CanvasUserInterface.extract_canvas_item(page_stack)
+                assert stack_canvas_item
+                # only the first child has been built, so the stack is the size of that child.
+                self.assertEqual(20, stack_canvas_item.layout_sizing.preferred_height_int)
+                page_stack.current_index = 1
+                self.assertEqual(90, stack_canvas_item.layout_sizing.preferred_height_int)
+                page_stack.current_index = 0
+                # the stack does not shrink back: the taller child is built and still contributes its size.
+                self.assertEqual(90, stack_canvas_item.layout_sizing.preferred_height_int)
 
     def test_declarative_widget_with_item_components_closes_cleanly(self) -> None:
         # a declarative widget closes the handler's closer before the widgets it holds, so the item components are

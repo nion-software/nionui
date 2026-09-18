@@ -3,6 +3,7 @@ from __future__ import annotations
 # standard libraries
 import asyncio
 import dataclasses
+import functools
 import gettext
 import re
 import typing
@@ -333,6 +334,7 @@ class DeclarativeUI:
                      item_component_id: typing.Optional[str] = None, name: typing.Optional[UIIdentifier] = None,
                      current_index: typing.Optional[UIIdentifier] = None,
                      on_current_index_changed: typing.Optional[UICallableIdentifier] = None,
+                     item_construction: typing.Optional[str] = None,
                      **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a stack UI description with children or dynamic items, the current index and optional changed event.
 
@@ -360,9 +362,24 @@ class DeclarativeUI:
             name: handler property in which to store widget (optional)
             current_index: current index handler reference (bindable, optional)
             on_current_index_changed: callback when current index changes (optional)
+            item_construction: "eager" (default) or "deferred"
 
         Returns:
             a UI description of the stack
+
+        A stack displays one child at a time but constructs all of them, which for a stack of expensive children
+        means building many to show one. With `item_construction` set to "deferred", a child, and its handler, is
+        constructed when it is first displayed and kept from then on.
+
+        Deferred construction trades size for construction cost, so it is not the default. A stack takes its size
+        from the largest of its children, and a child which has not been built cannot be measured: a stack whose
+        children are deferred reports the largest child built so far and may grow as the user navigates. Give
+        such a stack its size, using the sizing properties or a container which supplies the size, unless the children
+        are alike enough for this not to matter. The child being displayed is always built, so the stack is never
+        unsized.
+
+        Deferred construction also means a handler does not exist until its child is displayed, which does not suit
+        a handler whose construction has side effects or whose state is read by the container.
         """
         d: UIDescriptionResult = {"type": "stack"}
         if len(children) > 0:
@@ -379,6 +396,9 @@ class DeclarativeUI:
             d["current_index"] = current_index
         if on_current_index_changed is not None:
             d["on_current_index_changed"] = on_current_index_changed
+        if item_construction is not None:
+            assert item_construction in ("eager", "deferred")
+            d["item_construction"] = item_construction
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1467,6 +1487,58 @@ def construct_margins(d: UIDescription) -> UIMargins:
     return margins
 
 
+def construct_child(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
+                    handler: HandlerLike) -> UserInterface.Widget:
+    """Construct a widget and run its finishes immediately, for content constructed after the containing window."""
+    child_finishes: _FinishesListType = list()
+    widget = construct(ui, window, d, handler, child_finishes)
+    for finish in child_finishes:
+        finish()
+    return widget
+
+
+class DeferredStackChildren:
+    """The children of a stack whose construction has been deferred, and the builder for each one.
+
+    Each child of the stack is a wrapper widget which starts out empty. When the stack is about to display one, the
+    builder registered for that wrapper is called and its result becomes the content of the wrapper; the child is no
+    longer deferred. A child which is never displayed is never built, and neither is its handler.
+
+    The builders are keyed by wrapper widget rather than by index so that inserting and removing children does not
+    have to keep a parallel list of indexes in step.
+    """
+
+    def __init__(self, stack_widget: UserInterface.StackWidget) -> None:
+        self.__stack_widget = stack_widget
+        self.__builders: typing.Dict[UserInterface.Widget, typing.Callable[[], typing.Optional[UserInterface.Widget]]] = dict()
+        stack_widget.on_will_set_current_index = self.__build_child
+
+    def add_builder(self, wrapper_widget: UserInterface.Widget,
+                    builder: typing.Callable[[], typing.Optional[UserInterface.Widget]]) -> None:
+        # an empty wrapper has no size of its own, and a child of unknown size makes the size of the whole stack
+        # unknown. give the wrapper a zero spacing so that a child which has not been built contributes a known
+        # nothing, leaving the stack the size of the largest child which has been built.
+        typing.cast(UserInterface.BoxWidget, wrapper_widget).add_spacing(0)
+        self.__builders[wrapper_widget] = builder
+
+    def discard_builder(self, wrapper_widget: UserInterface.Widget) -> None:
+        self.__builders.pop(wrapper_widget, None)
+
+    def build_current(self) -> None:
+        # build the child being displayed, so that the stack is never an empty shell before the first index change.
+        self.__build_child(self.__stack_widget.current_index)
+
+    def __build_child(self, index: typing.Optional[int]) -> None:
+        children = self.__stack_widget.children
+        if index is not None and 0 <= index < len(children):
+            wrapper_widget = children[index]
+            builder = self.__builders.pop(wrapper_widget, None)
+            if builder:
+                widget = builder()
+                if widget:
+                    typing.cast(UserInterface.BoxWidget, wrapper_widget).add(widget)
+
+
 # to properly type the container widget needs more work. substitute typing.Any for now.
 def parse_items_path(handler: HandlerLike, items: UIIdentifier) -> typing.Tuple[typing.Any, str]:
     """Return the container and key for an items reference such as `entries` or `document.entries`."""
@@ -1504,7 +1576,8 @@ class ItemsListModel(ListModel.ListModelLike):
 
 
 def connect_items(ui: UserInterface.UserInterface, window: Window.Window, container_widget: UserInterface.BoxWidget | UserInterface.StackWidget,
-                  handler: HandlerLike, items: str, item_component_id: str, is_column: bool = True, spacing: int | None = None) -> None:
+                  handler: HandlerLike, items: str, item_component_id: str, is_column: bool = True, spacing: int | None = None,
+                  deferred_stack_children: typing.Optional[DeferredStackChildren] = None) -> None:
     """Connect list of item components to container widget.
 
     Several declarative elements (columns, rows, stacks) take a list of item components. This method connects the item
@@ -1524,6 +1597,9 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
     The preferred technique for dynamic content is to define `create_handler` to return a handler for the given
     `item_component_id` and associated `item` with a defined `ui_view` and do not define `get_resource` or `resources`
     to respond to the `item_component_id`.
+
+    When `deferred_stack_children` is supplied, which only a stack does, the content of each item is built when the
+    stack is about to display it rather than when the item is inserted.
     """
     assert window is not None
     container, items_key = parse_items_path(handler, items)
@@ -1548,8 +1624,7 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
                     if len(item_wrapper_widget.children) == 2:
                         item_wrapper_widget.remove(item_wrapper_widget.children[-1])
 
-    def insert_item(index: int, item: typing.Any) -> None:
-        # Wrap each item in its own row/column wrapper so spacing can be toggled independently.
+    def build_item_widget(item: typing.Any) -> typing.Optional[UserInterface.Widget]:
         item_widget = None
         component_id: typing.Optional[str]
         component_content: typing.Optional[UIDescription] = None
@@ -1586,12 +1661,21 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
             component_handler._event_loop = window.event_loop
             if callable(getattr(component_handler, "init_handler", None)):
                 component_handler.init_handler()
+        return item_widget
+
+    def insert_item(index: int, item: typing.Any) -> None:
+        # Wrap each item in its own row/column wrapper so spacing can be toggled independently.
         if is_column:
             item_wrapper_widget = ui.create_column_widget()
         else:
             item_wrapper_widget = ui.create_row_widget()
-        if item_widget:
-            item_wrapper_widget.add(item_widget)
+        if deferred_stack_children:
+            # build the item when the stack is about to display it, rather than now.
+            deferred_stack_children.add_builder(item_wrapper_widget, functools.partial(build_item_widget, item))
+        else:
+            item_widget = build_item_widget(item)
+            if item_widget:
+                item_wrapper_widget.add(item_widget)
         container_widget.insert(item_wrapper_widget, index)
         adjust_spacing()
 
@@ -1603,8 +1687,13 @@ def connect_items(ui: UserInterface.UserInterface, window: Window.Window, contai
          if key == items_key:
             item_widget = container_widget.children[before_index]
             assert isinstance(item_widget, UserInterface.BoxWidget)
-            item_widget_first_child = item_widget.children[0]
-            getattr(handler, "_closer").pop_closeable(getattr(item_widget_first_child, "handler"))
+            if deferred_stack_children:
+                deferred_stack_children.discard_builder(item_widget)
+            # an item which was never built has no content and no handler to close. a deferred item wrapper holds a
+            # zero spacing ahead of its content, so look for the content by its handler rather than by position.
+            item_content_widgets = [child for child in item_widget.children if hasattr(child, "handler")]
+            if item_content_widgets:
+                getattr(handler, "_closer").pop_closeable(getattr(item_content_widgets[0], "handler"))
             container_widget.remove(item_widget)
             adjust_spacing()
 
@@ -1911,12 +2000,25 @@ def construct_stack(ui: UserInterface.UserInterface, window: Window.Window, d: U
                     finishes: _FinishesListType) -> UserInterface.StackWidget:
     properties = construct_sizing_properties(d)
     widget = ui.create_stack_widget(properties)
+    # a stack displays one child at a time but constructs all of them. deferred construction builds a child, and its
+    # handler, when the child is first displayed. see the note about sizing in create_stack.
+    item_construction = d.get("item_construction", "eager")
+    assert item_construction in ("eager", "deferred"), f"unrecognized {item_construction=}"
+    deferred_stack_children = DeferredStackChildren(widget) if item_construction == "deferred" else None
     for child in d.get("children", list()):
-        widget.add(construct(ui, window, child, handler, finishes))
+        if deferred_stack_children:
+            child_wrapper_widget = ui.create_column_widget()
+            widget.add(child_wrapper_widget)
+            deferred_stack_children.add_builder(child_wrapper_widget, functools.partial(construct_child, ui, window, child, handler))
+        else:
+            widget.add(construct(ui, window, child, handler, finishes))
     items = d.get("items")
     item_component_id = d.get("item_component_id")
     if items and item_component_id:
-        connect_items(ui, window, widget, handler, items, item_component_id)
+        connect_items(ui, window, widget, handler, items, item_component_id, deferred_stack_children=deferred_stack_children)
+    if deferred_stack_children:
+        # after the current index has been connected, build the child which is going to be displayed.
+        finishes.append(deferred_stack_children.build_current)
     if handler:
         connect_name(widget, d, handler)
         connect_reference_value(widget, d, handler, "current_index", finishes, value_type=int)

@@ -783,7 +783,16 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
 
     @focused.setter
     def focused(self, focused: bool) -> None:
-        self.canvas_item._set_focused(focused)
+        # go through the container which tracks the focused canvas item, in both directions. setting the flag on the
+        # canvas item alone leaves the container still thinking the item is focused, so focusing it again does
+        # nothing, and leaves the keyboard focus of the host elsewhere, so key strokes go nowhere.
+        base_container = typing.cast(typing.Any, self.canvas_item._base_container)
+        if focused:
+            self.canvas_item.request_focus()
+        elif base_container and base_container.focused_item is self.canvas_item:
+            base_container._set_focused_item(None)
+        else:
+            self.canvas_item._set_focused(False)
 
     @property
     def does_retain_focus(self) -> bool:
@@ -2634,6 +2643,9 @@ class CanvasWindow(UserInterface.Window):
 
     def _attach_root_widget(self, root_widget: typing.Optional[UserInterface.Widget]) -> None:
         self.__canvas_widget = self.__ui.create_canvas_widget()
+        # the content of the window is drawn in this one widget, so it has to be able to take the keyboard focus on
+        # behalf of the canvas items within it.
+        self.__canvas_widget.focusable = True
         # the canvas widget will be created/added in the base UI.
         # the root canvas item will listen to UI events on the canvas widget.
         # by adding the associated canvas item of the root widget to the

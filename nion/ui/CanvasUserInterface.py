@@ -2598,7 +2598,10 @@ class CanvasWindow(UserInterface.Window):
     def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None, parent_window: typing.Optional[UserInterface.Window] = None) -> None:
         super().__init__(parent_window, title or str())
         self.__ui = ui
-        self.__window = ui.create_document_window(title, parent_window)
+        # the parent may be another canvas window, which the user interface this window is displayed in knows nothing
+        # about. pass along the window it wraps instead.
+        parent_root_window = parent_window._root_window if isinstance(parent_window, CanvasWindow) else parent_window
+        self.__window = ui.create_document_window(title, parent_root_window)
         self.__window.on_periodic = self.periodic
         self.__window.on_size_changed = self.__window_size_changed
         self.__canvas_widget: typing.Optional[UserInterface.CanvasWidget] = None

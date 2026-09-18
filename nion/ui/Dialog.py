@@ -304,16 +304,23 @@ def pose_select_item_popup(items: typing.Sequence[typing.Any],
     # calculate the max string width, add 10%, min 200, max 480. there may be no items, in which case the minimum
     # width is used.
     item_widths = [window.get_font_metrics("system", item_string).width for item_string in item_strings]
+    margin = 8
     width = min(max(int(max(item_widths, default=0) * 1.10), 200), 480)
+
+    # unless the caller asks for a size, the popup is as wide as the items need, rather than a fixed width which may
+    # be wider than the content.
+    size = size or Geometry.IntSize(width=width + 2 * margin, height=_default_popup_size.height)
 
     size, position = _get_popup_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
 
     ui_handler = Handler()
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Select Item")), u.create_stretch())
-    item_list = u.create_list_box(name="item_list", items=item_strings, width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
+    # the width is a minimum rather than a fixed width: a fixed width would defeat the size policy below, leaving the
+    # list narrower than the popup and the buttons beneath it stretched across the full width.
+    item_list = u.create_list_box(name="item_list", items=item_strings, min_width=width, height=120, min_height=90, size_policy_horizontal="expanding", current_index="@binding(index_model.value)", on_return_pressed="accept", on_escape_pressed="reject")
     button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("Cancel"), on_clicked="handle_cancel"), u.create_push_button(text=_("Select"), on_clicked="handle_select"), spacing=8)
-    column = u.create_column(title_row, item_list, button_row, spacing=4, margin=8)
+    column = u.create_column(title_row, item_list, button_row, spacing=4, margin=margin)
     popup = PopupWindow(window, column, ui_handler)
 
     def handle_close(old_close: typing.Callable[[], None] | None) -> None:
@@ -527,6 +534,9 @@ def _get_popup_position_from_parent_rect(parent_panel_rect: Geometry.IntRect, po
     return Geometry.IntPoint(x=parent_panel_rect.left + (parent_panel_rect.width - popup_size.width) // 2, y=vertical_position)
 
 
+_default_popup_size = Geometry.IntSize(width=400, height=100)
+
+
 def _get_popup_size_and_position(window: Window.Window,
                                  position: Geometry.IntPoint | None = None,
                                  size: Geometry.IntSize | None = None,
@@ -541,7 +551,7 @@ def _get_popup_size_and_position(window: Window.Window,
     Passing position_offset as IntSize will be treated as a pixel offset from the top left position.
     Passing position_offset a FloatSize will be treated as a percentage of the popup size to offset from the top left position.
     """
-    size = size or Geometry.IntSize(width=400, height=100)
+    size = size or _default_popup_size
 
     if position is None:
         if parent_rect is None:

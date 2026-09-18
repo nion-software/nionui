@@ -1203,6 +1203,7 @@ class DocumentWindow(UserInterfaceModule.Window):
     def __init__(self, size: typing.Optional[Geometry.IntSize] = None):
         super().__init__(None, "title")
         self.__size = size if size is not None else Geometry.IntSize(height=720, width=960)
+        self.__shown_size: typing.Optional[Geometry.IntSize] = None
         self.__title: typing.Optional[str] = None
 
     def request_close(self) -> None:
@@ -1235,7 +1236,7 @@ class DocumentWindow(UserInterfaceModule.Window):
 
     @property
     def size(self) -> Geometry.IntSize:
-        return Geometry.IntSize(w=640, h=480)
+        return self.__shown_size or Geometry.IntSize(w=640, h=480)
 
     def create_dock_widget(self, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterfaceModule.DockWidget:
         dock_widget = DockWidget(self, widget, panel_id, title, positions, position)
@@ -1256,7 +1257,9 @@ class DocumentWindow(UserInterfaceModule.Window):
         return menu
 
     def show(self, size: typing.Optional[Geometry.IntSize] = None, position: typing.Optional[Geometry.IntPoint] = None) -> None:
-        pass
+        # keep the size it is shown with, the way a window does, so that a test can see how big it was asked to be.
+        if size is not None:
+            self.__shown_size = size
 
     def activate(self) -> None:
         pass

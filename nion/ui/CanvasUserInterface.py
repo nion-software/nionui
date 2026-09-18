@@ -2604,6 +2604,9 @@ class CanvasWindow(UserInterface.Window):
         self.__window = ui.create_document_window(title, parent_root_window)
         self.__window.on_periodic = self.periodic
         self.__window.on_size_changed = self.__window_size_changed
+        # the host closes the window this one wraps; pass that along so that this window, and whatever is displaying
+        # it, close too. without it the window is never told it closed and never runs its close handling.
+        self.__window.on_about_to_close = self._handle_about_to_close
         self.__canvas_widget: typing.Optional[UserInterface.CanvasWidget] = None
         self.__canvas_item: CanvasItem.AbstractCanvasItem = typing.cast(typing.Any, None)
         self.__pending_size: typing.Optional[Geometry.IntSize] = None

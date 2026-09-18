@@ -7,6 +7,7 @@ import unittest
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import CanvasUserInterface
+from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.ui import UserInterface
@@ -929,6 +930,19 @@ class TestCanvasWindowClass(unittest.TestCase):
         self.__event_loop.stop()
         self.__event_loop.run_forever()
         self.__event_loop.close()
+
+    def test_closing_a_child_window_runs_its_close_handling(self) -> None:
+        # the host closes the window a canvas window wraps; the canvas window has to pass that along, or the window
+        # displaying it is never told that it closed and its completion never runs.
+        ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+        window = Window.Window(ui)
+        with contextlib.closing(window):
+            results: typing.List[bool] = list()
+            Dialog.pose_confirmation_popup(results.append, window=window, title="Confirm")
+            window._dialogs[0].request_close()
+            window.periodic()
+            self.assertEqual([False], results)
+            self.assertEqual(0, len(window._dialogs))
 
     def test_child_window_is_created_under_the_window_of_the_host(self) -> None:
         # a canvas window wraps a window of the host user interface, which knows nothing about canvas windows, so a

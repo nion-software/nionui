@@ -112,7 +112,9 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
 
     chooser_combo_box = u.create_row(u.create_combo_box(items=items, on_current_index_changed="select_page"), u.create_stretch())
 
-    page_stack = u.create_stack(*pages, name="page_stack")
+    # the pages are constructed as they are first displayed rather than all of them at startup. the page group
+    # supplies the height; the width settles once the widest page visited has been built.
+    page_stack = u.create_stack(*pages, name="page_stack", item_construction="deferred")
 
     page_group = u.create_group(page_stack, margin=8, size_policy_vertical="expanding")
 

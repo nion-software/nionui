@@ -944,6 +944,16 @@ class TestCanvasWindowClass(unittest.TestCase):
             self.assertEqual([False], results)
             self.assertEqual(0, len(window._dialogs))
 
+    def test_context_menu_is_created_for_the_window_of_the_host(self) -> None:
+        # a canvas window wraps a window of the host user interface, which knows nothing about canvas windows, so a
+        # context menu, like a child window, must be made for the wrapped window rather than for the canvas window.
+        ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+        window = Window.Window(ui)
+        with contextlib.closing(window):
+            menu = window.create_context_menu()
+            document_window = typing.cast(CanvasUserInterface.CanvasWindow, window._document_window)
+            self.assertEqual(document_window._root_window, menu.document_window)
+
     def test_child_window_is_created_under_the_window_of_the_host(self) -> None:
         # a canvas window wraps a window of the host user interface, which knows nothing about canvas windows, so a
         # child window must be created under the wrapped window rather than under the canvas window itself.

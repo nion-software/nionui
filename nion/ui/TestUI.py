@@ -626,7 +626,8 @@ class NullBehavior:
         pass
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
-        return Geometry.IntPoint()
+        # a canvas widget in a test is taken to be at the origin of the screen, so a point within it maps to itself.
+        return p
 
     def drag(self, mime_data: UserInterfaceModule.MimeData, thumbnail: typing.Optional[Bitmap.Bitmap] = None,
              hot_spot_x: typing.Optional[int] = None, hot_spot_y: typing.Optional[int] = None,

@@ -861,10 +861,10 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         # drag.execute()
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
-        return Geometry.IntPoint()
-        # TODO
-        # gx, gy = self.proxy.Widget_mapToGlobal(self.widget, p.x, p.y)
-        # return Geometry.IntPoint(x=gx, y=gy)
+        # the canvas item knows where it is within the widget it is drawn in, and that widget knows where it is on the
+        # screen. a widget which is not being displayed has no position of its own.
+        canvas_item = self.canvas_item
+        return canvas_item.map_to_global(p) if canvas_item._base_container else Geometry.IntPoint()
 
 
 class BoxWidgetBehavior(WidgetBehavior):

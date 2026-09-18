@@ -198,6 +198,12 @@ def start(ui: UserInterface.UserInterface) -> bool:
     control_row.add_canvas_item(progress_bar_canvas_item)
     control_row.add_stretch()
 
+    range_slider_canvas_item = CanvasItem.RangeSliderCanvasItem()
+    range_slider_canvas_item.update_sizing(range_slider_canvas_item.sizing.with_fixed_width(160))
+    control_row2 = CanvasItem.CanvasItemComposition()
+    control_row2.layout = CanvasItem.CanvasItemRowLayout(spacing=12)
+    control_row2.add_canvas_item(range_slider_canvas_item)
+
     splitter = CanvasItem.SplitterCanvasItem()
     splitter.update_sizing(splitter.sizing.with_fixed_height(60))
     splitter_left = CanvasItem.SplitterCanvasItem(orientation="horizontal")
@@ -262,6 +268,7 @@ def start(ui: UserInterface.UserInterface) -> bool:
 
     canvas_item.add_canvas_item(text_row)
     canvas_item.add_canvas_item(control_row)
+    canvas_item.add_canvas_item(control_row2)
     canvas_item.add_canvas_item(splitter_row)
     canvas_item.add_canvas_item(scroll_group_canvas_item)
     canvas_item.add_canvas_item(grid_list_row)

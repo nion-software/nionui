@@ -43,6 +43,8 @@ class OkCancelDialog(Window.Window):
 
         self.on_reject: typing.Optional[typing.Callable[[], None]] = None
         self.on_accept: typing.Optional[typing.Callable[[], None]] = None
+        # whether one of the buttons has already reported the outcome of the dialog.
+        self.__decided = False
 
         self.content = self.ui.create_column_widget()
 
@@ -56,6 +58,7 @@ class OkCancelDialog(Window.Window):
 
         if include_cancel:
             def on_cancel_clicked() -> None:
+                self.__decided = True
                 if self.on_reject:
                     self.on_reject()
                 self.request_close()
@@ -68,6 +71,7 @@ class OkCancelDialog(Window.Window):
 
         if include_ok:
             def on_ok_clicked() -> None:
+                self.__decided = True
                 if self.on_accept:
                     self.on_accept()
                 self.request_close()
@@ -94,7 +98,9 @@ class OkCancelDialog(Window.Window):
         super().close()
 
     def about_to_close(self, geometry: str, state: str) -> None:
-        if self.on_reject:
+        # closing the dialog in any other way, such as with the close box of the window, is a rejection. a button has
+        # already reported the outcome, so do not report it again.
+        if not self.__decided and self.on_reject:
             self.on_reject()
         super().about_to_close(geometry, state)
 

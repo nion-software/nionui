@@ -29,6 +29,22 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+_dialog_margin = 12
+
+
+def _margins_box(ui: UserInterface.UserInterface, content: UserInterface.Widget) -> UserInterface.Widget:
+    """Return the content within a margin on every side, so that it is not flush against the edges of the dialog."""
+    row = ui.create_row_widget()
+    row.add_spacing(_dialog_margin)
+    row.add(content)
+    row.add_spacing(_dialog_margin)
+    column = ui.create_column_widget()
+    column.add_spacing(_dialog_margin)
+    column.add(row)
+    column.add_spacing(_dialog_margin)
+    return column
+
+
 class OkCancelDialog(Window.Window):
     """
         Present a modeless dialog with Ok and Cancel buttons.
@@ -51,6 +67,7 @@ class OkCancelDialog(Window.Window):
         content_column = self.ui.create_column_widget()
 
         content_column.add(self.content)
+        content_column.add_spacing(_dialog_margin)
 
         button_row = self.ui.create_row_widget()
 
@@ -67,7 +84,7 @@ class OkCancelDialog(Window.Window):
             cancel_button = self.ui.create_push_button_widget(cancel_title, properties={"min-width": 100})
             cancel_button.on_clicked = on_cancel_clicked
             button_row.add(cancel_button)
-            button_row.add_spacing(13)
+            button_row.add_spacing(8)
 
         if include_ok:
             def on_ok_clicked() -> None:
@@ -80,12 +97,10 @@ class OkCancelDialog(Window.Window):
             ok_button = self.ui.create_push_button_widget(ok_title, properties={"min-width": 100})
             ok_button.on_clicked = on_ok_clicked
             button_row.add(ok_button)
-            button_row.add_spacing(13)
 
         content_column.add(button_row)
-        content_column.add_spacing(8)
 
-        self.attach_widget(content_column)
+        self.attach_widget(_margins_box(self.ui, content_column))
 
         if parent_window:
             parent_window.register_dialog(self)
@@ -126,16 +141,15 @@ class ActionDialog(Window.Window):
         content_column = self.ui.create_column_widget()
 
         content_column.add(self.content)
+        content_column.add_spacing(_dialog_margin)
 
         self.button_row = self.ui.create_row_widget()
 
-        self.button_row.add_spacing(13)
         self.button_row.add_stretch()
 
         content_column.add(self.button_row)
-        content_column.add_spacing(8)
 
-        self.attach_widget(content_column)
+        self.attach_widget(_margins_box(self.ui, content_column))
 
         if parent_window:
             parent_window.register_dialog(self)
@@ -150,8 +164,10 @@ class ActionDialog(Window.Window):
 
         button = self.ui.create_push_button_widget(title)
         button.on_clicked = on_clicked
+        # the buttons are added at the end of the row, so space each one from the one before it. the margin around
+        # the content of the dialog keeps the last one off the edge.
+        self.button_row.add_spacing(8)
         self.button_row.add(button)
-        self.button_row.add_spacing(13)
         return button
 
 

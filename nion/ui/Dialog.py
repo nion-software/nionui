@@ -396,12 +396,17 @@ def pose_edit_string_popup(current_string: str,
 
     from nion.ui import Declarative  # avoid circular reference
     size, position = _get_popup_size_and_position(window, position=position, size=size, parent_rect=parent_rect, position_offset=position_offset)
-    width = size.width - 20
 
     ui_handler = Handler(current_string)
+    margin = 8
     u = Declarative.DeclarativeUI()
     title_row = u.create_row(u.create_label(text=title or _("Edit")), margin_left=8, margin_right=8, margin_top=4, margin_bottom=4, background_color="#DDD")
-    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept", on_escape_pressed="reject", width=width), u.create_stretch(), spacing=4, margin=8)
+    # the field fills the popup: a stretch beside it would leave it at its own width, which is the width of its text,
+    # and the width is a minimum rather than a fixed width so that it can grow with the popup.
+    edit_row = u.create_row(u.create_line_edit(name="line_edit_widget", text="@binding(s)", on_return_pressed="accept",
+                                               on_escape_pressed="reject", min_width=size.width - 2 * margin,
+                                               size_policy_horizontal="expanding"),
+                            spacing=4, margin=margin)
     column = u.create_column(title_row, edit_row, u.create_stretch())
     if show_buttons:
         cancel_button_text = cancel_button_text or _("Cancel")

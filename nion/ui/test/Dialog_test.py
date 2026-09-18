@@ -183,6 +183,35 @@ class TestSelectItemPopupClass(unittest.TestCase):
             self.assertEqual(333, window._dialogs[2]._document_window.size.width)
 
 
+    def test_edit_string_popup_field_spans_the_popup_and_takes_key_strokes(self) -> None:
+        # the field fills the popup rather than sitting at its own width, and it has the keyboard focus when the
+        # popup opens, so that typing goes into it.
+        with window_context(canvas=True) as window:
+            edited: typing.List[typing.Optional[str]] = list()
+            Dialog.pose_edit_string_popup("hello", edited.append, window=window, title="Edit")
+            popup = window._dialogs[0]
+            content_widget = typing.cast(UserInterface.Widget, getattr(popup, "widget", None))
+            line_edit = find_widget(content_widget, UserInterface.LineEditWidget)
+            content_canvas_item = CanvasUserInterface.extract_canvas_item(content_widget)
+            line_edit_canvas_item = CanvasUserInterface.extract_canvas_item(line_edit)
+            assert content_canvas_item and line_edit_canvas_item
+            content_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=400, height=120))
+            content_size = content_canvas_item.canvas_size
+            line_edit_rect = line_edit_canvas_item.canvas_rect
+            assert content_size and line_edit_rect
+            # the field spans the popup apart from the margins on either side of it.
+            self.assertGreater(line_edit_rect.width, content_size.width - 32)
+
+            # the text is selected and the field is focused, so typing replaces it.
+            root_canvas_item = typing.cast(CanvasItem.CanvasWidgetCanvasItem, line_edit_canvas_item._base_container)
+            assert root_canvas_item
+            self.assertTrue(line_edit_canvas_item.focused)
+            on_key_pressed = root_canvas_item.canvas_widget.on_key_pressed
+            assert on_key_pressed
+            on_key_pressed(TestUI.Key("X", "X", CanvasItem.KeyboardModifiers()))
+            self.assertEqual("X", line_edit.text)
+
+
 class QuitCountingUserInterface(TestUI.UserInterface):
     """A user interface which counts the requests to quit rather than quitting."""
 

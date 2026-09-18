@@ -1549,7 +1549,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
         super().__init__(self.__canvas_item, False, properties)
         self.__get_font_metrics_fn = ui.get_font_metrics
         self.word_wrap = False  # TODO
-        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+        self.__size_to_content()
         self.__last_periodic_time = time.time()
         self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
@@ -1574,6 +1574,12 @@ class LineEditWidgetBehavior(WidgetBehavior):
         self.on_text_edited = None
         super().close()
 
+    def __size_to_content(self) -> None:
+        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+        # sizing to the text replaces the width of the canvas item, so re-apply the properties: a width asked for by
+        # whoever made the widget wins over the width of the text it happens to contain.
+        self.update_properties()
+
     @property
     def _canvas_item(self) -> LineEditCanvasItem:
         return self.__canvas_item
@@ -1585,7 +1591,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
     @text.setter
     def text(self, value: typing.Optional[str]) -> None:
         self.__canvas_item.text = value or str()
-        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+        self.__size_to_content()
 
     @property
     def placeholder_text(self) -> typing.Optional[str]:
@@ -1594,7 +1600,7 @@ class LineEditWidgetBehavior(WidgetBehavior):
     @placeholder_text.setter
     def placeholder_text(self, value: typing.Optional[str]) -> None:
         self.__canvas_item.placeholder_text = value or str()
-        self.__canvas_item.size_to_content(self.__get_font_metrics_fn)
+        self.__size_to_content()
 
     @property
     def editable(self) -> bool:

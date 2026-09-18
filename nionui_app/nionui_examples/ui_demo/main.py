@@ -14,13 +14,16 @@ from nion.ui import UserInterface
 from . import Bindings
 from . import Buttons
 from . import CheckBoxes
+from . import Clipboard
 from . import ComboBoxes
 from . import Compositions
 from . import ComponentContent
 from . import ComponentLayout
 from . import ComponentPolymorphic
 from . import ComponentStack
+from . import ContextMenus
 from . import Converters
+from . import Dialogs
 from . import Groups
 from . import Layout
 from . import LineEdits
@@ -71,10 +74,13 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (Buttons, "buttons", _("Buttons")),
         (Layout, "layout", _("Layout")),
         (CheckBoxes, "check_boxes", _("Check Boxes")),
+        (Clipboard, "clipboard", _("Clipboard")),
         (ComboBoxes, "combo_boxes", _("Combo Boxes")),
         (Bindings, "bindings", _("Bindings")),
         (Compositions, "compositions", _("Compositions")),
+        (ContextMenus, "context_menus", _("Context Menus")),
         (Converters, "converters", _("Converters")),
+        (Dialogs, "dialogs", _("Dialogs")),
         (Groups, "groups", _("Groups")),
         (LineEdits, "line_edits", _("Line Edits")),
         (ListBoxes, "list_boxes", _("List Boxes")),

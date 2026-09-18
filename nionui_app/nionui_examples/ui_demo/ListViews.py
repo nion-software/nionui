@@ -83,9 +83,9 @@ class Handler(Declarative.Handler):
         # called for each item of the list; the returned handler describes and displays that item.
         return ItemHandler(item) if component_id == "item" else None
 
-    def item_changed(self, widget: UserInterface.Widget, current_index: int) -> None:
+    def item_changed(self, widget: UserInterface.Widget, current_index: typing.Optional[int]) -> None:
         items = self.items_model.items
-        title = items[current_index].title if 0 <= current_index < len(items) else None
+        title = items[current_index].title if current_index is not None and 0 <= current_index < len(items) else None
         self.status_model.value = f"Selected: {title}"
 
     def item_selected(self, widget: UserInterface.Widget, current_index: int) -> bool:

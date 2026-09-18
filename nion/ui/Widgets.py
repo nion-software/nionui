@@ -786,13 +786,16 @@ class ListViewWidget(UserInterface.Widget):
         column_widget = ui.create_column_widget()
         super().__init__(CompositeWidgetBehavior(column_widget))
         self.on_selection_changed: typing.Optional[typing.Callable[[typing.AbstractSet[int]], None]] = None
-        self.on_item_changed: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_item_changed: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.on_item_selected: typing.Optional[typing.Callable[[int], bool]] = None
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None
         self.__list_model = list_model
-        self.__selection = selection if selection else Selection.IndexedSelection(selection_style)
+        # a selection created here reports the changes it makes when items are inserted into or removed from the list,
+        # so that the current index stays in step with the selection as the list changes. a selection passed in is
+        # left as its owner configured it.
+        self.__selection = selection if selection else Selection.IndexedSelection(selection_style, expanded_changed_event=True)
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, self.__selection, item_factory,
                                                                  ListViewCanvasItemDelegate(self),
                                                                  item_height=item_height, key=key)
@@ -822,12 +825,13 @@ class ListViewWidget(UserInterface.Widget):
         self.__current_index_binding_helper = UserInterface.BindablePropertyHelper[typing.Optional[int]](None, set_current_index, validate_current_index)
 
         def selection_changed() -> None:
+            # the current index is None when nothing is selected, which is what removing the selected item leaves.
             current_index = self.__selection.current_index
-            self.__current_index_binding_helper.value_changed(current_index or 0)
+            self.__current_index_binding_helper.value_changed(current_index)
             if callable(self.on_selection_changed):
                 self.on_selection_changed(self.__selection.indexes)
             if callable(self.on_item_changed):
-                self.on_item_changed(current_index or 0)
+                self.on_item_changed(current_index)
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
 

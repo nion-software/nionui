@@ -1195,6 +1195,10 @@ class Closer:
 
     A closer is attached to each handler and used to close the handler, extra closeable items that the engine may
     created, and child component handlers.
+
+    A handler held here is released either by `pop_closeable`, when whatever displays it goes away, or by `close`,
+    which releases everything still held. Either can happen first, and the other is then a no-op, so a handler is
+    closed exactly once however the teardown is ordered.
     """
     def __init__(self) -> None:
         self.__handlers: typing.Set[HandlerLike] = set()
@@ -1204,6 +1208,10 @@ class Closer:
         self.__handlers.add(handler)
 
     def pop_closeable(self, handler: HandlerLike) -> None:
+        # this closer may have closed everything it held already, which is the case when the handler of a window or a
+        # widget is closed before the widgets displaying its components. the handler has been closed; nothing to do.
+        if self.__handlers is None:
+            return
         assert handler in self.__handlers
         if callable(getattr(handler, "close", None)):
             handler.close()

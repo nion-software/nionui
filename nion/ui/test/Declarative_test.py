@@ -607,3 +607,20 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual(0, handler.current_index_model.value)
                 handler.list_model.remove_item(0)
                 self.assertIsNone(handler.current_index_model.value)
+
+    def test_declarative_widget_with_item_components_closes_cleanly(self) -> None:
+        # a declarative widget closes the handler's closer before the widgets it holds, so the item components are
+        # already closed by the time their canvas items are. releasing them a second time must not be an error.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(ItemsHandler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_model = ListModel.ListModel[str]("items", items=["a", "b"])
+                self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20)
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.DeclarativeWidget(TestUI.UserInterface(), event_loop, handler)
+            widget.close()
+            self.assertEqual(["a", "b"], sorted(item_handler.item for item_handler in handler.item_handlers if item_handler.closed))

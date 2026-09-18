@@ -24,6 +24,7 @@ from . import Converters
 from . import Groups
 from . import Layout
 from . import LineEdits
+from . import ListDetail
 from . import ListBoxes
 from . import ListViews
 from . import Popups
@@ -77,6 +78,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (Groups, "groups", _("Groups")),
         (LineEdits, "line_edits", _("Line Edits")),
         (ListBoxes, "list_boxes", _("List Boxes")),
+        (ListDetail, "list_detail", _("List Detail")),
         (ListViews, "list_views", _("List Views")),
         (Popups, "popups", _("Popups")),
         (ProgressBars, "progress_bars", _("Progress Bars")),

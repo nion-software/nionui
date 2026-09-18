@@ -1,5 +1,6 @@
 # standard libraries
 import asyncio
+import contextlib
 import typing
 import unittest
 
@@ -9,6 +10,7 @@ from nion.ui import CanvasUserInterface
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Geometry
 
 
@@ -901,6 +903,44 @@ class TestSplitterWidgetCanvas(unittest.TestCase):
         rects = [child.canvas_rect or Geometry.IntRect.empty_rect() for child in canvas_item.canvas_items]
         self.assertEqual(300, rects[0].width)
         self.assertEqual(100, rects[1].width)
+
+
+class RecordingUserInterface(TestUI.UserInterface):
+    """A user interface which records the parent it is asked to create each window under."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.window_parents: typing.List[typing.Optional[UserInterface.Window]] = list()
+
+    def create_document_window(self, title: typing.Optional[str] = None,
+                               parent_window: typing.Optional[UserInterface.Window] = None) -> UserInterface.Window:
+        self.window_parents.append(parent_window)
+        return super().create_document_window(title, parent_window)
+
+
+class TestCanvasWindowClass(unittest.TestCase):
+
+    def setUp(self) -> None:
+        # a window takes the current event loop when it is created.
+        self.__event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.__event_loop)
+
+    def tearDown(self) -> None:
+        self.__event_loop.stop()
+        self.__event_loop.run_forever()
+        self.__event_loop.close()
+
+    def test_child_window_is_created_under_the_window_of_the_host(self) -> None:
+        # a canvas window wraps a window of the host user interface, which knows nothing about canvas windows, so a
+        # child window must be created under the wrapped window rather than under the canvas window itself.
+        host_ui = RecordingUserInterface()
+        ui = CanvasUserInterface.CanvasUserInterface(host_ui)
+        parent_window = Window.Window(ui)
+        with contextlib.closing(parent_window):
+            child_window = Window.Window(ui, parent_window=parent_window)
+            with contextlib.closing(child_window):
+                parent_document_window = typing.cast(CanvasUserInterface.CanvasWindow, parent_window._document_window)
+                self.assertEqual([None, parent_document_window._root_window], host_ui.window_parents)
 
 
 if __name__ == '__main__':

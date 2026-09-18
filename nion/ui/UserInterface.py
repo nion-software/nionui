@@ -1172,8 +1172,13 @@ class StackWidget(Widget):
     def __init__(self, widget_behavior: StackWidgetBehavior) -> None:
         super().__init__(widget_behavior)
         self.children: typing.List[Widget] = []
+        # called with the new index before it is applied. this gives a child whose construction has been deferred a
+        # chance to be built before it is displayed.
+        self.on_will_set_current_index: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
 
         def set_current_index(value: typing.Optional[int]) -> None:
+            if callable(self.on_will_set_current_index):
+                self.on_will_set_current_index(value)
             self._behavior.current_index = value
 
         self.__current_index_binding_helper = BindablePropertyHelper[typing.Optional[int]](None, set_current_index)
@@ -1182,6 +1187,7 @@ class StackWidget(Widget):
 
     def close(self) -> None:
         # note: behavior is responsible for closing the children so that behavior can put children in another widget.
+        self.on_will_set_current_index = None
         self.children = typing.cast(typing.Any, None)
         self.__current_index_binding_helper.close()
         self.__current_index_binding_helper = typing.cast(typing.Any, None)

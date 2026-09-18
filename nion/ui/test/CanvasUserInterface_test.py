@@ -944,6 +944,27 @@ class TestCanvasWindowClass(unittest.TestCase):
             self.assertEqual([False], results)
             self.assertEqual(0, len(window._dialogs))
 
+    def test_widget_reports_where_it_is_on_the_screen(self) -> None:
+        # a menu popped up beside a widget has to know where the widget is. the content of a canvas window is drawn
+        # within a single widget of the host, so a widget maps its position through the canvas item displaying it.
+        ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+        window = Window.Window(ui)
+        with contextlib.closing(window):
+            column = ui.create_column_widget()
+            column.add_spacing(40)
+            row = ui.create_row_widget()
+            row.add_spacing(30)
+            button = ui.create_push_button_widget("Push")
+            row.add(button)
+            row.add_stretch()
+            column.add(row)
+            column.add_stretch()
+            window.attach_widget(column)
+            canvas_item = CanvasUserInterface.extract_canvas_item(column)
+            assert canvas_item
+            canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=120))
+            self.assertEqual(Geometry.IntPoint(x=30, y=40), button.map_to_global(Geometry.IntPoint()))
+
     def test_context_menu_is_created_for_the_window_of_the_host(self) -> None:
         # a canvas window wraps a window of the host user interface, which knows nothing about canvas windows, so a
         # context menu, like a child window, must be made for the wrapped window rather than for the canvas window.

@@ -5,8 +5,10 @@ import typing
 import unittest
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import CanvasUserInterface
+from nion.ui import Declarative
 from nion.ui import Dialog
 from nion.ui import TestUI
 from nion.ui import UserInterface
@@ -179,6 +181,51 @@ class TestSelectItemPopupClass(unittest.TestCase):
             Dialog.pose_select_item_popup(["a"], selected_items.append, window=window,
                                           size=Geometry.IntSize(width=333, height=222))
             self.assertEqual(333, window._dialogs[2]._document_window.size.width)
+
+
+class QuitCountingUserInterface(TestUI.UserInterface):
+    """A user interface which counts the requests to quit rather than quitting."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.quit_count = 0
+
+    def request_quit(self) -> None:
+        self.quit_count += 1
+
+
+@contextlib.contextmanager
+def application_context() -> typing.Iterator[typing.Tuple[Application.BaseApplication, Declarative.WindowHandler]]:
+    """Run an application with a single declarative window, the way an application is usually started."""
+    event_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(event_loop)
+    u = Declarative.DeclarativeUI()
+    app = Application.BaseApplication(QuitCountingUserInterface())
+    app.initialize()
+    handler = Declarative.WindowHandler()
+    handler.run(u.create_window(u.create_column(u.create_label(text="main")), title="Main"), app=app)
+    yield app, handler
+    app.deinitialize()
+    event_loop.stop()
+    event_loop.run_forever()
+    event_loop.close()
+
+
+class TestApplicationWindowsClass(unittest.TestCase):
+
+    def test_closing_a_dialog_does_not_quit_the_application(self) -> None:
+        # the window the dialog is posed on keeps the application running, so closing the dialog leaves it running.
+        with application_context() as (app, handler):
+            Dialog.pose_confirmation_popup(lambda confirmed: None, window=handler.window, title="Confirm")
+            handler.window._dialogs[0].request_close()
+            handler.window.periodic()
+            self.assertEqual(0, typing.cast(QuitCountingUserInterface, app.ui).quit_count)
+
+    def test_closing_the_last_window_quits_the_application(self) -> None:
+        # with no windows left, the application is asked to quit.
+        with application_context() as (app, handler):
+            handler.window.request_close()
+            self.assertEqual(1, typing.cast(QuitCountingUserInterface, app.ui).quit_count)
 
 
 if __name__ == '__main__':

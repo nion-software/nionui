@@ -278,5 +278,46 @@ class TestApplicationWindowsClass(unittest.TestCase):
             self.assertEqual(1, quit_counting_ui.quit_count)
 
 
+class TestOkCancelDialogClass(unittest.TestCase):
+
+    def setUp(self) -> None:
+        # a window holds its dialogs weakly, so a test has to hold the dialogs it opens.
+        self.__dialogs: typing.List[typing.Any] = list()
+
+    def tearDown(self) -> None:
+        self.__dialogs = list()
+
+    def __open_dialog(self, window: Window.Window, events: typing.List[str]) -> typing.Tuple[typing.Any, typing.List[UserInterface.PushButtonWidget]]:
+        dialog = Dialog.OkCancelDialog(window.ui, parent_window=window)
+        dialog.on_accept = lambda: events.append("accept")
+        dialog.on_reject = lambda: events.append("reject")
+        self.__dialogs.append(dialog)
+        dialog.show()
+        return dialog, find_buttons(dialog._document_window.root_widget)
+
+    def test_accepting_the_dialog_reports_it_once(self) -> None:
+        # the dialog is closed by accepting it, and closing must not also report it as rejected.
+        with window_context() as window:
+            events: typing.List[str] = list()
+            dialog, buttons = self.__open_dialog(window, events)
+            click(buttons[-1])
+            self.assertEqual(["accept"], events)
+
+    def test_rejecting_the_dialog_reports_it_once(self) -> None:
+        with window_context() as window:
+            events: typing.List[str] = list()
+            dialog, buttons = self.__open_dialog(window, events)
+            click(buttons[0])
+            self.assertEqual(["reject"], events)
+
+    def test_closing_the_dialog_another_way_reports_a_rejection(self) -> None:
+        # closing the dialog with the close box of the window is a rejection; nothing else reported the outcome.
+        with window_context() as window:
+            events: typing.List[str] = list()
+            dialog, buttons = self.__open_dialog(window, events)
+            dialog.request_close()
+            self.assertEqual(["reject"], events)
+
+
 if __name__ == '__main__':
     unittest.main()

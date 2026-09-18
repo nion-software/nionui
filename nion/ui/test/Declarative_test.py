@@ -754,3 +754,22 @@ class TestCanvasItemClass(unittest.TestCase):
             widget = Declarative.DeclarativeWidget(TestUI.UserInterface(), event_loop, handler)
             widget.close()
             self.assertEqual(["a", "b"], sorted(item_handler.item for item_handler in handler.item_handlers if item_handler.closed))
+
+    def test_item_component_resource_may_not_rename_the_component(self) -> None:
+        # tests that a resource supplying the content for an item may not declare a different component id, which
+        # would leave the component the handler is asked to create and the content being used disagreeing.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.list_model = ListModel.ListModel[str]("items", items=["a"])
+                self.resources = {"item": u.define_component(content=u.create_label(text="item"), component_id="other")}
+                self.ui_view = u.create_stack(items="list_model.items", item_component_id="item")
+
+            def create_handler(self, component_id: str, **kwargs: typing.Any) -> typing.Optional[Declarative.Handler]:
+                return None
+
+        with event_loop_context() as event_loop:
+            with self.assertRaises(AssertionError):
+                Declarative.construct_widget(TestUI.UserInterface(), event_loop, Handler())

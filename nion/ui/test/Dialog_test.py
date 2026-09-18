@@ -66,15 +66,18 @@ def find_buttons(widget: typing.Optional[UserInterface.Widget]) -> typing.List[U
 class TestSelectItemPopupClass(unittest.TestCase):
 
     def setUp(self) -> None:
-        pass
+        # a window holds its dialogs weakly, so a test has to hold the popups it poses; in an application the window
+        # of the host holds them.
+        self.__popups: typing.List[typing.Any] = list()
 
     def tearDown(self) -> None:
-        pass
+        self.__popups = list()
 
     def __pose_popup(self, window: Window.Window, items: typing.Sequence[typing.Any],
                      selected_items: typing.List[typing.Any], **kwargs: typing.Any) -> typing.Tuple[typing.Any, typing.Any]:
         Dialog.pose_select_item_popup(items, selected_items.append, window=window, **kwargs)
-        popup = window._dialogs[0]
+        popup = window._dialogs[-1]
+        self.__popups.append(popup)
         return popup, find_widget(getattr(popup, "widget", None), Widgets.StringListViewWidget)
 
     def test_select_item_popup_displays_an_item_per_row(self) -> None:
@@ -171,16 +174,16 @@ class TestSelectItemPopupClass(unittest.TestCase):
         # to. a caller which asks for a size gets that size.
         with window_context() as window:
             selected_items: typing.List[typing.Any] = list()
-            self.__pose_popup(window, ["a", "b"], selected_items)
-            narrow_width = window._dialogs[0]._document_window.size.width
-            self.__pose_popup(window, ["a considerably longer item string for this popup"], selected_items)
-            wide_width = window._dialogs[1]._document_window.size.width
+            narrow_popup, _ = self.__pose_popup(window, ["a", "b"], selected_items)
+            wide_popup, _ = self.__pose_popup(window, ["a considerably longer item string for this popup"], selected_items)
+            narrow_width = narrow_popup._document_window.size.width
+            wide_width = wide_popup._document_window.size.width
             self.assertLess(narrow_width, wide_width)
             # a popup of short items is narrower than the fixed width it used to have.
             self.assertLess(narrow_width, 400)
-            Dialog.pose_select_item_popup(["a"], selected_items.append, window=window,
-                                          size=Geometry.IntSize(width=333, height=222))
-            self.assertEqual(333, window._dialogs[2]._document_window.size.width)
+            sized_popup, _ = self.__pose_popup(window, ["a"], selected_items,
+                                               size=Geometry.IntSize(width=333, height=222))
+            self.assertEqual(333, sized_popup._document_window.size.width)
 
 
     def test_edit_string_popup_field_spans_the_popup_and_takes_key_strokes(self) -> None:

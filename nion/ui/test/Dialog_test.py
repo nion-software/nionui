@@ -310,6 +310,47 @@ class TestOkCancelDialogClass(unittest.TestCase):
             click(buttons[0])
             self.assertEqual(["reject"], events)
 
+    def test_dialog_content_is_inset_from_the_edges(self) -> None:
+        # the content of a dialog sits within a margin rather than flush against the edges of the window. the host
+        # user interface may inset it anyway, but the canvas one does not, so the dialogs do it themselves.
+        def content_origin(dialog: typing.Any) -> Geometry.IntPoint:
+            root_canvas_item = CanvasUserInterface.extract_canvas_item(dialog._document_window.root_widget)
+            assert root_canvas_item
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=160))
+            canvas_item = CanvasUserInterface.extract_canvas_item(dialog.content)
+            origin = Geometry.IntPoint()
+            while canvas_item is not None and canvas_item.canvas_origin is not None:
+                origin = origin + Geometry.IntSize(h=canvas_item.canvas_origin.y, w=canvas_item.canvas_origin.x)
+                canvas_item = canvas_item.container
+            return origin
+
+        with window_context(canvas=True) as window:
+            ok_cancel_dialog = Dialog.OkCancelDialog(window.ui, parent_window=window)
+            ok_cancel_dialog.content.add(window.ui.create_label_widget("hello"))
+            self.__dialogs.append(ok_cancel_dialog)
+            ok_cancel_dialog.show()
+            action_dialog = Dialog.ActionDialog(window.ui, title="Action", parent_window=window)
+            action_dialog.content.add(window.ui.create_label_widget("hello"))
+            action_dialog.add_button("Now", lambda: True)
+            self.__dialogs.append(action_dialog)
+            action_dialog.show()
+            def absolute_rect(canvas_item: typing.Any) -> Geometry.IntRect:
+                origin = Geometry.IntPoint()
+                size = canvas_item.canvas_size or Geometry.IntSize()
+                while canvas_item is not None and canvas_item.canvas_origin is not None:
+                    origin = origin + Geometry.IntSize(h=canvas_item.canvas_origin.y, w=canvas_item.canvas_origin.x)
+                    canvas_item = canvas_item.container
+                return Geometry.IntRect(origin=origin, size=size)
+
+            for dialog in (ok_cancel_dialog, action_dialog):
+                origin = content_origin(dialog)
+                self.assertGreater(origin.x, 0)
+                self.assertGreater(origin.y, 0)
+                # the buttons are inside the margin too, rather than flush against the right edge.
+                button_rects = [absolute_rect(CanvasUserInterface.extract_canvas_item(button))
+                                for button in find_buttons(dialog._document_window.root_widget)]
+                self.assertGreater(300 - max(button_rect.right for button_rect in button_rects), 0)
+
     def test_closing_the_dialog_another_way_reports_a_rejection(self) -> None:
         # closing the dialog with the close box of the window is a rejection; nothing else reported the outcome.
         with window_context() as window:

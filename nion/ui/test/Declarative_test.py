@@ -201,6 +201,34 @@ class TestCanvasItemClass(unittest.TestCase):
             with contextlib.closing(widget):
                 self.assertIsInstance(widget, UserInterface.SplitterWidget)
 
+    def test_focus_changed_reports_the_widget_gaining_and_losing_focus(self) -> None:
+        # tests that on_focus_changed, available on every widget, reaches the handler method it names.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.line_edit: typing.Optional[UserInterface.LineEditWidget] = None
+                self.button: typing.Optional[UserInterface.PushButtonWidget] = None
+                self.focus_reports: typing.List[typing.Tuple[str, bool]] = list()
+                self.ui_view = u.create_row(u.create_line_edit(name="line_edit", on_focus_changed="focus_changed"),
+                                            u.create_push_button(text="Button", name="button",
+                                                                 on_focus_changed="focus_changed"))
+
+            def focus_changed(self, widget: UserInterface.Widget, focused: bool) -> None:
+                self.focus_reports.append(("line_edit" if widget == self.line_edit else "button", focused))
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                assert handler.line_edit and handler.button
+                handler.line_edit.focused = True
+                handler.button.focused = True
+                handler.button.focused = False
+                self.assertEqual([("line_edit", True), ("line_edit", False), ("button", True), ("button", False)],
+                                 handler.focus_reports)
+
     def test_update_binding_from_thread(self) -> None:
         # tests that setting the source model on a thread updates the ui model properly using bindable property.
         with event_loop_context() as event_loop:

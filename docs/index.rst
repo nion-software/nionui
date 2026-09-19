@@ -716,6 +716,9 @@ Many widgets and layouts share common properties. These common properties are de
     A string value indicating the font for the widget. Bindable.
 ``border_color``
     A string value indicating the border color for the widget. Used for debugging. Bindable.
+``on_focus_changed``
+    The name of a handler method called when the widget gains or loses the keyboard focus. The widget and a boolean
+    saying whether it is now focused are passed to the method.
 
 Resources
 ^^^^^^^^^

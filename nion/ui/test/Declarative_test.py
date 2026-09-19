@@ -107,6 +107,7 @@ class ListViewEventsHandler(ItemsHandler):
         self.selected_indexes: typing.List[int] = list()
         self.context_menu_indexes: typing.List[typing.Optional[int]] = list()
         self.escape_count = 0
+        self.return_count = 0
         self.focus_reports: typing.List[bool] = list()
         self.list_view: typing.Optional[Widgets.ListViewWidget] = None
         self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
@@ -115,11 +116,16 @@ class ListViewEventsHandler(ItemsHandler):
                                           on_item_changed="item_changed",
                                           on_item_selected="item_selected",
                                           on_escape_pressed="escape_pressed",
+                                          on_return_pressed="return_pressed",
                                           on_focus_changed="focus_changed",
                                           on_item_handle_context_menu="item_context_menu")
 
     def focus_changed(self, widget: Declarative.UIWidget, focused: bool) -> None:
         self.focus_reports.append(focused)
+
+    def return_pressed(self, widget: Declarative.UIWidget) -> bool:
+        self.return_count += 1
+        return True
 
     def item_changed(self, widget: Declarative.UIWidget, current_index: typing.Optional[int]) -> None:
         self.changed_indexes.append(current_index)
@@ -414,6 +420,24 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertFalse(list_view.focused)
                 list_view._list_canvas_item._set_focused(True)
                 self.assertTrue(list_view.focused)
+
+    def test_list_view_reports_return_only_for_the_return_key(self) -> None:
+        # tests that a double click chooses an item without being reported as a return key press. both choose the
+        # item, but only one of them is a key.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.mouse_double_clicked(10, 30, CanvasItem.KeyboardModifiers())
+                self.assertEqual([1], handler.selected_indexes)
+                self.assertEqual(0, handler.return_count)
+                list_canvas_item.key_pressed(ui.create_key_by_id("return"))
+                self.assertEqual([1, 1], handler.selected_indexes)
+                self.assertEqual(1, handler.return_count)
 
     def test_list_view_gives_up_the_focus(self) -> None:
         # tests that clearing the focus of a list view actually clears it, rather than focusing it, and that the

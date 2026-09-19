@@ -479,6 +479,19 @@ class ComboBoxWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemController)
     def set_background_color(self, background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None: ...
 
 
+class ComboBoxCanvasItem(Widgets.ControlCanvasItem):
+    """The canvas item drawing a combo box: its text and its triangle, which behave as one control."""
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        # the arrow keys open the list of items, as the space bar and return do: choosing an item is what the combo
+        # box is for, and the list is where the items are.
+        if self.enabled and (key.is_up_arrow or key.is_down_arrow):
+            if callable(self.on_clicked):
+                self.on_clicked()
+            return True
+        return super().key_pressed(key)
+
+
 class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController):
 
     # extra horizontal space (on each side) reserved around the text so it does not draw flush
@@ -487,7 +500,7 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
 
     def __init__(self, ui: UserInterface.UserInterface) -> None:
         super().__init__(ui)
-        self.__row = CanvasItem.CanvasItemComposition()
+        self.__row = ComboBoxCanvasItem()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
         # a shared group controller keeps the text and triangle cells' hover/pressed state (and
         # hence their mouse-over highlight) in sync, so the combo box highlights as a single unit
@@ -500,8 +513,9 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
         # set_background_color changes, and what the hover/press tint is computed relative to.
         self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"
         self.__row.background_color = self.__base_background_color
-        self.__row.border_color = "#c0c0c0"
-        self.__row.border_width = 0.5
+        # the base border is the combo box's normal, unfocused appearance; the focus draws over it.
+        self.__row.base_border_color = "#c0c0c0"
+        self.__row.base_border_width = 0.5
         self.__triangle = CanvasItem.StaticTextCanvasItem("\N{BLACK DOWN-POINTING TRIANGLE}", group_controller=self.__group_controller)
         self.__triangle.wants_mouse_events = True
         # a thin vertical line between the text and the down-arrow gives a visual indication that
@@ -546,6 +560,8 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
 
         self.__group_controller.on_clicked = handle_clicked
         self.__group_controller.on_style_changed = handle_style_changed
+        # the combo box can also be opened by the keyboard, which the cells within it never see.
+        self.__row.on_clicked = handle_clicked
 
     @property
     def widget_source(self) -> Widgets.WidgetSource:
@@ -600,6 +616,8 @@ class BasicComboBoxWidgetCanvasItemController(ComboBoxWidgetCanvasItemController
 
     def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
+        # the combo box as a whole is what the keyboard opens, so it has to know whether it can be opened.
+        self.__row.enabled = enabled
 
     def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.tool_tip = tool_tip
@@ -2441,6 +2459,8 @@ class ComboBoxWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller = widget_canvas_item_factory.create_combo_box_widget_canvas_item_controller()
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        # the combo box itself takes the focus and handles the keys; the composition around it only carries the sizing.
+        self._set_focus_canvas_item()
 
         self.on_current_text_changed: typing.Optional[typing.Callable[[str], None]] = None
 
@@ -2493,6 +2513,8 @@ class SliderWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller = widget_canvas_item_factory.create_slider_widget_canvas_item_controller()
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        # the slider itself takes the focus and handles the keys; the composition around it only carries the sizing.
+        self._set_focus_canvas_item()
 
         self.on_value_changed: typing.Optional[typing.Callable[[int], None]] = None
         self.on_slider_pressed: typing.Optional[typing.Callable[[], None]] = None

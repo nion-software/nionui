@@ -3516,9 +3516,11 @@ def get_slider_thumb_rect(canvas_size: typing.Optional[Geometry.IntSize], value:
 
 
 class SliderCanvasItemComposer(BaseComposer):
-    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, value: float) -> None:
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, value: float,
+                 focused: bool) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__value = value
+        self.__focused = focused
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         thumb_rect = get_slider_thumb_rect(canvas_rect.size, self.__value)
@@ -3535,6 +3537,8 @@ class SliderCanvasItemComposer(BaseComposer):
             drawing_context.rect(thumb_rect.left, thumb_rect.top, thumb_rect.width, thumb_rect.height)
             drawing_context.fill_style = "#007AD8"
             drawing_context.fill()
+        if self.__focused:
+            draw_focus_ring(drawing_context, canvas_rect)
 
 
 class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
@@ -3542,6 +3546,8 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
     def __init__(self) -> None:
         super().__init__()
         self.wants_mouse_events = True
+        # the thumb is moved by the arrow keys as well as by the mouse, so the slider takes the keyboard focus.
+        self.focusable = True
         self.__tracking = False
         self.__tracking_start = Geometry.IntPoint()
         self.__tracking_value = 0.0
@@ -3569,7 +3575,7 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
         value = self.value if not self.__tracking else self.__tracking_value
-        return SliderCanvasItemComposer(self, self.layout_sizing, composer_cache, value)
+        return SliderCanvasItemComposer(self, self.layout_sizing, composer_cache, value, self.focused)
 
     def mouse_pressed(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
         thumb_rect = get_slider_thumb_rect(self.canvas_size, self.value)
@@ -3605,6 +3611,17 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
             self.__tracking_value = max(0.0, min(1.0, value))
             self.value = value
         return super().mouse_position_changed(x, y, modifiers)
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        # the arrow keys move the thumb along the bar, a step at a time; which arrows depends on nothing but which
+        # way along the bar the thumb is to go.
+        if key.is_left_arrow or key.is_down_arrow:
+            self.__adjust_thumb(-1.0)
+            return True
+        if key.is_right_arrow or key.is_up_arrow:
+            self.__adjust_thumb(1.0)
+            return True
+        return super().key_pressed(key)
 
     def __adjust_thumb(self, amount: float) -> None:
         self.value_change_stream.begin()

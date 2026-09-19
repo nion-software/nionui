@@ -749,7 +749,7 @@ class ListViewCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
             if key_event.key.is_escape:
                 return list_view_widget._handle_escape_pressed()
             if key_event.key.is_enter_or_return:
-                return list_view_widget._handle_item_selected(key_event.item)
+                return list_view_widget._handle_return_pressed(key_event.item)
         return False
 
     def item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
@@ -879,9 +879,14 @@ class ListViewWidget(UserInterface.Widget):
     def _handle_item_selected(self, item: typing.Any) -> bool:
         # the item was chosen, by double click or by pressing return.
         index = self.__index_for_item(item)
-        handled = False
         if index is not None and callable(self.on_item_selected):
-            handled = bool(self.on_item_selected(index))
+            return bool(self.on_item_selected(index))
+        return False
+
+    def _handle_return_pressed(self, item: typing.Any) -> bool:
+        # return chooses the item under the selection and is reported as the return key too. a double click chooses
+        # the item the same way, but is not a key press, so it is not reported as one.
+        handled = self._handle_item_selected(item)
         if callable(self.on_return_pressed):
             handled = bool(self.on_return_pressed()) or handled
         return handled

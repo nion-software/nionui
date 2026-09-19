@@ -804,6 +804,31 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertFalse(_send_key(canvas_widget, _tab_key()))
             self.assertEqual(content_item, canvas_item.focused_item)
 
+    def test_an_item_which_does_not_take_the_focus_on_a_click_is_still_reached_by_tab(self) -> None:
+        # a control operated by the click itself has no use for the focus at that moment, and taking it would move
+        # the focus away from wherever the user was working. walking the focus to it is how it is reached instead.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            settled_into_item = _FocusableCanvasItem()
+            clicked_item = _FocusableCanvasItem()
+            clicked_item.takes_focus_on_click = False
+            canvas_item.add_canvas_item(settled_into_item)
+            canvas_item.add_canvas_item(clicked_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            modifiers = CanvasItem.KeyboardModifiers()
+            # clicking the item which is settled into moves the focus to it, as usual.
+            canvas_widget.simulate_mouse_click(160, 240, modifiers)
+            self.assertEqual(settled_into_item, canvas_item.focused_item)
+            # clicking the other one operates it without taking the focus away from where it was.
+            canvas_widget.simulate_mouse_click(160 + 320, 240, modifiers)
+            self.assertEqual(settled_into_item, canvas_item.focused_item)
+            # but tab still walks the focus onto it.
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(clicked_item, canvas_item.focused_item)
+
     def test_tab_moves_the_focus_to_the_next_item_and_backtab_to_the_previous_one(self) -> None:
         # the tab key walks the focus through the items which can take it, in the order they appear, and backtab
         # walks back.

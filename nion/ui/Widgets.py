@@ -251,6 +251,9 @@ class ControlCanvasItem(CanvasItem.CanvasItemComposition):
     def __init__(self) -> None:
         super().__init__()
         self.focusable = True
+        # a click presses the control rather than settling into it, so it is reached by the keyboard only by
+        # walking the focus to it; clicking it leaves the focus wherever the user was working.
+        self.takes_focus_on_click = False
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
         self.__base_border_color: typing.Optional[str] = None
         self.__base_border_width: typing.Optional[float] = None

@@ -13,7 +13,9 @@ from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
+from nion.utils import Binding
 from nion.utils import Geometry
+from nion.utils import Model
 
 
 class TestComboBoxCanvasSizing(unittest.TestCase):
@@ -1141,6 +1143,44 @@ class TestCanvasWidgetFocus(unittest.TestCase):
             self.assertEqual(1, clicked_count)
             self.assertTrue(self._send_key(host_canvas_widget, "return"))
             self.assertEqual(2, clicked_count)
+
+    def test_the_space_bar_toggles_the_focused_check_box(self) -> None:
+        # a check box which has the focus is toggled by the keyboard, the way clicking it toggles it.
+        column = self.ui.create_column_widget()
+        check_box = self.ui.create_check_box_widget("Check")
+        check_states: typing.List[str] = list()
+        check_box.on_check_state_changed = check_states.append
+        column.add(check_box)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(check_box.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "space", text=" "))
+            self.assertEqual("checked", check_box.check_state)
+            self.assertTrue(self._send_key(host_canvas_widget, "space", text=" "))
+            self.assertEqual("unchecked", check_box.check_state)
+            self.assertEqual(["checked", "unchecked"], check_states)
+
+    def test_the_space_bar_chooses_the_focused_radio_button(self) -> None:
+        # a radio button which has the focus is chosen by the keyboard, and choosing one drops the other.
+        column = self.ui.create_column_widget()
+        first_radio_button = self.ui.create_radio_button_widget("First")
+        second_radio_button = self.ui.create_radio_button_widget("Second")
+        first_radio_button.value = 1
+        second_radio_button.value = 2
+        binding_model = Model.PropertyModel(1)
+        first_radio_button.bind_group_value(Binding.PropertyBinding(binding_model, "value"))
+        second_radio_button.bind_group_value(Binding.PropertyBinding(binding_model, "value"))
+        column.add(first_radio_button)
+        column.add(second_radio_button)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(first_radio_button.checked)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(second_radio_button.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "space", text=" "))
+            self.assertEqual(2, binding_model.value)
+            self.assertTrue(second_radio_button.checked)
+            self.assertFalse(first_radio_button.checked)
 
     def test_the_list_view_takes_its_place_in_the_walk_and_gives_up_the_focus(self) -> None:
         # the list view draws its rows in a canvas widget of its own, which is the case the boundary exists for.

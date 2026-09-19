@@ -242,12 +242,10 @@ class PushButtonCanvasItem(CanvasItem.CanvasItemComposition):
     A button is drawn by several cells -- an icon and a text -- but it takes the focus and is pressed as a single
     unit, so the focus and the keys are handled here rather than by any one of the cells.
 
-    A button has nothing selected to show the focus on, so it shows it as a stronger border around itself. The
-    border it shows when it is not focused is its base border, which is what the widget drawing the button sets.
+    A button has nothing selected to show the focus on, so it shows it as a stronger border around itself, drawn
+    in the same color as the focus ring of the controls which draw one. The border it shows when it is not focused
+    is its base border, which is what the widget drawing the button sets.
     """
-
-    focused_border_color = "#3875D6"
-    focused_border_width = 1.5
 
     def __init__(self) -> None:
         super().__init__()
@@ -283,8 +281,8 @@ class PushButtonCanvasItem(CanvasItem.CanvasItemComposition):
         self.__update_border()
 
     def __update_border(self) -> None:
-        self.border_color = self.focused_border_color if self.focused else self.__base_border_color
-        self.border_width = self.focused_border_width if self.focused else self.__base_border_width
+        self.border_color = CanvasItem.FOCUS_RING_COLOR if self.focused else self.__base_border_color
+        self.border_width = CanvasItem.FOCUS_RING_WIDTH if self.focused else self.__base_border_width
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         # the space bar and return press the button, the way clicking it does.

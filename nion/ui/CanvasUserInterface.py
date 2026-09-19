@@ -137,13 +137,14 @@ class RadioButtonWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemControll
 
 class RadioButtonCanvasItemComposer(CanvasItem.BaseComposer):
     def __init__(self, canvas_item: CanvasItem.AbstractCanvasItem, layout_sizing: CanvasItem.Sizing, cache: CanvasItem.ComposerCache,
-                 checked: bool, enabled: bool, mouse_inside: bool, mouse_pressed: bool,
+                 checked: bool, enabled: bool, mouse_inside: bool, mouse_pressed: bool, focused: bool,
                  text: str, text_color: str, text_disabled_color: str, font: str) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__checked = checked
         self.__enabled = enabled
         self.__mouse_inside = mouse_inside
         self.__mouse_pressed = mouse_pressed
+        self.__focused = focused
         self.__text = text
         self.__text_color = text_color
         self.__text_disabled_color = text_disabled_color
@@ -197,6 +198,8 @@ class RadioButtonCanvasItemComposer(CanvasItem.BaseComposer):
             drawing_context.text_baseline = 'middle'
             drawing_context.fill_style = text_color if enabled else text_disabled_color
             drawing_context.fill_text(text, tx, cy + 1)
+        if self.__focused:
+            CanvasItem.draw_focus_ring(drawing_context, canvas_rect)
 
 
 class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
@@ -204,6 +207,8 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, text: typing.Optional[str] = None) -> None:
         super().__init__()
         self.wants_mouse_events = True
+        # the radio button is chosen by the keyboard as well as by the mouse, so it takes the keyboard focus.
+        self.focusable = True
         self.__enabled = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
@@ -302,6 +307,14 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
             self.on_clicked()
         return True
 
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        # the space bar chooses the radio button, the way clicking it does.
+        if self.enabled and key.text == " ":
+            if callable(self.on_clicked):
+                self.on_clicked()
+            return True
+        return super().key_pressed(key)
+
     @property
     def _mouse_inside(self) -> bool:
         return self.__mouse_inside
@@ -358,7 +371,7 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
                     drawing_context.fill()
     def _get_composer(self, composer_cache: CanvasItem.ComposerCache) -> typing.Optional[CanvasItem.BaseComposer]:
         return RadioButtonCanvasItemComposer(self, self.layout_sizing, composer_cache, self.checked, self.enabled,
-                                              self.__mouse_inside, self.__mouse_pressed, self.__text,
+                                              self.__mouse_inside, self.__mouse_pressed, self.focused, self.__text,
                                               self.__text_color, self.__text_disabled_color, self.__font)
 
 
@@ -723,10 +736,15 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         # changed callback, which is what a widget reports whichever way it is drawn.
         self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
 
-    def _set_focus_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
-        """Say which of the canvas items drawing this widget takes the focus for the widget as a whole."""
-        self.__focus_canvas_item = canvas_item
-        self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
+    def _set_focus_canvas_item(self, canvas_item: typing.Optional[CanvasItem.AbstractCanvasItem] = None) -> None:
+        """Say which of the canvas items drawing this widget takes the focus for the widget as a whole.
+
+        Without an item, it is the first one below the widget's own canvas item which can take the focus, which is
+        what a control wrapped in a composition carrying its sizing amounts to."""
+        canvas_item = canvas_item or self.canvas_item._first_focusable_item()
+        if canvas_item:
+            self.__focus_canvas_item = canvas_item
+            self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
 
     def __handle_focus_changed(self) -> None:
         if callable(self.on_focus_changed):
@@ -2259,7 +2277,7 @@ class PushButtonWidgetBehavior(WidgetBehavior):
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
         # the button itself takes the focus and handles the keys; the composition around it only carries the sizing.
-        self._set_focus_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        self._set_focus_canvas_item()
 
         self.__text: typing.Optional[str] = None
         self.__icon: typing.Optional[Bitmap.Bitmap] = None
@@ -2317,6 +2335,8 @@ class CheckBoxWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller = widget_canvas_item_factory.create_check_box_widget_canvas_item_controller()
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        # the check box itself takes the focus and handles the keys; the composition around it only carries the sizing.
+        self._set_focus_canvas_item()
 
         self.on_check_state_changed: typing.Optional[typing.Callable[[str], None]] = None
 
@@ -2367,6 +2387,8 @@ class RadioButtonWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller = widget_canvas_item_factory.create_radio_button_widget_canvas_item_controller()
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        # the radio button itself takes the focus and handles the keys; the composition around it only carries the sizing.
+        self._set_focus_canvas_item()
 
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 

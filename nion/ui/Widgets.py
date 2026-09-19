@@ -236,15 +236,16 @@ def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properti
         canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_height().with_preferred_height(min(max_height, preferred_height)).with_maximum_height(max_height))
 
 
-class PushButtonCanvasItem(CanvasItem.CanvasItemComposition):
-    """The canvas item drawing a push button.
+class ControlCanvasItem(CanvasItem.CanvasItemComposition):
+    """The canvas item drawing a control made of several cells: a push button of an icon and a text, say, or a
+    combo box of a text and a triangle.
 
-    A button is drawn by several cells -- an icon and a text -- but it takes the focus and is pressed as a single
-    unit, so the focus and the keys are handled here rather than by any one of the cells.
+    The cells are drawn separately but the control takes the focus and is activated as a single unit, so the focus
+    and the keys are handled here rather than by any one of the cells.
 
-    A button has nothing selected to show the focus on, so it shows it as a stronger border around itself, drawn
-    in the same color as the focus ring of the controls which draw one. The border it shows when it is not focused
-    is its base border, which is what the widget drawing the button sets.
+    A control like this has nothing selected to show the focus on, so it shows it as a stronger border around
+    itself, drawn in the same color as the focus ring of the controls which draw one. The border it shows when it
+    is not focused is its base border, which is what the widget drawing the control sets.
     """
 
     def __init__(self) -> None:
@@ -285,7 +286,7 @@ class PushButtonCanvasItem(CanvasItem.CanvasItemComposition):
         self.border_width = CanvasItem.FOCUS_RING_WIDTH if self.focused else self.__base_border_width
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
-        # the space bar and return press the button, the way clicking it does.
+        # the space bar and return activate the control, the way clicking it does.
         if self.enabled and (key.text == " " or key.is_enter_or_return):
             if callable(self.on_clicked):
                 self.on_clicked()
@@ -313,7 +314,7 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         # margins instead, applied once around the combo rather than doubled up per item.
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
         self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
-        self.__stack = PushButtonCanvasItem()
+        self.__stack = ControlCanvasItem()
         self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
         # the "base" background is the button's normal, non-hovered appearance; it is what
         # set_background_color changes, and what the hover/press tint is computed relative to.

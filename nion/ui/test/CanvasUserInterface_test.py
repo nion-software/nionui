@@ -1182,6 +1182,37 @@ class TestCanvasWidgetFocus(unittest.TestCase):
             self.assertTrue(second_radio_button.checked)
             self.assertFalse(first_radio_button.checked)
 
+    def test_the_arrow_keys_move_the_thumb_of_the_focused_slider(self) -> None:
+        # a slider which has the focus is moved by the keyboard, the way dragging its thumb moves it.
+        column = self.ui.create_column_widget()
+        slider = self.ui.create_slider_widget()
+        slider.minimum = 0
+        slider.maximum = 100
+        slider.value = 50
+        column.add(slider)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(slider.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "right"))
+            self.assertGreater(slider.value, 50)
+            moved_value = slider.value
+            self.assertTrue(self._send_key(host_canvas_widget, "left"))
+            self.assertLess(slider.value, moved_value)
+
+    def test_a_combo_box_takes_the_focus_and_opens_its_list_from_the_keyboard(self) -> None:
+        # a combo box is drawn by its text and its triangle but takes the focus as one, and the keys which open its
+        # list of items are the ones it acts on.
+        column = self.ui.create_column_widget()
+        combo_box = self.ui.create_combo_box_widget(["Alpha", "Beta"])
+        column.add(combo_box)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(combo_box.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "space", text=" "))
+            self.assertTrue(self._send_key(host_canvas_widget, "down"))
+            # a key it has no use for is left for the focus to move on.
+            self.assertFalse(self._send_key(host_canvas_widget, "escape"))
+
     def test_the_list_view_takes_its_place_in_the_walk_and_gives_up_the_focus(self) -> None:
         # the list view draws its rows in a canvas widget of its own, which is the case the boundary exists for.
         column = self.ui.create_column_widget()

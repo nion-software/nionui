@@ -2760,6 +2760,17 @@ class CanvasWindow(UserInterface.Window):
         self.__current_size = Geometry.IntSize(width=width, height=height)
 
     def close(self) -> None:
+        # the widgets of this window are drawn by canvas items within one canvas widget of the window it wraps, so
+        # closing this window means closing both: the widgets first, which are what hold on to anything they were
+        # given, and then that canvas widget, which owns the canvas items drawing them.
+        canvas_widget = self.__canvas_widget
+        self.__canvas_widget = None
+        super().close()
+        # the canvas items draw on a thread, and closing them is what stops it. they have to stop before the window
+        # they draw in goes away, or the drawing carries on into a window which is no longer there.
+        if canvas_widget:
+            canvas_widget.close()
+        self.__canvas_item = typing.cast(typing.Any, None)
         self.__ui.destroy_document_window(self.__window)
         self.__window = typing.cast(typing.Any, None)
 

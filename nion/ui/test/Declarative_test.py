@@ -107,6 +107,7 @@ class ListViewEventsHandler(ItemsHandler):
         self.selected_indexes: typing.List[int] = list()
         self.context_menu_indexes: typing.List[typing.Optional[int]] = list()
         self.escape_count = 0
+        self.focus_reports: typing.List[bool] = list()
         self.list_view: typing.Optional[Widgets.ListViewWidget] = None
         self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
                                           name="list_view",
@@ -114,7 +115,11 @@ class ListViewEventsHandler(ItemsHandler):
                                           on_item_changed="item_changed",
                                           on_item_selected="item_selected",
                                           on_escape_pressed="escape_pressed",
+                                          on_focus_changed="focus_changed",
                                           on_item_handle_context_menu="item_context_menu")
+
+    def focus_changed(self, widget: Declarative.UIWidget, focused: bool) -> None:
+        self.focus_reports.append(focused)
 
     def item_changed(self, widget: Declarative.UIWidget, current_index: typing.Optional[int]) -> None:
         self.changed_indexes.append(current_index)
@@ -384,6 +389,55 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual([1], handler.selected_indexes)
                 list_canvas_item.key_pressed(ui.create_key_by_id("return"))
                 self.assertEqual([1, 1], handler.selected_indexes)
+
+    def test_list_view_reports_focus_changes(self) -> None:
+        # tests that a list view reports gaining and losing the keyboard focus. the focus is taken by the list canvas
+        # item inside the widget, so the column the widget wraps has no focus change of its own to report.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_view._list_canvas_item._set_focused(True)
+                list_view._list_canvas_item._set_focused(False)
+                self.assertEqual([True, False], handler.focus_reports)
+
+    def test_list_view_can_take_the_keyboard_focus(self) -> None:
+        # tests that the widget drawing the list can take the keyboard focus, so that the tab order reaches the list
+        # rather than skipping it, and that the widget then answers that it is focused.
+        with event_loop_context() as event_loop:
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                self.assertTrue(list_view._canvas_widget.focusable)
+                self.assertFalse(list_view.focused)
+                list_view._list_canvas_item._set_focused(True)
+                self.assertTrue(list_view.focused)
+
+    def test_list_view_gives_up_the_focus(self) -> None:
+        # tests that clearing the focus of a list view actually clears it, rather than focusing it, and that the
+        # keys stop reaching it once it is cleared.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewEventsHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_view.focused = True
+                self.assertTrue(list_view.focused)
+                list_view.focused = False
+                self.assertFalse(list_view.focused)
+                self.assertFalse(list_view._canvas_widget.focused)
+                # the keys go to the focused canvas item, and there is no longer one. the widget dispatches them,
+                # which is where a key arriving from the window enters the canvas item hierarchy.
+                handler.current_index_model.value = 0
+                on_key_pressed = list_view._canvas_widget.on_key_pressed
+                assert on_key_pressed
+                self.assertFalse(on_key_pressed(ui.create_key_by_id("down")))
+                self.assertEqual(0, handler.current_index_model.value)
 
     def test_list_view_reports_escape_and_context_menu(self) -> None:
         # tests the remaining callbacks: escape is passed to the handler, and the context menu reports the item index.

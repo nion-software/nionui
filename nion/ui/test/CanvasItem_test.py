@@ -780,6 +780,30 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_widget.focused = True
             self.assertEqual(focusable_item, canvas_item.focused_item)
 
+    def test_a_check_box_or_slider_drawn_among_other_content_does_not_take_the_focus_from_it(self) -> None:
+        # these items are drawn both as controls of their own and as part of other content; only whatever draws
+        # them knows which, so they are not focusable until they are told to be, and until then the focus, and the
+        # keys, stay with the content around them.
+        check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
+        slider_canvas_item = CanvasItem.SliderCanvasItem()
+        self.assertFalse(check_box_canvas_item.focusable)
+        self.assertFalse(slider_canvas_item.focusable)
+
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            content_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(content_item)
+            canvas_item.add_canvas_item(check_box_canvas_item)
+            canvas_item.add_canvas_item(slider_canvas_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            self.assertEqual(content_item, canvas_item.focused_item)
+            self.assertFalse(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(content_item, canvas_item.focused_item)
+
     def test_tab_moves_the_focus_to_the_next_item_and_backtab_to_the_previous_one(self) -> None:
         # the tab key walks the focus through the items which can take it, in the order they appear, and backtab
         # walks back.

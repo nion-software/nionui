@@ -132,6 +132,32 @@ class _TestDoubleClickCanvasItem(CanvasItem.AbstractCanvasItem):
         return _TestCanvasItemComposer(self, self.layout_sizing, composer_cache)
 
 
+class _FocusableCanvasItem(_TestCanvasItem):
+    """A canvas item which can take the focus but does not act on the keys it receives."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.focusable = True
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        self.key = key
+        return False
+
+
+def _tab_key() -> UserInterface.Key:
+    return TestUI.Key(str(), "tab", CanvasItem.KeyboardModifiers())
+
+
+def _backtab_key() -> UserInterface.Key:
+    return TestUI.Key(str(), "backtab", CanvasItem.KeyboardModifiers(shift=True))
+
+
+def _send_key(canvas_widget: UserInterface.CanvasWidget, key: UserInterface.Key) -> bool:
+    on_key_pressed = canvas_widget.on_key_pressed
+    assert callable(on_key_pressed)
+    return on_key_pressed(key)
+
+
 class TestCanvasItemClass(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -753,6 +779,136 @@ class TestCanvasItemClass(unittest.TestCase):
             canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
             canvas_widget.focused = True
             self.assertEqual(focusable_item, canvas_item.focused_item)
+
+    def test_tab_moves_the_focus_to_the_next_item_and_backtab_to_the_previous_one(self) -> None:
+        # the tab key walks the focus through the items which can take it, in the order they appear, and backtab
+        # walks back.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            first_item = _FocusableCanvasItem()
+            # an item nested in a plain composition is still part of the walk; the composition is not.
+            container = CanvasItem.CanvasItemComposition()
+            second_item = _FocusableCanvasItem()
+            container.add_canvas_item(_TestCanvasItem())
+            container.add_canvas_item(second_item)
+            third_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(first_item)
+            canvas_item.add_canvas_item(container)
+            canvas_item.add_canvas_item(third_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            self.assertEqual(first_item, canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(second_item, canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(third_item, canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _backtab_key()))
+            self.assertEqual(second_item, canvas_item.focused_item)
+
+    def test_tab_past_the_last_item_leaves_the_key_unhandled_and_the_focus_alone(self) -> None:
+        # the content of a canvas widget is only part of a window, so the focus moving past its last item is for
+        # whatever is drawn beside it to handle; the key is left unhandled to say so.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            first_item = _FocusableCanvasItem()
+            last_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(first_item)
+            canvas_item.add_canvas_item(last_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            last_item.request_focus()
+            self.assertFalse(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(last_item, canvas_item.focused_item)
+            first_item.request_focus()
+            self.assertFalse(_send_key(canvas_widget, _backtab_key()))
+            self.assertEqual(first_item, canvas_item.focused_item)
+
+    def test_tab_comes_back_around_when_the_hierarchy_holds_everything_which_can_be_focused(self) -> None:
+        # a canvas widget drawing an entire window has nowhere to hand the focus on to, so it comes back around to
+        # its first item instead of stopping at its last one.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            typing.cast(CanvasItem.RootCanvasItem, canvas_item).focus_chain_wraps = True
+            first_item = _FocusableCanvasItem()
+            last_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(first_item)
+            canvas_item.add_canvas_item(last_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            last_item.request_focus()
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(first_item, canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _backtab_key()))
+            self.assertEqual(last_item, canvas_item.focused_item)
+
+    def test_tab_resumes_at_the_first_item_when_nothing_is_focused(self) -> None:
+        # after the focus has been given up, tab starts the walk over rather than having nowhere to start from.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            first_item = _FocusableCanvasItem()
+            last_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(first_item)
+            canvas_item.add_canvas_item(last_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            last_item.request_focus()
+            last_item.clear_focus()
+            self.assertIsNone(canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(first_item, canvas_item.focused_item)
+
+    def test_an_item_which_uses_tab_itself_keeps_the_focus(self) -> None:
+        # only a key the focused item did not use moves the focus, so an item which acts on tab is not walked past.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            # a _TestCanvasItem acts on every key it receives, tab included.
+            tab_handling_item = _TestCanvasItem()
+            tab_handling_item.focusable = True
+            other_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(tab_handling_item)
+            canvas_item.add_canvas_item(other_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(tab_handling_item, canvas_item.focused_item)
+
+    def test_tab_walks_the_content_of_a_threaded_canvas_item_before_leaving_it(self) -> None:
+        # a threaded canvas item is a focus scope of its own: tab walks the items within it, and only once past the
+        # last of them does the focus leave it for the item beside it.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            content = CanvasItem.CanvasItemComposition()
+            first_content_item = _FocusableCanvasItem()
+            second_content_item = _FocusableCanvasItem()
+            content.add_canvas_item(first_content_item)
+            content.add_canvas_item(second_content_item)
+            threaded_canvas_item = CanvasItem.ThreadedCanvasItem(content)
+            outside_item = _FocusableCanvasItem()
+            canvas_item.add_canvas_item(threaded_canvas_item)
+            canvas_item.add_canvas_item(outside_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            self.assertEqual(first_content_item, threaded_canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(second_content_item, threaded_canvas_item.focused_item)
+            self.assertEqual(threaded_canvas_item, canvas_item.focused_item)
+            self.assertTrue(_send_key(canvas_widget, _tab_key()))
+            self.assertEqual(outside_item, canvas_item.focused_item)
 
     def test_focus_changed_messages_sent_when_focus_changes(self) -> None:
         # setup canvas

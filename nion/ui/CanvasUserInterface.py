@@ -2518,16 +2518,38 @@ class SliderWidgetBehavior(WidgetBehavior):
 
 
 class CanvasWidgetCanvasItem(CanvasItem.CanvasWidgetCanvasItem):
+    """The canvas item drawing the content of a canvas widget.
+
+    The content is drawn as part of the canvas item hierarchy of the window containing the widget rather than in a
+    hierarchy of its own, so this item is a boundary within that hierarchy rather than the root of a new one: the
+    focus reaches the items drawn here only through the widget, which holds it on their behalf.
+    """
+
+    def __init__(self, canvas_widget: UserInterface.CanvasWidget) -> None:
+        super().__init__()
+        self.__canvas_widget = canvas_widget
 
     @property
     def canvas_widget(self) -> UserInterface.CanvasWidget:
-        # TODO
-        raise NotImplementedError()
+        return self.__canvas_widget
 
     @property
     def focused_item(self) -> typing.Optional[CanvasItem.AbstractCanvasItem]:
-        # TODO
+        # the widget has no focus of its own; whichever item drawn here holds the focus holds it for the widget.
+        base_container = typing.cast(typing.Any, self._base_container)
+        focused_item = typing.cast(typing.Optional[CanvasItem.AbstractCanvasItem],
+                                   base_container.focused_item if base_container else None)
+        canvas_item = focused_item
+        while canvas_item:
+            if canvas_item is self:
+                return focused_item
+            canvas_item = canvas_item.container
         return None
+
+    def _focus_chain(self) -> typing.Sequence[CanvasItem.AbstractCanvasItem]:
+        # the items drawn here can be reached only through the widget drawing them, so they take part in the focus
+        # chain only when that widget is able to take the focus itself.
+        return super()._focus_chain() if self.__canvas_widget.focusable else list()
 
     def size_changed(self, width: int, height: int) -> None:
         pass  # TODO
@@ -2546,6 +2568,8 @@ class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
         super().__init__(self.__canvas_item, False, properties)
         self.__get_font_metrics_fn = get_font_metrics_fn
         self.__focusable = False
+        # the canvas item drawing the content of this widget; set when the widget creates and attaches it.
+        self.__content_canvas_item = typing.cast(CanvasWidgetCanvasItem, None)
         self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
         self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
         self.on_mouse_clicked: typing.Optional[typing.Callable[[int, int, UserInterface.KeyboardModifiers], bool]] = None
@@ -2568,10 +2592,11 @@ class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
     def _set_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
         self.__canvas_item.remove_all_canvas_items()
         self.__canvas_item.add_canvas_item(canvas_item)
+        self.__content_canvas_item = typing.cast(CanvasWidgetCanvasItem, canvas_item)
         # TODO: how does sizing work?
 
     def _create_composition_canvas_item(self, canvas_widget: UserInterface.CanvasWidget, layout_render: typing.Optional[str]) -> CanvasItem.CanvasWidgetCanvasItem:
-        return CanvasWidgetCanvasItem()
+        return CanvasWidgetCanvasItem(canvas_widget)
 
     def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
         pass
@@ -2610,6 +2635,25 @@ class CanvasWidgetBehavior(WidgetBehavior, UserInterface.CanvasWidgetBehavior):
     @focusable.setter
     def focusable(self, focusable: bool) -> None:
         self.__focusable = focusable
+
+    @property
+    def focused(self) -> bool:
+        # the widget has no focus of its own; it is focused when one of the canvas items drawn in it is.
+        return self.__content_canvas_item.focused_item is not None
+
+    @focused.setter
+    def focused(self, focused: bool) -> None:
+        # the widget takes the focus on behalf of the canvas items drawn in it, so it passes the focus on to the
+        # first of them which can take it, and gives up the focus by taking it off whichever one holds it. a widget
+        # which cannot take the focus has none to give to its content and none to give up.
+        if focused:
+            first_focusable_item = self.__content_canvas_item._first_focusable_item()
+            if first_focusable_item:
+                first_focusable_item.request_focus()
+        else:
+            focused_item = self.__content_canvas_item.focused_item
+            if focused_item:
+                focused_item.clear_focus()
 
 
 class ProgressBarWidgetBehavior(CanvasWidgetBehavior, UserInterface.ProgressBarWidgetBehavior):
@@ -2671,6 +2715,9 @@ class CanvasWindow(UserInterface.Window):
         # new root canvas item, the events will be passed into the root widget
         # hierarchy.
         root_canvas_item = CanvasItem.RootCanvasItem(self.__canvas_widget)
+        # everything in the window which can take the focus is drawn in this one widget, so there is nothing beside
+        # it to hand the focus on to: the focus comes back around to the first item instead of stopping at the last.
+        root_canvas_item.focus_chain_wraps = True
         assert root_widget
         canvas_item = extract_canvas_item(root_widget)
         assert canvas_item

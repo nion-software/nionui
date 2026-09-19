@@ -430,6 +430,14 @@ class TestLineEditCanvasIntegration(unittest.TestCase):
         canvas_item._set_focused(False)
         self.assertEqual(finished_values, ["x"])
 
+    def test_widget_reports_focus_changes(self) -> None:
+        widget, canvas_item = self._make_line_edit()
+        focus_states: typing.List[bool] = list()
+        widget.on_focus_changed = focus_states.append
+        canvas_item._set_focused(True)
+        canvas_item._set_focused(False)
+        self.assertEqual(focus_states, [True, False])
+
     def test_return_pressed_fires_editing_finished_and_return_callback(self) -> None:
         widget, canvas_item = self._make_line_edit()
         finished_values: typing.List[str] = list()

@@ -989,6 +989,19 @@ class AbstractCanvasItem:
         """ Returns a list of all canvas items in the hierarchy. """
         return list()
 
+    def _first_focusable_item(self) -> typing.Optional[AbstractCanvasItem]:
+        """Return the first canvas item below this one which can take the focus, in display order.
+
+        This is the item which should take the focus when the widget is given the focus without saying which item
+        is to have it, as happens when the user tabs into it. This item itself is not a candidate."""
+        for canvas_item in self.canvas_items:
+            if canvas_item.focusable:
+                return canvas_item
+            focusable_item = canvas_item._first_focusable_item()
+            if focusable_item:
+                return focusable_item
+        return None
+
     @property
     def canvas_size(self) -> typing.Optional[Geometry.IntSize]:
         """ Returns size of canvas_rect (external coordinates). """
@@ -4292,10 +4305,19 @@ class ThreadedCanvasItem(AbstractCanvasItem):
         elif focused_item:
             focused_item.adjust_secondary_focus(p or Geometry.IntPoint(), modifiers)
 
+    def _first_focusable_item(self) -> typing.Optional[AbstractCanvasItem]:
+        # this item is a focus scope boundary: it takes the focus on behalf of its content and then passes it on to
+        # the item within, so it, and not that item, is what the container outside is to focus. the content is held
+        # in the wrapper rather than as a child of this item, so the search has to be forwarded to it.
+        return self if self.__wrapper_canvas_item._first_focusable_item() else None
+
     def _set_focused(self, focused: bool) -> None:
         """Called when focus changes."""
         if focused and not self.focused_item:
-            self._set_focused_item(self.__last_focused_item)
+            # as in the root canvas item, the focus can arrive without saying which item is to have it, by tabbing
+            # into the widget. the item focused last time is the one to return to, and the first item which can take
+            # the focus is the one to start with.
+            self._set_focused_item(self.__last_focused_item or self.__wrapper_canvas_item._first_focusable_item())
         elif not focused and self.focused_item:
             self._set_focused_item(None)
         super()._set_focused(focused)
@@ -4617,7 +4639,10 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
     def __focus_changed(self, focused: bool) -> None:
         """ Called when widget focus changes. """
         if focused and not self.focused_item:
-            self._set_focused_item(self.__last_focused_item)
+            # the widget can be given the focus without saying which item is to have it, by tabbing into it. the
+            # item focused last time is the one to return to, but a widget which has not been focused before has
+            # none, and leaving the focus on the widget alone would send the keys nowhere and report nothing.
+            self._set_focused_item(self.__last_focused_item or self._first_focusable_item())
         elif not focused and self.focused_item:
             self._set_focused_item(None)
 

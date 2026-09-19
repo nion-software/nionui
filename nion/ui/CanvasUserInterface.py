@@ -716,13 +716,21 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         self.__does_retain_focus = does_retain_focus
         self._no_focus = "no_focus"
         self.__window: typing.Optional[UserInterface.Window] = None
+        # the canvas item which takes the focus for the widget as a whole. a widget drawn by a single canvas item
+        # is that item; one drawn by several of them names the one which takes the focus for all of them.
+        self.__focus_canvas_item = canvas_item
         # the canvas item announces when it gains or loses focus; pass that along as the widget's own focus
-        # changed callback, which is what a widget reports in the Qt backend too.
+        # changed callback, which is what a widget reports whichever way it is drawn.
+        self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
+
+    def _set_focus_canvas_item(self, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+        """Say which of the canvas items drawing this widget takes the focus for the widget as a whole."""
+        self.__focus_canvas_item = canvas_item
         self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
 
     def __handle_focus_changed(self) -> None:
         if callable(self.on_focus_changed):
-            self.on_focus_changed(self.canvas_item.focused)
+            self.on_focus_changed(self.__focus_canvas_item.focused)
 
     def close(self) -> None:
         # close the canvas item?
@@ -787,20 +795,21 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
 
     @property
     def focused(self) -> bool:
-        return self.canvas_item.focused
+        return self.__focus_canvas_item.focused
 
     @focused.setter
     def focused(self, focused: bool) -> None:
         # go through the container which tracks the focused canvas item, in both directions. setting the flag on the
         # canvas item alone leaves the container still thinking the item is focused, so focusing it again does
         # nothing, and leaves the keyboard focus of the host elsewhere, so key strokes go nowhere.
-        base_container = typing.cast(typing.Any, self.canvas_item._base_container)
+        focus_canvas_item = self.__focus_canvas_item
+        base_container = typing.cast(typing.Any, focus_canvas_item._base_container)
         if focused:
-            self.canvas_item.request_focus()
-        elif base_container and base_container.focused_item is self.canvas_item:
+            focus_canvas_item.request_focus()
+        elif base_container and base_container.focused_item is focus_canvas_item:
             base_container._set_focused_item(None)
         else:
-            self.canvas_item._set_focused(False)
+            focus_canvas_item._set_focused(False)
 
     @property
     def does_retain_focus(self) -> bool:
@@ -2249,6 +2258,8 @@ class PushButtonWidgetBehavior(WidgetBehavior):
         self.__canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller()
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
+        # the button itself takes the focus and handles the keys; the composition around it only carries the sizing.
+        self._set_focus_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
 
         self.__text: typing.Optional[str] = None
         self.__icon: typing.Optional[Bitmap.Bitmap] = None

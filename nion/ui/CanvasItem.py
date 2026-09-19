@@ -3476,6 +3476,25 @@ class StackCanvasItem(CanvasItemComposition):
             self.update()
 
 
+# the appearance of the ring which shows that a canvas item has the keyboard focus. a control with nothing
+# selected to show the focus on -- a button, a check box, a slider -- shows it as a ring around itself instead.
+FOCUS_RING_COLOR = "#3875D6"
+FOCUS_RING_WIDTH = 1.5
+
+
+def draw_focus_ring(drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+    """Draw the ring showing that the canvas item occupying canvas_rect has the keyboard focus."""
+    with drawing_context.saver():
+        drawing_context.begin_path()
+        # inset by half the width so the ring is drawn inside the item rather than half outside it.
+        inset = FOCUS_RING_WIDTH / 2
+        drawing_context.round_rect(canvas_rect.left + inset, canvas_rect.top + inset,
+                                   canvas_rect.width - FOCUS_RING_WIDTH, canvas_rect.height - FOCUS_RING_WIDTH, 3.0)
+        drawing_context.stroke_style = FOCUS_RING_COLOR
+        drawing_context.line_width = FOCUS_RING_WIDTH
+        drawing_context.stroke()
+
+
 SLIDER_THUMB_WIDTH = 8
 SLIDER_THUMB_HEIGHT = 16
 SLIDER_BAR_OFFSET = 1
@@ -6060,13 +6079,14 @@ class StaticTextCanvasItem(TextCanvasItem):
 
 class CheckBoxCanvasItemComposer(BaseComposer):
     def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache,
-                    check_state: str, enabled: bool, mouse_inside: bool, mouse_pressed: bool,
+                    check_state: str, enabled: bool, mouse_inside: bool, mouse_pressed: bool, focused: bool,
                     text: str, text_color: str, text_disabled_color: str, font: str) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__check_state = check_state
         self.__enabled = enabled
         self.__mouse_inside = mouse_inside
         self.__mouse_pressed = mouse_pressed
+        self.__focused = focused
         self.__text = text
         self.__text_color = text_color
         self.__text_disabled_color = text_disabled_color
@@ -6123,6 +6143,8 @@ class CheckBoxCanvasItemComposer(BaseComposer):
             drawing_context.text_baseline = 'middle'
             drawing_context.fill_style = text_color if enabled else text_disabled_color
             drawing_context.fill_text(text, tx, cy + 1)
+        if self.__focused:
+            draw_focus_ring(drawing_context, canvas_rect)
 
 
 class CheckBoxCanvasItem(AbstractCanvasItem):
@@ -6130,6 +6152,8 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
     def __init__(self, text: typing.Optional[str] = None) -> None:
         super().__init__()
         self.wants_mouse_events = True
+        # the check box is toggled by the keyboard as well as by the mouse, so it takes the keyboard focus.
+        self.focusable = True
         self.__enabled = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
@@ -6253,6 +6277,13 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         self._toggle_checked()
         return True
 
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        # the space bar toggles the check box, the way clicking it does.
+        if self.enabled and key.text == " ":
+            self._toggle_checked()
+            return True
+        return super().key_pressed(key)
+
     def _toggle_checked(self) -> None:
         if self.enabled:
             if self.check_state == "checked":
@@ -6283,7 +6314,7 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         self.intrinsic_size = Geometry.IntSize(new_height, new_width)
 
     def _get_composer(self, composer_cache: ComposerCache) -> typing.Optional[BaseComposer]:
-        return CheckBoxCanvasItemComposer(self, self.layout_sizing, composer_cache, self.check_state, self.enabled, self.__mouse_inside, self.__mouse_pressed, self.__text, self.__text_color, self.__text_disabled_color, self.__font)
+        return CheckBoxCanvasItemComposer(self, self.layout_sizing, composer_cache, self.check_state, self.enabled, self.__mouse_inside, self.__mouse_pressed, self.focused, self.__text, self.__text_color, self.__text_disabled_color, self.__font)
 
 
 class EmptyCanvasItemComposer(BaseComposer):

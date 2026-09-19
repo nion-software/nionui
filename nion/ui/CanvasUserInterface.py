@@ -716,9 +716,17 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         self.__does_retain_focus = does_retain_focus
         self._no_focus = "no_focus"
         self.__window: typing.Optional[UserInterface.Window] = None
+        # the canvas item announces when it gains or loses focus; pass that along as the widget's own focus
+        # changed callback, which is what a widget reports in the Qt backend too.
+        self.__focus_changed_listener = canvas_item.focus_changed_event.listen(ReferenceCounting.weak_partial(WidgetBehavior.__handle_focus_changed, self))
+
+    def __handle_focus_changed(self) -> None:
+        if callable(self.on_focus_changed):
+            self.on_focus_changed(self.canvas_item.focused)
 
     def close(self) -> None:
         # close the canvas item?
+        self.__focus_changed_listener = typing.cast(typing.Any, None)
         self.on_ui_activity = None
         self.on_context_menu_event = None
         self.on_focus_changed = None

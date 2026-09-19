@@ -84,7 +84,7 @@ class DeclarativeUI:
     # TODO: thumbnails
     # TODO: display panels
     # TODO: periodic
-    # TODO: focus handler
+    # ----: focus handler
     # ----: bindings
     # TODO: commands
     # TODO: standard dialog boxes, open, save, print, confirm
@@ -119,7 +119,8 @@ class DeclarativeUI:
             "background_color",
             "border_color",
             "widget_id",
-            "style"
+            "style",
+            "on_focus_changed",
         )
         for k in common_properties:
             if k in kwargs and kwargs[k] is not None:
@@ -1323,6 +1324,9 @@ def connect_attributes(widget: UserInterface.Widget, d: UIDescription, handler: 
     connect_reference_value(widget, d, handler, "border_color", finishes, value_type=str)
     connect_reference_value(widget, d, handler, "color", finishes, value_type=str)
     connect_reference_value(widget, d, handler, "font", finishes, value_type=str)
+    # every widget reports when it gains or loses the keyboard focus, so the callback is connected here rather
+    # than by each widget in turn.
+    connect_event(widget, widget, d, handler, "on_focus_changed", ["focused"])
     widget.widget_id = d.get("widget_id", widget.widget_id)
 
 

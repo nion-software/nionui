@@ -236,6 +236,65 @@ def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properti
         canvas_item.update_sizing(canvas_item_sizing.with_unconstrained_height().with_preferred_height(min(max_height, preferred_height)).with_maximum_height(max_height))
 
 
+class PushButtonCanvasItem(CanvasItem.CanvasItemComposition):
+    """The canvas item drawing a push button.
+
+    A button is drawn by several cells -- an icon and a text -- but it takes the focus and is pressed as a single
+    unit, so the focus and the keys are handled here rather than by any one of the cells.
+
+    A button has nothing selected to show the focus on, so it shows it as a stronger border around itself. The
+    border it shows when it is not focused is its base border, which is what the widget drawing the button sets.
+    """
+
+    focused_border_color = "#3875D6"
+    focused_border_width = 1.5
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.focusable = True
+        self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
+        self.__base_border_color: typing.Optional[str] = None
+        self.__base_border_width: typing.Optional[float] = None
+
+    def close(self) -> None:
+        self.on_clicked = None
+        super().close()
+
+    @property
+    def base_border_color(self) -> typing.Optional[str]:
+        return self.__base_border_color
+
+    @base_border_color.setter
+    def base_border_color(self, base_border_color: typing.Optional[str]) -> None:
+        self.__base_border_color = base_border_color
+        self.__update_border()
+
+    @property
+    def base_border_width(self) -> typing.Optional[float]:
+        return self.__base_border_width
+
+    @base_border_width.setter
+    def base_border_width(self, base_border_width: typing.Optional[float]) -> None:
+        self.__base_border_width = base_border_width
+        self.__update_border()
+
+    def _set_focused(self, focused: bool) -> None:
+        super()._set_focused(focused)
+        self.__update_border()
+
+    def __update_border(self) -> None:
+        self.border_color = self.focused_border_color if self.focused else self.__base_border_color
+        self.border_width = self.focused_border_width if self.focused else self.__base_border_width
+
+    def key_pressed(self, key: UserInterface.Key) -> bool:
+        # the space bar and return press the button, the way clicking it does.
+        if self.enabled and (key.text == " " or key.is_enter_or_return):
+            if callable(self.on_clicked):
+                self.on_clicked()
+            return True
+        return super().key_pressed(key)
+
+
 class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemController):
 
     # matches a typical native push button's default minimum width so that short-text buttons
@@ -256,14 +315,15 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         # margins instead, applied once around the combo rather than doubled up per item.
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
         self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
-        self.__stack = CanvasItem.CanvasItemComposition()
+        self.__stack = PushButtonCanvasItem()
         self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
         # the "base" background is the button's normal, non-hovered appearance; it is what
         # set_background_color changes, and what the hover/press tint is computed relative to.
         self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"
         self.__stack.background_color = self.__base_background_color
-        self.__stack.border_color = "#c0c0c0"
-        self.__stack.border_width = 0.5
+        # the base border is the button's normal, unfocused appearance; the focus draws over it.
+        self.__stack.base_border_color = "#c0c0c0"
+        self.__stack.base_border_width = 0.5
         self.__stack.corner_radius = 3
         # icon (if any) is shown to the left of the text (if any); both can be visible at once.
         self.__stack.add_canvas_item(self.__icon_button_canvas_item)
@@ -292,6 +352,8 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
 
         self.__group_controller.on_clicked = handle_clicked
         self.__group_controller.on_style_changed = handle_style_changed
+        # the button can also be pressed by the keyboard, which the cells within it never see.
+        self.__stack.on_clicked = handle_clicked
 
     @property
     def widget_source(self) -> WidgetSource:
@@ -351,6 +413,8 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
     def set_enabled(self, enabled: bool) -> None:
         self.__text_button_canvas_item.enabled = enabled
         self.__icon_button_canvas_item.enabled = enabled
+        # the button as a whole is what the keyboard presses, so it has to know whether it can be pressed.
+        self.__stack.enabled = enabled
 
     def set_tool_tip(self, tool_tip: typing.Optional[str]) -> None:
         self.__text_button_canvas_item.tool_tip = tool_tip
@@ -361,7 +425,7 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__stack.background_color = background_color
 
     def set_border_color(self, border_color: typing.Optional[str]) -> None:
-        self.__stack.border_color = border_color
+        self.__stack.base_border_color = border_color
 
 
 class TabWidgetCanvasItemController(BaseWidgetCanvasItemController):

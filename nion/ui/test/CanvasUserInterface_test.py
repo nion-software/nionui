@@ -998,9 +998,9 @@ class TestCanvasWindowClass(unittest.TestCase):
 
 
 class TestCanvasWidgetFocus(unittest.TestCase):
-    """The canvas backend draws a whole window in one widget of the host, so a canvas widget within it is a
-    boundary in the window's canvas item hierarchy rather than a hierarchy of its own. These tests cover the focus
-    crossing that boundary: which items the focus walks through, and which it is kept out of."""
+    """The canvas backend draws a whole window in one hierarchy of canvas items, so a widget in it is one or more
+    canvas items rather than something with a focus of its own. These tests cover which of them takes the focus:
+    the boundary a canvas widget draws around its content, and the item a widget of several of them is focused by."""
 
     def setUp(self) -> None:
         self.event_loop = asyncio.new_event_loop()
@@ -1023,11 +1023,11 @@ class TestCanvasWidgetFocus(unittest.TestCase):
         host_canvas_widget.focused = True
         return window, host_canvas_widget
 
-    def _send_key(self, host_canvas_widget: UserInterface.CanvasWidget, key_name: str) -> bool:
+    def _send_key(self, host_canvas_widget: UserInterface.CanvasWidget, key_name: str, *, text: str = str()) -> bool:
         on_key_pressed = host_canvas_widget.on_key_pressed
         assert callable(on_key_pressed)
         shift = key_name == "backtab"
-        return on_key_pressed(TestUI.Key(str(), key_name, CanvasItem.KeyboardModifiers(shift=shift)))
+        return on_key_pressed(TestUI.Key(text, key_name, CanvasItem.KeyboardModifiers(shift=shift)))
 
     def _make_canvas_widget(self, focusable: bool) -> typing.Tuple[UserInterface.CanvasWidget, CanvasItem.AbstractCanvasItem]:
         canvas_widget = self.ui.create_canvas_widget()
@@ -1101,6 +1101,46 @@ class TestCanvasWidgetFocus(unittest.TestCase):
             canvas_widget.focused = False
             self.assertFalse(content_item.focused)
             self.assertFalse(canvas_widget.focused)
+
+    def test_a_push_button_takes_the_focus_and_reports_it(self) -> None:
+        # a push button is drawn by several canvas items -- an icon and a text -- but takes the focus as one, so
+        # that it can be reached by the keyboard and say so.
+        column = self.ui.create_column_widget()
+        line_edit = self.ui.create_line_edit_widget()
+        push_button = self.ui.create_push_button_widget("Press")
+        focus_changes: typing.List[bool] = list()
+        push_button.on_focus_changed = focus_changes.append
+        column.add(line_edit)
+        column.add(push_button)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(push_button.focused)
+            self.assertEqual([True], focus_changes)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertFalse(push_button.focused)
+            self.assertEqual([True, False], focus_changes)
+
+    def test_the_space_bar_and_return_press_the_focused_push_button(self) -> None:
+        # a button which has the focus is pressed by the keyboard, the way clicking it presses it.
+        column = self.ui.create_column_widget()
+        push_button = self.ui.create_push_button_widget("Press")
+        clicked_count = 0
+
+        def handle_clicked() -> None:
+            nonlocal clicked_count
+            clicked_count += 1
+
+        push_button.on_clicked = handle_clicked
+        column.add(push_button)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(push_button.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "space", text=" "))
+            self.assertEqual(1, clicked_count)
+            self.assertTrue(self._send_key(host_canvas_widget, "return"))
+            self.assertEqual(2, clicked_count)
 
     def test_the_list_view_takes_its_place_in_the_walk_and_gives_up_the_focus(self) -> None:
         # the list view draws its rows in a canvas widget of its own, which is the case the boundary exists for.

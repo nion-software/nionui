@@ -50,6 +50,28 @@ class TestCanvasItemClass(unittest.TestCase):
             self.assertEqual(scroll_canvas_rect.height, 200)
             self.assertEqual(scroll_content_rect.height, 20)
 
+    def test_a_disabled_push_button_is_not_pressed_by_the_keyboard(self) -> None:
+        # the button reaches the keyboard through the focus, which a disabled button can still hold if it was
+        # disabled while focused; being disabled is what has to stop it from being pressed.
+        from nion.ui import Widgets
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
+        controller.set_text("Press")
+        clicked_count = 0
+
+        def handle_clicked() -> None:
+            nonlocal clicked_count
+            clicked_count += 1
+
+        controller.on_clicked = handle_clicked
+        button_canvas_item = controller.widget_source.canvas_item
+        space_key = TestUI.Key(" ", "space", CanvasItem.KeyboardModifiers())
+        self.assertTrue(button_canvas_item.key_pressed(space_key))
+        self.assertEqual(1, clicked_count)
+        controller.set_enabled(False)
+        self.assertFalse(button_canvas_item.key_pressed(space_key))
+        self.assertEqual(1, clicked_count)
+
     def test_push_button_shows_both_text_and_icon_when_both_are_set(self) -> None:
         from nion.ui import Bitmap
         from nion.ui import Widgets

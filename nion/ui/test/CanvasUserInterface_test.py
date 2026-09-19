@@ -11,6 +11,7 @@ from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Geometry
 
@@ -994,6 +995,128 @@ class TestCanvasWindowClass(unittest.TestCase):
             with contextlib.closing(child_window):
                 parent_document_window = typing.cast(CanvasUserInterface.CanvasWindow, parent_window._document_window)
                 self.assertEqual([None, parent_document_window._root_window], host_ui.window_parents)
+
+
+class TestCanvasWidgetFocus(unittest.TestCase):
+    """The canvas backend draws a whole window in one widget of the host, so a canvas widget within it is a
+    boundary in the window's canvas item hierarchy rather than a hierarchy of its own. These tests cover the focus
+    crossing that boundary: which items the focus walks through, and which it is kept out of."""
+
+    def setUp(self) -> None:
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
+        self.host_ui = TestUI.UserInterface()
+        self.ui = CanvasUserInterface.CanvasUserInterface(self.host_ui)
+
+    def tearDown(self) -> None:
+        self.event_loop.stop()
+        self.event_loop.run_forever()
+        self.event_loop.close()
+
+    def _make_window(self, content: UserInterface.Widget) -> typing.Tuple[CanvasUserInterface.CanvasWindow, UserInterface.CanvasWidget]:
+        # the canvas window wraps a window of the host user interface, so it is built on the host ui; rooting it in
+        # a canvas widget of the canvas ui would nest the content in a second hierarchy which nothing drives.
+        window = CanvasUserInterface.CanvasWindow(self.host_ui, "test")
+        window._attach_root_widget(content)
+        window.show()
+        host_canvas_widget = typing.cast(UserInterface.CanvasWidget, window._CanvasWindow__canvas_widget)  # type: ignore[attr-defined]
+        host_canvas_widget.focused = True
+        return window, host_canvas_widget
+
+    def _send_key(self, host_canvas_widget: UserInterface.CanvasWidget, key_name: str) -> bool:
+        on_key_pressed = host_canvas_widget.on_key_pressed
+        assert callable(on_key_pressed)
+        shift = key_name == "backtab"
+        return on_key_pressed(TestUI.Key(str(), key_name, CanvasItem.KeyboardModifiers(shift=shift)))
+
+    def _make_canvas_widget(self, focusable: bool) -> typing.Tuple[UserInterface.CanvasWidget, CanvasItem.AbstractCanvasItem]:
+        canvas_widget = self.ui.create_canvas_widget()
+        canvas_widget.focusable = focusable
+        content_item = CanvasItem.CanvasItemComposition()
+        content_item.focusable = True
+        canvas_widget.canvas_item.add_canvas_item(content_item)
+        return canvas_widget, content_item
+
+    def test_tab_walks_the_widgets_of_a_window_in_order_and_comes_back_around(self) -> None:
+        # the whole window is drawn in one widget of the host, so the focus has nothing outside to move on to when
+        # it reaches the last widget: it returns to the first one.
+        column = self.ui.create_column_widget()
+        first_line_edit = self.ui.create_line_edit_widget()
+        second_line_edit = self.ui.create_line_edit_widget()
+        column.add(first_line_edit)
+        column.add(second_line_edit)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(first_line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(second_line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(first_line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "backtab"))
+            self.assertTrue(second_line_edit.focused)
+
+    def test_tab_stops_at_a_canvas_widget_which_can_take_the_focus(self) -> None:
+        # the canvas items drawn in a canvas widget are reached through that widget, so a widget which can take the
+        # focus puts its content into the walk.
+        column = self.ui.create_column_widget()
+        line_edit = self.ui.create_line_edit_widget()
+        canvas_widget, content_item = self._make_canvas_widget(focusable=True)
+        column.add(line_edit)
+        column.add(canvas_widget)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(content_item.focused)
+            self.assertTrue(canvas_widget.focused)
+
+    def test_tab_skips_the_content_of_a_canvas_widget_which_cannot_take_the_focus(self) -> None:
+        # a widget which cannot take the focus cannot hold it on behalf of its content either, so the walk passes
+        # over everything drawn in it rather than focusing an item the user could never tab to.
+        column = self.ui.create_column_widget()
+        line_edit = self.ui.create_line_edit_widget()
+        canvas_widget, content_item = self._make_canvas_widget(focusable=False)
+        column.add(line_edit)
+        column.add(canvas_widget)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertFalse(content_item.focused)
+            self.assertTrue(line_edit.focused)
+            # and it cannot be given the focus by asking for it either.
+            canvas_widget.focused = True
+            self.assertFalse(content_item.focused)
+
+    def test_a_canvas_widget_gives_up_the_focus_of_the_item_holding_it(self) -> None:
+        # the widget holds the focus on behalf of the item drawn in it, so giving up the widget's focus has to take
+        # the focus off that item; leaving it focused would send the keys to an item nothing has the focus for.
+        column = self.ui.create_column_widget()
+        canvas_widget, content_item = self._make_canvas_widget(focusable=True)
+        column.add(canvas_widget)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(content_item.focused)
+            self.assertTrue(canvas_widget.focused)
+            canvas_widget.focused = False
+            self.assertFalse(content_item.focused)
+            self.assertFalse(canvas_widget.focused)
+
+    def test_the_list_view_takes_its_place_in_the_walk_and_gives_up_the_focus(self) -> None:
+        # the list view draws its rows in a canvas widget of its own, which is the case the boundary exists for.
+        column = self.ui.create_column_widget()
+        line_edit = self.ui.create_line_edit_widget()
+        list_widget = Widgets.StringListViewWidget(self.ui, items=["a", "b"], item_height=20)
+        column.add(line_edit)
+        column.add(list_widget)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(line_edit.focused)
+            self.assertTrue(self._send_key(host_canvas_widget, "tab"))
+            self.assertTrue(list_widget.focused)
+            self.assertFalse(line_edit.focused)
+            list_widget.focused = False
+            self.assertFalse(list_widget.focused)
 
 
 if __name__ == '__main__':

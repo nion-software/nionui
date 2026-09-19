@@ -927,6 +927,7 @@ class AbstractCanvasItem:
         self.__layout_count = 0
         self.__focused = False
         self.__focusable = False
+        self.__takes_focus_on_click = True
         self.wants_mouse_events = False
         self.wants_drag_events = False
         self.on_focus_changed: typing.Optional[typing.Callable[[bool], None]] = None
@@ -1121,6 +1122,23 @@ class AbstractCanvasItem:
             not be focusable.
         """
         self.__focusable = focusable
+
+    @property
+    def takes_focus_on_click(self) -> bool:
+        """Return whether clicking this canvas item gives it the focus.
+
+        An item which can take the focus usually takes it when it is clicked: a field clicked into is where the
+        typing should go from then on.
+
+        A control operated by the click itself -- a button being pressed, a check box being toggled -- has no use
+        for the focus at that moment, and taking it would move the focus away from wherever the user was working.
+        Such a control takes the focus only when the focus is walked to it.
+        """
+        return self.__takes_focus_on_click
+
+    @takes_focus_on_click.setter
+    def takes_focus_on_click(self, takes_focus_on_click: bool) -> None:
+        self.__takes_focus_on_click = takes_focus_on_click
 
     @property
     def focused(self) -> bool:
@@ -4335,7 +4353,10 @@ class ThreadedCanvasItem(AbstractCanvasItem):
         canvas_item_: AbstractCanvasItem | None = canvas_item
         while canvas_item_:
             if canvas_item_.focusable:
-                canvas_item_._request_focus(p, modifiers)
+                # an item which does not take the focus when it is clicked leaves the focus where it is: the click
+                # operates the control, and moving the focus would take it away from wherever the user was working.
+                if canvas_item_.takes_focus_on_click:
+                    canvas_item_._request_focus(p, modifiers)
                 break
             canvas_item_ = canvas_item_.container
 
@@ -4826,7 +4847,10 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         canvas_item_: typing.Optional[AbstractCanvasItem] = canvas_item
         while canvas_item_:
             if canvas_item_.focusable:
-                canvas_item_._request_focus(p, modifiers)
+                # an item which does not take the focus when it is clicked leaves the focus where it is: the click
+                # operates the control, and moving the focus would take it away from wherever the user was working.
+                if canvas_item_.takes_focus_on_click:
+                    canvas_item_._request_focus(p, modifiers)
                 break
             canvas_item_ = canvas_item_.container
 

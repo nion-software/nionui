@@ -70,8 +70,10 @@ class BasicCheckBoxWidgetCanvasItemController(CheckBoxWidgetCanvasItemController
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
         self.__check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
-        # the check box is a control of its own here, so it takes the focus and can be toggled by the keyboard.
+        # the check box is a control of its own here, so it takes the focus and can be toggled by the keyboard. a
+        # click toggles it rather than settling into it, so it takes the focus only by being walked to.
         self.__check_box_canvas_item.focusable = True
+        self.__check_box_canvas_item.takes_focus_on_click = False
         self.__row.add_canvas_item(self.__check_box_canvas_item)
 
         def handle_check_state_changed(check_state: str) -> None:
@@ -209,8 +211,10 @@ class RadioButtonCanvasItem(CanvasItem.AbstractCanvasItem):
     def __init__(self, text: typing.Optional[str] = None) -> None:
         super().__init__()
         self.wants_mouse_events = True
-        # the radio button is chosen by the keyboard as well as by the mouse, so it takes the keyboard focus.
+        # the radio button is chosen by the keyboard as well as by the mouse, so it takes the keyboard focus. a
+        # click chooses it rather than settling into it, so it takes the focus only by being walked to.
         self.focusable = True
+        self.takes_focus_on_click = False
         self.__enabled = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
@@ -636,8 +640,10 @@ class BasicSliderWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemControll
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
         self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
-        # the slider is a control of its own here, so it takes the focus and can be moved by the arrow keys.
+        # the slider is a control of its own here, so it takes the focus and can be moved by the arrow keys. the
+        # thumb is dragged rather than settled into, so it takes the focus only by being walked to.
         self.__slider_canvas_item.focusable = True
+        self.__slider_canvas_item.takes_focus_on_click = False
         self.__row.add_canvas_item(self.__slider_canvas_item)
 
         self.__minimum = 0

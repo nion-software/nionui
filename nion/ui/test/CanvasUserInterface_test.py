@@ -1022,8 +1022,17 @@ class TestCanvasWidgetFocus(unittest.TestCase):
         window._attach_root_widget(content)
         window.show()
         host_canvas_widget = typing.cast(UserInterface.CanvasWidget, window._CanvasWindow__canvas_widget)  # type: ignore[attr-defined]
+        # lay the content out so that the canvas items have the positions a click is resolved against.
+        host_canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=640, height=480))
         host_canvas_widget.focused = True
         return window, host_canvas_widget
+
+    def _click(self, host_canvas_widget: UserInterface.CanvasWidget, widget: UserInterface.Widget) -> None:
+        # click the middle of the widget, which is where whatever it is drawn by actually is.
+        canvas_item = typing.cast(CanvasItem.AbstractCanvasItem, widget._behavior.canvas_item)  # type: ignore[attr-defined]
+        canvas_size = canvas_item.canvas_size or Geometry.IntSize()
+        point = canvas_item.map_to_base_container(Geometry.IntPoint(y=canvas_size.height // 2, x=canvas_size.width // 2))
+        host_canvas_widget.simulate_mouse_click(point.x, point.y, CanvasItem.KeyboardModifiers())
 
     def _send_key(self, host_canvas_widget: UserInterface.CanvasWidget, key_name: str, *, text: str = str()) -> bool:
         on_key_pressed = host_canvas_widget.on_key_pressed
@@ -1212,6 +1221,43 @@ class TestCanvasWidgetFocus(unittest.TestCase):
             self.assertTrue(self._send_key(host_canvas_widget, "down"))
             # a key it has no use for is left for the focus to move on.
             self.assertFalse(self._send_key(host_canvas_widget, "escape"))
+
+    def test_clicking_a_push_button_presses_it_without_taking_the_focus(self) -> None:
+        # a button is pressed by the click rather than settled into, so clicking it leaves the focus wherever the
+        # user was working -- which is what lets a command button be pressed without disturbing the field in use.
+        column = self.ui.create_column_widget()
+        line_edit = self.ui.create_line_edit_widget()
+        push_button = self.ui.create_push_button_widget("Press")
+        clicked_count = 0
+
+        def handle_clicked() -> None:
+            nonlocal clicked_count
+            clicked_count += 1
+
+        push_button.on_clicked = handle_clicked
+        column.add(line_edit)
+        column.add(push_button)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(line_edit.focused)
+            self._click(host_canvas_widget, push_button)
+            self.assertEqual(1, clicked_count)
+            self.assertFalse(push_button.focused)
+            self.assertTrue(line_edit.focused)
+
+    def test_clicking_a_line_edit_moves_the_focus_into_it(self) -> None:
+        # a field is settled into rather than operated, so clicking it is how the typing gets there.
+        column = self.ui.create_column_widget()
+        first_line_edit = self.ui.create_line_edit_widget()
+        second_line_edit = self.ui.create_line_edit_widget()
+        column.add(first_line_edit)
+        column.add(second_line_edit)
+        window, host_canvas_widget = self._make_window(column)
+        with contextlib.closing(window):
+            self.assertTrue(first_line_edit.focused)
+            self._click(host_canvas_widget, second_line_edit)
+            self.assertTrue(second_line_edit.focused)
+            self.assertFalse(first_line_edit.focused)
 
     def test_the_list_view_takes_its_place_in_the_walk_and_gives_up_the_focus(self) -> None:
         # the list view draws its rows in a canvas widget of its own, which is the case the boundary exists for.

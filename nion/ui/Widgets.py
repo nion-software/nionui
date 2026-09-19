@@ -809,6 +809,10 @@ class ListViewWidget(UserInterface.Widget):
         if v_scroll_enabled:
             scroll_group_canvas_item.add_canvas_item(CanvasItem.ScrollBarCanvasItem(scroll_area_canvas_item))
         canvas_widget = ui.create_canvas_widget(properties=properties)
+        # the list canvas item takes the keyboard focus, but it can only be reached through the widget drawing it,
+        # so that widget has to be able to take the focus too. without this the list is skipped by the tab order
+        # and can be focused only by clicking it.
+        canvas_widget.focusable = True
         canvas_widget.canvas_item.add_canvas_item(scroll_group_canvas_item)
         column_widget.add(canvas_widget)
         self.__canvas_widget = canvas_widget
@@ -835,9 +839,19 @@ class ListViewWidget(UserInterface.Widget):
 
         self.__selection_changed_event_listener = self.__selection.changed_event.listen(selection_changed)
 
+        # the list canvas item is what actually takes the keyboard focus within the canvas widget, so it is what
+        # reports the focus changing. the composite behavior wrapping the column has no focus of its own to report.
+        def focus_changed() -> None:
+            if callable(self.on_focus_changed):
+                self.on_focus_changed(self.__list_canvas_item.focused)
+
+        self.__focus_changed_event_listener = self.__list_canvas_item.focus_changed_event.listen(focus_changed)
+
         self.current_index = self.__selection.current_index
 
     def close(self) -> None:
+        self.__focus_changed_event_listener.close()
+        self.__focus_changed_event_listener = typing.cast(typing.Any, None)
         self.__selection_changed_event_listener.close()
         self.__selection_changed_event_listener = typing.cast(typing.Any, None)
         self.__current_index_binding_helper.close()
@@ -917,12 +931,22 @@ class ListViewWidget(UserInterface.Widget):
         return self.__list_canvas_item
 
     @property
+    def _canvas_widget(self) -> UserInterface.CanvasWidget:
+        return self.__canvas_widget
+
+    @property
     def focused(self) -> bool:
-        return self.__canvas_widget.focused and self.__list_canvas_item.focused
+        # the list canvas item is what holds the focus; it is cleared when the widget drawing it loses the focus.
+        return self.__list_canvas_item.focused
 
     @focused.setter
     def focused(self, focused: bool) -> None:
-        self.__list_canvas_item.request_focus()
+        if focused:
+            self.__list_canvas_item.request_focus()
+        else:
+            # the widget drawing the list holds the keyboard focus on the list's behalf, so giving up the focus
+            # means giving up both: dropping the widget focus takes the focus off the list canvas item with it.
+            self.__canvas_widget.focused = False
 
 
 class StringListViewWidget(ListViewWidget):

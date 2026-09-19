@@ -989,18 +989,29 @@ class AbstractCanvasItem:
         """ Returns a list of all canvas items in the hierarchy. """
         return list()
 
+    def _focus_chain(self) -> typing.Sequence[AbstractCanvasItem]:
+        """Return the canvas items below this one which can take the focus, in display order.
+
+        This is the order the focus walks in when the user moves it from one item to the next with the tab key.
+        This item itself is not a candidate.
+
+        An item which can take the focus stands for everything below it: the focus goes to the item itself and the
+        walk does not descend into it."""
+        focus_chain: typing.List[AbstractCanvasItem] = list()
+        for canvas_item in self.canvas_items:
+            if canvas_item.focusable:
+                focus_chain.append(canvas_item)
+            else:
+                focus_chain.extend(canvas_item._focus_chain())
+        return focus_chain
+
     def _first_focusable_item(self) -> typing.Optional[AbstractCanvasItem]:
         """Return the first canvas item below this one which can take the focus, in display order.
 
         This is the item which should take the focus when the widget is given the focus without saying which item
         is to have it, as happens when the user tabs into it. This item itself is not a candidate."""
-        for canvas_item in self.canvas_items:
-            if canvas_item.focusable:
-                return canvas_item
-            focusable_item = canvas_item._first_focusable_item()
-            if focusable_item:
-                return focusable_item
-        return None
+        focus_chain = self._focus_chain()
+        return focus_chain[0] if focus_chain else None
 
     @property
     def canvas_size(self) -> typing.Optional[Geometry.IntSize]:
@@ -3830,6 +3841,30 @@ class ScrollBarCanvasItem(AbstractCanvasItem):
         return super().mouse_position_changed(x, y, modifiers)
 
 
+def next_focus_chain_item(focus_chain: typing.Sequence[AbstractCanvasItem],
+                          focused_item: typing.Optional[AbstractCanvasItem],
+                          backwards: bool, wraps: bool) -> typing.Optional[AbstractCanvasItem]:
+    """Return the item of the focus chain which follows the focused item, or precedes it when walking backwards.
+
+    When nothing in the chain is focused, the focus starts at the first item of the chain, or at the last one when
+    walking backwards.
+
+    Returns None when the focus is already at the end of the chain being walked towards and the chain does not come
+    back around to its other end, which means the focus has nowhere to go within this chain and whatever contains it
+    should be given the chance to move it instead.
+    """
+    if not focus_chain:
+        return None
+    if focused_item not in focus_chain:
+        return focus_chain[-1] if backwards else focus_chain[0]
+    index = focus_chain.index(focused_item) + (-1 if backwards else 1)
+    if wraps:
+        index = index % len(focus_chain)
+    elif not 0 <= index < len(focus_chain):
+        return None
+    return focus_chain[index]
+
+
 class CanvasWidgetSection:
 
     def draw(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
@@ -4305,11 +4340,11 @@ class ThreadedCanvasItem(AbstractCanvasItem):
         elif focused_item:
             focused_item.adjust_secondary_focus(p or Geometry.IntPoint(), modifiers)
 
-    def _first_focusable_item(self) -> typing.Optional[AbstractCanvasItem]:
+    def _focus_chain(self) -> typing.Sequence[AbstractCanvasItem]:
         # this item is a focus scope boundary: it takes the focus on behalf of its content and then passes it on to
-        # the item within, so it, and not that item, is what the container outside is to focus. the content is held
-        # in the wrapper rather than as a child of this item, so the search has to be forwarded to it.
-        return self if self.__wrapper_canvas_item._first_focusable_item() else None
+        # the item within, so it, and not that item, is the single stop the chain outside sees. walking its content
+        # is its own business, and the content is held in the wrapper rather than as a child of this item.
+        return [self] if self.__wrapper_canvas_item._focus_chain() else list()
 
     def _set_focused(self, focused: bool) -> None:
         """Called when focus changes."""
@@ -4328,7 +4363,19 @@ class ThreadedCanvasItem(AbstractCanvasItem):
             # save the key pressed item and key so that we can release the key if focus changes while the key is down
             self.__key_pressed_item = focused_item
             self.__key_pressed_key = key
-            return self.__key_pressed_item.key_pressed(key)
+            if self.__key_pressed_item.key_pressed(key):
+                return True
+        # the content of this item is a focus chain of its own; the focus leaves it by leaving the key unhandled,
+        # which lets the chain containing this item move the focus past it.
+        return self.__move_focus(key)
+
+    def __move_focus(self, key: UserInterface.Key) -> bool:
+        if key.is_tab or key.is_backtab:
+            next_focused_item = next_focus_chain_item(self.__wrapper_canvas_item._focus_chain(), self.focused_item,
+                                                     key.is_backtab, False)
+            if next_focused_item:
+                self._set_focused_item(next_focused_item)
+                return True
         return False
 
     def __key_released(self, key: UserInterface.Key) -> bool:
@@ -4469,6 +4516,10 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         setattr(self.__canvas_widget, "_root_canvas_item", weakref.ref(self))  # for debugging
         self.__drawing_context_updated = False
         self.__interaction_count = 0
+        # whether the focus comes back around to the first item of this hierarchy when it moves past the last one.
+        # a canvas widget drawing only part of a window hands the focus on to whatever is drawn beside it, by
+        # leaving the key unhandled; one drawing an entire window has nothing to hand it to and so comes around.
+        self.focus_chain_wraps = False
         self.__focused_item: typing.Optional[AbstractCanvasItem] = None
         self.__last_focused_item: typing.Optional[AbstractCanvasItem] = None
         self.__key_pressed_item: typing.Optional[AbstractCanvasItem] = None
@@ -4859,7 +4910,20 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             # save the key pressed item and key so that we can release the key if focus changes while the key is down
             self.__key_pressed_item = focused_item
             self.__key_pressed_key = key
-            return self.__key_pressed_item.key_pressed(key)
+            if self.__key_pressed_item.key_pressed(key):
+                return True
+        return self.__move_focus(key)
+
+    def __move_focus(self, key: UserInterface.Key) -> bool:
+        # the tab key moves the focus to the next item of the focus chain and backtab to the previous one. only a
+        # key the focused item did not use itself moves the focus, so an item which uses tab for its own purposes
+        # keeps it.
+        if key.is_tab or key.is_backtab:
+            next_focused_item = next_focus_chain_item(self._focus_chain(), self.focused_item, key.is_backtab,
+                                                     self.focus_chain_wraps)
+            if next_focused_item:
+                self._set_focused_item(next_focused_item)
+                return True
         return False
 
     def __key_released(self, key: UserInterface.Key) -> bool:

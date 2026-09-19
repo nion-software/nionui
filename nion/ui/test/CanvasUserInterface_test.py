@@ -955,6 +955,21 @@ class TestCanvasWindowClass(unittest.TestCase):
             self.assertEqual([False], results)
             self.assertEqual(0, len(window._dialogs))
 
+    def test_closing_a_window_closes_what_it_was_displaying(self) -> None:
+        # the content of a canvas window is drawn by canvas items within a single widget of the host, so closing the
+        # window has to close them as well as the widgets they draw. they draw on a thread, and closing them is what
+        # stops it; left open they go on drawing into a window which is no longer there.
+        ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+        window = Window.Window(ui)
+        column = ui.create_column_widget()
+        column.add(ui.create_line_edit_widget())
+        window.attach_widget(column)
+        canvas_item = CanvasUserInterface.extract_canvas_item(column)
+        assert canvas_item
+        self.assertIsNotNone(canvas_item.container)
+        window.close()
+        self.assertIsNone(canvas_item.container)
+
     def test_widget_reports_where_it_is_on_the_screen(self) -> None:
         # a menu popped up beside a widget has to know where the widget is. the content of a canvas window is drawn
         # within a single widget of the host, so a widget maps its position through the canvas item displaying it.

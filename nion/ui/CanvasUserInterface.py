@@ -70,6 +70,8 @@ class BasicCheckBoxWidgetCanvasItemController(CheckBoxWidgetCanvasItemController
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
         self.__check_box_canvas_item = CanvasItem.CheckBoxCanvasItem()
+        # the check box is a control of its own here, so it takes the focus and can be toggled by the keyboard.
+        self.__check_box_canvas_item.focusable = True
         self.__row.add_canvas_item(self.__check_box_canvas_item)
 
         def handle_check_state_changed(check_state: str) -> None:
@@ -634,6 +636,8 @@ class BasicSliderWidgetCanvasItemController(Widgets.BaseWidgetCanvasItemControll
         self.__row = CanvasItem.CanvasItemComposition()
         self.__row.layout = CanvasItem.CanvasItemRowLayout()
         self.__slider_canvas_item = CanvasItem.SliderCanvasItem()
+        # the slider is a control of its own here, so it takes the focus and can be moved by the arrow keys.
+        self.__slider_canvas_item.focusable = True
         self.__row.add_canvas_item(self.__slider_canvas_item)
 
         self.__minimum = 0

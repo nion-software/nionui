@@ -3542,12 +3542,15 @@ class SliderCanvasItemComposer(BaseComposer):
 
 
 class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
-    """Slider."""
+    """A slider whose thumb can be dragged by the mouse, and moved by the arrow keys once it is focusable.
+
+    It is not focusable to begin with, for the same reason a check box is not: a slider drawn over other content
+    takes the focus, and the arrow keys, away from that content when it is clicked, which is right for a slider
+    standing on its own as a control and wrong for one drawn over something else. Whatever draws it says which it is.
+    """
     def __init__(self) -> None:
         super().__init__()
         self.wants_mouse_events = True
-        # the thumb is moved by the arrow keys as well as by the mouse, so the slider takes the keyboard focus.
-        self.focusable = True
         self.__tracking = False
         self.__tracking_start = Geometry.IntPoint()
         self.__tracking_value = 0.0
@@ -3613,8 +3616,8 @@ class SliderCanvasItem(AbstractCanvasItem, Observable.Observable):
         return super().mouse_position_changed(x, y, modifiers)
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
-        # the arrow keys move the thumb along the bar, a step at a time; which arrows depends on nothing but which
-        # way along the bar the thumb is to go.
+        # the arrow keys move the thumb along the bar, a step at a time. this only happens if the slider has been
+        # made focusable, which is for whatever is drawing it to decide -- see the class comment.
         if key.is_left_arrow or key.is_down_arrow:
             self.__adjust_thumb(-1.0)
             return True
@@ -6165,12 +6168,16 @@ class CheckBoxCanvasItemComposer(BaseComposer):
 
 
 class CheckBoxCanvasItem(AbstractCanvasItem):
+    """A check box which can be toggled by the mouse, and by the space bar once it is focusable.
+
+    It is not focusable to begin with: a check box drawn among other content takes the focus away from that content
+    when it is clicked, which is right for a check box standing on its own as a control and wrong for one drawn as
+    part of something else. Whatever draws it says which it is.
+    """
 
     def __init__(self, text: typing.Optional[str] = None) -> None:
         super().__init__()
         self.wants_mouse_events = True
-        # the check box is toggled by the keyboard as well as by the mouse, so it takes the keyboard focus.
-        self.focusable = True
         self.__enabled = True
         self.__mouse_inside = False
         self.__mouse_pressed = False
@@ -6295,7 +6302,8 @@ class CheckBoxCanvasItem(AbstractCanvasItem):
         return True
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
-        # the space bar toggles the check box, the way clicking it does.
+        # the space bar toggles the check box, the way clicking it does. this only happens if the check box has
+        # been made focusable, which is for whatever is drawing it to decide -- see the class comment.
         if self.enabled and key.text == " ":
             self._toggle_checked()
             return True

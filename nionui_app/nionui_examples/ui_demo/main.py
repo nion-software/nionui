@@ -24,6 +24,7 @@ from . import ComponentStack
 from . import ContextMenus
 from . import Converters
 from . import Dialogs
+from . import FocusKeyboard
 from . import Groups
 from . import Layout
 from . import LineEdits
@@ -81,6 +82,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (ContextMenus, "context_menus", _("Context Menus")),
         (Converters, "converters", _("Converters")),
         (Dialogs, "dialogs", _("Dialogs")),
+        (FocusKeyboard, "focus_keyboard", _("Focus and Keyboard")),
         (Groups, "groups", _("Groups")),
         (LineEdits, "line_edits", _("Line Edits")),
         (ListBoxes, "list_boxes", _("List Boxes")),

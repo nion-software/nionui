@@ -672,6 +672,88 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(grid_canvas.canvas_items[3].canvas_origin, Geometry.IntPoint(x=160, y=240))
         self.assertEqual(grid_canvas.canvas_items[3].canvas_size, Geometry.IntSize(width=160, height=240))
 
+    def test_focusing_the_widget_focuses_the_first_focusable_item(self) -> None:
+        # a widget tabbed into is given the focus without being told which item is to have it. the first item which
+        # can take the focus should get it, so that the keys reach the content rather than stopping at the widget.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            container = CanvasItem.CanvasItemComposition()
+            unfocusable_item = _TestCanvasItem()
+            focusable_item = _TestCanvasItem()
+            focusable_item.focusable = True
+            later_focusable_item = _TestCanvasItem()
+            later_focusable_item.focusable = True
+            container.add_canvas_item(unfocusable_item)
+            container.add_canvas_item(focusable_item)
+            canvas_item.add_canvas_item(container)
+            canvas_item.add_canvas_item(later_focusable_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            self.assertIsNone(canvas_item.focused_item)
+            # give the widget the focus, the way tabbing into it does.
+            canvas_widget.focused = True
+            self.assertEqual(focusable_item, canvas_item.focused_item)
+            self.assertTrue(focusable_item.focused)
+
+    def test_focusing_the_widget_returns_to_the_item_focused_last(self) -> None:
+        # once an item inside has held the focus, coming back to the widget returns the focus to that item rather
+        # than to the first one.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            first_item = _TestCanvasItem()
+            second_item = _TestCanvasItem()
+            first_item.focusable = True
+            second_item.focusable = True
+            canvas_item.add_canvas_item(first_item)
+            canvas_item.add_canvas_item(second_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            second_item.request_focus()
+            self.assertEqual(second_item, canvas_item.focused_item)
+            canvas_widget.focused = False
+            self.assertIsNone(canvas_item.focused_item)
+            canvas_widget.focused = True
+            self.assertEqual(second_item, canvas_item.focused_item)
+
+    def test_focusing_the_widget_focuses_through_a_threaded_canvas_item(self) -> None:
+        # a threaded canvas item is a focus scope boundary: it holds the focus on behalf of its content and passes
+        # it on to the item within. tabbing into the widget should reach that item rather than stopping short.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            content_item = _TestCanvasItem()
+            content_item.focusable = True
+            threaded_canvas_item = CanvasItem.ThreadedCanvasItem(content_item)
+            canvas_item.add_canvas_item(threaded_canvas_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            # the boundary is what the container outside focuses; the item within is what ends up focused.
+            self.assertEqual(threaded_canvas_item, canvas_item.focused_item)
+            self.assertEqual(content_item, threaded_canvas_item.focused_item)
+            self.assertTrue(content_item.focused)
+
+    def test_a_threaded_canvas_item_with_nothing_focusable_does_not_take_the_focus(self) -> None:
+        # a scope with nothing inside it which can take the focus should be passed over, not given a focus it has
+        # nowhere to put.
+        ui = TestUI.UserInterface()
+        canvas_widget = ui.create_canvas_widget()
+        with contextlib.closing(canvas_widget):
+            canvas_item = canvas_widget.canvas_item
+            canvas_item.layout = CanvasItem.CanvasItemRowLayout()
+            threaded_canvas_item = CanvasItem.ThreadedCanvasItem(_TestCanvasItem())
+            focusable_item = _TestCanvasItem()
+            focusable_item.focusable = True
+            canvas_item.add_canvas_item(threaded_canvas_item)
+            canvas_item.add_canvas_item(focusable_item)
+            canvas_item.update_layout(Geometry.IntPoint(x=0, y=0), Geometry.IntSize(width=640, height=480))
+            canvas_widget.focused = True
+            self.assertEqual(focusable_item, canvas_item.focused_item)
+
     def test_focus_changed_messages_sent_when_focus_changes(self) -> None:
         # setup canvas
         ui = TestUI.UserInterface()

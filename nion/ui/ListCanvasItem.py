@@ -106,9 +106,12 @@ class ListCanvasItemComposer(CanvasItem.BaseComposer):
         height = item_count * self.__item_height
         return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(height=height, width=canvas_bounds.width))
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         canvas_size = canvas_rect.size
-        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_rect.size)
+        # the visible rect arrives in the coordinate space of the canvas rect; the rows below are laid out and drawn
+        # relative to the top of the list, so move it into the list's own coordinate space. within a scroll area the
+        # canvas rect covers every row, so only the visible rect says which rows are worth painting.
+        visible_rect = visible_rect - canvas_rect.origin
         delegate = self.__delegate
         item_height = self.__item_height
         drop_index = self.__drop_index

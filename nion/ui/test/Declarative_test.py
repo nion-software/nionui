@@ -144,6 +144,57 @@ class ListViewEventsHandler(ItemsHandler):
         return True
 
 
+class ListViewDragHandler(ItemsHandler):
+    """A handler with two list views, where an item dragged out of one is dropped into the other.
+
+    The item is described as mime data naming the list it came from and its index; dropping it moves it from that
+    list into the list it was dropped on, at the item it was dropped on."""
+
+    MIME_TYPE = "text/vnd.nion.test-item"
+
+    def __init__(self, ui: UserInterface.UserInterface, left_items: typing.Sequence[str],
+                 right_items: typing.Sequence[str]) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.__ui = ui
+        self.left_model = ListModel.ListModel[str]("items", items=list(left_items))
+        self.right_model = ListModel.ListModel[str]("items", items=list(right_items))
+        self.drag_indexes: typing.List[int] = list()
+        self.drop_indexes: typing.List[typing.Optional[int]] = list()
+        self.left_list_view: typing.Optional[Widgets.ListViewWidget] = None
+        self.right_list_view: typing.Optional[Widgets.ListViewWidget] = None
+        # the left list is only dragged from and the right one only dropped on, so that a test can tell which list
+        # took part in a drag and which in a drop.
+        left_list_view = u.create_list_view(items="left_model.items", item_component_id="item", item_height=20,
+                                            name="left_list_view", on_item_drag_started="item_drag_started")
+        right_list_view = u.create_list_view(items="right_model.items", item_component_id="item", item_height=20,
+                                             name="right_list_view", on_can_drop_mime_data="can_drop_mime_data",
+                                             on_drop_mime_data="drop_mime_data")
+        self.ui_view = u.create_row(left_list_view, right_list_view)
+
+    def item_drag_started(self, widget: Declarative.UIWidget, index: int, x: int, y: int,
+                          modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.drag_indexes.append(index)
+        mime_data = self.__ui.create_mime_data()
+        mime_data.set_data_as_string(ListViewDragHandler.MIME_TYPE, self.left_model.items[index])
+        typing.cast(UserInterface.Widget, widget).drag(mime_data)
+        return True
+
+    def can_drop_mime_data(self, widget: Declarative.UIWidget, mime_data: UserInterface.MimeData, action: str,
+                           drop_index: typing.Optional[int]) -> bool:
+        return mime_data.has_format(ListViewDragHandler.MIME_TYPE)
+
+    def drop_mime_data(self, widget: Declarative.UIWidget, mime_data: UserInterface.MimeData, action: str,
+                       drop_index: typing.Optional[int]) -> str:
+        if not mime_data.has_format(ListViewDragHandler.MIME_TYPE):
+            return "ignore"
+        self.drop_indexes.append(drop_index)
+        item = mime_data.data_as_string(ListViewDragHandler.MIME_TYPE)
+        self.left_model.remove_item(self.left_model.items.index(item))
+        self.right_model.insert_item(drop_index if drop_index is not None else len(self.right_model.items), item)
+        return "move"
+
+
 class StackItemsHandler(ItemsHandler):
     """A handler with a stack whose children are built from an observable list of items."""
 
@@ -352,18 +403,22 @@ class TestCanvasItemClass(unittest.TestCase):
             widget.close()
             self.assertEqual(["a", "b", "c"], sorted(item_handler.item for item_handler in handler.item_handlers if item_handler.closed))
 
-    def test_list_view_lays_out_one_row_per_item(self) -> None:
-        # tests that the constructed list actually lays out its items, one row of item_height for each item.
+    def test_list_view_lays_out_one_row_per_item_and_takes_the_room_it_is_given(self) -> None:
+        # tests that the constructed list lays out one row of item_height for each item, keeping that extent when it
+        # is given less room, which is what lets it scroll, and taking the extra when it is given more, so that the
+        # room past its last item belongs to the list rather than to whatever displays it.
         with event_loop_context() as event_loop:
             handler = ListViewHandler(["a", "b", "c"])
             widget = Declarative.construct_widget(TestUI.UserInterface(), event_loop, handler)
             with contextlib.closing(widget):
                 list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
                 list_canvas_item = list_view._list_canvas_item
-                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=40))
                 self.assertEqual(Geometry.IntSize(width=200, height=60), list_canvas_item.canvas_size)
-                handler.list_model.remove_item(0)
                 list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=100), list_canvas_item.canvas_size)
+                handler.list_model.remove_item(0)
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=20))
                 self.assertEqual(Geometry.IntSize(width=200, height=40), list_canvas_item.canvas_size)
 
     def test_list_view_current_index_binding_follows_the_selection(self) -> None:
@@ -395,6 +450,133 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertEqual([1], handler.selected_indexes)
                 list_canvas_item.key_pressed(ui.create_key_by_id("return"))
                 self.assertEqual([1, 1], handler.selected_indexes)
+
+    def test_list_view_reports_the_item_a_drag_starts_on(self) -> None:
+        # tests that dragging an item out of a list reports that item, so that the handler can describe it as mime
+        # data. the drag has to move far enough from where it started to be a drag rather than a click.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a", "b", "c"], ["x"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.left_list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                list_canvas_item.simulate_drag((30, 10), (30, 100))
+                self.assertEqual([1], handler.drag_indexes)
+
+    def test_list_view_drop_reports_where_the_item_would_be_inserted(self) -> None:
+        # tests that a drop reports the gap it would go into rather than an item it would land on, so that it can
+        # land before the first item and after the last one as well as between any two of them.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a", "b", "c"], ["x", "y"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.right_list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                # the top half of an item takes the gap before it, the bottom half the gap after it.
+                self.assertEqual(0, self._drop(list_canvas_item, ui, "a", 4))
+                self.assertEqual(["a", "x", "y"], list(handler.right_model.items))
+                self.assertEqual(3, self._drop(list_canvas_item, ui, "b", 90))
+                self.assertEqual(["a", "x", "y", "b"], list(handler.right_model.items))
+                self.assertEqual(2, self._drop(list_canvas_item, ui, "c", 45))
+                self.assertEqual(["a", "x", "c", "y", "b"], list(handler.right_model.items))
+                self.assertEqual([], list(handler.left_model.items))
+
+    def test_list_view_takes_a_drop_when_it_has_no_items_left(self) -> None:
+        # tests that a list which has been emptied can still be dropped on: it keeps the room it was given, so the
+        # drop lands on the list rather than on whatever the list is displayed in, and goes in as the first item.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a"], list())
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.right_list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                self.assertEqual(Geometry.IntSize(width=200, height=100), list_canvas_item.canvas_size)
+                mime_data = ui.create_mime_data()
+                mime_data.set_data_as_string(ListViewDragHandler.MIME_TYPE, "a")
+                self.assertTrue(list_canvas_item.wants_drag_event(mime_data, 10, 50))
+                self.assertEqual(0, self._drop(list_canvas_item, ui, "a", 50))
+                self.assertEqual(["a"], list(handler.right_model.items))
+
+    def test_list_view_drop_lands_under_the_mouse_when_the_list_is_scrolled(self) -> None:
+        # tests that a drop on a list which is scrolled lands at the gap under the mouse rather than at the gap the
+        # same distance down the room the list is shown in. the drop arrives in the coordinates of that room, so the
+        # two differ by however far the list has been scrolled.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a"], [f"x{index}" for index in range(10)])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.right_list_view)
+                canvas_widget = list_view._canvas_widget
+                canvas_size = Geometry.IntSize(width=200, height=100)
+                canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), canvas_size)
+                # ten rows of twenty in a hundred of room, scrolled down by three rows.
+                scroll_area = typing.cast(CanvasItem.ScrollAreaCanvasItem, list_view._list_canvas_item.container)
+                scroll_area.update_content_origin(Geometry.IntPoint(y=-60, x=0))
+                canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), canvas_size)
+                on_drag_enter = canvas_widget.on_drag_enter
+                on_drag_move = canvas_widget.on_drag_move
+                on_drop = canvas_widget.on_drop
+                assert callable(on_drag_enter) and callable(on_drag_move) and callable(on_drop)
+                mime_data = ui.create_mime_data()
+                mime_data.set_data_as_string(ListViewDragHandler.MIME_TYPE, "a")
+                on_drag_enter(mime_data)
+                on_drag_move(mime_data, 10, 5)
+                on_drop(mime_data, 10, 5)
+                # the top of the room shows the fourth row, so the drop goes in before it rather than at the top.
+                self.assertEqual([3], handler.drop_indexes)
+                self.assertEqual("a", handler.right_model.items[3])
+
+    def test_list_view_shows_where_a_drop_would_land_while_the_drag_moves(self) -> None:
+        # tests that the gap the drop would go into follows the drag, and that it is gone once the drag leaves, so
+        # that what is shown while dragging is where the item actually goes.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a"], ["x", "y", "z"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.right_list_view)
+                list_canvas_item = list_view._list_canvas_item
+                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                mime_data = ui.create_mime_data()
+                mime_data.set_data_as_string(ListViewDragHandler.MIME_TYPE, "a")
+                list_canvas_item.drag_enter(mime_data)
+                for y, insert_index in ((4, 0), (16, 1), (30, 2), (90, 3)):
+                    list_canvas_item.drag_move(mime_data, 10, y)
+                    self.assertEqual(insert_index, list_canvas_item._drop_index)
+                list_canvas_item.drag_leave()
+                self.assertIsNone(list_canvas_item._drop_index)
+
+    def _drop(self, list_canvas_item: ListCanvasItem.ListCanvasItem2, ui: UserInterface.UserInterface, item: str,
+              y: int) -> typing.Optional[int]:
+        # drag the named item over the list at the given height and drop it there; report where it went in.
+        mime_data = ui.create_mime_data()
+        mime_data.set_data_as_string(ListViewDragHandler.MIME_TYPE, item)
+        list_canvas_item.drag_enter(mime_data)
+        list_canvas_item.drag_move(mime_data, 10, y)
+        insert_index = list_canvas_item._drop_index
+        list_canvas_item.drop(mime_data, 10, y)
+        return insert_index
+
+    def test_list_view_takes_part_in_a_drop_only_when_it_says_how_to_handle_one(self) -> None:
+        # tests that a list with no way to handle a drop leaves the drag alone, so that it reaches whatever is drawn
+        # behind the list instead of stopping there.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ListViewDragHandler(ui, ["a", "b", "c"], ["x"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                mime_data = ui.create_mime_data()
+                left_list_canvas_item = typing.cast(Widgets.ListViewWidget, handler.left_list_view)._list_canvas_item
+                right_list_canvas_item = typing.cast(Widgets.ListViewWidget, handler.right_list_view)._list_canvas_item
+                self.assertFalse(left_list_canvas_item.wants_drag_event(mime_data, 10, 30))
+                self.assertTrue(right_list_canvas_item.wants_drag_event(mime_data, 10, 30))
 
     def test_list_view_reports_focus_changes(self) -> None:
         # tests that a list view reports gaining and losing the keyboard focus. the focus is taken by the list canvas
@@ -515,11 +697,9 @@ class TestCanvasItemClass(unittest.TestCase):
             with contextlib.closing(widget):
                 list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
                 list_canvas_item = list_view._list_canvas_item
-                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
-                self.assertEqual(Geometry.IntSize(width=200, height=40), list_canvas_item.canvas_size)
+                self.assertEqual(2, len(list_canvas_item._grid_flow_item_canvas_items))
                 handler.list_model.remove_item(0)
-                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
-                self.assertEqual(Geometry.IntSize(width=200, height=20), list_canvas_item.canvas_size)
+                self.assertEqual(1, len(list_canvas_item._grid_flow_item_canvas_items))
 
     def test_list_view_allows_a_different_component_per_item(self) -> None:
         # tests that the item handler chooses the ui view, so items of different kinds can be displayed differently.
@@ -552,8 +732,7 @@ class TestCanvasItemClass(unittest.TestCase):
             with contextlib.closing(widget):
                 self.assertEqual(["label-a", "button-b"], [row_handler.item for row_handler in handler.row_handlers])
                 list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
-                list_view._list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
-                self.assertEqual(Geometry.IntSize(width=200, height=40), list_view._list_canvas_item.canvas_size)
+                self.assertEqual(2, len(list_view._list_canvas_item._grid_flow_item_canvas_items))
 
     def test_list_view_selection_style_allows_multiple_selection(self) -> None:
         # tests that the selection style reaches the selection; the default style allows only one item at a time.
@@ -596,8 +775,6 @@ class TestCanvasItemClass(unittest.TestCase):
                 list_box = typing.cast(Widgets.StringListViewWidget, handler.list_box)
                 self.assertEqual(["Alpha", "Beta", "Gamma"], list(list_box.items))
                 list_canvas_item = list_box._list_canvas_item
-                list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=200))
-                self.assertEqual(Geometry.IntSize(width=200, height=60), list_canvas_item.canvas_size)
                 row_canvas_items = [typing.cast(CanvasItem.TextCanvasItem, row._canvas_item) for row in list_canvas_item._grid_flow_item_canvas_items]
                 self.assertEqual(["Alpha", "Beta", "Gamma"], [row_canvas_item.text for row_canvas_item in row_canvas_items])
 

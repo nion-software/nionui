@@ -919,9 +919,10 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
             if drag_finished_fn:
                 drag_finished_fn(action)
 
-        # TODO
-        # drag = QtDrag(self.proxy, self.widget, typing.cast(QtMimeData, mime_data), thumbnail, hot_spot_x, hot_spot_y, drag_finished)
-        # drag.execute()
+        # a widget here is drawn by a canvas item within the hierarchy of the window displaying it, and that
+        # hierarchy is what carries a drag: it follows the mouse and delivers the mime data to whatever is under it,
+        # which may be another canvas item of the same window or something outside it entirely.
+        self.canvas_item.drag(mime_data, thumbnail, hot_spot_x, hot_spot_y, drag_finished)
 
     def map_to_global(self, p: Geometry.IntPoint) -> Geometry.IntPoint:
         # the canvas item knows where it is within the widget it is drawn in, and that widget knows where it is on the

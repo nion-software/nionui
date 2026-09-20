@@ -520,11 +520,15 @@ class ListCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer
                  border_color: typing.Optional[str],
                  list_model: ListModel.ListModelLike,
                  item_width: int | None,
-                 item_height: int | None) -> None:
+                 item_height: int | None,
+                 fills_container: bool = False,
+                 insert_index: int | None = None) -> None:
         super().__init__(canvas_item, layout_sizing, composer_cache, layout, child_composers, background_color, border_color)
         self.__list_model = list_model
         self.__item_width = item_width
         self.__item_height = item_height
+        self.__fills_container = fills_container
+        self.__insert_index = insert_index
 
     def _repaint_children(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, child_composers: typing.Sequence[CanvasItem.BaseComposer]) -> None:
         with drawing_context.saver():
@@ -541,17 +545,48 @@ class ListCanvasItemCompositionComposer(CanvasItem.CanvasItemCompositionComposer
                     with drawing_context.saver():
                         child_composer.update_layout(Geometry.IntPoint(), child_canvas_rect.size)
                         child_composer.repaint(drawing_context, child_canvas_rect, visible_rect)
+            self.__repaint_insertion_line(drawing_context, canvas_rect)
+
+    def __repaint_insertion_line(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
+        # a drop which lands between two items is shown as a line in the gap it would go into. the gap before the
+        # first item and the gap after the last one are drawn just inside the list, so that neither is half hidden.
+        insert_index = self.__insert_index
+        if insert_index is None:
+            return
+        line_width = 2.0
+        item_count = len(self.__list_model.items)
+        if self.__item_height:
+            offset = min(insert_index * self.__item_height, item_count * self.__item_height - line_width)
+            offset = max(offset, 0.0)
+            rect = Geometry.FloatRect(Geometry.FloatPoint(y=offset, x=0), Geometry.FloatSize(height=line_width, width=canvas_rect.width))
+        elif self.__item_width:
+            offset = min(insert_index * self.__item_width, item_count * self.__item_width - line_width)
+            offset = max(offset, 0.0)
+            rect = Geometry.FloatRect(Geometry.FloatPoint(y=0, x=offset), Geometry.FloatSize(height=canvas_rect.height, width=line_width))
+        else:
+            return
+        with drawing_context.saver():
+            drawing_context.begin_path()
+            drawing_context.rect(rect.left, rect.top, rect.width, rect.height)
+            drawing_context.fill_style = "rgba(56, 117, 214, 0.8)"
+            drawing_context.fill()
 
     def _adjust_canvas_bounds(self, canvas_bounds: Geometry.IntRect) -> Geometry.IntRect:
         # preserve the true (scrollable) extent along the item axis, independent of the size given by the
         # enclosing scroll area. this allows a scroll area with auto_resize_contents enabled to stretch the
         # cross axis (e.g. width, for a column of fixed-height rows) to match its own size on every layout,
         # without collapsing the scrollable axis down to the viewport size and breaking scrolling.
+        # a list which fills the container takes any room beyond that extent as well, so that the space past the
+        # last item belongs to the list rather than to whatever the list is displayed in.
         item_count = len(self.__list_model.items)
         if self.__item_height:
-            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=canvas_bounds.width, height=item_count * self.__item_height))
+            height = item_count * self.__item_height
+            height = max(height, canvas_bounds.height) if self.__fills_container else height
+            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=canvas_bounds.width, height=height))
         elif self.__item_width:
-            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=item_count * self.__item_width, height=canvas_bounds.height))
+            width = item_count * self.__item_width
+            width = max(width, canvas_bounds.width) if self.__fills_container else width
+            return Geometry.IntRect(canvas_bounds.origin, Geometry.IntSize(width=width, height=canvas_bounds.height))
         return canvas_bounds
 
 
@@ -572,9 +607,68 @@ class ListCanvasItem2(GridFlowCanvasItem.GridFlowCanvasItem):
         super().__init__(list_model, selection, layout, item_factory, delegate, key=key, is_shared_selection=is_shared_selection)
         self.__item_width = item_width
         self.__item_height = item_height
+        # whether the list takes any room beyond its items, and whether a drop lands between two items rather than
+        # on one of them. both are the decision of whatever is displaying the list.
+        self.__fills_container = False
+        self.__drops_between_items = False
+
+    @property
+    def fills_container(self) -> bool:
+        """Whether the list takes any room it is given beyond the extent of its items.
+
+        A list which does takes the room past its last item as its own, so that a click or a drop there lands on the
+        list; one which does not is only as big as its items, leaving that room to whatever displays the list. Either
+        way the list is at least as big as its items, so that a list longer than the room it is given still scrolls.
+        """
+        return self.__fills_container
+
+    @fills_container.setter
+    def fills_container(self, value: bool) -> None:
+        if value != self.__fills_container:
+            self.__fills_container = value
+            # the extent the list takes is decided as it is composed, so the composer has to be built again.
+            self._invalidate_composer()
+            self.update()
+
+    @property
+    def drops_between_items(self) -> bool:
+        """Whether a drop lands between two items rather than on one of them.
+
+        A list which reorders or receives items places a drop in the gap it would go into, so the drop index is the
+        index it would be inserted at: zero for the gap before the first item, and the number of items for the gap
+        after the last one. A list which does not is told the item the drop lands on instead, and None where the drop
+        lands on no item at all.
+        """
+        return self.__drops_between_items
+
+    @drops_between_items.setter
+    def drops_between_items(self, value: bool) -> None:
+        self.__drops_between_items = value
 
     def _get_composition_composer(self, child_composers: typing.Sequence[CanvasItem.BaseComposer], composer_cache: CanvasItem.ComposerCache) -> CanvasItem.BaseComposer:
-        return ListCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self._list_model, self.__item_width, self.__item_height)
+        insert_index = self._drop_index if self.__drops_between_items else None
+        return ListCanvasItemCompositionComposer(self, self.layout_sizing, composer_cache, self.layout.copy(), child_composers, self.background_color, self.border_color, self._list_model, self.__item_width, self.__item_height, self.__fills_container, insert_index)
+
+    def _get_drop_index(self, x: int, y: int) -> int | None:
+        if not self.__drops_between_items:
+            return super()._get_drop_index(x, y)
+        # the drop goes into the nearer of the two gaps around the point, so the top half of an item takes the gap
+        # before it and the bottom half the gap after it. a point past the last item takes the gap after that item.
+        item_count = len(self._list_model.items)
+        if self.__item_height is not None:
+            insert_index = int((y + self.__item_height // 2) // self.__item_height)
+        elif self.__item_width is not None:
+            insert_index = int((x + self.__item_width // 2) // self.__item_width)
+        else:
+            return None
+        return max(0, min(insert_index, item_count))
+
+    def _show_drop_index(self, drop_index: int | None) -> None:
+        if not self.__drops_between_items:
+            super()._show_drop_index(drop_index)
+        else:
+            # the gap the drop would go into is drawn by the list itself rather than marked on an item.
+            self.update()
 
     def _handle_up_arrow(self, key: UserInterface.Key) -> bool:
         return self._adjust_selection_backward(1, key.modifiers.shift)

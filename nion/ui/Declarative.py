@@ -1021,6 +1021,9 @@ class DeclarativeUI:
                          on_escape_pressed: typing.Optional[UICallableIdentifier] = None,
                          on_return_pressed: typing.Optional[UICallableIdentifier] = None,
                          on_item_handle_context_menu: typing.Optional[UICallableIdentifier] = None,
+                         on_item_drag_started: typing.Optional[UICallableIdentifier] = None,
+                         on_can_drop_mime_data: typing.Optional[UICallableIdentifier] = None,
+                         on_drop_mime_data: typing.Optional[UICallableIdentifier] = None,
                          **kwargs: typing.Any) -> UIDescriptionResult:
         """Create a list view UI description with items, an item component, and the item height.
 
@@ -1044,6 +1047,9 @@ class DeclarativeUI:
             on_escape_pressed: callback when escape is pressed, return true if handled (optional)
             on_return_pressed: callback when return is pressed, return true if handled (optional)
             on_item_handle_context_menu: callback to display context menu, passes gx, gy, index (optional)
+            on_item_drag_started: callback when the user starts dragging an item, passes index, x, y, modifiers (optional)
+            on_can_drop_mime_data: callback asking whether mime data can be dropped, passes mime_data, action, drop_index (optional)
+            on_drop_mime_data: callback to accept dropped mime data at drop_index, passes mime_data, action, drop_index (optional)
 
         Returns:
             UI description of the list view
@@ -1055,6 +1061,13 @@ class DeclarativeUI:
         Each item handler is given an `is_selected_model` property, a boolean property model tracking whether its item
         is selected. An item component can bind to it, e.g. `@binding(is_selected_model.value)`, to display the item
         differently when it is selected.
+
+        The `on_item_drag_started` callback describes the item being dragged as mime data and starts the drag, by
+        calling `drag` on the widget it is passed. The list takes part in a drop only when it is given
+        `on_can_drop_mime_data` or `on_drop_mime_data`. A drop lands in the gap between two items, so `drop_index` is
+        the index the drop would be inserted at: zero for the gap before the first item, and the number of items for
+        the gap after the last one, which is also what a list with no items at all reports.
+        `on_drop_mime_data` returns the action taken, or "ignore".
         """
         d: UIDescriptionResult = {"type": "list_view"}
         if name is not None:
@@ -1079,6 +1092,12 @@ class DeclarativeUI:
             d["on_return_pressed"] = on_return_pressed
         if on_item_handle_context_menu is not None:
             d["on_item_handle_context_menu"] = on_item_handle_context_menu
+        if on_item_drag_started is not None:
+            d["on_item_drag_started"] = on_item_drag_started
+        if on_can_drop_mime_data is not None:
+            d["on_can_drop_mime_data"] = on_can_drop_mime_data
+        if on_drop_mime_data is not None:
+            d["on_drop_mime_data"] = on_drop_mime_data
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1899,6 +1918,12 @@ def construct_list_view(ui: UserInterface.UserInterface, window: Window.Window, 
         connect_event(widget, widget, d, handler, "on_escape_pressed", [])
         connect_event(widget, widget, d, handler, "on_return_pressed", [])
         connect_event(widget, widget, d, handler, "on_item_handle_context_menu", ["x", "y", "gx", "gy", "index"])
+        connect_event(widget, widget, d, handler, "on_item_drag_started", ["index", "x", "y", "modifiers"])
+        connect_event(widget, widget, d, handler, "on_can_drop_mime_data", ["mime_data", "action", "drop_index"])
+        connect_event(widget, widget, d, handler, "on_drop_mime_data", ["mime_data", "action", "drop_index"])
+        # a list which cannot take a drop leaves the drag to whatever is drawn behind it, so only one which says how
+        # to handle a drop takes part in one.
+        widget.wants_drag_events = "on_can_drop_mime_data" in d or "on_drop_mime_data" in d
         connect_attributes(widget, d, handler, finishes)
     return widget
 

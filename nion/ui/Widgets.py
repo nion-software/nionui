@@ -831,6 +831,18 @@ class ListViewCanvasItemDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
         list_view_widget = self.__list_view_widget
         return list_view_widget._handle_context_menu(context_menu_event.item, context_menu_event.p, context_menu_event.gp) if list_view_widget else False
 
+    def drag_started_event(self, drag_started_event: GridFlowCanvasItem.GridFlowCanvasItemDragStartedEvent) -> bool:
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._handle_drag_started(drag_started_event.item, drag_started_event.p, drag_started_event.modifiers) if list_view_widget else False
+
+    def can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: typing.Optional[int]) -> bool:
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._handle_can_drop_mime_data(mime_data, action, drop_index) if list_view_widget else False
+
+    def drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: typing.Optional[int]) -> str:
+        list_view_widget = self.__list_view_widget
+        return list_view_widget._handle_drop_mime_data(mime_data, action, drop_index) if list_view_widget else "ignore"
+
 
 class ListViewWidget(UserInterface.Widget):
     """A widget with a list in a scroll bar, where each item is displayed using a canvas item from an item factory.
@@ -857,6 +869,13 @@ class ListViewWidget(UserInterface.Widget):
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_item_handle_context_menu: typing.Optional[typing.Callable[..., bool]] = None
+        # dragging an item out of the list and dropping mime data into it. a list only takes part in a drop once it
+        # is told to want drag events, since a list which cannot take a drop would otherwise keep the drag from
+        # reaching whatever is drawn behind it. the drop index these are given is where the drop would be inserted:
+        # zero before the first item, the number of items after the last one.
+        self.on_item_drag_started: typing.Optional[typing.Callable[..., bool]] = None
+        self.on_can_drop_mime_data: typing.Optional[typing.Callable[..., bool]] = None
+        self.on_drop_mime_data: typing.Optional[typing.Callable[..., str]] = None
         self.__list_model = list_model
         # a selection created here reports the changes it makes when items are inserted into or removed from the list,
         # so that the current index stays in step with the selection as the list changes. a selection passed in is
@@ -865,6 +884,12 @@ class ListViewWidget(UserInterface.Widget):
         self.__list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, self.__selection, item_factory,
                                                                  ListViewCanvasItemDelegate(self),
                                                                  item_height=item_height, key=key)
+        # the list is the whole of what this widget displays, so the room past its last item is part of it: a drop
+        # there belongs to the list, and lands after the last item rather than nowhere.
+        self.__list_canvas_item.fills_container = True
+        # a drop on a list of this kind puts an item into the list, so it lands in the gap between two items, which
+        # is what lets it land before the first item, after the last one, or in a list with no items at all.
+        self.__list_canvas_item.drops_between_items = True
         scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(self.__list_canvas_item)
         scroll_area_canvas_item.auto_resize_contents = True
         scroll_group_canvas_item = CanvasItem.CanvasItemComposition()
@@ -928,6 +953,9 @@ class ListViewWidget(UserInterface.Widget):
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_item_handle_context_menu = None
+        self.on_item_drag_started = None
+        self.on_can_drop_mime_data = None
+        self.on_drop_mime_data = None
         super().close()
 
     def __index_for_item(self, item: typing.Any) -> typing.Optional[int]:
@@ -961,6 +989,34 @@ class ListViewWidget(UserInterface.Widget):
         if callable(self.on_escape_pressed):
             return bool(self.on_escape_pressed())
         return False
+
+    def _handle_drag_started(self, item: typing.Any, p: Geometry.IntPoint, modifiers: UserInterface.KeyboardModifiers) -> bool:
+        # the user has begun dragging the item out of the list; the callback puts it on a drag, typically by calling
+        # drag on this widget with mime data describing the item.
+        index = self.__index_for_item(item)
+        if index is not None and callable(self.on_item_drag_started):
+            return bool(self.on_item_drag_started(index, p.x, p.y, modifiers))
+        return False
+
+    def _handle_can_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: typing.Optional[int]) -> bool:
+        # the drop index is where the drop would be inserted: zero before the first item, the number of items after
+        # the last one.
+        if callable(self.on_can_drop_mime_data):
+            return bool(self.on_can_drop_mime_data(mime_data, action, drop_index))
+        return False
+
+    def _handle_drop_mime_data(self, mime_data: UserInterface.MimeData, action: str, drop_index: typing.Optional[int]) -> str:
+        if callable(self.on_drop_mime_data):
+            return str(self.on_drop_mime_data(mime_data, action, drop_index))
+        return "ignore"
+
+    @property
+    def wants_drag_events(self) -> bool:
+        return self.__list_canvas_item.wants_drag_events
+
+    @wants_drag_events.setter
+    def wants_drag_events(self, value: bool) -> None:
+        self.__list_canvas_item.wants_drag_events = value
 
     def _get_item_tool_tip(self, item: typing.Any) -> typing.Optional[str]:
         # items may carry their own tool tip; subclasses can override to get it from somewhere else.

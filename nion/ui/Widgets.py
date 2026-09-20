@@ -863,6 +863,7 @@ class ListViewWidget(UserInterface.Widget):
                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget()
         super().__init__(CompositeWidgetBehavior(column_widget))
+        self.__ui = ui
         self.on_selection_changed: typing.Optional[typing.Callable[[typing.AbstractSet[int]], None]] = None
         self.on_item_changed: typing.Optional[typing.Callable[[typing.Optional[int]], None]] = None
         self.on_item_selected: typing.Optional[typing.Callable[[int], bool]] = None
@@ -1009,6 +1010,29 @@ class ListViewWidget(UserInterface.Widget):
         if callable(self.on_drop_mime_data):
             return str(self.on_drop_mime_data(mime_data, action, drop_index))
         return "ignore"
+
+    def render_item(self, index: int) -> typing.Optional[Bitmap.Bitmap]:
+        """Return an image of the item at the given index, as the list draws it.
+
+        A drag started on an item carries an image of what is being dragged, and this is what the item looks like: the
+        whole row, rather than any one part of it. The item has to have been displayed to be drawn, so a list which
+        has not been laid out yet has no image of its items to give.
+        """
+        item_canvas_items = self.__list_canvas_item._grid_flow_item_canvas_items
+        if not 0 <= index < len(item_canvas_items):
+            return None
+        canvas_size = self.__list_canvas_item._rect_for_index(index).size
+        if not canvas_size.width or not canvas_size.height:
+            return None
+        drawing_context = DrawingContext.DrawingContext()
+        item_canvas_items[index].repaint_immediate(drawing_context, canvas_size)
+        return Bitmap.promote_bitmap(self.__ui.create_rgba_image(drawing_context, canvas_size.width, canvas_size.height))
+
+    def item_rect(self, index: int) -> Geometry.IntRect:
+        """Return where the item at the given index is drawn within the list, which is empty if it is not drawn."""
+        if not 0 <= index < len(self.__list_model.items):
+            return Geometry.IntRect.empty_rect()
+        return self.__list_canvas_item._rect_for_index(index)
 
     @property
     def wants_drag_events(self) -> bool:

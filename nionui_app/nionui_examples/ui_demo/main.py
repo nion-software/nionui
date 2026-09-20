@@ -41,6 +41,7 @@ from . import Splitters
 from . import Stacks
 from . import StatusBar
 from . import Tabs
+from . import ToolTips
 from . import TextAreas
 
 _ = gettext.gettext
@@ -98,6 +99,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
         (Stacks, "stacks", _("Stacks")),
         (StatusBar, "status_bar", _("Status Bar")),
         (Tabs, "tabs", _("Tabs")),
+        (ToolTips, "tool_tips", _("Tool Tips")),
         (TextAreas, "text_areas", _("Text Areas")),
         (ComponentLayout, "component_layout", _("Component Layout")),
         (ComponentStack, "component_stack", _("Component Stack")),

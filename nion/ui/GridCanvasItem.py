@@ -107,9 +107,12 @@ class GridCanvasItemComposer(CanvasItem.BaseComposer):
             canvas_size = Geometry.IntSize(height=height, width=item_columns * item_size.width)
         return Geometry.IntRect(canvas_bounds.origin, canvas_size)
 
-    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
+    def _repaint_visible(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, visible_rect: Geometry.IntRect, composer_cache: CanvasItem.ComposerCache) -> None:
         canvas_size = canvas_rect.size
-        visible_rect = Geometry.IntRect(Geometry.IntPoint(), canvas_rect.size)
+        # the visible rect arrives in the coordinate space of the canvas rect; the cells below are laid out and drawn
+        # relative to the top left of the grid, so move it into the grid's own coordinate space. within a scroll area
+        # the canvas rect covers every cell, so only the visible rect says which cells are worth painting.
+        visible_rect = visible_rect - canvas_rect.origin
         delegate = self.__delegate
         wrap = self.__wrap
         direction = self.__direction
@@ -124,12 +127,21 @@ class GridCanvasItemComposer(CanvasItem.BaseComposer):
 
             with drawing_context.saver():
                 drawing_context.translate(canvas_rect.left, canvas_rect.top)
-                top_visible_row = visible_rect.top // item_size.height
-                bottom_visible_row = visible_rect.bottom // item_size.height + 1
-                left_visible_column = visible_rect.left // item_size.width
-                right_visible_column = visible_rect.right // item_size.width + (0 if wrap else 1)
-                for row in range(top_visible_row, bottom_visible_row):
-                    for column in range(left_visible_column, right_visible_column):
+                # the rows and columns worth painting are the ones the visible rect touches: the one holding its
+                # top (left) edge through the one holding its last visible pixel. a visible rect that starts above
+                # or left of the grid gives a negative first row or column, which is clamped away here.
+                top_visible_row = max(0, visible_rect.top // item_size.height)
+                bottom_visible_row = (visible_rect.bottom - 1) // item_size.height
+                left_visible_column = max(0, visible_rect.left // item_size.width)
+                right_visible_column = (visible_rect.right - 1) // item_size.width
+                # the grid is only so many items across the direction it wraps in; a column (row) past that one
+                # holds the next row's (column's) first item, which would then be painted twice.
+                if direction == Direction.Row:
+                    right_visible_column = min(right_visible_column, items_per_row - 1)
+                else:
+                    bottom_visible_row = min(bottom_visible_row, items_per_column - 1)
+                for row in range(top_visible_row, bottom_visible_row + 1):
+                    for column in range(left_visible_column, right_visible_column + 1):
                         if direction == Direction.Row:
                             index = row * items_per_row + column
                         else:

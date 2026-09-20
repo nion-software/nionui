@@ -27,6 +27,7 @@ from . import Dialogs
 from . import DragAndDrop
 from . import FocusKeyboard
 from . import Groups
+from . import LargeLists
 from . import Layout
 from . import LineEdits
 from . import ListDetail
@@ -76,6 +77,7 @@ def main(args: typing.Sequence[typing.Any], bootstrap_args: typing.Mapping[str, 
     page_list = [
         (Buttons, "buttons", _("Buttons")),
         (Layout, "layout", _("Layout")),
+        (LargeLists, "large_lists", _("Large Lists")),
         (CheckBoxes, "check_boxes", _("Check Boxes")),
         (Clipboard, "clipboard", _("Clipboard")),
         (ComboBoxes, "combo_boxes", _("Combo Boxes")),

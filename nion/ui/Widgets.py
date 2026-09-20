@@ -1435,14 +1435,18 @@ class ImageWidget(UserInterface.Widget):
         column_widget = ui.create_column_widget(properties=properties)
         super().__init__(CompositeWidgetBehavior(column_widget))
         self.ui = ui
-        self.on_clicked = None
+        self.__on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
         def button_clicked() -> None:
-            if callable(self.on_clicked):
-                self.on_clicked()
+            if callable(self.__on_clicked):
+                self.__on_clicked()
 
         self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(bitmap)
         self.__bitmap_canvas_item.on_button_clicked = button_clicked
+        # an image with nothing to do when it is clicked is only something to look at, so it leaves the mouse to
+        # whatever is displaying it. an image within a row of a list would otherwise take the mouse from the list,
+        # leaving the part of the row it covers unable to select the row or to drag it.
+        self.__bitmap_canvas_item.wants_mouse_events = False
         bitmap_canvas_widget = self.ui.create_canvas_widget()
         bitmap_canvas_widget.canvas_item.add_canvas_item(self.__bitmap_canvas_item)
         column_widget.add(bitmap_canvas_widget)
@@ -1458,7 +1462,18 @@ class ImageWidget(UserInterface.Widget):
     def close(self) -> None:
         self.__image_binding_helper.close()
         self.__image_binding_helper = typing.cast(typing.Any, None)
+        self.on_clicked = None
         super().close()
+
+    @property
+    def on_clicked(self) -> typing.Optional[typing.Callable[[], None]]:
+        return self.__on_clicked
+
+    @on_clicked.setter
+    def on_clicked(self, on_clicked: typing.Optional[typing.Callable[[], None]]) -> None:
+        self.__on_clicked = on_clicked
+        # the image takes the mouse only while there is something for a click to do.
+        self.__bitmap_canvas_item.wants_mouse_events = callable(on_clicked)
 
     @property
     def image(self) -> typing.Optional[Bitmap.Bitmap]:

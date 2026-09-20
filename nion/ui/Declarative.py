@@ -1062,6 +1062,10 @@ class DeclarativeUI:
         is selected. An item component can bind to it, e.g. `@binding(is_selected_model.value)`, to display the item
         differently when it is selected.
 
+        An item can also carry a `tool_tip` property, which is displayed while the mouse rests on that item. Unlike
+        the tool tip of the list view itself, which is the same wherever the mouse rests on it, this one belongs to
+        the one item and changes as the mouse moves from item to item.
+
         The `on_item_drag_started` callback describes the item being dragged as mime data and starts the drag, by
         calling `drag` on the widget it is passed. The list takes part in a drop only when it is given
         `on_can_drop_mime_data` or `on_drop_mime_data`. A drop lands in the gap between two items, so `drop_index` is

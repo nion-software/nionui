@@ -6,12 +6,16 @@ import typing
 import unittest
 
 # third party libraries
+import numpy
+
+# third party libraries
 # None
 
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import CanvasUserInterface
 from nion.ui import Declarative
+from nion.ui import DrawingContext
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import TestUI
@@ -193,6 +197,41 @@ class ListViewDragHandler(ItemsHandler):
         self.left_model.remove_item(self.left_model.items.index(item))
         self.right_model.insert_item(drop_index if drop_index is not None else len(self.right_model.items), item)
         return "move"
+
+
+class ImageRowItemHandler(Declarative.Handler):
+    """Display one item as an image followed by its text, the way a row of a list often looks."""
+
+    def __init__(self, item: str) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.item = item
+        self.icon = numpy.zeros((16, 16), numpy.uint32)
+        self.is_selected_model = Model.PropertyModel(False)
+        self.ui_view = u.create_row(u.create_image(image="@binding(icon)", width=16, height=16),
+                                    u.create_label(text=item), u.create_stretch(), spacing=8)
+
+
+class ImageRowListViewHandler(Declarative.Handler):
+    """A handler whose list view displays each item as an image followed by its text, and drags its items."""
+
+    def __init__(self, items: typing.Sequence[str]) -> None:
+        super().__init__()
+        u = Declarative.DeclarativeUI()
+        self.list_model = ListModel.ListModel[str]("items", items=list(items))
+        self.drag_indexes: typing.List[int] = list()
+        self.list_view: typing.Optional[Widgets.ListViewWidget] = None
+        self.ui_view = u.create_list_view(items="list_model.items", item_component_id="item", item_height=20,
+                                          name="list_view", on_item_drag_started="item_drag_started")
+
+    def create_handler(self, component_id: str, item: typing.Any = None, container: typing.Any = None,
+                       **kwargs: typing.Any) -> typing.Optional[ImageRowItemHandler]:
+        return ImageRowItemHandler(item) if component_id == "item" else None
+
+    def item_drag_started(self, widget: Declarative.UIWidget, index: int, x: int, y: int,
+                          modifiers: UserInterface.KeyboardModifiers) -> bool:
+        self.drag_indexes.append(index)
+        return True
 
 
 class StackItemsHandler(ItemsHandler):
@@ -563,6 +602,35 @@ class TestCanvasItemClass(unittest.TestCase):
         insert_index = list_canvas_item._drop_index
         list_canvas_item.drop(mime_data, 10, y)
         return insert_index
+
+    def test_list_view_drags_a_row_from_any_part_of_it(self) -> None:
+        # tests that a drag started anywhere in a row drags that row, the image at the start of it included. an image
+        # is only something to look at unless it is given something to do when it is clicked, so it leaves the mouse
+        # to the list displaying it rather than covering part of the row.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ImageRowListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                canvas_widget = list_view._canvas_widget
+                canvas_size = Geometry.IntSize(width=200, height=100)
+                canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), canvas_size)
+                # the canvas items within a row are placed as the list is drawn, so the row has to be drawn once
+                # before a point within it can be resolved to the canvas item displaying that part of it.
+                canvas_widget.canvas_item.repaint_immediate(DrawingContext.DrawingContext(), canvas_size)
+                modifiers = CanvasItem.KeyboardModifiers()
+                for x in (8, 60):  # over the image at the start of the row, and over the text beside it
+                    handler.drag_indexes = list()
+                    on_mouse_pressed = canvas_widget.on_mouse_pressed
+                    on_mouse_position_changed = canvas_widget.on_mouse_position_changed
+                    on_mouse_released = canvas_widget.on_mouse_released
+                    assert callable(on_mouse_pressed) and callable(on_mouse_position_changed) and callable(on_mouse_released)
+                    on_mouse_pressed(x, 10, modifiers)
+                    on_mouse_position_changed(x, 10, modifiers)
+                    on_mouse_position_changed(x + 60, 10, modifiers)
+                    on_mouse_released(x + 60, 10, modifiers)
+                    self.assertEqual([0], handler.drag_indexes, f"no drag started at x={x}")
 
     def test_list_view_takes_part_in_a_drop_only_when_it_says_how_to_handle_one(self) -> None:
         # tests that a list with no way to handle a drop leaves the drag alone, so that it reaches whatever is drawn

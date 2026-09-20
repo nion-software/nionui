@@ -7,6 +7,7 @@ import unittest
 
 # local libraries
 from nion.ui import CanvasItem
+from nion.ui import DrawingContext
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import UserInterface
@@ -44,6 +45,34 @@ def make_list_canvas_item(*, item_width: typing.Optional[int] = None, item_heigh
         return CanvasItem.EmptyCanvasItem()
 
     return ListCanvasItem.ListCanvasItem2(list_model, selection, item_factory, GridFlowCanvasItem.GridFlowCanvasItemDelegate(), item_width=item_width, item_height=item_height, key="items")
+
+
+class PaintCountingListCanvasItemDelegate(ListCanvasItem.ListCanvasItemDelegate):
+    """A delegate whose items are their own indexes and which records each item it is asked to paint."""
+
+    def __init__(self, item_count: int) -> None:
+        self.on_item_selected: typing.Optional[typing.Callable[[int], None]] = None
+        self.on_cancel: typing.Optional[typing.Callable[[], None]] = None
+        self.__item_count = item_count
+        self.painted_indexes = list[int]()
+
+    @property
+    def items(self) -> typing.Sequence[typing.Any]:
+        return list(range(self.__item_count))
+
+    @items.setter
+    def items(self, value: typing.Sequence[typing.Any]) -> None:
+        raise NotImplementedError()
+
+    @property
+    def item_count(self) -> int:
+        return self.__item_count
+
+    def set_item_count(self, item_count: int) -> None:
+        self.__item_count = item_count
+
+    def paint_item(self, drawing_context: DrawingContext.DrawingContext, display_item: typing.Any, rect: Geometry.IntRect, is_selected: bool) -> None:
+        self.painted_indexes.append(display_item)
 
 
 class TrackingItemFactory(GridFlowCanvasItem.GridFlowItemFactoryLike):
@@ -96,6 +125,46 @@ class TestListCanvasItemClass(unittest.TestCase):
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_drag(Geometry.IntPoint(y=120, x=50), Geometry.IntPoint(y=120, x=500))
         self.assertEqual(selection.indexes, set())
+
+    def test_list_canvas_item_paints_only_the_rows_within_the_viewport(self) -> None:
+        # the canvas rect of a list inside a scroll area spans every row of the model, so the rows to paint can only
+        # be determined from the visible rect. painting them all makes each scroll step cost the whole model.
+        item_height = 20
+        viewport_height = 400
+        visible_row_count = viewport_height // item_height
+        delegate = PaintCountingListCanvasItemDelegate(10000)
+        list_canvas_item = ListCanvasItem.ListCanvasItem(delegate, Selection.IndexedSelection(), item_height=item_height)
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        canvas_size = Geometry.IntSize(width=300, height=viewport_height)
+        scroll_area_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), canvas_size)
+        # a partially visible row at the bottom edge may be painted too.
+        self.assertGreaterEqual(len(delegate.painted_indexes), visible_row_count)
+        self.assertLessEqual(len(delegate.painted_indexes), visible_row_count + 1)
+        # growing the model without growing the viewport must not paint any more rows.
+        painted_count = len(delegate.painted_indexes)
+        delegate.painted_indexes.clear()
+        delegate.set_item_count(20000)
+        list_canvas_item.update()
+        scroll_area_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), canvas_size)
+        self.assertEqual(painted_count, len(delegate.painted_indexes))
+
+    def test_scrolled_list_canvas_item_paints_the_rows_at_the_scroll_position(self) -> None:
+        # the rows painted follow the viewport as it scrolls; only the rows under it are painted.
+        item_height = 20
+        viewport_height = 400
+        visible_row_count = viewport_height // item_height
+        delegate = PaintCountingListCanvasItemDelegate(10000)
+        list_canvas_item = ListCanvasItem.ListCanvasItem(delegate, Selection.IndexedSelection(), item_height=item_height)
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        canvas_size = Geometry.IntSize(width=300, height=viewport_height)
+        scroll_area_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), canvas_size)
+        delegate.painted_indexes.clear()
+        scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(y=-4000))
+        scroll_area_canvas_item.repaint_immediate(DrawingContext.DrawingContext(), canvas_size)
+        first_visible_row = 4000 // item_height
+        self.assertEqual(first_visible_row, delegate.painted_indexes[0])
+        self.assertGreaterEqual(len(delegate.painted_indexes), visible_row_count)
+        self.assertLessEqual(len(delegate.painted_indexes), visible_row_count + 1)
 
     def test_list_canvas_item_2_column_layout_tracks_width_and_preserves_scrollable_height(self) -> None:
         # a scroll area with auto_resize_contents enabled should stretch the content to its own width on every

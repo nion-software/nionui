@@ -185,7 +185,8 @@ class GridFlowItemCanvasItem(CanvasItem.CanvasItemComposition):
     def is_dropping(self, value: bool) -> None:
         if value != self.is_dropping:
             self.__is_dropping_model.value = value
-            self.update()
+            # the adornments are what draw the drop highlight over the item.
+            self.__adornments_canvas_item.is_dropping = value
 
     def context_menu_event(self, x: int, y: int, gx: int, gy: int) -> bool:
         grid_flow_canvas_item = self.__grid_flow_canvas_item_ref()
@@ -308,8 +309,6 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_pressed_for_dragging = False
         self.__mouse_position: Geometry.IntPoint | None = None
         self.__mouse_dragging = False
-        self.__dropping = True
-        self.__drop_before_index: int | None = None
         self.__drop_index: int | None = None
         # initialize
         with self.batch_update():
@@ -462,7 +461,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 if base_container:
                     base_container._bypass_request_focus()
                 selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-                selected_items = selected_items if self.__mouse_canvas_item.item in selected_items else [self.__mouse_canvas_item]
+                selected_items = selected_items if self.__mouse_canvas_item.item in selected_items else [self.__mouse_canvas_item.item]
                 if self.__delegate.drag_started_event(GridFlowCanvasItemDragStartedEvent(self.__mouse_canvas_item.item, selected_items, Geometry.IntPoint(x=x, y=y), modifiers)):
                     # once a drag starts, mouse release will not be called; call it here instead
                     self.__mouse_released(x, y, modifiers, False)
@@ -611,20 +610,44 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         return "ignore"
 
     def drag_enter(self, mime_data: UserInterface.MimeData) -> str:
-        self.__dropping = True
         return "ignore"
 
     def drag_move(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
-        mouse_index = self.__get_mouse_index(x, y)
-        max_index = len(self.__list_model.items)
-        drop_index = None
-        if mouse_index >= 0 and mouse_index < max_index:
-            drop_index = mouse_index
-            if not self._can_drop_mime_data(mime_data, "move", drop_index):
+        drop_index = self._get_drop_index(x, y)
+        if drop_index is not None:
+            # the point is a possible drop target if either this canvas item can take the drop itself or the delegate
+            # can. the delegate is asked here, and not only when the drop arrives, so that it is the one deciding
+            # where a drop lands and so that the drop is shown while the drag is over it.
+            if not self._can_drop_mime_data(mime_data, "move", drop_index) and not self.__delegate.can_drop_mime_data(mime_data, "copy", drop_index):
                 drop_index = None
+        self.__set_drop_index(drop_index)
+        return "ignore"
+
+    def _get_drop_index(self, x: int, y: int) -> int | None:
+        """Return the index a drop at the given point would land on, or None where it would land nowhere.
+
+        The index is the item the drop lands on. A subclass which lands a drop between its items instead returns the
+        index the drop would be inserted at, which runs from zero up to and including the number of items.
+        """
+        mouse_index = self.__get_mouse_index(x, y)
+        return mouse_index if 0 <= mouse_index < len(self.__list_model.items) else None
+
+    def _show_drop_index(self, drop_index: int | None) -> None:
+        """Show where a drop would land. The item it would land on is the one which shows it."""
+        grid_flow_item_canvas_items = self.__grid_flow_item_canvas_items
+        for index, grid_flow_item_canvas_item in enumerate(grid_flow_item_canvas_items):
+            grid_flow_item_canvas_item.is_dropping = index == drop_index
+
+    def __set_drop_index(self, drop_index: int | None) -> None:
+        # only one place shows the drop at a time: the one the drop would land on.
         if drop_index != self.__drop_index:
             self.__drop_index = drop_index
-        return "ignore"
+            self._show_drop_index(drop_index)
+
+    @property
+    def _drop_index(self) -> int | None:
+        """The index a drop would land on while a drag is over this canvas item, or None."""
+        return self.__drop_index
 
     def __get_mouse_index(self, x: int, y: int) -> int:
         canvas_item = self.__grid_flow_item_at_point(Geometry.IntPoint(x=x, y=y))
@@ -637,14 +660,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         return mouse_index
 
     def drag_leave(self) -> str:
-        self.__dropping = False
-        self.__drop_index = None
+        self.__set_drop_index(None)
         return "ignore"
 
     def drop(self, mime_data: UserInterface.MimeData, x: int, y: int) -> str:
         drop_index = self.__drop_index
-        self.__dropping = False
-        self.__drop_index = None
+        self.__set_drop_index(None)
         self.update()
         if drop_index is not None:
             internal_drop_result = self._drop_mime_data(mime_data, "move", drop_index)

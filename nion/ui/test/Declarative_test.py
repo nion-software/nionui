@@ -632,6 +632,26 @@ class TestCanvasItemClass(unittest.TestCase):
                     on_mouse_released(x + 60, 10, modifiers)
                     self.assertEqual([0], handler.drag_indexes, f"no drag started at x={x}")
 
+    def test_list_view_gives_an_image_of_a_whole_item(self) -> None:
+        # tests that the image a drag carries is the whole row, the size the list draws it, rather than any one part
+        # of it, and that a list with nothing drawn yet has no image of its items to give.
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = ImageRowListViewHandler(["a", "b", "c"])
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                list_view = typing.cast(Widgets.ListViewWidget, handler.list_view)
+                self.assertIsNone(list_view.render_item(0))
+                list_view._list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=200, height=100))
+                bitmap = list_view.render_item(1)
+                assert bitmap is not None
+                # the row spans the width of the list and is one item high, which is where it is drawn.
+                self.assertEqual(Geometry.IntRect(Geometry.IntPoint(y=20, x=0), Geometry.IntSize(width=200, height=20)),
+                                 list_view.item_rect(1))
+                self.assertEqual(Geometry.IntSize(width=200, height=20), bitmap.computed_shape)
+                self.assertIsNone(list_view.render_item(3))
+                self.assertIsNone(list_view.render_item(-1))
+
     def test_list_view_takes_part_in_a_drop_only_when_it_says_how_to_handle_one(self) -> None:
         # tests that a list with no way to handle a drop leaves the drag alone, so that it reaches whatever is drawn
         # behind the list instead of stopping there.

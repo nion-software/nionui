@@ -356,7 +356,10 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
             with self.batch_update():
-                self.remove_canvas_item(self.canvas_items[index])
+                # use the internal list, not the self.canvas_items property, which returns a full copy on
+                # every access; this handler runs once per removed item, so a copy here is O(n) per item
+                # removed (O(n*m) for m removals), which is noticeable for large filtered lists.
+                self.remove_canvas_item(self.__grid_flow_item_canvas_items[index])
                 self.__grid_flow_item_canvas_items.pop(index)
                 if not self.__is_shared_selection:
                     self.__selection.remove_index(index)
@@ -385,7 +388,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
             self.__needs_size_to_content = False
 
     def __handle_selection_changed(self) -> None:
-        for index, canvas_item in enumerate(typing.cast(typing.Sequence[GridFlowItemCanvasItem], self.canvas_items)):
+        for index, canvas_item in enumerate(self.__grid_flow_item_canvas_items):
             canvas_item.is_selected = self.__selection.contains(index)
 
     def __grid_flow_item_at_point(self, p: Geometry.IntPoint) -> GridFlowItemCanvasItem | None:
@@ -408,9 +411,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         canvas_bounds = self.canvas_bounds
         if canvas_bounds:
             index = self._get_index_for_point(Geometry.IntPoint(x=x, y=y), canvas_bounds.size)
-            if index < len(self.canvas_items):
+            if index < len(self.__grid_flow_item_canvas_items):
                 child_canvas_rect = self._get_grid_flow_item_canvas_rect(index, canvas_bounds.size)
-                canvas_item = self.canvas_items[index]
+                canvas_item = self.__grid_flow_item_canvas_items[index]
                 canvas_point = Geometry.IntPoint(x=x, y=y) - child_canvas_rect.origin
                 if child_canvas_rect.contains_point(Geometry.IntPoint(x=x, y=y)):
                     canvas_items.extend(canvas_item.canvas_items_at_point(canvas_point.x, canvas_point.y))
@@ -698,4 +701,4 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
 
     def size_to_content(self) -> None:
         """Size the canvas item to the height of the items."""
-        self.update_sizing(self.__layout.get_sizing(self.canvas_items))
+        self.update_sizing(self.__layout.get_sizing(self.__grid_flow_item_canvas_items))

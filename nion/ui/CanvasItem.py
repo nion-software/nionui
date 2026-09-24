@@ -2617,20 +2617,48 @@ class CanvasItemComposition(AbstractCanvasItem):
 
 
 class DrawingContextCanvasItemComposer(BaseComposer):
-    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, drawing_context: typing.Optional[DrawingContext.DrawingContext]) -> None:
+    """A composer that composites an already finished drawing context.
+
+    The drawing context must be in the coordinate system of the canvas item's container, i.e. it must already
+    include the canvas item's own origin.
+    """
+
+    def __init__(self, canvas_item: AbstractCanvasItem, layout_sizing: Sizing, cache: ComposerCache, drawing_context: DrawingContext.DrawingContext | None) -> None:
         super().__init__(canvas_item, layout_sizing, cache)
         self.__drawing_context = drawing_context
+
+    @property
+    def _finished_drawing_context(self) -> DrawingContext.DrawingContext | None:
+        """Return the finished drawing context, or None if the canvas item has not produced one.
+
+        This is available to subclasses so that they can composite the drawing in another coordinate system.
+        """
+        return self.__drawing_context
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         if self.__drawing_context:
             with drawing_context.saver():
-                # drawing_context.translate(canvas_bounds.left, canvas_bounds.top)
                 drawing_context.add(self.__drawing_context)
 
     def _update_repaint_count(self) -> None:
         # override this to prevent the repaint count from being updated since this is a passthrough for the layer
         # and doesn't represent a real repaint.
         pass
+
+
+class LocalDrawingContextCanvasItemComposer(DrawingContextCanvasItemComposer):
+    """A composer that composites an already finished drawing context that is in local coordinates.
+
+    The drawing context is in the coordinate system of the canvas item itself, so it is translated to the canvas
+    item's origin within its container.
+    """
+
+    def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
+        finished_drawing_context = self._finished_drawing_context
+        if finished_drawing_context:
+            with drawing_context.saver():
+                drawing_context.translate(canvas_rect.left, canvas_rect.top)
+                drawing_context.add(finished_drawing_context)
 
 
 _threaded_rendering_enabled = True
@@ -4097,7 +4125,8 @@ class ThreadedCanvasItem(AbstractCanvasItem):
 
     def get_composer(self, cache: ComposerCache) -> BaseComposer | None:
         if self.__layer_drawing_context:
-            return DrawingContextCanvasItemComposer(self, self.layout_sizing, cache, self.__layer_drawing_context)
+            # the thread lays the content out at the origin, so the drawing context is in local coordinates.
+            return LocalDrawingContextCanvasItemComposer(self, self.layout_sizing, cache, self.__layer_drawing_context)
         else:
             return EmptyCanvasItemComposer(self, self.layout_sizing, cache)
 

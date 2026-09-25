@@ -95,8 +95,12 @@ class BaseApplication:
     def deinitialize(self) -> None:
         self._close_dialogs()
         self._deinitialize_event_loop()
-        with open(os.path.join(self.ui.get_data_location(), "PythonConfig.ini"), 'w') as f:
-            f.write(sys.prefix + '\n')
+        # a data location is only available for a real (non-test) ui; skip writing the config
+        # file otherwise so tests do not leave a stray "PythonConfig.ini" in the working directory.
+        data_location = self.ui.get_data_location()
+        if data_location:
+            with open(os.path.join(data_location, "PythonConfig.ini"), 'w') as f:
+                f.write(sys.prefix + '\n')
         self.ui.close()
 
     def _get_event_loop(self) -> asyncio.AbstractEventLoop | None:

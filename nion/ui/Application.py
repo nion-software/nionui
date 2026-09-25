@@ -22,7 +22,6 @@ from nion.ui import Window
 from nion.utils import Process
 
 if typing.TYPE_CHECKING:
-    from nion.ui import Dialog
     from nion.utils import Event
 
 _ = gettext.gettext
@@ -238,7 +237,7 @@ class BaseApplication:
                 except Exception as e:
                     pass
 
-    def is_dialog_type_open(self, dialog_class: typing.Type[Dialog.ActionDialog]) -> bool:
+    def is_dialog_type_open(self, dialog_class: typing.Type[Window.Window]) -> bool:
         for dialog_weakref in self.__dialogs:
             if isinstance(dialog_weakref(), dialog_class):
                 return True

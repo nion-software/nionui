@@ -351,6 +351,26 @@ class TestOkCancelDialogClass(unittest.TestCase):
                                 for button in find_buttons(dialog._document_window.root_widget)]
                 self.assertGreater(300 - max(button_rect.right for button_rect in button_rects), 0)
 
+    def test_tool_dialog_content_is_flush_with_the_edges(self) -> None:
+        # a tool dialog, unlike an action dialog, manages its own content and has no button row, so its content is
+        # not inset by a margin.
+        with window_context(canvas=True) as window:
+            tool_dialog = Dialog.ToolDialog(window.ui, title="Tool", parent_window=window)
+            tool_dialog.content.add(window.ui.create_label_widget("hello"))
+            self.__dialogs.append(tool_dialog)
+            tool_dialog.show()
+            root_widget = tool_dialog._document_window.root_widget
+            assert root_widget
+            root_canvas_item = CanvasUserInterface.extract_canvas_item(root_widget)
+            assert root_canvas_item
+            root_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=160))
+            canvas_item = CanvasUserInterface.extract_canvas_item(tool_dialog.content)
+            origin = Geometry.IntPoint()
+            while canvas_item is not None and canvas_item.canvas_origin is not None:
+                origin = origin + Geometry.IntSize(h=canvas_item.canvas_origin.y, w=canvas_item.canvas_origin.x)
+                canvas_item = canvas_item.container
+            self.assertEqual(Geometry.IntPoint(), origin)
+
     def test_closing_the_dialog_another_way_reports_a_rejection(self) -> None:
         # closing the dialog with the close box of the window is a rejection; nothing else reported the outcome.
         with window_context() as window:

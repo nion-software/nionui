@@ -120,9 +120,11 @@ class OkCancelDialog(Window.Window):
         super().about_to_close(geometry, state)
 
 
-class ActionDialog(Window.Window):
+class ToolDialog(Window.Window):
     """
-        Present a modeless dialog with Ok and Cancel buttons.
+        Present a modeless, titled tool window whose content is attached flush against the edges of the window,
+        with no margin and no button row. Used for windows that manage their own content, such as a console,
+        rather than presenting a standard set of ok/cancel/action buttons.
     """
 
     def __init__(self, ui: UserInterface.UserInterface, title: typing.Optional[str] = None,
@@ -138,6 +140,24 @@ class ActionDialog(Window.Window):
 
         self.content = self.ui.create_column_widget()
 
+        self._attach_content()
+
+        if parent_window:
+            parent_window.register_dialog(self)
+        elif app:
+            app.register_dialog(self)
+
+    def _attach_content(self) -> None:
+        """Attach self.content to the window. Subclasses may override to wrap the content with margins or buttons."""
+        self.attach_widget(self.content)
+
+
+class ActionDialog(ToolDialog):
+    """
+        Present a modeless dialog with action buttons, inset by a margin.
+    """
+
+    def _attach_content(self) -> None:
         content_column = self.ui.create_column_widget()
 
         content_column.add(self.content)
@@ -150,11 +170,6 @@ class ActionDialog(Window.Window):
         content_column.add(self.button_row)
 
         self.attach_widget(_margins_box(self.ui, content_column))
-
-        if parent_window:
-            parent_window.register_dialog(self)
-        elif app:
-            app.register_dialog(self)
 
     def add_button(self, title: str, on_clicked_fn: typing.Callable[[], bool]) -> UserInterface.PushButtonWidget:
         def on_clicked() -> None:

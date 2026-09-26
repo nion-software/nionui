@@ -116,7 +116,7 @@ class CompositeWidgetBehavior(UserInterface.WidgetBehavior):
         self.content_widget = typing.cast(typing.Any, None)
 
     def periodic(self) -> None:
-        self.content_widget.periodic()
+        pass
 
     @property
     def widget(self) -> UserInterface.Widget:

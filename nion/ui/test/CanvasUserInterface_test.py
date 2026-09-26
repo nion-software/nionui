@@ -1,6 +1,7 @@
 # standard libraries
 import asyncio
 import contextlib
+import time
 import typing
 import unittest
 
@@ -10,6 +11,7 @@ from nion.ui import CanvasUserInterface
 from nion.ui import Dialog
 from nion.ui import DrawingContext
 from nion.ui import TestUI
+from nion.ui import TextEditing
 from nion.ui import UserInterface
 from nion.ui import Widgets
 from nion.ui import Window
@@ -590,6 +592,30 @@ class TestLineEditCanvasIntegration(unittest.TestCase):
         # blink state should not have changed since the item never gained focus.
         self.assertTrue(canvas_item.line_edit_core.caret_visible)
 
+    def test_caret_blinks_via_window_periodic(self) -> None:
+        # the window delivers periodic only to what registers for it, so the line edit has to register to blink.
+        # a window takes the current event loop when it is created, so give it one and clear it afterwards.
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+        window = CanvasUserInterface.CanvasWindow(self.ui, "test")
+        try:
+            column = self.ui.create_column_widget()
+            line_edit = self.ui.create_line_edit_widget()
+            column.add(line_edit)
+            window.attach(column)
+            canvas_item = line_edit._behavior._canvas_item  # type: ignore[attr-defined]
+            canvas_item._set_focused(True)
+            self.assertTrue(canvas_item.line_edit_core.caret_visible)
+            time.sleep(TextEditing.CARET_BLINK_INTERVAL + 0.01)
+            window.periodic()
+            self.assertFalse(canvas_item.line_edit_core.caret_visible)
+        finally:
+            window.close()
+            event_loop.stop()
+            event_loop.run_forever()
+            event_loop.close()
+            asyncio.set_event_loop(None)
+
     def test_line_edit_scrolls_to_keep_caret_visible_when_text_overflows_the_field(self) -> None:
         # regression test: previously LineEditCore/LineEditCell had no horizontal scroll concept
         # at all, so once typed text exceeded the field's width, the caret (and anything typed
@@ -860,6 +886,30 @@ class TestTextEditCanvasIntegration(unittest.TestCase):
         behavior._TextEditWidgetBehavior__last_periodic_time -= CanvasUserInterface.TextEditing.CARET_BLINK_INTERVAL + 0.01  # type: ignore[attr-defined]
         behavior.periodic()
         self.assertTrue(canvas_item.text_edit_core.caret_visible)
+
+    def test_caret_blinks_via_window_periodic(self) -> None:
+        # the window delivers periodic only to what registers for it, so the text edit has to register to blink.
+        # a window takes the current event loop when it is created, so give it one and clear it afterwards.
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+        window = CanvasUserInterface.CanvasWindow(self.ui, "test")
+        try:
+            column = self.ui.create_column_widget()
+            text_edit = self.ui.create_text_edit_widget()
+            column.add(text_edit)
+            window.attach(column)
+            canvas_item = text_edit._behavior._content_canvas_item  # type: ignore[attr-defined]
+            canvas_item._set_focused(True)
+            self.assertTrue(canvas_item.text_edit_core.caret_visible)
+            time.sleep(TextEditing.CARET_BLINK_INTERVAL + 0.01)
+            window.periodic()
+            self.assertFalse(canvas_item.text_edit_core.caret_visible)
+        finally:
+            window.close()
+            event_loop.stop()
+            event_loop.run_forever()
+            event_loop.close()
+            asyncio.set_event_loop(None)
 
 
 class TestSplitterWidgetCanvas(unittest.TestCase):

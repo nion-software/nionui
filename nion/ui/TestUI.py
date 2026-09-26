@@ -827,7 +827,8 @@ class ScrollAreaWidgetBehavior(WidgetBehavior):
         super().close()
 
     def set_content(self, content: typing.Optional[UserInterfaceModule.Widget]) -> None:
-        assert not self.widget.children
+        # like the Qt scroll area, the new content replaces any existing content.
+        self.widget.children.clear()
         child_widget = extract_widget(content)
         assert child_widget
         self.widget.children.append(child_widget)

@@ -599,12 +599,50 @@ class WidgetBehavior(typing.Protocol):
     def set_border_color(self, value: typing.Optional[str]) -> None: ...
 
 
+class PeriodicTarget(typing.Protocol):
+    """An object which a root container calls on each periodic, once it has registered."""
+
+    def periodic(self) -> None: ...
+
+
+class PeriodicTargetRegistry:
+    """The objects which a root container calls on each periodic, in the order they registered.
+
+    A root container calls only the registered objects, rather than walking its whole widget tree, since almost no
+    widget in the tree has periodic work to do.
+
+    Registering, unregistering, and calling periodic are all confined to the main thread, so no lock is needed.
+    """
+
+    def __init__(self) -> None:
+        # keyed by identity, so that a target need not be hashable and two targets which compare equal stay distinct.
+        # a dict keeps the registration order and makes unregistering not a search.
+        self.__targets: dict[int, PeriodicTarget] = dict()
+
+    def register(self, target: PeriodicTarget) -> None:
+        self.__targets[id(target)] = target
+
+    def unregister(self, target: PeriodicTarget) -> None:
+        self.__targets.pop(id(target), None)
+
+    def clear(self) -> None:
+        self.__targets.clear()
+
+    def periodic(self) -> None:
+        # a target may add or close others from its periodic, so iterate a copy. a target closed by an earlier one
+        # during this pass has unregistered by the time its turn comes and is skipped.
+        for target_id, target in list(self.__targets.items()):
+            if self.__targets.get(target_id) is target:
+                target.periodic()
+
+
 class Widget:
 
     def __init__(self, widget_behavior: WidgetBehavior) -> None:
         self.__behavior = widget_behavior
         self.__behavior.on_ui_activity = self._register_ui_activity
         self.__root_container: typing.Optional[Window] = None  # the document window
+        self.__is_periodic_registered = False
         self.__pending_keyed_tasks: typing.List[typing.Tuple[str, typing.Callable[[], None]]] = list()
         self.__pending_queued_tasks: typing.List[typing.Callable[[], None]] = list()
         self.on_context_menu_event: typing.Optional[typing.Callable[[int, int, int, int], bool]] = None
@@ -649,6 +687,8 @@ class Widget:
         self.tool_tip = None
 
     def close(self) -> None:
+        if self.__is_periodic_registered and self.__root_container:
+            self.__root_container.unregister_periodic_target(self)
         self.__visible_binding_helper.close()
         self.__visible_binding_helper = typing.cast(typing.Any, None)
         self.__enabled_binding_helper.close()
@@ -677,6 +717,11 @@ class Widget:
         return self.__root_container
 
     def _set_root_container(self, root_container: typing.Optional[Window]) -> None:
+        if self.__is_periodic_registered and root_container is not self.__root_container:
+            if self.__root_container:
+                self.__root_container.unregister_periodic_target(self)
+            if root_container:
+                root_container.register_periodic_target(self)
         self.__root_container = root_container
         self._behavior._set_root_container(root_container)
         if self.__root_container:
@@ -721,7 +766,19 @@ class Widget:
                 return found_widget
         return None
 
-    # not thread safe
+    def register_periodic(self) -> None:
+        """Have the root container call periodic on this widget on each periodic, for as long as it is attached.
+
+        The root container calls only the widgets which register, rather than walking the widget tree, so a subclass
+        which overrides periodic to do work calls this, typically from its __init__. It stays registered as the widget
+        moves between root containers, until it is closed.
+        """
+        if not self.__is_periodic_registered:
+            self.__is_periodic_registered = True
+            if self.__root_container:
+                self.__root_container.register_periodic_target(self)
+
+    # not thread safe. called by the root container only on the widgets which have called register_periodic.
     def periodic(self) -> None:
         self._behavior.periodic()
 
@@ -965,11 +1022,6 @@ class BoxWidget(Widget):
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + copy.copy(self.children)
 
-    def periodic(self) -> None:
-        super().periodic()
-        for child in self.children:
-            child.periodic()
-
     @property
     def child_count(self) -> int:
         return len(self.children)
@@ -1050,11 +1102,6 @@ class SplitterWidget(Widget):
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + copy.copy(self.children)
 
-    def periodic(self) -> None:
-        super().periodic()
-        for child in self.children:
-            child.periodic()
-
     @property
     def orientation(self) -> typing.Optional[str]:
         return self._behavior.orientation
@@ -1129,11 +1176,6 @@ class TabWidget(Widget):
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + copy.copy(self.children)
 
-    def periodic(self) -> None:
-        super().periodic()
-        for child in self.children:
-            child.periodic()
-
     def add(self, child: Widget, label: str) -> None:
         self._behavior.add(child, label)
         self.children.append(child)
@@ -1205,11 +1247,6 @@ class StackWidget(Widget):
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + copy.copy(self.children)
-
-    def periodic(self) -> None:
-        super().periodic()
-        for child in self.children:
-            child.periodic()
 
     @property
     def child_count(self) -> int:
@@ -1290,11 +1327,6 @@ class GroupWidget(Widget):
     @property
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + copy.copy(self.children)
-
-    def periodic(self) -> None:
-        super().periodic()
-        for child in self.children:
-            child.periodic()
 
     def add(self, child: Widget) -> None:
         self._behavior.add(child)
@@ -1378,17 +1410,15 @@ class ScrollAreaWidget(Widget):
     def _contained_widgets(self) -> typing.List[Widget]:
         return super()._contained_widgets + ([self.__content] if self.__content else list())
 
-    def periodic(self) -> None:
-        super().periodic()
-        if self.__content:
-            self.__content.periodic()
-
     @property
     def content(self) -> typing.Optional[Widget]:
         return self.__content
 
     @content.setter
     def content(self, content: typing.Optional[Widget]) -> None:
+        # the replaced content has left this root container; detach it so that it stops receiving periodic.
+        if self.__content and self.__content is not content:
+            self.__content._set_root_container(None)
         self._behavior.set_content(content)
         self.__content = content
         if self.__content:
@@ -2685,6 +2715,8 @@ class CanvasWidget(Widget):
         self.width = 0
         self.height = 0
         self.position_info = None
+        # periodic delivers on_periodic and the pending mouse position.
+        self.register_periodic()
 
         def handle_mouse_entered() -> None:
             if callable(self.on_mouse_entered):
@@ -3327,6 +3359,7 @@ class DockWidget:
     def __init__(self, document_window: Window, widget: Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> None:
         self.document_window = document_window
         self.document_window.register_dock_widget(self)
+        self.__periodic_target_registry = PeriodicTargetRegistry()
         self.widget = widget
         self.widget._set_root_container(typing.cast("Window", self))
         self.panel_id = panel_id
@@ -3348,6 +3381,7 @@ class DockWidget:
     def close(self) -> None:
         self.widget.close()
         self.widget = typing.cast(typing.Any, None)
+        self.__periodic_target_registry.clear()
         self.document_window.unregister_dock_widget(self)
         self.document_window = typing.cast(typing.Any, None)
         self.on_will_close = None
@@ -3412,8 +3446,16 @@ class DockWidget:
     def clear_task(self, key: str) -> None:
         self.document_window.clear_task(key + str(id(self)))
 
+    def register_periodic_target(self, target: PeriodicTarget) -> None:
+        """Call periodic on the target on each periodic, until it is unregistered. Called from the main thread."""
+        self.__periodic_target_registry.register(target)
+
+    def unregister_periodic_target(self, target: PeriodicTarget) -> None:
+        """Stop calling periodic on the target. Unregistering a target which is not registered does nothing."""
+        self.__periodic_target_registry.unregister(target)
+
     def periodic(self) -> None:
-        self.widget.periodic()
+        self.__periodic_target_registry.periodic()
 
     @property
     def toggle_action(self) -> MenuAction:
@@ -3483,6 +3525,7 @@ class Window:
         self.window_style = "window"
         # Python 3.9+: weakref.ReferenceType[DockWidget]
         self.__dock_widget_weak_refs: typing.List[typing.Any] = list()
+        self.__periodic_target_registry = PeriodicTargetRegistry()
         self.on_periodic: typing.Optional[typing.Callable[[], None]] = None
         self.on_queue_task: typing.Optional[typing.Callable[[typing.Callable[[], None]], None]] = None
         self.on_clear_queued_tasks: typing.Optional[typing.Callable[[], None]] = None
@@ -3522,6 +3565,7 @@ class Window:
             # directly. using request_close from a separate window will mitigate this.
             self.root_widget.close()
             self.root_widget = None
+        self.__periodic_target_registry.clear()
         for menu in reversed(self.__menus):
             menu.close()
         self.__menus = typing.cast(typing.Any, None)
@@ -3559,6 +3603,9 @@ class Window:
     # attach the root widget to this window
     # the root widget must respond to _set_root_container
     def attach(self, root_widget: Widget) -> None:
+        # the replaced root widget has left this window; detach it so that it stops receiving periodic.
+        if self.root_widget and self.root_widget is not root_widget:
+            self.root_widget._set_root_container(None)
         self.root_widget = root_widget
         self.root_widget._set_root_container(self)
         self._attach_root_widget(root_widget)
@@ -3596,6 +3643,14 @@ class Window:
     def clear_task(self, key: str) -> None:
         if self.on_clear_task:
             self.on_clear_task(key + str(id(self)))
+
+    def register_periodic_target(self, target: PeriodicTarget) -> None:
+        """Call periodic on the target on each periodic, until it is unregistered. Called from the main thread."""
+        self.__periodic_target_registry.register(target)
+
+    def unregister_periodic_target(self, target: PeriodicTarget) -> None:
+        """Stop calling periodic on the target. Unregistering a target which is not registered does nothing."""
+        self.__periodic_target_registry.unregister(target)
 
     @property
     def focus_widget(self) -> typing.Optional[Widget]:
@@ -3730,8 +3785,7 @@ class Window:
         # if there is a reason to hoist this to the caller at some point, this should be considered
         # a relatively arbitrary decision that it is here.
         with ReportErrorContext(self):
-            if self.root_widget:
-                self.root_widget.periodic()
+            self.__periodic_target_registry.periodic()
             if self.on_periodic:
                 self.on_periodic()
 

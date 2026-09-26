@@ -757,6 +757,7 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         self.__does_retain_focus = does_retain_focus
         self._no_focus = "no_focus"
         self.__window: typing.Optional[UserInterface.Window] = None
+        self.__is_periodic_registered = False
         # the canvas item which takes the focus for the widget as a whole. a widget drawn by a single canvas item
         # is that item; one drawn by several of them names the one which takes the focus for all of them.
         self.__focus_canvas_item = canvas_item
@@ -780,6 +781,8 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
 
     def close(self) -> None:
         # close the canvas item?
+        if self.__is_periodic_registered and self.__window:
+            self.__window.unregister_periodic_target(self)
         self.__focus_changed_listener = typing.cast(typing.Any, None)
         self.on_ui_activity = None
         self.on_context_menu_event = None
@@ -825,7 +828,23 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
         # TODO
         pass
 
+    def register_periodic(self) -> None:
+        """Have the root container call periodic on this behavior on each periodic, for as long as it is attached.
+
+        The root container calls only what registers, rather than walking the widget tree, so a subclass which
+        overrides periodic to do work calls this, typically from its __init__.
+        """
+        if not self.__is_periodic_registered:
+            self.__is_periodic_registered = True
+            if self.__window:
+                self.__window.register_periodic_target(self)
+
     def _set_root_container(self, window: typing.Optional[UserInterface.Window]) -> None:
+        if self.__is_periodic_registered and window is not self.__window:
+            if self.__window:
+                self.__window.unregister_periodic_target(self)
+            if window:
+                window.register_periodic_target(self)
         self.__window = window
 
     def _window(self) -> typing.Optional[UserInterface.Window]:
@@ -1615,6 +1634,8 @@ class LineEditWidgetBehavior(WidgetBehavior):
         self.word_wrap = False  # TODO
         self.__size_to_content()
         self.__last_periodic_time = time.time()
+        # periodic blinks the cursor.
+        self.register_periodic()
         self.on_editing_finished: typing.Optional[typing.Callable[[str], None]] = None
         self.on_escape_pressed: typing.Optional[typing.Callable[[], bool]] = None
         self.on_return_pressed: typing.Optional[typing.Callable[[], bool]] = None
@@ -2095,6 +2116,8 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
         self.__scroll_group_canvas_item.update_sizing(self.__scroll_group_canvas_item.sizing.with_minimum_width(font_metrics.width * 32).with_minimum_height(font_metrics.height * 4))
         super().__init__(self.__scroll_group_canvas_item, False, properties)
         self.__last_periodic_time = time.time()
+        # periodic blinks the cursor.
+        self.register_periodic()
 
         self.on_cursor_position_changed: typing.Optional[typing.Callable[[UserInterface.CursorPosition], None]] = None
         self.on_selection_changed: typing.Optional[typing.Callable[[UserInterface.Selection], None]] = None

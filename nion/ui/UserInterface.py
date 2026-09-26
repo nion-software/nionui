@@ -2847,7 +2847,6 @@ class CanvasWidget(Widget):
 
     def periodic(self) -> None:
         super().periodic()
-        self._behavior.periodic()
         if self.on_periodic:
             self.on_periodic()
         if self.position_info is not None:

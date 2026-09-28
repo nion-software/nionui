@@ -183,6 +183,17 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         self.assertEqual({3, 4}, drawn_selected_items(list_canvas_item))
         list_canvas_item.close()
 
+    def test_selection_made_before_creation_is_kept_and_drawn_as_selected(self) -> None:
+        # the selection passed in already refers to the items in the list model, so creating the canvas item must not
+        # shift it as though the items were being inserted.
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        selection = Selection.IndexedSelection()
+        selection.set_multiple({2, 5})
+        list_canvas_item = make_list_canvas_item(list_model, selection)
+        self.assertEqual({2, 5}, selection.indexes)
+        self.assertEqual({2, 5}, drawn_selected_items(list_canvas_item))
+        list_canvas_item.close()
+
     def test_shared_selection_made_before_creation_is_drawn_as_selected(self) -> None:
         list_model = ListModel.ListModel[int]("items", items=list(range(10)))
         selection = Selection.IndexedSelection()

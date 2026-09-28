@@ -313,10 +313,10 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_position: Geometry.IntPoint | None = None
         self.__mouse_dragging = False
         self.__drop_index: int | None = None
-        # initialize
+        # initialize. the selection already refers to the items in the list model, so it is left unchanged.
         with self.batch_update():
             for index, item in enumerate(list_model.items):
-                self.__handle_item_inserted(self.__list_model_key, item, index)
+                self.__insert_grid_flow_item_canvas_item(item, index)
         self.__handle_selection_changed()
 
     @property
@@ -344,17 +344,21 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
 
     def __handle_item_inserted(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:
-            grid_flow_item_canvas_item = GridFlowItemCanvasItem(self, item, self.__item_factory)
-            # a new item starts out unfocused; give it the focus state of the list, the way _set_focused does for the
-            # items already present, so that selecting a newly inserted item draws it as selected and focused.
-            grid_flow_item_canvas_item.is_focused = self.focused
             with self.batch_update():
-                self.insert_canvas_item(index, grid_flow_item_canvas_item)
-                self.__grid_flow_item_canvas_items.insert(index, grid_flow_item_canvas_item)
+                self.__insert_grid_flow_item_canvas_item(item, index)
                 if not self.__is_shared_selection:
                     self.__selection.insert_index(index)
-                self.__needs_handle_selection_changed = True
-                self.__needs_size_to_content = True
+
+    def __insert_grid_flow_item_canvas_item(self, item: typing.Any, index: int) -> None:
+        grid_flow_item_canvas_item = GridFlowItemCanvasItem(self, item, self.__item_factory)
+        # a new item starts out unfocused; give it the focus state of the list, the way _set_focused does for the
+        # items already present, so that selecting a newly inserted item draws it as selected and focused.
+        grid_flow_item_canvas_item.is_focused = self.focused
+        with self.batch_update():
+            self.insert_canvas_item(index, grid_flow_item_canvas_item)
+            self.__grid_flow_item_canvas_items.insert(index, grid_flow_item_canvas_item)
+            self.__needs_handle_selection_changed = True
+            self.__needs_size_to_content = True
 
     def __handle_item_removed(self, key: str, item: typing.Any, index: int) -> None:
         if key == self.__list_model_key:

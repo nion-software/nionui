@@ -295,6 +295,9 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__needs_size_to_content = False  # delay sizing during batch updates
         self.__needs_handle_selection_changed = False  # delay selection handling during batch updates
         self.__grid_flow_item_canvas_items = list[GridFlowItemCanvasItem]()
+        # the canvas items currently drawn as selected, so that a selection change only visits the items whose drawn
+        # state differs. like the list of canvas items, it is confined to the main thread.
+        self.__selected_canvas_items = set[GridFlowItemCanvasItem]()
         self.__item_inserted_listener = list_model.item_inserted_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_inserted, self))
         self.__item_removed_listener = list_model.item_removed_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_item_removed, self))
         if hasattr(list_model, "begin_changes_event") and hasattr(list_model, "end_changes_event"):
@@ -359,8 +362,10 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 # use the internal list, not the self.canvas_items property, which returns a full copy on
                 # every access; this handler runs once per removed item, so a copy here is O(n) per item
                 # removed (O(n*m) for m removals), which is noticeable for large filtered lists.
-                self.remove_canvas_item(self.__grid_flow_item_canvas_items[index])
+                grid_flow_item_canvas_item = self.__grid_flow_item_canvas_items[index]
+                self.remove_canvas_item(grid_flow_item_canvas_item)
                 self.__grid_flow_item_canvas_items.pop(index)
+                self.__selected_canvas_items.discard(grid_flow_item_canvas_item)
                 if not self.__is_shared_selection:
                     self.__selection.remove_index(index)
                 self.__needs_handle_selection_changed = True
@@ -388,8 +393,15 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
             self.__needs_size_to_content = False
 
     def __handle_selection_changed(self) -> None:
-        for index, canvas_item in enumerate(self.__grid_flow_item_canvas_items):
-            canvas_item.is_selected = self.__selection.contains(index)
+        # change the drawn selection state of only the canvas items whose state differs from the selection.
+        grid_flow_item_canvas_items = self.__grid_flow_item_canvas_items
+        canvas_item_count = len(grid_flow_item_canvas_items)
+        selected_canvas_items = {grid_flow_item_canvas_items[index] for index in self.__selection.indexes if 0 <= index < canvas_item_count}
+        for canvas_item in self.__selected_canvas_items - selected_canvas_items:
+            canvas_item.is_selected = False
+        for canvas_item in selected_canvas_items - self.__selected_canvas_items:
+            canvas_item.is_selected = True
+        self.__selected_canvas_items = selected_canvas_items
 
     def __grid_flow_item_at_point(self, p: Geometry.IntPoint) -> GridFlowItemCanvasItem | None:
         canvas_bounds = self.canvas_bounds

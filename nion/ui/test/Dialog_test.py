@@ -226,6 +226,25 @@ class QuitCountingUserInterface(TestUI.UserInterface):
         self.quit_count += 1
 
 
+class ReentrantQuitCountingUserInterface(TestUI.UserInterface):
+    """A user interface whose request_quit re-triggers the application's "last window closed" path itself.
+
+    This simulates a host whose own quit (e.g. Application_close closing all its windows) ends up running the
+    application's "last window closed" logic again while the first request_quit call is still in progress.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.quit_count = 0
+        self.app: Application.BaseApplication | None = None
+
+    def request_quit(self) -> None:
+        self.quit_count += 1
+        if self.quit_count == 1 and self.app:
+            with self.app.prevent_close():
+                pass  # re-enter the "last window closed" path, the way closeAllWindows() would.
+
+
 @contextlib.contextmanager
 def application_context() -> typing.Iterator[typing.Tuple[Application.BaseApplication, Declarative.WindowHandler]]:
     """Run an application with a single declarative window, the way an application is usually started."""
@@ -254,16 +273,14 @@ class TestApplicationWindowsClass(unittest.TestCase):
             self.assertEqual(0, typing.cast(QuitCountingUserInterface, app.ui).quit_count)
 
     def test_closing_the_last_window_quits_the_application(self) -> None:
-        # with no windows left, the application is asked to quit. the request is made during the next periodic rather
-        # than while the window is closing: the window may be closing because the host is already quitting, and asking
-        # it to quit from within its own shutdown re-enters it.
+        # with no windows left, the application asks the host to quit immediately: nothing is left to drive a
+        # later periodic (periodic is only driven by a window-owned timer, and the last window is now gone),
+        # so waiting for one would leave the application running with no windows.
         with application_context() as (app, handler):
             quit_counting_ui = typing.cast(QuitCountingUserInterface, app.ui)
             handler.window.request_close()
-            self.assertEqual(0, quit_counting_ui.quit_count)
-            app.periodic()
             self.assertEqual(1, quit_counting_ui.quit_count)
-            # the request is made once, not on every periodic afterwards.
+            # the request is made once, not again on a later periodic.
             app.periodic()
             self.assertEqual(1, quit_counting_ui.quit_count)
 
@@ -276,6 +293,26 @@ class TestApplicationWindowsClass(unittest.TestCase):
             self.assertEqual(1, quit_counting_ui.quit_count)
             app.periodic()
             self.assertEqual(1, quit_counting_ui.quit_count)
+
+    def test_host_closing_the_last_window_does_not_nest_a_second_quit_request(self) -> None:
+        # a host's own quit (e.g. Application_close) may close its remaining windows itself; closing the last one
+        # re-enters _exit_prevent_close_state while the first request_quit call is still running, and that must
+        # not trigger a second, nested request_quit call.
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+        ui = ReentrantQuitCountingUserInterface()
+        app = Application.BaseApplication(ui)
+        app.initialize()
+        ui.app = app
+        try:
+            with app.prevent_close():
+                pass
+            self.assertEqual(1, ui.quit_count)
+        finally:
+            app.deinitialize()
+            event_loop.stop()
+            event_loop.run_forever()
+            event_loop.close()
 
 
 class TestOkCancelDialogClass(unittest.TestCase):

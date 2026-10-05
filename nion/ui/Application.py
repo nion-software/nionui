@@ -66,7 +66,10 @@ class BaseApplication:
         # __windows instead.
         self._should_close_on_last_window = False
         self.__prevent_close_count = 0
-        self.__request_quit = False
+        # main-thread only (the Qt hosts assert this before acting on request_quit).
+        self.__is_exiting = False  # set while exit() is closing windows one by one
+        self.__is_quit_pending = False  # a quit was requested while exit() was closing windows
+        self.__is_requesting_quit = False  # guards against the host re-entering its own quit
 
         self.__on_start = on_start
         logger = logging.getLogger()
@@ -196,41 +199,61 @@ class BaseApplication:
         open_windows = set(self.__windows)
         open_dialogs = set([dialog() for dialog in self.__dialogs if dialog()])
         if not self.__prevent_close_count and not (open_windows - open_dialogs):
-            # ask to quit during the next periodic rather than now. this runs while a window is closing, and the
-            # window may be closing because the host is already quitting; asking the host to quit from within its own
-            # shutdown re-enters it. this mirrors queue_request_close on the window.
-            self.__request_quit = True
+            # the quit can't wait for a periodic to request it: periodic is only ever driven by a
+            # window-owned timer, and the last window (and its timer) is gone. ask the host to quit
+            # now. if exit() is in the middle of closing windows itself, defer to exit()'s end instead,
+            # since asking here would nest inside exit()'s own window-closing loop.
+            if self.__is_exiting:
+                self.__is_quit_pending = True
+            else:
+                self.__ask_host_to_quit()
+
+    def __ask_host_to_quit(self) -> None:
+        # asking the host to quit (e.g. Application_close) may itself close the remaining windows,
+        # which can re-enter this method via _exit_prevent_close_state; guard against that nesting.
+        if self.__is_requesting_quit:
+            return
+        self.__is_requesting_quit = True
+        try:
+            self.ui.request_quit()
+        finally:
+            self.__is_requesting_quit = False
 
     def exit(self) -> None:
         """The exit method should request to close or close the window."""
-        while self.__windows:
-            # remove the windows one by one. closing one window may close other windows, so recheck the
-            # list each time through the loop.
-            window = self.__windows[0]
-            # closing the window will trigger the about_to_close event to be called which
-            # will then call window close which will fire its _window_close_event which will
-            # remove the window from the list of window in _window_did_close.
-            window.request_close()
-            # if the window is still in the list, then the window did not close, so we need to
-            # manually remove it from the list.
-            if window in self.__windows:
-                self.__windows.remove(window)
+        # save/restore rather than assuming False: a window's close handler could call exit() again
+        # while this call is still closing windows below, and that nested call must not mark us as
+        # done exiting while the outer call is still in progress.
+        was_exiting = self.__is_exiting
+        self.__is_exiting = True
+        try:
+            while self.__windows:
+                # remove the windows one by one. closing one window may close other windows, so recheck the
+                # list each time through the loop.
+                window = self.__windows[0]
+                # closing the window will trigger the about_to_close event to be called which
+                # will then call window close which will fire its _window_close_event which will
+                # remove the window from the list of window in _window_did_close.
+                window.request_close()
+                # if the window is still in the list, then the window did not close, so we need to
+                # manually remove it from the list.
+                if window in self.__windows:
+                    self.__windows.remove(window)
+        finally:
+            self.__is_exiting = was_exiting
         # the application is quitting of its own accord here, rather than from within a close which the host started,
-        # so ask the host to quit now instead of waiting for the next periodic.
-        self.__perform_request_quit()
+        # so ask the host to quit now, picking up any request deferred while the windows above were closing.
+        # only the outermost call does this; a nested call lets the outer one pick up the pending request.
+        if not was_exiting and self.__is_quit_pending:
+            self.__is_quit_pending = False
+            self.__ask_host_to_quit()
+
 
     def periodic(self) -> None:
         """The periodic method can be overridden to implement periodic behavior."""
         if event_loop := self._get_event_loop():  # special for shutdown
             event_loop.stop()
             event_loop.run_forever()
-        # perform a quit requested while a window was closing. see _exit_prevent_close_state.
-        self.__perform_request_quit()
-
-    def __perform_request_quit(self) -> None:
-        if self.__request_quit:
-            self.__request_quit = False
-            self.ui.request_quit()
 
     def _close_dialogs(self) -> None:
         for weak_dialog in self.__dialogs:

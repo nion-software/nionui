@@ -112,7 +112,18 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertFalse(text_canvas_item.visible)
         stack_margins = typing.cast(CanvasItem.CanvasItemComposition, stack).layout.margins
         self.assertEqual(stack.layout_sizing.preferred_width_int,
-                          max(icon_canvas_item.layout_sizing.preferred_width_int + stack_margins.left + stack_margins.right, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
+                          icon_canvas_item.layout_sizing.preferred_width_int + stack_margins.left + stack_margins.right)
+
+    def test_icon_only_push_button_is_as_wide_as_it_is_tall(self) -> None:
+        from nion.ui import Bitmap
+        import numpy
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
+        sizes: list[Geometry.IntSize] = list()
+        controller.on_size_changed = sizes.append
+        controller.set_text(None)
+        controller.set_icon(Bitmap.promote_bitmap(numpy.zeros((16, 16), dtype=numpy.uint32)))
+        self.assertEqual(sizes[-1].width, sizes[-1].height)
 
     def test_push_button_shows_only_text_when_only_text_is_set(self) -> None:
         ui = TestUI.UserInterface()

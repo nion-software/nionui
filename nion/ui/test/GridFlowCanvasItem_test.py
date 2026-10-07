@@ -256,6 +256,108 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         list_canvas_item.close()
         other_list_canvas_item.close()
 
+    def test_item_canvas_items_in_view_of_a_list_are_the_items_scrolled_into_view(self) -> None:
+        # a client loads expensive content, such as an image, only for the items in view.
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in list_canvas_item._grid_flow_item_canvas_items]
+        self.assertEqual(item_canvas_items[0:5], list(list_canvas_item.item_canvas_items_in_view))
+        # 1010px down, at 20px per item, is partway into the item at index 50.
+        scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(y=-1010))
+        self.assertEqual(item_canvas_items[50:56], list(list_canvas_item.item_canvas_items_in_view))
+        scroll_area_canvas_item.close()
+
+    def test_item_canvas_items_in_view_of_a_grid_are_the_items_scrolled_into_view(self) -> None:
+        list_model = ListModel.ListModel[int]("items", items=list(range(1000)))
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        grid_canvas_item = GridCanvasItem.GridCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, GridFlowCanvasItem.GridFlowCanvasItemDelegate(), Geometry.IntSize(80, 80), key="items")
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(grid_canvas_item)
+        scroll_area_canvas_item.auto_resize_contents = True
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=320, height=160))
+        item_canvas_items = [grid_flow_item_canvas_item._canvas_item for grid_flow_item_canvas_item in grid_canvas_item._grid_flow_item_canvas_items]
+        # four columns of 80px, and two rows of 80px.
+        self.assertEqual(item_canvas_items[0:8], list(grid_canvas_item.item_canvas_items_in_view))
+        # 8040px down, at 80px per row, is partway into row 100, and the view extends partway into row 102.
+        scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(y=-8040))
+        self.assertEqual(item_canvas_items[400:412], list(grid_canvas_item.item_canvas_items_in_view))
+        scroll_area_canvas_item.close()
+
+    def test_item_canvas_items_in_view_are_empty_while_a_container_is_hidden(self) -> None:
+        # a list in a hidden tab, for instance, has no items in view.
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        scroll_area_canvas_item.visible = False
+        self.assertEqual(list(), list(list_canvas_item.item_canvas_items_in_view))
+        scroll_area_canvas_item.close()
+
+    def test_items_in_view_changed_event_fires_when_scrolled(self) -> None:
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        fired_count = 0
+
+        def handle_items_in_view_changed() -> None:
+            nonlocal fired_count
+            fired_count += 1
+
+        items_in_view_changed_listener = list_canvas_item.items_in_view_changed_event.listen(handle_items_in_view_changed)
+        scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(y=-1000))
+        self.assertLess(0, fired_count)
+        scroll_area_canvas_item.close()
+
+    def test_items_in_view_changed_event_fires_when_an_item_is_inserted(self) -> None:
+        # inserting an item moves the items after it, so the items in view change without scrolling.
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        fired_count = 0
+
+        def handle_items_in_view_changed() -> None:
+            nonlocal fired_count
+            fired_count += 1
+
+        items_in_view_changed_listener = list_canvas_item.items_in_view_changed_event.listen(handle_items_in_view_changed)
+        list_model.insert_item(0, 100)
+        self.assertLess(0, fired_count)
+        scroll_area_canvas_item.close()
+
+    def test_items_in_view_changed_event_fires_when_the_scroll_area_is_resized(self) -> None:
+        # a window made taller shows more items.
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        fired_count = 0
+
+        def handle_items_in_view_changed() -> None:
+            nonlocal fired_count
+            fired_count += 1
+
+        items_in_view_changed_listener = list_canvas_item.items_in_view_changed_event.listen(handle_items_in_view_changed)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=200))
+        self.assertLess(0, fired_count)
+        self.assertEqual(10, len(list_canvas_item.item_canvas_items_in_view))
+        scroll_area_canvas_item.close()
+
+    def test_closed_list_releases_its_scroll_area(self) -> None:
+        # a closed list which is still referenced must not keep its scroll area alive.
+        list_model = ListModel.ListModel[int]("items", items=list(range(100)))
+        list_canvas_item = make_list_canvas_item(list_model, Selection.IndexedSelection())
+        scroll_area_canvas_item = CanvasItem.ScrollAreaCanvasItem(list_canvas_item)
+        scroll_area_canvas_item.layout_immediate(Geometry.IntSize(width=300, height=100))
+        self.assertEqual(1, scroll_area_canvas_item.content_updated_event.listener_count)
+        scroll_area_canvas_item.close()
+        self.assertEqual(0, scroll_area_canvas_item.content_updated_event.listener_count)
+
 
 if __name__ == '__main__':
     unittest.main()

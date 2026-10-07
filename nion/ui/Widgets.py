@@ -220,6 +220,7 @@ def apply_sizing_properties(canvas_item: CanvasItem.AbstractCanvasItem, properti
     preferred_height = canvas_item_sizing.preferred_height or 0
     if "width" in properties:
         canvas_item.update_sizing(canvas_item_sizing.with_fixed_width(properties["width"]))
+        canvas_item_sizing = canvas_item.layout_sizing
     if "height" in properties:
         canvas_item.update_sizing(canvas_item_sizing.with_fixed_height(properties["height"]))
     if "min-width" in properties:
@@ -318,7 +319,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__text_button_canvas_item = CanvasItem.TextButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
         self.__icon_button_canvas_item = CanvasItem.BitmapButtonCanvasItem(padding=Geometry.IntSize(height=4, width=0), group_controller=self.__group_controller)
         self.__stack = ControlCanvasItem()
-        self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
+        # an explicit width is the width of the whole button, so the margins only apply when the width follows the content.
+        horizontal_margin = 0 if "width" in (properties or dict()) else 8
+        self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=horizontal_margin, bottom=0, right=horizontal_margin))
         # the "base" background is the button's normal, non-hovered appearance; it is what
         # set_background_color changes, and what the hover/press tint is computed relative to.
         self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"

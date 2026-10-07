@@ -131,6 +131,16 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(stack.layout_sizing.preferred_width_int,
                           max(text_canvas_item.layout_sizing.preferred_width_int + stack_margins.left + stack_margins.right, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
 
+    def test_push_button_with_explicit_width_and_height_is_exactly_that_size(self) -> None:
+        from nion.ui import Widgets
+        ui = TestUI.UserInterface()
+        controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui, properties={"width": 20, "height": 20})
+        sizes: list[Geometry.IntSize] = list()
+        controller.on_size_changed = sizes.append
+        controller.set_icon(None)
+        controller.set_text("-")
+        self.assertEqual(Geometry.IntSize(height=20, width=20), sizes[-1])
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

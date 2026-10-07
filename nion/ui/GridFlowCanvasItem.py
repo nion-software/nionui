@@ -3,6 +3,7 @@ from __future__ import annotations
 
 # standard libraries
 import dataclasses
+import threading
 import typing
 import weakref
 
@@ -12,6 +13,7 @@ import weakref
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
+from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
@@ -313,6 +315,19 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__mouse_position: Geometry.IntPoint | None = None
         self.__mouse_dragging = False
         self.__drop_index: int | None = None
+
+        # the items in view changed event is fired when the items in view may have changed, such as by scrolling,
+        # resizing, or inserting or removing items. layout changes are made on render threads, so it is fired on any
+        # thread. it is not fired when this canvas item or a container is hidden or shown, and it follows scrolling only
+        # when the scroll area is the direct container.
+        self.items_in_view_changed_event = Event.Event()
+
+        # the scroll area is found once this canvas item has a layout, since it has no container when it is created. the
+        # lock protects the scroll area and its listener, since layout happens on render threads.
+        self.__scroll_area_lock = threading.Lock()
+        self.__scroll_area: CanvasItem.ScrollAreaCanvasItem | None = None
+        self.__scroll_area_content_updated_listener: Event.EventListener | None = None
+
         # initialize. the selection already refers to the items in the list model, so it is left unchanged.
         with self.batch_update():
             for index, item in enumerate(list_model.items):
@@ -395,6 +410,58 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__needs_size_to_content:
             self.size_to_content()
             self.__needs_size_to_content = False
+            # items were inserted or removed, which moves the items after them.
+            self.items_in_view_changed_event.fire()
+
+    def close(self) -> None:
+        # release the scroll area so that a closed canvas item does not keep it alive or report its scrolling.
+        with self.__scroll_area_lock:
+            self.__scroll_area = None
+            self.__scroll_area_content_updated_listener = None
+        super().close()
+
+    def _layout_changed(self) -> None:
+        # called on a render thread when the canvas origin or size changes.
+        super()._layout_changed()
+        container = self.container
+        scroll_area = container if isinstance(container, CanvasItem.ScrollAreaCanvasItem) else None
+        with self.__scroll_area_lock:
+            if scroll_area is not self.__scroll_area:
+                self.__scroll_area = scroll_area
+                self.__scroll_area_content_updated_listener = scroll_area.content_updated_event.listen(ReferenceCounting.weak_partial(GridFlowCanvasItem.__handle_scroll_area_content_updated, self)) if scroll_area else None
+        self.items_in_view_changed_event.fire()
+
+    def __handle_scroll_area_content_updated(self) -> None:
+        # called on any thread when the scroll area scrolls or its layout changes.
+        self.items_in_view_changed_event.fire()
+
+    @property
+    def item_canvas_items_in_view(self) -> typing.Sequence[CanvasItem.AbstractCanvasItem]:
+        """Return the canvas items made by the item factory for the items in view.
+
+        An item is in view when it intersects the visible part of the scroll area which directly contains this canvas
+        item, or this canvas item when it is not directly in a scroll area. No items are in view before this canvas item
+        has a layout, or while it or one of its containers is hidden. Call on the main thread.
+        """
+        container: CanvasItem.AbstractCanvasItem | None = self
+        while container:
+            if not container.visible:
+                return list()
+            container = container.container
+        canvas_bounds = self.canvas_bounds
+        if not canvas_bounds:
+            return list()
+        visible_rect: Geometry.IntRect | None = canvas_bounds
+        if isinstance(scroll_area := self.container, CanvasItem.ScrollAreaCanvasItem):
+            visible_rect = scroll_area.visible_rect
+        if not visible_rect:
+            return list()
+        # the items flow in index order, so only the items from the top left to the bottom right of the visible rect
+        # need to be checked.
+        grid_flow_item_canvas_items = self.__grid_flow_item_canvas_items
+        start_index = max(0, self._get_index_for_point(visible_rect.top_left, canvas_bounds.size))
+        end_index = min(len(grid_flow_item_canvas_items), self._get_index_for_point(visible_rect.bottom_right - Geometry.IntSize(1, 1), canvas_bounds.size) + 1)
+        return [grid_flow_item_canvas_items[index]._canvas_item for index in range(start_index, end_index) if self._get_grid_flow_item_canvas_rect(index, canvas_bounds.size).intersects_rect(visible_rect)]
 
     def __handle_selection_changed(self) -> None:
         # change the drawn selection state of only the canvas items whose state differs from the selection.

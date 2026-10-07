@@ -11,6 +11,7 @@ import unittest
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.utils import Geometry
 
 
@@ -24,7 +25,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_add_item_to_string_list_widget_causes_container_to_relayout(self) -> None:
         # ugly type casting
-        from nion.ui import Widgets
         ui = TestUI.UserInterface()
         widget = Widgets.StringListWidget(ui)
         with contextlib.closing(widget):
@@ -53,7 +53,6 @@ class TestCanvasItemClass(unittest.TestCase):
     def test_a_disabled_push_button_is_not_pressed_by_the_keyboard(self) -> None:
         # the button reaches the keyboard through the focus, which a disabled button can still hold if it was
         # disabled while focused; being disabled is what has to stop it from being pressed.
-        from nion.ui import Widgets
         ui = TestUI.UserInterface()
         controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
         controller.set_text("Press")
@@ -74,7 +73,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_push_button_shows_both_text_and_icon_when_both_are_set(self) -> None:
         from nion.ui import Bitmap
-        from nion.ui import Widgets
         import numpy
         ui = TestUI.UserInterface()
         controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
@@ -102,7 +100,6 @@ class TestCanvasItemClass(unittest.TestCase):
 
     def test_push_button_shows_only_icon_when_only_icon_is_set(self) -> None:
         from nion.ui import Bitmap
-        from nion.ui import Widgets
         import numpy
         ui = TestUI.UserInterface()
         controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
@@ -118,7 +115,6 @@ class TestCanvasItemClass(unittest.TestCase):
                           max(icon_canvas_item.layout_sizing.preferred_width_int + stack_margins.left + stack_margins.right, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
 
     def test_push_button_shows_only_text_when_only_text_is_set(self) -> None:
-        from nion.ui import Widgets
         ui = TestUI.UserInterface()
         controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui)
         controller.set_text("Hello")
@@ -132,7 +128,6 @@ class TestCanvasItemClass(unittest.TestCase):
                           max(text_canvas_item.layout_sizing.preferred_width_int + stack_margins.left + stack_margins.right, Widgets.BasicPushButtonWidgetCanvasItemController.default_minimum_width))
 
     def test_push_button_with_explicit_width_and_height_is_exactly_that_size(self) -> None:
-        from nion.ui import Widgets
         ui = TestUI.UserInterface()
         controller = Widgets.BasicPushButtonWidgetCanvasItemController(ui, properties={"width": 20, "height": 20})
         sizes: list[Geometry.IntSize] = list()

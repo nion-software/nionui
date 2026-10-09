@@ -806,9 +806,13 @@ class WidgetBehavior(UserInterface.WidgetBehavior):
             if key == "height":
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_fixed_height(value))
             if key == "min-width":
-                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_width(value).with_preferred_width(value))
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_width(value).with_preferred_width(max(value, properties.get("preferred-width", value))))
             if key == "min-height":
-                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_height(value).with_preferred_height(value))
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_minimum_height(value).with_preferred_height(max(value, properties.get("preferred-height", value))))
+            if key == "preferred-width":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_preferred_width(max(value, properties.get("min-width", value))))
+            if key == "preferred-height":
+                self.canvas_item.update_sizing(self.canvas_item.sizing.with_preferred_height(max(value, properties.get("min-height", value))))
             if key == "collapsible":
                 self.canvas_item.update_sizing(self.canvas_item.sizing.with_collapsible(bool(value)))
             if key == "size-policy-horizontal" and str(value).lower() in ("expanding", "minimum-expanding"):

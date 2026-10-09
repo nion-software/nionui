@@ -166,6 +166,23 @@ def ParseSizePolicy(policy_str: str, policy: QtWidgets.QSizePolicy.Policy) -> Qt
         return policy
 
 
+class PreferredSizeHint:
+    """The preferred width and height given to a widget by its 'preferred-width' and 'preferred-height' properties.
+
+    The preferred size replaces the natural size hint of the widget, so that a layout such as a dock area starts the
+    widget at that size but can still shrink it to its minimum size. A layout never makes a widget smaller than its
+    minimum size, so a preferred size below the minimum size has no effect.
+    """
+
+    def __init__(self) -> None:
+        self.width: int | None = None
+        self.height: int | None = None
+
+    def apply(self, size_hint: QtCore.QSize) -> QtCore.QSize:
+        """Return the size hint with its width and height replaced by the preferred width and height, where given."""
+        return QtCore.QSize(self.width if self.width is not None else size_hint.width(), self.height if self.height is not None else size_hint.height())
+
+
 def ParseAlignment(alignment: str) -> QtCore.Qt.AlignmentFlag:
     return {
         "left": QtCore.Qt.AlignmentFlag.AlignLeft,
@@ -728,11 +745,15 @@ class PyTextEdit(QtWidgets.QTextEdit):
     def __init__(self) -> None:
         super().__init__()
         self.object = None
+        self.preferred_size_hint = PreferredSizeHint()
         self.setAcceptRichText(False)
         self.setUndoRedoEnabled(True)
         self.cursorPositionChanged.connect(self.__cursor_position_changed)
         self.selectionChanged.connect(self.__selection_changed)
         self.textChanged.connect(self.__text_changed)
+
+    def sizeHint(self) -> QtCore.QSize:
+        return self.preferred_size_hint.apply(super().sizeHint())
 
     def __cursor_position_changed(self) -> None:
         if self.object:
@@ -840,11 +861,23 @@ class Overlay(QtWidgets.QWidget):
         super().resizeEvent(event)
 
 
+class PyBoxWidget(QtWidgets.QWidget):
+    """A row or column widget, laid out by a box layout, which can be given a preferred size."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.preferred_size_hint = PreferredSizeHint()
+
+    def sizeHint(self) -> QtCore.QSize:
+        return self.preferred_size_hint.apply(super().sizeHint())
+
+
 class PyScrollArea(QtWidgets.QScrollArea):
 
     def __init__(self) -> None:
         super().__init__()
         self.object = None
+        self.preferred_size_hint = PreferredSizeHint()
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -872,6 +905,9 @@ class PyScrollArea(QtWidgets.QScrollArea):
 
     def __scroll_bar_changed(self, value: int) -> None:
         self.__notify_viewport_changed()
+
+    def sizeHint(self) -> QtCore.QSize:
+        return self.preferred_size_hint.apply(super().sizeHint())
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -4408,14 +4444,14 @@ class PyQtProxy:
             widget.setStyleSheet(g_stylesheet)
 
         if intrinsic_id == "row":
-            row = QtWidgets.QWidget()
+            row = PyBoxWidget()
             row_layout = QtWidgets.QHBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(0)
             apply_stylesheet(row)
             return row
         elif intrinsic_id == "column":
-            column = QtWidgets.QWidget()
+            column = PyBoxWidget()
             column_layout = QtWidgets.QVBoxLayout(column)
             column_layout.setContentsMargins(0, 0, 0, 0)
             column_layout.setSpacing(0)
@@ -4632,6 +4668,15 @@ class PyQtProxy:
             widget.setMinimumHeight(int(value * display_scaling))
         elif property == "max-height":
             widget.setMaximumHeight(int(value * display_scaling))
+        elif property == "preferred-width":
+            # widgets without a preferred size hint, such as buttons, ignore the preferred size.
+            if isinstance(preferred_size_hint := getattr(widget, "preferred_size_hint", None), PreferredSizeHint):
+                preferred_size_hint.width = int(value * display_scaling)
+                widget.updateGeometry()
+        elif property == "preferred-height":
+            if isinstance(preferred_size_hint := getattr(widget, "preferred_size_hint", None), PreferredSizeHint):
+                preferred_size_hint.height = int(value * display_scaling)
+                widget.updateGeometry()
         elif property == "size-policy-horizontal":
             size_policy = widget.sizePolicy()
             size_policy.setHorizontalPolicy(ParseSizePolicy(value, size_policy.horizontalPolicy()))

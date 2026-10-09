@@ -380,6 +380,34 @@ class TestScrollAreaWidgetSizing(unittest.TestCase):
         self.assertTrue(width_without_scroll_bar is None or width_without_scroll_bar < width_with_scroll_bar)
 
 
+class TestPreferredSizeProperties(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+
+    def tearDown(self) -> None:
+        pass
+
+    def test_preferred_height_starts_taller_than_minimum_height(self) -> None:
+        # a panel asks for a sensible starting height while still allowing itself to be shrunk to a small minimum.
+        column = self.ui.create_column_widget(properties={"preferred-height": 320, "min-height": 80})
+        sizing = column._behavior.canvas_item.sizing  # type: ignore[attr-defined]
+        self.assertEqual(320, sizing.preferred_height)
+        self.assertEqual(80, sizing.minimum_height)
+
+    def test_preferred_height_below_minimum_height_uses_minimum_height(self) -> None:
+        column = self.ui.create_column_widget(properties={"min-height": 200, "preferred-height": 80})
+        sizing = column._behavior.canvas_item.sizing  # type: ignore[attr-defined]
+        self.assertEqual(200, sizing.preferred_height)
+        self.assertEqual(200, sizing.minimum_height)
+
+    def test_preferred_width_starts_wider_than_minimum_width(self) -> None:
+        row = self.ui.create_row_widget(properties={"min-width": 100, "preferred-width": 300})
+        sizing = row._behavior.canvas_item.sizing  # type: ignore[attr-defined]
+        self.assertEqual(300, sizing.preferred_width)
+        self.assertEqual(100, sizing.minimum_width)
+
+
 class TestLineEditCanvasIntegration(unittest.TestCase):
     """Integration tests exercising the LineEditWidget/LineEditWidgetBehavior/LineEditCanvasItem
     wiring end-to-end (mouse/key/focus events flowing through to TextEditing.LineEditCore and back

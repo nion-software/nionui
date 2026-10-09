@@ -437,38 +437,6 @@ class DockWidget(QtWidgets.QDockWidget):
         super().focusOutEvent(event)
 
 
-class DockContentScrollArea(QtWidgets.QScrollArea):
-    """Scroll area holding the content of a dock widget.
-
-    The content's minimum height does not propagate to the main window layout, so stacked docks whose summed minimum
-    heights exceed the window height are squeezed and scrolled rather than overlapped. The minimum width follows the
-    content's minimum width so that the content is not squeezed horizontally.
-    """
-
-    def __init__(self, content: QtWidgets.QWidget) -> None:
-        super().__init__()
-        self.setWidgetResizable(True)
-        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
-        self.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
-        self.setMinimumHeight(60)
-        self.setWidget(content)
-        # the content posts a layout request to the viewport when its minimum size changes.
-        self.viewport().installEventFilter(self)
-
-    def eventFilter(self, source: QtCore.QObject, event: QtCore.QEvent) -> bool:
-        if event.type() == QtCore.QEvent.Type.LayoutRequest and source == self.viewport():
-            self.updateGeometry()
-        return super().eventFilter(source, event)
-
-    def minimumSizeHint(self) -> QtCore.QSize:
-        content = self.widget()
-        content_minimum_width = (content.minimumWidth() or content.minimumSizeHint().width()) if content else 0
-        # reserve the vertical scroll bar width, unless it overlays the content, so that the content is not squeezed horizontally when it scrolls.
-        if not self.style().styleHint(QtWidgets.QStyle.StyleHint.SH_ScrollBar_Transient, None, self.verticalScrollBar()):
-            content_minimum_width += self.verticalScrollBar().sizeHint().width()
-        return QtCore.QSize(max(content_minimum_width, 0), self.minimumHeight())
-
-
 class PyPushButton(QtWidgets.QPushButton):
 
     def __init__(self) -> None:
@@ -3252,7 +3220,7 @@ class PyQtProxy:
 
         dock_widget = DockWidget(title, None)
         dock_widget.setAllowedAreas(allowed_positions_mask)
-        dock_widget.setWidget(DockContentScrollArea(widget))
+        dock_widget.setWidget(widget)
         dock_widget.setObjectName(identifier)
         document_window.addDockWidget(mapping[position], dock_widget)
 

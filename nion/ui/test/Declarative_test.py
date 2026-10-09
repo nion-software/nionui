@@ -1046,6 +1046,27 @@ class TestCanvasItemClass(unittest.TestCase):
                 handler.current_index_model.value = 2
                 self.assertEqual(60, stack_canvas_item.layout_sizing.preferred_height_int)
 
+    def test_preferred_height_starts_column_taller_than_its_minimum_height(self) -> None:
+        # a declarative panel asks for a sensible starting height while still allowing itself to be shrunk to a small minimum.
+        u = Declarative.DeclarativeUI()
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                self.column: UserInterface.BoxWidget | None = None
+                self.ui_view = u.create_column(u.create_label(text="label"), name="column", min_height=80, preferred_height=320)
+
+        with event_loop_context() as event_loop:
+            handler = Handler()
+            # construct against the canvas ui so that the sizing of the column can be measured.
+            canvas_ui = CanvasUserInterface.CanvasUserInterface(TestUI.UserInterface())
+            widget = Declarative.construct_widget(canvas_ui, event_loop, handler)
+            with contextlib.closing(widget):
+                column_canvas_item = CanvasUserInterface.extract_canvas_item(typing.cast(UserInterface.Widget, handler.column))
+                assert column_canvas_item
+                self.assertEqual(320, column_canvas_item.layout_sizing.preferred_height_int)
+                self.assertEqual(80, column_canvas_item.layout_sizing.minimum_height)
+
     def test_stack_builds_deferred_static_children_when_displayed(self) -> None:
         # tests deferred construction for children given directly rather than from a list of items, which is how a
         # stack of pages is usually described.

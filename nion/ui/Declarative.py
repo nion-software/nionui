@@ -106,9 +106,11 @@ class DeclarativeUI:
             "width",
             "min_width",
             "max_width",
+            "preferred_width",
             "height",
             "min_height",
             "max_height",
+            "preferred_height",
             "size_policy_horizontal",
             "size_policy_vertical",
             "tool_tip",
@@ -445,6 +447,8 @@ class DeclarativeUI:
 
         Keyword Args:
             name: handler property in which to store widget (optional)
+            size_to_content: whether the scroll area starts at the size of its content and is never narrower than its
+                content, scrolling only when made shorter than its content (optional)
 
         Returns:
             UI description of the scroll area
@@ -456,6 +460,8 @@ class DeclarativeUI:
             d["vertical_scroll_bar_policy"] = kwargs["vertical_scroll_bar_policy"]
         if "horizontal_scroll_bar_policy" in kwargs:
             d["horizontal_scroll_bar_policy"] = kwargs["horizontal_scroll_bar_policy"]
+        if kwargs.get("size_to_content"):
+            d["size_to_content"] = True
         self.__process_common_properties(d, **kwargs)
         return d
 
@@ -1472,7 +1478,7 @@ def construct_margins_box(ui: UserInterface.UserInterface, content: UserInterfac
 
 def construct_sizing_properties(d: UIDescription) -> UIDescriptionResult:
     properties: UIDescriptionResult = dict()
-    for k in ("width", "min_width", "max_width", "height", "min_height", "max_height"):
+    for k in ("width", "min_width", "max_width", "preferred_width", "height", "min_height", "max_height", "preferred_height"):
         v = d.get(k, None)
         if v is not None:
             properties[k.replace("_", "-")] = int(v)
@@ -1974,6 +1980,8 @@ def construct_group(ui: UserInterface.UserInterface, window: Window.Window, d: U
 def construct_scroll_area(ui: UserInterface.UserInterface, window: Window.Window, d: UIDescription,
                           handler: HandlerLike, finishes: _FinishesListType) -> UserInterface.ScrollAreaWidget:
     properties = construct_sizing_properties(d)
+    if d.get("size_to_content"):
+        properties["size-to-content"] = True
     widget = ui.create_scroll_area_widget(properties)
     widget.set_scrollbar_policies(d.get("horizontal_scroll_bar_policy", "needed"), d.get("vertical_scroll_bar_policy", "needed"))
     content = typing.cast(UIDescription, d.get("content"))

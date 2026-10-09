@@ -878,6 +878,11 @@ class PyScrollArea(QtWidgets.QScrollArea):
         super().__init__()
         self.object = None
         self.preferred_size_hint = PreferredSizeHint()
+
+        # when sizing to content, the scroll area starts at the size of its content and is never narrower than its
+        # content, but it can still be made shorter than its content, in which case it scrolls.
+        self.size_to_content = False
+
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -890,6 +895,9 @@ class PyScrollArea(QtWidgets.QScrollArea):
         result = super().eventFilter(source, event)
         if event.type() == QtCore.QEvent.Type.Resize and source == self.viewport():
             self.__notify_viewport_changed()
+        # a change to the layout of the content changes the size hints of a scroll area which sizes to its content.
+        if self.size_to_content and event.type() == QtCore.QEvent.Type.LayoutRequest and source == self.viewport():
+            self.updateGeometry()
         return result
 
     def __notify_viewport_changed(self):
@@ -907,7 +915,21 @@ class PyScrollArea(QtWidgets.QScrollArea):
         self.__notify_viewport_changed()
 
     def sizeHint(self) -> QtCore.QSize:
+        if self.size_to_content and (content := self.widget()):
+            return self.preferred_size_hint.apply(self.__size_around_content(content.sizeHint().expandedTo(content.minimumSize())))
         return self.preferred_size_hint.apply(super().sizeHint())
+
+    def minimumSizeHint(self) -> QtCore.QSize:
+        minimum_size_hint = super().minimumSizeHint()
+        if self.size_to_content and (content := self.widget()) and self.horizontalScrollBarPolicy() == QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff:
+            minimum_size_hint.setWidth(self.__size_around_content(content.minimumSizeHint().expandedTo(content.minimumSize())).width())
+        return minimum_size_hint
+
+    def __size_around_content(self, content_size: QtCore.QSize) -> QtCore.QSize:
+        # the frame surrounds the content, and a vertical scroll bar, when it can be shown, sits beside it.
+        frame_size = 2 * self.frameWidth()
+        scroll_bar_width = self.verticalScrollBar().sizeHint().width() if self.verticalScrollBarPolicy() != QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff else 0
+        return QtCore.QSize(content_size.width() + frame_size + scroll_bar_width, content_size.height() + frame_size)
 
     def focusInEvent(self, event) -> None:
         if self.object:
@@ -4676,6 +4698,10 @@ class PyQtProxy:
         elif property == "preferred-height":
             if isinstance(preferred_size_hint := getattr(widget, "preferred_size_hint", None), PreferredSizeHint):
                 preferred_size_hint.height = int(value * display_scaling)
+                widget.updateGeometry()
+        elif property == "size-to-content":
+            if isinstance(widget, PyScrollArea):
+                widget.size_to_content = bool(value)
                 widget.updateGeometry()
         elif property == "size-policy-horizontal":
             size_policy = widget.sizePolicy()

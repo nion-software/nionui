@@ -652,6 +652,45 @@ class TestCanvasItemClass(unittest.TestCase):
                 self.assertIsNone(list_view.render_item(3))
                 self.assertIsNone(list_view.render_item(-1))
 
+    def test_image_ignores_clicks_while_disabled(self) -> None:
+        # tests that clicking a disabled image does nothing, and that clicking it once it is enabled again calls its
+        # click handler.
+
+        class Handler(Declarative.Handler):
+            def __init__(self) -> None:
+                super().__init__()
+                u = Declarative.DeclarativeUI()
+                self.enabled_model = Model.PropertyModel(False)
+                self.click_count = 0
+                self.image_widget: typing.Optional[Widgets.ImageWidget] = None
+                self.ui_view = u.create_image(image="@binding(icon)", name="image_widget", on_clicked="image_clicked",
+                                              enabled="@binding(enabled_model.value)", width=16, height=16)
+                self.icon = numpy.zeros((16, 16), numpy.uint32)
+
+            def image_clicked(self, widget: Declarative.UIWidget) -> None:
+                self.click_count += 1
+
+        with event_loop_context() as event_loop:
+            ui = TestUI.UserInterface()
+            handler = Handler()
+            widget = Declarative.construct_widget(ui, event_loop, handler)
+            with contextlib.closing(widget):
+                image_widget = typing.cast(Widgets.ImageWidget, handler.image_widget)
+                canvas_widget = typing.cast(UserInterface.CanvasWidget, typing.cast(UserInterface.BoxWidget, image_widget.content_widget).children[0])
+                canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=16, height=16))
+                modifiers = CanvasItem.KeyboardModifiers()
+                on_mouse_pressed = canvas_widget.on_mouse_pressed
+                on_mouse_released = canvas_widget.on_mouse_released
+                on_mouse_clicked = canvas_widget.on_mouse_clicked
+                assert callable(on_mouse_pressed) and callable(on_mouse_released) and callable(on_mouse_clicked)
+                # a click is a press and a release, followed by the click itself, as the user interface reports it.
+                for enabled, click_count in ((False, 0), (True, 1)):
+                    handler.enabled_model.value = enabled
+                    on_mouse_pressed(8, 8, modifiers)
+                    on_mouse_released(8, 8, modifiers)
+                    on_mouse_clicked(8, 8, modifiers)
+                    self.assertEqual(click_count, handler.click_count, f"enabled={enabled}")
+
     def test_list_view_takes_part_in_a_drop_only_when_it_says_how_to_handle_one(self) -> None:
         # tests that a list with no way to handle a drop leaves the drag alone, so that it reaches whatever is drawn
         # behind the list instead of stopping there.

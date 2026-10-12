@@ -216,7 +216,8 @@ class Window:
         # Python 3.9+: should be weakref.ReferenceType[Dialog]
         self.__dialogs: typing.List[typing.Any] = list()
 
-        self._window_close_event = Event.Event()
+        # fired with this window as it closes.
+        self.window_close_event = Event.Event()
 
         self.__document_window.on_periodic = self.periodic
         self.__document_window.on_queue_task = self.queue_task
@@ -263,8 +264,8 @@ class Window:
         self.__request_close = False
         self._finish_periodic()  # required to finish periodic operations during tests
         self._close_dialogs()
-        self._window_close_event.fire(self)
-        self._window_close_event = typing.cast(Event.Event, None)
+        self.window_close_event.fire(self)
+        self.window_close_event = typing.cast(Event.Event, None)
         self.on_close = None
         self.__event_loop = typing.cast(asyncio.AbstractEventLoop, None)
         self.ui.destroy_document_window(self.__document_window)  # close the ui window
@@ -289,6 +290,11 @@ class Window:
         self.parent_window = None
         self.app = None
         Window.count -= 1
+
+    @property
+    def _window_close_event(self) -> Event.Event:
+        # the earlier name of window_close_event, kept so that existing callers keep working.
+        return self.window_close_event
 
     @property
     def _document_window(self) -> UserInterface.Window:

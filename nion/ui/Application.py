@@ -161,7 +161,7 @@ class BaseApplication:
         return copy.copy(self.__windows)
 
     def _window_created(self, window: Window.Window) -> None:
-        self.__window_close_event_listeners[window] = window._window_close_event.listen(self._window_did_close)
+        self.__window_close_event_listeners[window] = window.window_close_event.listen(self._window_did_close)
         assert window not in self.__windows
         self.__windows.append(window)
 
@@ -232,7 +232,7 @@ class BaseApplication:
                 # list each time through the loop.
                 window = self.__windows[0]
                 # closing the window will trigger the about_to_close event to be called which
-                # will then call window close which will fire its _window_close_event which will
+                # will then call window close which will fire its window_close_event which will
                 # remove the window from the list of window in _window_did_close.
                 window.request_close()
                 # if the window is still in the list, then the window did not close, so we need to

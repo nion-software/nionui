@@ -314,6 +314,17 @@ class TestApplicationWindowsClass(unittest.TestCase):
             event_loop.run_forever()
             event_loop.close()
 
+    def test_closing_a_window_reports_it_once_to_a_listener(self) -> None:
+        # the owner of a window, such as the panel which opened a dialog, listens for the window to close so that it
+        # can release what it keeps for the window.
+        with application_context() as (app, handler):
+            window = handler.window
+            closed_windows: list[Window.Window] = list()
+            # an event holds its listeners weakly, so the test holds the listener until the window has closed.
+            window_close_listener = window.window_close_event.listen(closed_windows.append)
+            window.request_close()
+            self.assertEqual([window], closed_windows)
+
 
 class TestOkCancelDialogClass(unittest.TestCase):
 

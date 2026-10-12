@@ -1460,12 +1460,29 @@ class TextPushButtonWidget(UserInterface.Widget):
         self.__text_push_button_behavior.on_button_clicked = callback
 
 
+class ImageWidgetBehavior(CompositeWidgetBehavior):
+    """Behavior of an image widget, passing the widget's enabled state to the canvas item which draws the image."""
+
+    def __init__(self, content_widget: UserInterface.Widget, bitmap_canvas_item: CanvasItem.BitmapButtonCanvasItem) -> None:
+        super().__init__(content_widget)
+        self.__bitmap_canvas_item = bitmap_canvas_item
+
+    def close(self) -> None:
+        self.__bitmap_canvas_item = typing.cast(typing.Any, None)
+        super().close()
+
+    def _set_enabled(self, enabled: bool) -> None:
+        self.__bitmap_canvas_item.enabled = enabled
+
+
 class ImageWidget(UserInterface.Widget):
     def __init__(self, ui: UserInterface.UserInterface,
                  bitmap: typing.Optional[Bitmap.Bitmap] = None,
                  properties: typing.Optional[typing.Mapping[str, typing.Any]] = None) -> None:
         column_widget = ui.create_column_widget(properties=properties)
-        super().__init__(CompositeWidgetBehavior(column_widget))
+        # the canvas item exists before the behavior, so that the behavior can pass the enabled state to it.
+        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(bitmap)
+        super().__init__(ImageWidgetBehavior(column_widget, self.__bitmap_canvas_item))
         self.ui = ui
         self.__on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
@@ -1473,7 +1490,6 @@ class ImageWidget(UserInterface.Widget):
             if callable(self.__on_clicked):
                 self.__on_clicked()
 
-        self.__bitmap_canvas_item = CanvasItem.BitmapButtonCanvasItem(bitmap)
         self.__bitmap_canvas_item.on_button_clicked = button_clicked
         # an image with nothing to do when it is clicked is only something to look at, so it leaves the mouse to
         # whatever is displaying it. an image within a row of a list would otherwise take the mouse from the list,

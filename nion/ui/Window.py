@@ -39,7 +39,8 @@ class ActionOrigin(enum.StrEnum):
     TOOLBAR = "toolbar"  # a toolbar item
     KEY = "key"  # a key press
     PANEL = "panel"  # a button or other element in a dock panel
-    DIALOG = "dialog"  # a button or other element in a dialog or separate window
+    DIALOG = "dialog"  # a button or other element in a dialog or another window
+    WINDOW = "window"  # a button or other element in the window's own content, outside its menus, toolbar and dock panels
 
 
 class ActionContext:
@@ -88,6 +89,8 @@ class ActionContext:
                 origin_text = "panel"
             case ActionOrigin.DIALOG:
                 origin_text = "dialog"
+            case ActionOrigin.WINDOW:
+                origin_text = "window"
             case _:
                 typing.assert_never(self.invoked_from)
         return f"{origin_text} {self.invoked_from_id}" if self.invoked_from_id else origin_text

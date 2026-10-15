@@ -63,6 +63,35 @@ class ActionContext:
     def window(self) -> typing.Optional[Window]:
         return self._window
 
+    @property
+    def invoked_from_text(self) -> str | None:
+        """Return where a person invoked the action, such as "context menu" or "panel scan-control-panel".
+
+        The text names the kind of user interface element, followed by invoked_from_id when it names the panel or dialog.
+        It is None when code ran the action, including when invoked_from_id is set without invoked_from, since an id alone
+        does not say where the action came from. The text is stable, for logs and the scripts which read them, and is not
+        translated.
+        """
+        origin_text: str
+        match self.invoked_from:
+            case None:
+                return None
+            case ActionOrigin.MENU:
+                origin_text = "menu"
+            case ActionOrigin.CONTEXT_MENU:
+                origin_text = "context menu"
+            case ActionOrigin.TOOLBAR:
+                origin_text = "toolbar"
+            case ActionOrigin.KEY:
+                origin_text = "key"
+            case ActionOrigin.PANEL:
+                origin_text = "panel"
+            case ActionOrigin.DIALOG:
+                origin_text = "dialog"
+            case _:
+                typing.assert_never(self.invoked_from)
+        return f"{origin_text} {self.invoked_from_id}" if self.invoked_from_id else origin_text
+
 
 class ActionStatus(enum.IntEnum):
     FINISHED = 0

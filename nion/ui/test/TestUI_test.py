@@ -43,3 +43,18 @@ class TestTestUIUserInterface(unittest.TestCase):
         for text in ("", "word", "The quick-brown fox jumps over the lazy dog."):
             result = self.ui.get_line_break_opportunities(text)
             self.assertIsInstance(result, list)
+
+    def test_triggering_menu_item_runs_its_callback(self) -> None:
+        # a click on a menu item triggers its action, which should run the callback the item was added with.
+        document_window = self.ui.create_document_window()
+        self.addCleanup(document_window.close)
+        menu = document_window.add_menu("File", "file")
+        triggered_count = 0
+
+        def handle_triggered() -> None:
+            nonlocal triggered_count
+            triggered_count += 1
+
+        menu_action = menu.add_menu_item("Open", handle_triggered, action_id="file.open")
+        menu_action.trigger()
+        self.assertEqual(1, triggered_count)

@@ -204,6 +204,12 @@ class MenuItem(UserInterfaceModule.MenuAction):
         self.callback = None
         super().close()
 
+    def create(self, document_window: UserInterfaceModule.Window, title: str, key_sequence: str | None, role: str | None) -> None:
+        # the menu calls this through _prepare_action when adding the item, as it does for a Qt action.
+        self.__title = title
+        self.key_sequence = key_sequence
+        self.role = role
+
     @property
     def title(self) -> str:
         return self.__title or str()
@@ -239,6 +245,7 @@ class Menu(UserInterfaceModule.Menu):
                       role: typing.Optional[str] = None,
                       action_id: typing.Optional[str] = None) -> UserInterfaceModule.MenuAction:
         menu_item = MenuItem(title, action_id or str(), callback, key_sequence, role, None, False, False)
+        self._prepare_action(menu_item, title, action_id or str(), callback, key_sequence, role)
         self._item_added(action=menu_item)
         return menu_item
 

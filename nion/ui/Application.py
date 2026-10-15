@@ -154,7 +154,19 @@ class BaseApplication:
         if parameters:
             context.parameters.update(parameters)
         action = Window.actions[action_id]
-        return action.execute(context)
+        return self._run_action(action, context, user_interaction=False)
+
+    def _run_action(self, action: Window.Action, action_context: Window.ActionContext, *, user_interaction: bool) -> Window.ActionResult:
+        """Run the action in the context and return its result.
+
+        Every action run through one of the application's windows or through execute_action is run by this method. A subclass
+        overrides it to observe or record each action, and calls the base method to run it.
+
+        user_interaction says whether the action may interact with the user, as Action.invoke may and Action.execute may not.
+        """
+        if user_interaction:
+            return action.invoke(action_context)
+        return action.execute(action_context)
 
     @property
     def windows(self) -> typing.List[Window.Window]:

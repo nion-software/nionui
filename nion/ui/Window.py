@@ -666,7 +666,7 @@ class Window:
                     menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),
                                        key_sequence=key_sequence, role=role, action_id=action_id)
                 else:
-                    logging.debug("Unregistered action {action_id}")
+                    logging.debug(f"Unregistered action {action_id}")
             elif item_type == "separator":
                 assert menu is not None
                 menu.add_separator()

@@ -193,7 +193,7 @@ class MenuItem(UserInterfaceModule.MenuAction):
         super().__init__(action_id)
         self.__title = title
         self.callback = callback
-        self.key_sequence = key_sequence,
+        self.key_sequence = key_sequence
         self.role = role
         self.menu = menu
         self.is_separator = is_separator

@@ -764,6 +764,10 @@ class Window:
         if parameters:
             context.parameters.update(parameters)
         action = actions[action_id]
+        # the application runs the action so that it can observe every action. Window and BaseApplication are written to
+        # work together, so the window calls the application's protected method.
+        if self.app:
+            return self.app._run_action(action, context, user_interaction=False)
         return action.execute(context)
 
     def perform_action(self, action: typing.Union[Action, str], *, invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
@@ -807,6 +811,9 @@ class Window:
                 self.display_report(report)
 
     def _invoke_action_with_context(self, action: Action, action_context: ActionContext) -> ActionResult:
+        # the application runs the action so that it can observe every action; see execute_action.
+        if self.app:
+            return self.app._run_action(action, action_context, user_interaction=True)
         return action.invoke(action_context)
 
     def display_report(self, report: Report) -> None:

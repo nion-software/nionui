@@ -1268,12 +1268,12 @@ class DocumentWindow(UserInterfaceModule.Window):
         pass
 
     def insert_menu(self, title: str, before_menu: UserInterfaceModule.Menu, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
-        menu = Menu(self)
+        menu = Menu(self, title, menu_id)
         self._menu_inserted(menu, before_menu)
         return menu
 
     def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
-        menu = Menu(self, menu_id)
+        menu = Menu(self, title, menu_id)
         self._menu_added(menu)
         return menu
 
@@ -1544,7 +1544,7 @@ class UserInterface(UserInterfaceModule.UserInterface):
         return menu
 
     def create_sub_menu(self, document_window: UserInterfaceModule.Window, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterfaceModule.Menu:
-        return Menu(document_window, title)
+        return Menu(document_window, title, menu_id)
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         return color

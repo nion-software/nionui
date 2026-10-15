@@ -58,3 +58,20 @@ class TestTestUIUserInterface(unittest.TestCase):
         menu_action = menu.add_menu_item("Open", handle_triggered, action_id="file.open")
         menu_action.trigger()
         self.assertEqual(1, triggered_count)
+
+    def test_document_window_finds_menu_by_the_id_it_was_added_with(self) -> None:
+        # building menus looks up an existing menu by its id so that it adds to it rather than making another.
+        document_window = self.ui.create_document_window()
+        self.addCleanup(document_window.close)
+        menu = document_window.add_menu("File", "file")
+        self.assertEqual(menu, document_window.get_menu("file"))
+        self.assertEqual("File", menu.title)
+
+    def test_document_window_finds_menu_by_the_id_it_was_inserted_with(self) -> None:
+        # menus a plug-in creates in Nion Swift are inserted before an existing menu rather than added.
+        document_window = self.ui.create_document_window()
+        self.addCleanup(document_window.close)
+        edit_menu = document_window.add_menu("Edit", "edit")
+        file_menu = document_window.insert_menu("File", edit_menu, "file")
+        self.assertEqual(file_menu, document_window.get_menu("file"))
+        self.assertEqual("File", file_menu.title)

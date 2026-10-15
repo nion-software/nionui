@@ -158,6 +158,14 @@ def register_action(action: Action) -> None:
     typing.cast(typing.MutableMapping[str, Action], actions)[action.action_id] = action
 
 
+def unregister_action(action_id: str) -> None:
+    """Remove the action registered with the action id.
+
+    Raises KeyError if no action is registered with the action id.
+    """
+    del typing.cast(typing.MutableMapping[str, Action], actions)[action_id]
+
+
 _ActionShortcutsType = typing.Mapping[str, typing.Mapping[str, str]]
 
 action_shortcuts: typing.Mapping[str, typing.Mapping[str, str]] = dict()

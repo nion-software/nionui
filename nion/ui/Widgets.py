@@ -321,8 +321,9 @@ class BasicPushButtonWidgetCanvasItemController(PushButtonWidgetCanvasItemContro
         self.__stack = ControlCanvasItem()
         self.__stack.layout = CanvasItem.CanvasItemRowLayout(margins=Geometry.Margins(top=0, left=8, bottom=0, right=8))
         # the "base" background is the button's normal, non-hovered appearance; it is what
-        # set_background_color changes, and what the hover/press tint is computed relative to.
-        self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "white"
+        # set_background_color changes, and what the hover/press tint is computed relative to. it is the panel grey
+        # so that the button matches the native controls drawn beside it.
+        self.__base_background_color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]] = "#f0f0f0"
         self.__stack.background_color = self.__base_background_color
         # the base border is the button's normal, unfocused appearance; the focus draws over it.
         self.__stack.base_border_color = "#c0c0c0"

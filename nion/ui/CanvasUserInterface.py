@@ -2330,6 +2330,8 @@ class PushButtonWidgetBehavior(WidgetBehavior):
         widget_canvas_item_factory = Widgets.BasicWidgetCanvasItemControllerFactory(ui)
 
         self.__canvas_item_controller = widget_canvas_item_factory.create_push_button_widget_canvas_item_controller()
+        # every control in the canvas UI is drawn on the canvas, so the button matches the white combo boxes and line edits.
+        self.__canvas_item_controller.set_background_color("white")
 
         self.__canvas_item.add_canvas_item(self.__canvas_item_controller.widget_source.canvas_item)
         # the button itself takes the focus and handles the keys; the composition around it only carries the sizing.

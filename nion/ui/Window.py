@@ -6,6 +6,7 @@ from __future__ import annotations
 import abc
 # standard libraries
 import asyncio
+import copy
 import enum
 import functools
 import gettext
@@ -28,6 +29,19 @@ if typing.TYPE_CHECKING:
 _ = gettext.gettext
 
 
+class ActionOrigin(enum.StrEnum):
+    """The kind of user interface element a person used to invoke an action.
+
+    An action run by code, such as a script, has no origin.
+    """
+    MENU = "menu"  # a main-menu item
+    CONTEXT_MENU = "context_menu"  # a context-menu item
+    TOOLBAR = "toolbar"  # a toolbar item
+    KEY = "key"  # a key press
+    PANEL = "panel"  # a button or other element in a dock panel
+    DIALOG = "dialog"  # a button or other element in a dialog or separate window
+
+
 class ActionContext:
     def __init__(self, application: Application.BaseApplication, window: typing.Optional[Window], focus_widget: typing.Optional[UserInterface.Widget]):
         self._application = application
@@ -35,6 +49,11 @@ class ActionContext:
         self.focus_widget = focus_widget
         self.event_type_str: typing.Optional[str] = None
         self.parameters: typing.Dict[str, typing.Any] = dict()
+
+        # where a person invoked the action, and the registered or persisted id of the panel or dialog, never its
+        # translated title. both are None when code runs the action.
+        self.invoked_from: ActionOrigin | None = None
+        self.invoked_from_id: str | None = None
 
     @property
     def application(self) -> Application.BaseApplication:
@@ -671,7 +690,7 @@ class Window:
                             break
                     role = getattr(action, "about_role", None)
                     assert menu is not None
-                    menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id),
+                    menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id, invoked_from=ActionOrigin.MENU),
                                        key_sequence=key_sequence, role=role, action_id=action_id)
                 else:
                     logging.debug(f"Unregistered action {action_id}")
@@ -723,7 +742,7 @@ class Window:
             assert menu is not None
 
             def perform_action() -> None:
-                self.perform_action_in_context(action_id, action_context)
+                self.perform_action_in_context(action_id, action_context, invoked_from=ActionOrigin.CONTEXT_MENU)
 
             def queue_perform_action() -> None:
                 # delay execution to ensure menu closes properly
@@ -747,10 +766,33 @@ class Window:
         action = actions[action_id]
         return action.execute(context)
 
-    def perform_action(self, action: typing.Union[Action, str]) -> None:
-        self.perform_action_in_context(action, self._get_action_context())
+    def perform_action(self, action: typing.Union[Action, str], *, invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Run the action, given by the action or its id, in a new context for the window.
 
-    def perform_action_in_context(self, action_or_action_id: typing.Union[Action, str], action_context: ActionContext) -> None:
+        An action a person invokes passes invoked_from, naming the kind of user interface element they used.
+        Code, such as a script, passes neither invoked_from nor invoked_from_id, so the action has no origin.
+
+        invoked_from_id names which panel or dialog the action was invoked from, using the id the panel or dialog is registered or persisted under,
+        never its translated title.
+        """
+        self.perform_action_in_context(action, self._get_action_context(), invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+
+    def perform_action_in_context(self, action_or_action_id: typing.Union[Action, str], action_context: ActionContext, *,
+                                  invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Run the action, given by the action or its id, in the context.
+
+        An action a person invokes passes invoked_from, naming the kind of user interface element they used, and optionally
+        invoked_from_id, naming which panel or dialog it was. Code, such as a script, passes neither.
+
+        When either is given, the action runs in a copy of the context with both set, so a context the caller keeps, such as
+        one shared by the items of a menu, is not changed. When neither is given, the action runs in the context itself and
+        keeps any origin it already carries.
+        """
+        # the origin goes on a copy so that the caller's context is not changed.
+        if invoked_from is not None or invoked_from_id is not None:
+            action_context = copy.copy(action_context)
+            action_context.invoked_from = invoked_from
+            action_context.invoked_from_id = invoked_from_id
         action: typing.Optional[Action]
         if isinstance(action_or_action_id, Action):
             action = action_or_action_id

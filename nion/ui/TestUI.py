@@ -1123,7 +1123,7 @@ class TextEditWidgetBehavior(WidgetBehavior):
         self.on_key_pressed: typing.Optional[typing.Callable[[UserInterfaceModule.Key], bool]] = None
         self.on_insert_mime_data: typing.Optional[typing.Callable[[UserInterfaceModule.MimeData], None]] = None
         self._no_focus = "click_focus"
-        self.text: typing.Optional[str] = str()
+        self.__text: typing.Optional[str] = str()
         self.selected_text: typing.Optional[str] = str()
         self.placeholder: typing.Optional[str] = str()
         self.editable = True
@@ -1133,11 +1133,25 @@ class TextEditWidgetBehavior(WidgetBehavior):
         self.on_cursor_position_changed = None
         self.on_selection_changed = None
         self.on_text_changed = None
+        self.on_text_edited = None
         self.on_escape_pressed = None
         self.on_return_pressed = None
         self.on_key_pressed = None
         self.on_insert_mime_data = None
         super().close()
+
+    @property
+    def text(self) -> typing.Optional[str]:
+        return self.__text
+
+    @text.setter
+    def text(self, value: typing.Optional[str]) -> None:
+        if value != self.__text:
+            self.__text = value
+            if callable(self.on_text_changed):
+                self.on_text_changed(self.__text)
+            if callable(self.on_text_edited):
+                self.on_text_edited(self.__text)
 
     @property
     def cursor_position(self) -> UserInterfaceModule.CursorPosition:
@@ -1148,16 +1162,10 @@ class TextEditWidgetBehavior(WidgetBehavior):
         return UserInterfaceModule.Selection(0, 0)
 
     def append_text(self, value: str) -> None:
-        if self.text:
-            self.text += value
-        else:
-            self.text = value
+        self.text = f"{self.text}\n{value}" if self.text else value
 
     def insert_text(self, value: str) -> None:
-        if self.text:
-            self.text += value
-        else:
-            self.text = value
+        self.text = (self.text or str()) + value
 
     def clear_selection(self) -> None:
         pass

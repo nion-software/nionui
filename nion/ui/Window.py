@@ -217,6 +217,31 @@ def unregister_action(action_id: str) -> None:
     del typing.cast(typing.MutableMapping[str, Action], actions)[action_id]
 
 
+def _action_context_with_origin(action_context: ActionContext, invoked_from: ActionOrigin | None, invoked_from_id: str | None) -> ActionContext:
+    """Return the context in which to run an action with the origin.
+
+    When either invoked_from or invoked_from_id is given, return a copy of the context with both set, so that the caller's
+    context is not changed. When neither is given, return the context itself, which keeps any origin it already carries.
+    """
+    if invoked_from is not None or invoked_from_id is not None:
+        action_context = copy.copy(action_context)
+        action_context.invoked_from = invoked_from
+        action_context.invoked_from_id = invoked_from_id
+    return action_context
+
+
+def _log_report(report: Report) -> None:
+    # log an action's report at its level. critical and unset reports are not logged.
+    if report.type == ReportType.DEBUG:
+        logging.debug(report.message)
+    elif report.type == ReportType.INFO:
+        logging.info(report.message)
+    elif report.type == ReportType.WARNING:
+        logging.warning(report.message)
+    elif report.type == ReportType.ERROR:
+        logging.error(report.message)
+
+
 _ActionShortcutsType = typing.Mapping[str, typing.Mapping[str, str]]
 
 action_shortcuts: typing.Mapping[str, typing.Mapping[str, str]] = dict()
@@ -824,11 +849,7 @@ class Window:
         one shared by the items of a menu, is not changed. When neither is given, the action runs in the context itself and
         keeps any origin it already carries.
         """
-        # the origin goes on a copy so that the caller's context is not changed.
-        if invoked_from is not None or invoked_from_id is not None:
-            action_context = copy.copy(action_context)
-            action_context.invoked_from = invoked_from
-            action_context.invoked_from_id = invoked_from_id
+        action_context = _action_context_with_origin(action_context, invoked_from, invoked_from_id)
         action: typing.Optional[Action]
         if isinstance(action_or_action_id, Action):
             action = action_or_action_id
@@ -850,15 +871,10 @@ class Window:
 
     def display_report(self, report: Report) -> None:
         from nion.ui import Dialog  # avoid circular reference
-        if report.type == ReportType.DEBUG:
-            logging.debug(report.message)
-        elif report.type == ReportType.INFO:
-            logging.info(report.message)
-        elif report.type == ReportType.WARNING:
-            logging.warning(report.message)
+        _log_report(report)
+        if report.type == ReportType.WARNING:
             Dialog.NotificationDialog(self.ui, message=f"WARNING: {report.message}", parent_window=self).show()
         elif report.type == ReportType.ERROR:
-            logging.error(report.message)
             Dialog.NotificationDialog(self.ui, message=f"ERROR: {report.message}", parent_window=self).show()
 
     def display_log_record(self, record: logging.LogRecord) -> None:

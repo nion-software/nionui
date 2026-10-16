@@ -179,3 +179,26 @@ class TestWindowActionsClass(unittest.TestCase):
             action_context = Window.ActionContext(window.app, window, None)
             window.perform_action_in_context("window_test.panel_context_kept", action_context, invoked_from=Window.ActionOrigin.PANEL, invoked_from_id="test-panel")
             self.assertEqual((None, None), (action_context.invoked_from, action_context.invoked_from_id), "a command later run by code with a panel's context would be logged as coming from the panel")
+
+    def test_command_run_by_the_application_after_its_dialog_closed_is_recorded_with_the_dialog_id(self) -> None:
+        invoked_from_list: list[tuple[Window.ActionOrigin | None, str | None]] = list()
+
+        class ClosedDialogTestAction(Window.Action):
+            action_id = "window_test.closed_dialog"
+            action_name = "Closed Dialog Test"
+
+            # a person's action runs through invoke, which may interact with them.
+            def invoke(self, context: Window.ActionContext) -> Window.ActionResult:
+                invoked_from_list.append((context.invoked_from, context.invoked_from_id))
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        Window.register_action(ClosedDialogTestAction())
+        self.addCleanup(Window.unregister_action, "window_test.closed_dialog")
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        action_context = Window.ActionContext(app, None, None)
+        window.close()
+        app.perform_action_in_context("window_test.closed_dialog", action_context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="test-dialog")
+        self.assertEqual([(Window.ActionOrigin.DIALOG, "test-dialog")], invoked_from_list, "a command a dialog runs after closing itself is not run as a person's or not recorded with the dialog's id")

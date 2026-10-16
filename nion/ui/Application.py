@@ -156,6 +156,30 @@ class BaseApplication:
         action = Window.actions[action_id]
         return self._run_action(action, context, user_interaction=False)
 
+    def perform_action_in_context(self, action_or_action_id: Window.Action | str, action_context: Window.ActionContext, *,
+                                  invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Run the action, given by the action or its id, in the context, as an action a person invoked.
+
+        Use this instead of the window's perform_action_in_context when the window the person used has closed, such as a
+        dialog which closes itself before running the action, or when there is no window.
+
+        An action a person invokes passes invoked_from, naming the kind of user interface element they used, and optionally
+        invoked_from_id, naming which panel or dialog it was. When either is given, the action runs in a copy of the context
+        with both set, so the caller's context is not changed. When neither is given, the action runs in the context itself
+        and keeps any origin it already carries.
+
+        An unknown action id, or an action which is not enabled in the context, does nothing. An action which runs modally
+        needs a window to track it, so run it with the window's perform_action_in_context. The action's reports are logged
+        at their level, but a warning or an error is not shown in a dialog, since there is no window to show it over.
+        """
+        action_context = Window._action_context_with_origin(action_context, invoked_from, invoked_from_id)
+        action = action_or_action_id if isinstance(action_or_action_id, Window.Action) else Window.actions.get(action_or_action_id)
+        if action and action.is_enabled(action_context):
+            action.clear()
+            self._run_action(action, action_context, user_interaction=True)
+            for report in action.reports:
+                Window._log_report(report)
+
     def _run_action(self, action: Window.Action, action_context: Window.ActionContext, *, user_interaction: bool) -> Window.ActionResult:
         """Run the action in the context and return its result.
 

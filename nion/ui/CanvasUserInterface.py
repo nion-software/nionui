@@ -2252,6 +2252,12 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
             core.move_cursor_position(operation, mode or "move")
         self.__canvas_item.update()
 
+    def scroll_to_end(self) -> None:
+        # the scroll area limits the origin to its valid range, so the lowest possible origin shows the end of the content.
+        content_origin = self.__scroll_area_canvas_item.content_origin
+        content_size = self.__scroll_area_canvas_item.content_size or Geometry.IntSize()
+        self.__scroll_area_canvas_item.update_content_origin(Geometry.IntPoint(x=content_origin.x, y=-content_size.height))
+
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
         # TODO: proportional line height (row height is currently always exactly the font's natural
         # metrics height -- see TextEditLayout). Deferred; accepted but not yet effective.

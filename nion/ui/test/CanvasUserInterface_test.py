@@ -846,6 +846,14 @@ class TestTextEditCanvasIntegration(unittest.TestCase):
         # content is much taller than the 40px viewport -- real scrolling should be available.
         self.assertGreater(canvas_item.canvas_size.height, 40)
 
+    def test_scroll_to_end_shows_the_bottom_of_the_text(self) -> None:
+        widget, canvas_item = self._make_text_edit(width=200, height=40)
+        widget.text = "\n".join(f"line {i}" for i in range(20))
+        self._relayout(width=200, height=40)
+        widget.scroll_to_end()
+        scroll_area_canvas_item = widget._behavior.canvas_item.canvas_items[0]  # type: ignore[attr-defined]
+        self.assertEqual(scroll_area_canvas_item._content_rect.bottom, scroll_area_canvas_item.canvas_size.height)
+
     def test_mouse_click_places_cursor_and_double_click_selects_word(self) -> None:
         widget, canvas_item = self._make_text_edit()
         widget.text = "the quick brown fox"

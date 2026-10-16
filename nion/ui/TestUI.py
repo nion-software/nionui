@@ -1179,6 +1179,9 @@ class TextEditWidgetBehavior(WidgetBehavior):
     def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
         pass
 
+    def scroll_to_end(self) -> None:
+        pass
+
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
         pass
 

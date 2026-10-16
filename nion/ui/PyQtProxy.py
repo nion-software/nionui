@@ -4162,6 +4162,12 @@ class PyQtProxy:
         text_cursor = text_edit.textCursor()
         text_cursor.removeSelectedText()
 
+    def TextEdit_scrollToEnd(self, text_edit: PyTextEdit) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert text_edit is not None
+        text_edit.verticalScrollBar().setValue(text_edit.verticalScrollBar().maximum())
+
     def TextEdit_selectAll(self, text_edit: PyTextEdit) -> None:
         global app
         assert app.thread() == QtCore.QThread.currentThread()

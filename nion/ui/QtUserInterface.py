@@ -1625,13 +1625,13 @@ class QtCanvasWidgetBehavior(QtWidgetBehavior):
         self.proxy.Widget_setFocusPolicy(self.widget, "wheel_focus" if focusable else "no_focus")
 
     def draw(self, drawing_context: DrawingContext.DrawingContext) -> None:
-        if hasattr(self.proxy, "Canvas_draw_binary"):
+        if self.proxy.has_method("Canvas_draw_binary"):
             self.proxy.Canvas_draw_binary(self.widget, drawing_context.binary_commands, drawing_context.images)
         else:
             self.proxy.Canvas_draw(self.widget, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images)
 
     def draw_section(self, section_id: int, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect) -> None:
-        if hasattr(self.proxy, "Canvas_drawSection_binary"):
+        if self.proxy.has_method("Canvas_drawSection_binary"):
             self.proxy.Canvas_drawSection_binary(self.widget, section_id, drawing_context.binary_commands, drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
         else:
             self.proxy.Canvas_drawSection(self.widget, section_id, self.proxy.convert_drawing_commands(drawing_context.commands), drawing_context.images, canvas_rect.left, canvas_rect.top, canvas_rect.width, canvas_rect.height)
@@ -2048,7 +2048,7 @@ class QtWindow(UserInterface.Window):
             self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
         if position is not None:
             self.proxy.DocumentWindow_setPosition(self.native_document_window, position.x, position.y)
-        if not hasattr(self.proxy, "Widget_setPaletteColor"):
+        if not self.proxy.has_method("Widget_setPaletteColor"):
             self.window_style = self.window_style or "tool"
         self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
 
@@ -2077,17 +2077,17 @@ class QtWindow(UserInterface.Window):
             self.proxy.DocumentWindow_setWindowFilePath(self.native_document_window, str(value) if value else str())
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
-        if hasattr(self.proxy, "Widget_setPaletteColor"):
+        if self.proxy.has_method("Widget_setPaletteColor"):
             self.proxy.Widget_setPaletteColor(self.native_document_window, role, r, g, b, a)
 
     def set_window_style(self, styles: typing.Sequence[str]) -> None:
-        if hasattr(self.proxy, "DocumentWindow_setWindowStyle"):
+        if self.proxy.has_method("DocumentWindow_setWindowStyle"):
             self.proxy.DocumentWindow_setWindowStyle(self.native_document_window, styles)
         else:
             self.window_style = "tool"
 
     def set_attributes(self, attributes: typing.Sequence[str]) -> None:
-        if hasattr(self.proxy, "Widget_setAttributes"):
+        if self.proxy.has_method("Widget_setAttributes"):
             self.proxy.Widget_setAttributes(self.native_document_window, attributes)
 
     def periodic(self) -> None:
@@ -2474,7 +2474,7 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def create_rgba_image(self, drawing_context: DrawingContext.DrawingContext, width: int, height: int) -> typing.Optional[DrawingContext.RGBA32Type]:
         image_array = numpy.empty((height, width), dtype=numpy.uint32)
-        if hasattr(self.proxy, "Canvas_draw_binary"):
+        if self.proxy.has_method("DrawingContext_paintRGBAToImage_binary"):
             self.proxy.DrawingContext_paintRGBAToImage_binary(drawing_context.binary_commands, copy.copy(drawing_context.images), image_array)
         else:
             self.proxy.DrawingContext_paintRGBAToImage(self.proxy.convert_drawing_commands(drawing_context.commands), image_array)
@@ -2482,7 +2482,7 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def get_font_metrics(self, font_str: str, text: str) -> UserInterface.FontMetrics:
         # check for Core_truncateToWidthF as an indicator of whether Core_getFontMetrics handles float font sizes.
-        if hasattr(self.proxy, "Core_truncateToWidthF"):
+        if self.proxy.has_method("Core_truncateToWidthF"):
             return typing.cast(UserInterface.FontMetrics, self.proxy.decode_font_metrics(self.proxy.Core_getFontMetrics(font_str, text)))
         else:
             # font_str may have fractional fonts; but Core_getFontMetrics only supports integer font sizes.

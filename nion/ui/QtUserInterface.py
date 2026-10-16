@@ -2048,8 +2048,6 @@ class QtWindow(UserInterface.Window):
             self.proxy.DocumentWindow_setSize(self.native_document_window, size.width, size.height)
         if position is not None:
             self.proxy.DocumentWindow_setPosition(self.native_document_window, position.x, position.y)
-        if not self.proxy.has_method("Widget_setPaletteColor"):
-            self.window_style = self.window_style or "tool"
         self.proxy.DocumentWindow_show(self.native_document_window, self.window_style)
 
     def activate(self) -> None:
@@ -2077,18 +2075,13 @@ class QtWindow(UserInterface.Window):
             self.proxy.DocumentWindow_setWindowFilePath(self.native_document_window, str(value) if value else str())
 
     def set_palette_color(self, role: str, r: int, g: int, b: int, a: int) -> None:
-        if self.proxy.has_method("Widget_setPaletteColor"):
-            self.proxy.Widget_setPaletteColor(self.native_document_window, role, r, g, b, a)
+        self.proxy.Widget_setPaletteColor(self.native_document_window, role, r, g, b, a)
 
     def set_window_style(self, styles: typing.Sequence[str]) -> None:
-        if self.proxy.has_method("DocumentWindow_setWindowStyle"):
-            self.proxy.DocumentWindow_setWindowStyle(self.native_document_window, styles)
-        else:
-            self.window_style = "tool"
+        self.proxy.DocumentWindow_setWindowStyle(self.native_document_window, styles)
 
     def set_attributes(self, attributes: typing.Sequence[str]) -> None:
-        if self.proxy.has_method("Widget_setAttributes"):
-            self.proxy.Widget_setAttributes(self.native_document_window, attributes)
+        self.proxy.Widget_setAttributes(self.native_document_window, attributes)
 
     def periodic(self) -> None:
         self._handle_periodic()

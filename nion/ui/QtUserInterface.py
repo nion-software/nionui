@@ -1492,6 +1492,14 @@ class QtTextEditWidgetBehavior(QtWidgetBehavior):
     def move_cursor_position(self, operation: str, mode: typing.Optional[str] = None, n: int = 1) -> None:
         self.proxy.TextEdit_moveCursorPosition(self.widget, operation, mode, n)
 
+    def scroll_to_end(self) -> None:
+        if self.proxy.has_method("TextEdit_scrollToEnd"):
+            self.proxy.TextEdit_scrollToEnd(self.widget)
+        else:
+            # an older nionui-tool has no way to scroll to the end; moving the cursor to the end scrolls until the cursor
+            # is visible, which stops short of the end by the bottom margin of the document.
+            self.proxy.TextEdit_moveCursorPosition(self.widget, "end", None, 1)
+
     def set_line_height_proportional(self, proportional_line_height: float) -> None:
         self.proxy.TextEdit_setProportionalLineHeight(self.widget, proportional_line_height)
 

@@ -6472,6 +6472,7 @@ class DividerCanvasItemComposer(BaseComposer):
 
     def _repaint(self, drawing_context: DrawingContext.DrawingContext, canvas_rect: Geometry.IntRect, composer_cache: ComposerCache) -> None:
         with drawing_context.saver():
+            drawing_context.begin_path()
             if self.__orientation == "vertical":
                 drawing_context.move_to(canvas_rect.center.x, canvas_rect.top)
                 drawing_context.line_to(canvas_rect.center.x, canvas_rect.bottom)

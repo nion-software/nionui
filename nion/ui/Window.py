@@ -43,6 +43,39 @@ class ActionOrigin(enum.StrEnum):
     WINDOW = "window"  # a button or other element in the window's own content, outside its menus, toolbar and dock panels
 
 
+def invoked_from_text(invoked_from: ActionOrigin | None, invoked_from_id: str | None) -> str | None:
+    """Return where a person invoked an action or made a change, such as "context menu" or "panel scan-control-panel".
+
+    The text names the kind of user interface element, invoked_from, followed by invoked_from_id when it names the panel
+    or dialog. It is None when code ran the action or made the change, including when invoked_from_id is set without
+    invoked_from, since an id alone does not say where it came from. The text is stable, for logs and the scripts which
+    read them, and is not translated.
+
+    An action's origin is held in its context; this function also serves origins recorded outside an action context.
+    """
+    origin_text: str
+    match invoked_from:
+        case None:
+            return None
+        case ActionOrigin.MENU:
+            origin_text = "menu"
+        case ActionOrigin.CONTEXT_MENU:
+            origin_text = "context menu"
+        case ActionOrigin.TOOLBAR:
+            origin_text = "toolbar"
+        case ActionOrigin.KEY:
+            origin_text = "key"
+        case ActionOrigin.PANEL:
+            origin_text = "panel"
+        case ActionOrigin.DIALOG:
+            origin_text = "dialog"
+        case ActionOrigin.WINDOW:
+            origin_text = "window"
+        case _:
+            typing.assert_never(invoked_from)
+    return f"{origin_text} {invoked_from_id}" if invoked_from_id else origin_text
+
+
 class ActionContext:
     def __init__(self, application: Application.BaseApplication, window: typing.Optional[Window], focus_widget: typing.Optional[UserInterface.Widget]):
         self._application = application
@@ -68,32 +101,9 @@ class ActionContext:
     def invoked_from_text(self) -> str | None:
         """Return where a person invoked the action, such as "context menu" or "panel scan-control-panel".
 
-        The text names the kind of user interface element, followed by invoked_from_id when it names the panel or dialog.
-        It is None when code ran the action, including when invoked_from_id is set without invoked_from, since an id alone
-        does not say where the action came from. The text is stable, for logs and the scripts which read them, and is not
-        translated.
+        The text is None when code ran the action. See the module-level invoked_from_text.
         """
-        origin_text: str
-        match self.invoked_from:
-            case None:
-                return None
-            case ActionOrigin.MENU:
-                origin_text = "menu"
-            case ActionOrigin.CONTEXT_MENU:
-                origin_text = "context menu"
-            case ActionOrigin.TOOLBAR:
-                origin_text = "toolbar"
-            case ActionOrigin.KEY:
-                origin_text = "key"
-            case ActionOrigin.PANEL:
-                origin_text = "panel"
-            case ActionOrigin.DIALOG:
-                origin_text = "dialog"
-            case ActionOrigin.WINDOW:
-                origin_text = "window"
-            case _:
-                typing.assert_never(self.invoked_from)
-        return f"{origin_text} {self.invoked_from_id}" if self.invoked_from_id else origin_text
+        return invoked_from_text(self.invoked_from, self.invoked_from_id)
 
 
 class ActionStatus(enum.IntEnum):

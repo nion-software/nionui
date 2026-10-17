@@ -65,6 +65,55 @@ class TestWindowActionsClass(unittest.TestCase):
             menu_action.trigger()
             self.assertEqual([Window.ActionOrigin.MENU], invoked_from_list, "a main-menu command is not recorded as coming from the main menu")
 
+    def test_main_menu_item_with_its_own_title_and_parameters_runs_its_action_with_them_from_the_menu(self) -> None:
+        contexts: list[tuple[typing.Mapping[str, str], Window.ActionOrigin | None]] = list()
+
+        class MainMenuParametersTestAction(Window.Action):
+            action_id = "window_test.main_menu_parameters"
+            action_name = "Main Menu Parameters Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                contexts.append((dict(context.parameters), context.invoked_from))
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        Window.register_action(MainMenuParametersTestAction())
+        self.addCleanup(Window.unregister_action, "window_test.main_menu_parameters")
+        with window_context() as window:
+            window.build_menu(None, [{"type": "menu", "menu_id": "window_test", "title": "Test", "items": []}])
+            # build_menu publishes each top level menu as an attribute named after its menu id.
+            menu = typing.cast(UserInterface.Menu, getattr(window, "_window_test_menu"))
+            window.add_action_to_main_menu(menu, "window_test.main_menu_parameters", title="Item Title", parameters={"item": "one"})
+            # showing the menu updates the items which stand for an action, which this item does not.
+            menu.about_to_show()
+            menu_action = menu.items[0].action
+            assert menu_action
+            self.assertEqual("Item Title", menu_action.title, "a main-menu item with its own title shows the action's name instead")
+            menu_action.trigger()
+            self.assertEqual([({"item": "one"}, Window.ActionOrigin.MENU)], contexts, "a main-menu item does not run its action once, with its parameters, from the menu")
+
+    def test_main_menu_item_added_by_action_id_follows_its_action_when_its_menu_is_shown(self) -> None:
+        class MainMenuDisabledTestAction(Window.Action):
+            action_id = "window_test.main_menu_disabled"
+            action_name = "Main Menu Disabled Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+            def is_enabled(self, context: Window.ActionContext) -> bool:
+                return False
+
+        Window.register_action(MainMenuDisabledTestAction())
+        self.addCleanup(Window.unregister_action, "window_test.main_menu_disabled")
+        with window_context() as window:
+            window.build_menu(None, [{"type": "menu", "menu_id": "window_test", "title": "Test", "items": []}])
+            # build_menu publishes each top level menu as an attribute named after its menu id.
+            menu = typing.cast(UserInterface.Menu, getattr(window, "_window_test_menu"))
+            window.add_action_to_main_menu(menu, "window_test.main_menu_disabled")
+            menu.about_to_show()
+            menu_action = menu.items[0].action
+            assert menu_action
+            self.assertFalse(menu_action.enabled, "a main-menu item added by action id stays enabled when its action is disabled")
+
     def test_context_menu_command_is_recorded_as_coming_from_a_context_menu(self) -> None:
         invoked_from_list: list[Window.ActionOrigin | None] = list()
 

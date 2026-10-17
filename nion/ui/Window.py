@@ -747,20 +747,16 @@ class Window:
             elif item_type == "item":
                 action_id = item_d["action_id"]
                 action = actions.get(action_id)
-                if action:
-                    action_shortcut_d = action_shortcuts.get(action_id, dict())
-                    key_sequence: str | None = None
-                    for context_key in action_shortcut_d.keys():
-                        if action_shortcut_d[context_key]:
-                            key_sequences = [action_shortcut_d[context_key]] if isinstance(action_shortcut_d[context_key], str) else action_shortcut_d[context_key]
-                            key_sequence = key_sequences[0]  # only use the first shortcut for menus
-                            break
-                    role = getattr(action, "about_role", None)
-                    assert menu is not None
-                    menu.add_menu_item(action.action_name, functools.partial(self.perform_action, action_id, invoked_from=ActionOrigin.MENU),
-                                       key_sequence=key_sequence, role=role, action_id=action_id)
-                else:
-                    logging.debug(f"Unregistered action {action_id}")
+                key_sequence: str | None = None
+                action_shortcut_d = action_shortcuts.get(action_id, dict())
+                for context_key in action_shortcut_d.keys():
+                    if action_shortcut_d[context_key]:
+                        key_sequences = [action_shortcut_d[context_key]] if isinstance(action_shortcut_d[context_key], str) else action_shortcut_d[context_key]
+                        key_sequence = key_sequences[0]  # only use the first shortcut for menus
+                        break
+                role = getattr(action, "about_role", None)
+                assert menu is not None
+                self.add_action_to_main_menu(menu, action_id, key_sequence=key_sequence, role=role)
             elif item_type == "separator":
                 assert menu is not None
                 menu.add_separator()
@@ -824,6 +820,46 @@ class Window:
             checked = action and action.is_checked(action_context)
             menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
         return action
+
+    # the parameter values are typed as Any, as the context's parameters are, since an action's parameters may be of any type.
+    def add_action_to_main_menu(self, menu: UserInterface.Menu, action_id: str, *, title: str | None = None,
+                                parameters: typing.Mapping[str, typing.Any] | None = None, key_sequence: str | None = None,
+                                role: str | None = None) -> UserInterface.MenuAction | None:
+        """Add an item to a main menu of the window, which runs the action with the menu origin when chosen.
+
+        The action runs in a context the window makes when the item is chosen, so the context describes the focus and
+        selection at that time. A shallow copy of parameters, if given, is added to the context's parameters, so their
+        values should be immutable.
+
+        The item's title is title, if given, or the action's name. An item without its own title or parameters stands for
+        the action. When the item is in a menu made by build_menu, the window updates its title, enabled and checked state
+        from the action whenever the menu is shown. Items in other menus are not updated.
+
+        An item with its own title or parameters, such as one of several items for the same action, takes no title, enabled
+        or checked state from the action, so the caller sets those on the returned menu action if they matter. An empty
+        title counts as a title of the item's own, while empty parameters count as none.
+
+        key_sequence and role are passed to the menu item.
+
+        Returns the menu action of the new item, so the caller can set its checked state or remove it later, or None if no
+        action is registered under action_id.
+        """
+        action = actions.get(action_id)
+        if not action:
+            logging.debug(f"Unregistered action {action_id}")
+            return None
+        item_parameters = dict(parameters) if parameters else dict()
+
+        def perform_menu_item_action() -> None:
+            action_context = self._get_action_context()
+            action_context.parameters.update(item_parameters)
+            self.perform_action_in_context(action_id, action_context, invoked_from=ActionOrigin.MENU)
+
+        # _menu_about_to_show applies the action's title, enabled and checked state to every item which carries an action
+        # id. that is right for an item which stands for the action, and wrong for one of several items running the action,
+        # each with its own title and parameters, such as one for each recent project. so only the former carries the id.
+        item_action_id = action_id if title is None and not parameters else None
+        return menu.add_menu_item(title if title is not None else action.action_name, perform_menu_item_action, key_sequence=key_sequence, role=role, action_id=item_action_id)
 
     def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None,
                        parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> ActionResult:

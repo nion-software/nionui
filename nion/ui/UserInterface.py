@@ -34,6 +34,7 @@ from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.utils import Binding
 from nion.utils import Converter
+from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import Model
 
@@ -3378,7 +3379,18 @@ class DockWidget:
         self.on_color_scheme_changed: typing.Optional[typing.Callable[[str], None]] = None
         self.size: typing.Optional[Geometry.IntSize] = None
 
+        # fired with the new value of is_open, once for each change of is_open, after the change has settled, so that a
+        # dock widget hidden and shown again in one step fires nothing. it is fired on the main thread, and never after close.
+        self.is_open_changed_event = Event.Event()
+
+        # the open state last fired through is_open_changed_event, or the starting state if none has been fired.
+        self.__reported_is_open = False
+
+        # whether close has been called, after which is_open_changed_event is no longer fired.
+        self.__is_closed = False
+
     def close(self) -> None:
+        self.__is_closed = True
         self.widget.close()
         self.widget = typing.cast(typing.Any, None)
         self.__periodic_target_registry.clear()
@@ -3464,6 +3476,38 @@ class DockWidget:
     @property
     def visible(self) -> bool:
         return False
+
+    @property
+    def is_open(self) -> bool:
+        """Return whether the dock widget is open.
+
+        A dock widget is open when it is shown in its window, including when it is tabbed behind another dock widget, or would be if
+        its window were not minimized. It is what the Window menu shows checked while the window is not minimized. Read it on the main
+        thread.
+        """
+        return False
+
+    def _read_starting_is_open(self) -> None:
+        # subclasses call this once the native dock widget is made, so that the first change is measured from its starting state.
+        self.__reported_is_open = self.is_open
+
+    def _report_is_open_later(self) -> None:
+        # report is_open once the main thread is free, through the window's task set, which keeps at most one task per key,
+        # so at most one report is queued for each dock widget. the report reads is_open when it runs, so a hide followed
+        # at once by a show reports nothing. a closed dock widget queues nothing, since it no longer has a window.
+        if not self.__is_closed:
+            self.add_task("report_is_open", self._report_is_open)
+
+    def _report_is_open(self) -> None:
+        # fire is_open_changed_event if is_open differs from the state last fired or started with. a closed dock widget
+        # fires nothing, since the native dock widget may still be hidden as it is removed, and a report queued before
+        # close may run after it.
+        if self.__is_closed:
+            return
+        is_open = self.is_open
+        if is_open != self.__reported_is_open:
+            self.__reported_is_open = is_open
+            self.is_open_changed_event.fire(is_open)
 
     def show(self) -> None:
         self._register_ui_activity()

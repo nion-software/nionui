@@ -119,6 +119,31 @@ class TestUserInterfacePeriodicClass(unittest.TestCase):
                 dock_widget.periodic()
                 self.assertEqual(0, len(second_periodic_calls))
 
+    def test_dock_widget_reports_each_close_and_reopen_once(self) -> None:
+        ui = TestUI.UserInterface()
+        window = TestUI.DocumentWindow()
+        with contextlib.closing(window):
+            dock_widget = window.create_dock_widget(ui.create_column_widget(), "panel", "Panel", ["left"], "left")
+            with contextlib.closing(dock_widget):
+                dock_widget.show()
+                is_open_values = list[bool]()
+                is_open_changed_listener = dock_widget.is_open_changed_event.listen(is_open_values.append)
+                dock_widget.hide()
+                self.assertEqual([False], is_open_values)
+                dock_widget.show()
+                self.assertEqual([False, True], is_open_values)
+
+    def test_hiding_a_hidden_dock_widget_reports_no_change(self) -> None:
+        ui = TestUI.UserInterface()
+        window = TestUI.DocumentWindow()
+        with contextlib.closing(window):
+            dock_widget = window.create_dock_widget(ui.create_column_widget(), "panel", "Panel", ["left"], "left")
+            with contextlib.closing(dock_widget):
+                is_open_values = list[bool]()
+                is_open_changed_listener = dock_widget.is_open_changed_event.listen(is_open_values.append)
+                dock_widget.hide()
+                self.assertEqual([], is_open_values)
+
     def test_widget_registered_for_periodic_follows_it_to_another_window(self) -> None:
         ui = TestUI.UserInterface()
         first_window = TestUI.DocumentWindow()

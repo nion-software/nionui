@@ -1316,12 +1316,13 @@ class DockWidget(UserInterfaceModule.DockWidget):
     def __init__(self, window: DocumentWindow, widget: UserInterfaceModule.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> None:
         super().__init__(window, widget, panel_id, title, positions, position)
         self.__visible = False
+        self.__is_open = False
         self.__focus_policy = "no_focus"
         self.does_retain_focus = False
 
     @property
     def toggle_action(self) -> UserInterfaceModule.MenuAction:
-        action = UserInterfaceModule.MenuAction("toggle_dock_widget_" + self.panel_id)
+        action = DockWidgetToggleAction(self)
         action.on_ui_activity = self._register_ui_activity
         return action
 
@@ -1329,16 +1330,61 @@ class DockWidget(UserInterfaceModule.DockWidget):
     def visible(self) -> bool:
         return self.__visible
 
+    @property
+    def is_open(self) -> bool:
+        return self.__is_open
+
+    # show and hide call the show and hide handlers when the visibility changes, as Qt does. they fire
+    # is_open_changed_event at once, on the calling thread, which is the main thread in tests, rather than once the main
+    # thread is free as Qt does, since nothing in TestUI hides and shows a dock widget in one step, and tests can then
+    # see the event without running periodic.
     def show(self) -> None:
-        self.__visible = True
+        self.__is_open = True
+        if not self.__visible:
+            self.__visible = True
+            self._handle_show()
+        self._report_is_open()
         self._register_ui_activity()
 
     def hide(self) -> None:
-        self.__visible = False
+        self.__is_open = False
+        if self.__visible:
+            self.__visible = False
+            self._handle_hide()
+        self._report_is_open()
         self._register_ui_activity()
 
     def size_changed(self, size: Geometry.IntSize) -> None:
         self._handle_size_changed(size)
+
+
+class DockWidgetToggleAction(MenuItem):
+    """The action which toggles a dock widget, as in the Window menu.
+
+    Triggering it shows the dock widget if it is closed and hides it if it is open. It is checked while the dock widget is
+    open, following later changes, as Qt's toggle action is.
+    """
+
+    def __init__(self, dock_widget: DockWidget) -> None:
+        super().__init__(title=dock_widget.title, action_id="toggle_dock_widget_" + dock_widget.panel_id, callback=None, key_sequence=None,
+                         role=None, menu=None, is_separator=False, checked=dock_widget.is_open)
+        self.__dock_widget = dock_widget
+        self.on_triggered = self.__toggle_dock_widget
+
+    @property
+    def checked(self) -> bool:
+        return self.__dock_widget.is_open
+
+    @checked.setter
+    def checked(self, checked: bool) -> None:
+        # the check mark shows the dock widget's open state, so setting it changes nothing.
+        pass
+
+    def __toggle_dock_widget(self) -> None:
+        if self.__dock_widget.is_open:
+            self.__dock_widget.hide()
+        else:
+            self.__dock_widget.show()
 
 
 class UserInterface(UserInterfaceModule.UserInterface):

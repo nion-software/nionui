@@ -2167,6 +2167,7 @@ class QtDockWidget(UserInterface.DockWidget):
         self.native_dock_widget: _QtObject = self.proxy.DocumentWindow_addDockWidget(self.__native_document_window, extract_widget(widget), panel_id, notnone(title), positions, position)
         self.proxy.DockWidget_connect(self.native_dock_widget, self)
         self.__focus_policy = self.proxy.Widget_getFocusPolicy(self.native_dock_widget)
+        self._read_starting_is_open()
 
     def close(self) -> None:
         # close the child widgets before remove dock widget.
@@ -2201,6 +2202,13 @@ class QtDockWidget(UserInterface.DockWidget):
     def visible(self) -> bool:
         return bool(self.proxy.Widget_isVisible(self.native_dock_widget))
 
+    @property
+    def is_open(self) -> bool:
+        # the toggle action is checked while the dock widget is open, but Qt unchecks it while the window is minimized. a widget
+        # in a minimized window stays visible, as does one tabbed behind another, so a visible dock widget is open too.
+        is_checked = bool(self.proxy.Action_getChecked(self.proxy.DockWidget_getToggleAction(self.native_dock_widget)))
+        return is_checked or bool(self.proxy.Widget_isVisible(self.native_dock_widget))
+
     def show(self) -> None:
         self.proxy.Widget_show(self.native_dock_widget)
         self._register_ui_activity()
@@ -2212,10 +2220,16 @@ class QtDockWidget(UserInterface.DockWidget):
     def willClose(self) -> None:
         self._handle_close()
 
+    # willHide and willShow are called on the main thread, where Qt delivers the hide and show events. they queue the
+    # report of is_open for when the main thread is free, so that it reads the state after Qt has finished handling the
+    # events, and Qt hiding and showing the dock widget again in one step, as it may when floating or docking it,
+    # reports nothing. the report is queued first so that an exception in on_will_hide or on_will_show doesn't skip it.
     def willHide(self) -> None:
+        self._report_is_open_later()
         self._handle_hide()
 
     def willShow(self) -> None:
+        self._report_is_open_later()
         self._handle_show()
 
     def sizeChanged(self, width: int, height: int) -> None:

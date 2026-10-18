@@ -676,10 +676,16 @@ class Window:
         self.__document_window.activate()
 
     def add_menu(self, title: str, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
-        return self.__document_window.add_menu(title, menu_id)
+        menu = self.__document_window.add_menu(title, menu_id)
+        # update the menu's items from their actions each time it is shown. a caller may replace this with its own callback.
+        menu.on_about_to_show = functools.partial(self._menu_about_to_show, menu)
+        return menu
 
     def insert_menu(self, title: str, before_menu: UserInterface.Menu, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
-        return self.__document_window.insert_menu(title, before_menu, menu_id)
+        menu = self.__document_window.insert_menu(title, before_menu, menu_id)
+        # update the menu's items from their actions each time it is shown. a caller may replace this with its own callback.
+        menu.on_about_to_show = functools.partial(self._menu_about_to_show, menu)
+        return menu
 
     def create_sub_menu(self, title: typing.Optional[str] = None, menu_id: typing.Optional[str] = None) -> UserInterface.Menu:
         return self.ui.create_sub_menu(self.__document_window, title, menu_id)
@@ -741,7 +747,6 @@ class Window:
                 new_menu = self.__document_window.get_menu(menu_id)
                 if not new_menu:
                     new_menu = self.add_menu(menu_title, menu_id)
-                    new_menu.on_about_to_show = functools.partial(self._menu_about_to_show, new_menu)
                 setattr(self, "_" + menu_id + "_menu", new_menu)
                 self.build_menu(new_menu, menu_items)
             elif item_type == "item":
@@ -832,8 +837,9 @@ class Window:
         values should be immutable.
 
         The item's title is title, if given, or the action's name. An item without its own title or parameters stands for
-        the action. When the item is in a menu made by build_menu, the window updates its title, enabled and checked state
-        from the action whenever the menu is shown. Items in other menus are not updated.
+        the action. When the item is in a menu made by the window's add_menu, insert_menu or build_menu, the window updates its
+        title, enabled and checked state from the action whenever the menu is shown. Items are not updated in a sub-menu which
+        build_menu did not make, or in a menu whose on_about_to_show a caller has replaced.
 
         An item with its own title or parameters, such as one of several items for the same action, takes no title, enabled
         or checked state from the action, so the caller sets those on the returned menu action if they matter. An empty

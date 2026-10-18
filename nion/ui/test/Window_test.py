@@ -114,6 +114,29 @@ class TestWindowActionsClass(unittest.TestCase):
             assert menu_action
             self.assertFalse(menu_action.enabled, "a main-menu item added by action id stays enabled when its action is disabled")
 
+    def test_main_menu_item_in_an_inserted_menu_follows_its_action_when_its_menu_is_shown(self) -> None:
+        # an application may insert menus among its built ones, for plug-ins to fill with action items.
+        class InsertedMenuDisabledTestAction(Window.Action):
+            action_id = "window_test.inserted_menu_disabled"
+            action_name = "Inserted Menu Disabled Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+            def is_enabled(self, context: Window.ActionContext) -> bool:
+                return False
+
+        Window.register_action(InsertedMenuDisabledTestAction())
+        self.addCleanup(Window.unregister_action, "window_test.inserted_menu_disabled")
+        with window_context() as window:
+            before_menu = window.add_menu("Test")
+            menu = window.insert_menu("Inserted", before_menu)
+            window.add_action_to_main_menu(menu, "window_test.inserted_menu_disabled")
+            menu.about_to_show()
+            menu_action = menu.items[0].action
+            assert menu_action
+            self.assertFalse(menu_action.enabled, "an item in an inserted main menu stays enabled when its action is disabled")
+
     def test_context_menu_command_is_recorded_as_coming_from_a_context_menu(self) -> None:
         invoked_from_list: list[Window.ActionOrigin | None] = list()
 

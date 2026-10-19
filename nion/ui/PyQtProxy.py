@@ -3164,18 +3164,39 @@ class PyQtProxy:
         return dict()
 
     def Core_getLocation(self, location_id: str) -> str:
-        location = QtCore.QStandardPaths.StandardLocation.DocumentsLocation
-        if location_id == "data":
-            location = QtCore.QStandardPaths.StandardLocation.AppDataLocation
-        elif location_id == "documents":
-            location = QtCore.QStandardPaths.StandardLocation.DocumentsLocation
-        elif location_id == "temporary":
-            location = QtCore.QStandardPaths.StandardLocation.TempLocation
-        elif location_id == "configuration":
-            location = QtCore.QStandardPaths.StandardLocation.AppConfigLocation
-        dir = QtCore.QDir(QtCore.QStandardPaths.writableLocation(location))
-        data_location = dir.absolutePath()
-        QtCore.QDir().mkpath(data_location)
+        # the standard locations of Qt by the names they are asked for with, as the launcher has them. a name which is not
+        # known gives the documents folder. locations which some platforms lack, such as fonts or applications, are left
+        # out.
+        standard_location = QtCore.QStandardPaths.StandardLocation
+        locations = {
+            "data": standard_location.AppDataLocation,
+            "documents": standard_location.DocumentsLocation,
+            "temporary": standard_location.TempLocation,
+            "configuration": standard_location.AppConfigLocation,
+            "desktop": standard_location.DesktopLocation,
+            "pictures": standard_location.PicturesLocation,
+            "movies": standard_location.MoviesLocation,
+            "music": standard_location.MusicLocation,
+            "downloads": standard_location.DownloadLocation,
+            "home": standard_location.HomeLocation,
+            "cache": standard_location.CacheLocation,
+            "local_data": standard_location.AppLocalDataLocation,
+        }
+        # the folders of auto-created locations are created when asked for if they do not exist: the application's own
+        # folders, and the documents and temporary folders as before. the user's own folders, such as pictures, are not,
+        # so that one the user removed is not created again.
+        auto_created_locations = {standard_location.AppDataLocation, standard_location.DocumentsLocation, standard_location.TempLocation,
+                                  standard_location.AppConfigLocation, standard_location.CacheLocation, standard_location.AppLocalDataLocation}
+        location = locations.get(location_id, standard_location.DocumentsLocation)
+        location_path = QtCore.QStandardPaths.writableLocation(location)
+        if not location_path:
+            # a location which Qt cannot find gives the documents folder, as an unknown name does, rather than the working
+            # directory, which an empty path would give.
+            location = standard_location.DocumentsLocation
+            location_path = QtCore.QStandardPaths.writableLocation(location)
+        data_location = QtCore.QDir(location_path).absolutePath()
+        if location in auto_created_locations:
+            QtCore.QDir().mkpath(data_location)
         return data_location
 
     def Core_out(self, output: str) -> None:

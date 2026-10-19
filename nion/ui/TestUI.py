@@ -1469,6 +1469,9 @@ class UserInterface(UserInterfaceModule.UserInterface):
     def get_document_location(self) -> str:
         return str()
 
+    def get_pictures_location(self) -> str:
+        return str()
+
     def get_temporary_location(self) -> str:
         return str()
 

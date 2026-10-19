@@ -4147,6 +4147,13 @@ class UserInterface(abc.ABC):
     def get_document_location(self) -> str:
         ...
 
+    def get_pictures_location(self) -> str:
+        """Return the folder where the platform keeps the user's pictures, such as ~/Pictures on macOS.
+
+        A user interface which does not know the pictures folder returns the documents folder.
+        """
+        return self.get_document_location()
+
     @abc.abstractmethod
     def get_temporary_location(self) -> str:
         ...

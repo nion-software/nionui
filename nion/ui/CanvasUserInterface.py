@@ -3160,6 +3160,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def get_document_location(self) -> str:
         return self.__ui.get_document_location()
 
+    def get_pictures_location(self) -> str:
+        return self.__ui.get_pictures_location()
+
     def get_temporary_location(self) -> str:
         return self.__ui.get_temporary_location()
 

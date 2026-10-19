@@ -2397,6 +2397,10 @@ class QtUserInterface(UserInterface.UserInterface):
     def get_document_location(self) -> str:
         return typing.cast(str, self.proxy.Core_getLocation("documents"))
 
+    # a launcher built before it knew the pictures location returns the documents location instead.
+    def get_pictures_location(self) -> str:
+        return typing.cast(str, self.proxy.Core_getLocation("pictures"))
+
     def get_temporary_location(self) -> str:
         return typing.cast(str, self.proxy.Core_getLocation("temporary"))
 

@@ -846,6 +846,21 @@ class TestTextEditCanvasIntegration(unittest.TestCase):
         # content is much taller than the 40px viewport -- real scrolling should be available.
         self.assertGreater(canvas_item.canvas_size.height, 40)
 
+    def test_inserting_text_makes_the_text_scrollable(self) -> None:
+        widget, canvas_item = self._make_text_edit(width=200, height=40)
+        widget.insert_text("\n".join(f"line {i}" for i in range(20)))
+        self._relayout(width=200, height=40)
+        self.assertGreater(canvas_item.canvas_size.height, 40)
+
+    def test_removing_selected_text_makes_short_text_fit_without_scrolling(self) -> None:
+        widget, canvas_item = self._make_text_edit(width=200, height=40)
+        widget.text = "\n".join(f"line {i}" for i in range(20))
+        self._relayout(width=200, height=40)
+        widget.select_all()
+        widget.remove_selected_text()
+        self._relayout(width=200, height=40)
+        self.assertLessEqual(canvas_item.canvas_size.height, 40)
+
     def test_scroll_to_end_shows_the_bottom_of_the_text(self) -> None:
         widget, canvas_item = self._make_text_edit(width=200, height=40)
         widget.text = "\n".join(f"line {i}" for i in range(20))

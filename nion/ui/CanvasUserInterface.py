@@ -2225,6 +2225,7 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
         buffer = self.__canvas_item.text_edit_core.buffer
         old_text = buffer.text
         if buffer.insert_text(value):
+            self.__canvas_item._refresh_sizing()
             self.__canvas_item.update()
             if buffer.text != old_text and callable(self.__canvas_item.on_text_changed):
                 self.__canvas_item.on_text_changed(buffer.text)
@@ -2238,6 +2239,7 @@ class TextEditWidgetBehavior(WidgetBehavior, UserInterface.TextEditWidgetBehavio
         buffer = self.__canvas_item.text_edit_core.buffer
         old_text = buffer.text
         if buffer.delete_selection():
+            self.__canvas_item._refresh_sizing()
             self.__canvas_item.update()
             if callable(self.__canvas_item.on_text_changed):
                 self.__canvas_item.on_text_changed(buffer.text)

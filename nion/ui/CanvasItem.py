@@ -2883,6 +2883,12 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
     def __init__(self, content: typing.Optional[AbstractCanvasItem] = None) -> None:
         super().__init__()
         self.__content_origin = Geometry.IntPoint()
+
+        # whether to keep the end of the content in view when the content or the scroll area changes size. it is set on
+        # the main thread and read during layout, which may run on a thread; a single assignment of a bool is atomic, so
+        # it needs no lock.
+        self.__is_following_end = False
+
         self.__scroll_area_layout = ScrollAreaLayout()
         self.layout = self.__scroll_area_layout
         # the content_updated_event is used by scroll bars to update their size and position.
@@ -2897,7 +2903,7 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
     def __handle_canvas_size_changed(self, canvas_size: typing.Optional[Geometry.IntSizeTuple]) -> None:
         # if update_content_origin returns False, the content_updated_event was not fired and update was
         # not performed. However, since the size changed, those need to be done.
-        if not self.update_content_origin(self.content_origin):
+        if not self.__update_content_origin(self.content_origin):
             self.content_updated_event.fire()
             self.update()
 
@@ -2940,11 +2946,28 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         return Geometry.IntRect(origin=self.content_origin, size=self.content_size or Geometry.IntSize())
 
     def update_content_origin(self, new_content_origin: Geometry.IntPoint) -> bool:
-        """Update the content origin, restricting it to a valid range."""
+        """Update the content origin, restricting it to a valid range, and stop following the end of the content.
+
+        Returns whether the content origin changed.
+        """
+        self.__is_following_end = False
+        return self.__update_content_origin(new_content_origin)
+
+    def scroll_to_end(self) -> None:
+        """Scroll vertically to the end of the content, and keep the end in view until something else scrolls.
+
+        The end stays in view when the content or the scroll area changes size, so that a client can scroll to the end
+        before the next layout gives the content its new size.
+        """
+        self.__is_following_end = True
+        self.__update_content_origin(self.__content_origin)
+
+    def __update_content_origin(self, new_content_origin: Geometry.IntPoint) -> bool:
         content_size = self.content_size or Geometry.IntSize()
         canvas_size = self.canvas_size or Geometry.IntSize()
         cx = max(-(content_size.width - canvas_size.width), min(0, new_content_origin.x)) if content_size.width > canvas_size.width else 0
-        cy = max(-(content_size.height - canvas_size.height), min(0, new_content_origin.y)) if content_size.height > canvas_size.height else 0
+        new_content_origin_y = -content_size.height if self.__is_following_end else new_content_origin.y
+        cy = max(-(content_size.height - canvas_size.height), min(0, new_content_origin_y)) if content_size.height > canvas_size.height else 0
         content_origin = Geometry.IntPoint(x=cx, y=cy)
         if self.__content_origin != content_origin:
             self.__content_origin = content_origin
@@ -3008,7 +3031,7 @@ class ScrollAreaCanvasItem(CanvasItemComposition):
         if self._has_layout:
             # when the scroll area content layout changes, this method will get called. ensure that the content
             # matches the scroll position.
-            if not self.update_content_origin(self.__content_origin):
+            if not self.__update_content_origin(self.__content_origin):
                 self.content_updated_event.fire()
                 self.update()
 

@@ -2024,6 +2024,34 @@ class TestCanvasItemClass(unittest.TestCase):
         self.assertEqual(Geometry.IntPoint(x=0, y=-250), scroll_area.content_origin)
         self.assertEqual(Geometry.IntSize(width=100, height=750), scroll_area.content_size)
 
+    def test_scroll_area_scrolled_to_end_stays_at_end_when_content_grows(self) -> None:
+        content = _TestCanvasItem()
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
+        scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
+        scroll_area.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=500))
+        scroll_area.scroll_to_end()
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1500))
+        self.assertEqual(Geometry.IntPoint(x=0, y=-1000), scroll_area.content_origin)
+
+    def test_scroll_area_scrolled_to_end_stays_at_end_when_it_shrinks(self) -> None:
+        content = _TestCanvasItem()
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
+        scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
+        scroll_area.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=500))
+        scroll_area.scroll_to_end()
+        scroll_area.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=400))
+        self.assertEqual(Geometry.IntPoint(x=0, y=-600), scroll_area.content_origin)
+
+    def test_scroll_area_stops_following_the_end_when_scrolled_elsewhere(self) -> None:
+        content = _TestCanvasItem()
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1000))
+        scroll_area = CanvasItem.ScrollAreaCanvasItem(content)
+        scroll_area.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=500))
+        scroll_area.scroll_to_end()
+        scroll_area.update_content_origin(Geometry.IntPoint(x=0, y=-100))
+        content.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=100, height=1500))
+        self.assertEqual(Geometry.IntPoint(x=0, y=-100), scroll_area.content_origin)
+
     def test_removing_item_from_layout_causes_container_to_relayout(self) -> None:
         ui = TestUI.UserInterface()
         canvas_widget = ui.create_canvas_widget()

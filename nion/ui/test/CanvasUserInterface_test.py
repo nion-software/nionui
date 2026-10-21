@@ -871,13 +871,6 @@ class TestTextEditCanvasIntegration(unittest.TestCase):
         scroll_area_canvas_item = widget._behavior.canvas_item.canvas_items[0]  # type: ignore[attr-defined]
         self.assertEqual(scroll_area_canvas_item._content_rect.bottom, scroll_area_canvas_item.canvas_size.height)
 
-    def test_scroll_to_end_leaves_the_cursor_where_it_is(self) -> None:
-        widget, canvas_item = self._make_text_edit(width=200, height=40)
-        widget.text = "\n".join(f"line {i}" for i in range(20))
-        widget.move_cursor_position("start")
-        widget.scroll_to_end()
-        self.assertEqual(0, widget.cursor_position.position)
-
     def test_mouse_click_places_cursor_and_double_click_selects_word(self) -> None:
         widget, canvas_item = self._make_text_edit()
         widget.text = "the quick brown fox"

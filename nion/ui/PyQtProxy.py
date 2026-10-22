@@ -1425,7 +1425,7 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
                 font.setPointSizeF(float(font_part[:-2]) * display_scaling)
             elif font_part.endswith("px") and float(font_part[:-2]) > 0:
                 # setPixelSize takes an int. round half up to match how Qt rounds fractional pt sizes and how nionui-tool rounds px.
-                font.setPixelSize(int(float(font_part[:-2]) * display_scaling + 0.5))
+                font.setPixelSize(RoundToInt(float(font_part[:-2]) * display_scaling))
             else:
                 is_family = True
         if is_family:

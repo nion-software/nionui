@@ -1874,7 +1874,7 @@ def PaintCommands(painter: QtGui.QPainter, commands: typing.List[CanvasDrawingCo
                 painter.fillPath(text_path, brush)
             else:
                 pen = QtGui.QPen(line_color)
-                pen.setWidth(int(line_width * display_scaling))
+                pen.setWidthF(line_width * display_scaling)
                 pen.setJoinStyle(line_join)
                 pen.setCapStyle(line_cap)
                 painter.strokePath(text_path, pen)

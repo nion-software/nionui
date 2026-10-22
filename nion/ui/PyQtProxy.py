@@ -128,6 +128,11 @@ def GetOpenFileNames(parent: QtWidgets.QWidget, caption: str, dir: str, filter: 
     return []
 
 
+# round to the nearest integer with halves away from zero, as qRound does in nionui-tool.
+def RoundToInt(value: float) -> int:
+    return math.floor(value + 0.5) if value >= 0 else math.ceil(value - 0.5)
+
+
 def GetDisplayScaling() -> float:
     logical_dpi = app.primaryScreen().logicalDotsPerInch()
     if sys.platform == 'darwin':
@@ -4693,39 +4698,39 @@ class PyQtProxy:
         assert widget is not None
         display_scaling = GetDisplayScaling()
         if property == "margin":
-            widget.setContentsMargins(int(value * display_scaling), int(value * display_scaling), int(value * display_scaling), int(value * display_scaling))
+            widget.setContentsMargins(RoundToInt(value * display_scaling), RoundToInt(value * display_scaling), RoundToInt(value * display_scaling), RoundToInt(value * display_scaling))
         elif property == "margin-top":
             margin = widget.contentsMargins()
-            margin.setTop(int(value * display_scaling))
+            margin.setTop(RoundToInt(value * display_scaling))
             widget.setContentsMargins(margin)
         elif property == "margin-left":
             margin = widget.contentsMargins()
-            margin.setLeft(int(value * display_scaling))
+            margin.setLeft(RoundToInt(value * display_scaling))
             widget.setContentsMargins(margin)
         elif property == "margin-bottom":
             margin = widget.contentsMargins()
-            margin.setBottom(int(value * display_scaling))
+            margin.setBottom(RoundToInt(value * display_scaling))
             widget.setContentsMargins(margin)
         elif property == "margin-right":
             margin = widget.contentsMargins()
-            margin.setRight(int(value * display_scaling))
+            margin.setRight(RoundToInt(value * display_scaling))
             widget.setContentsMargins(margin)
         elif property == "min-width":
-            widget.setMinimumWidth(int(value * display_scaling))
+            widget.setMinimumWidth(RoundToInt(value * display_scaling))
         elif property == "max-width":
-            widget.setMaximumWidth(int(value * display_scaling))
+            widget.setMaximumWidth(RoundToInt(value * display_scaling))
         elif property == "min-height":
-            widget.setMinimumHeight(int(value * display_scaling))
+            widget.setMinimumHeight(RoundToInt(value * display_scaling))
         elif property == "max-height":
-            widget.setMaximumHeight(int(value * display_scaling))
+            widget.setMaximumHeight(RoundToInt(value * display_scaling))
         elif property == "preferred-width":
             # widgets without a preferred size hint, such as buttons, ignore the preferred size.
             if isinstance(preferred_size_hint := getattr(widget, "preferred_size_hint", None), PreferredSizeHint):
-                preferred_size_hint.width = int(value * display_scaling)
+                preferred_size_hint.width = RoundToInt(value * display_scaling)
                 widget.updateGeometry()
         elif property == "preferred-height":
             if isinstance(preferred_size_hint := getattr(widget, "preferred_size_hint", None), PreferredSizeHint):
-                preferred_size_hint.height = int(value * display_scaling)
+                preferred_size_hint.height = RoundToInt(value * display_scaling)
                 widget.updateGeometry()
         elif property == "size-to-content":
             if isinstance(widget, PyScrollArea):
@@ -4740,15 +4745,15 @@ class PyQtProxy:
             size_policy.setVerticalPolicy(ParseSizePolicy(value, size_policy.verticalPolicy()))
             widget.setSizePolicy(size_policy)
         elif property == "width":
-            widget.setMinimumWidth(int(value * display_scaling))
-            widget.setMaximumWidth(int(value * display_scaling))
+            widget.setMinimumWidth(RoundToInt(value * display_scaling))
+            widget.setMaximumWidth(RoundToInt(value * display_scaling))
         elif property == "height":
-            widget.setMinimumHeight(int(value * display_scaling))
-            widget.setMaximumHeight(int(value * display_scaling))
+            widget.setMinimumHeight(RoundToInt(value * display_scaling))
+            widget.setMaximumHeight(RoundToInt(value * display_scaling))
         elif property == "spacing":
             layout = widget.layout()
             if layout is not None:
-                layout.setSpacing(int(value * display_scaling))
+                layout.setSpacing(RoundToInt(value * display_scaling))
         elif property == "font-size":
             font = widget.font()
             font.setPointSizeF(value * display_scaling)

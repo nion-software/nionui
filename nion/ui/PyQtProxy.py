@@ -4751,7 +4751,7 @@ class PyQtProxy:
                 layout.setSpacing(int(value * display_scaling))
         elif property == "font-size":
             font = widget.font()
-            font.setPointSize(int(value * display_scaling))
+            font.setPointSizeF(value * display_scaling)
             widget.setFont(font)
         elif property == "stylesheet":
             widget.setStyleSheet(value)

@@ -388,6 +388,40 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         self.assertEqual([], delete_events)
         self.assertEqual(0, window_delete_count)
 
+    def test_delete_key_gives_the_delete_event_the_key_origin_and_the_window_delete_action_gives_it_none(self) -> None:
+        # nionswift logs the Delete key with the key origin, and the window's Delete action with the origin its action context carries.
+        delete_events = list[GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                delete_events.append(delete_event)
+                return True
+
+        class DeletingWindow(Window.Window):
+            # the window's Delete action is enabled only for a window which handles delete.
+            def handle_delete(self) -> bool:
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = DeletingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(list_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        canvas_widget.focused = True
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=70, x=50))
+        list_canvas_item.key_pressed(TestUI.Key(str(), "delete", CanvasItem.KeyboardModifiers()))
+        window.perform_action("window.delete")
+        self.assertEqual([Window.ActionOrigin.KEY, None], [delete_event.invoked_from for delete_event in delete_events])
+
     def test_closed_list_releases_its_scroll_area(self) -> None:
         # a closed list which is still referenced must not keep its scroll area alive.
         list_model = ListModel.ListModel[int]("items", items=list(range(100)))

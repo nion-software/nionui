@@ -13,6 +13,7 @@ import weakref
 # local libraries
 from nion.ui import CanvasItem
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Event
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -223,8 +224,16 @@ class GridFlowCanvasItemContextMenuEvent:
 
 @dataclasses.dataclass
 class GridFlowCanvasItemDeleteEvent:
+    """A request from a grid to its delegate to delete items.
+
+    item is the selection's anchor item, or None when there is no anchor, and selected_items are the items to delete.
+
+    invoked_from is where a person asked for the delete: ActionOrigin.KEY for the grid's Delete key. It is None when the
+    delete came from elsewhere, such as the window's Delete action, whose action context carries its own origin.
+    """
     item: typing.Any
     selected_items: typing.Sequence[typing.Any]
+    invoked_from: Window.ActionOrigin | None = None
 
 
 @dataclasses.dataclass
@@ -619,7 +628,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
 
     def key_pressed(self, key: UserInterface.Key) -> bool:
         if key.is_delete:
-            if self.handle_delete():
+            if self.handle_delete(invoked_from=Window.ActionOrigin.KEY):
                 return True
         if key.is_enter_or_return:
             if self.handle_select():
@@ -766,7 +775,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         self.__selection.set_multiple(set(range(len(self.__list_model.items))))
         return True
 
-    def handle_delete(self) -> bool:
+    def handle_delete(self, *, invoked_from: Window.ActionOrigin | None = None) -> bool:
+        """Ask the delegate to delete the selected items, and return whether it handled the request.
+
+        invoked_from is where a person asked for the delete, and is passed to the delegate in the delete event. The
+        window's Delete action calls this with no arguments, so its event has no origin.
+        """
         item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
         selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
         # with neither an anchor nor a selection there is nothing to delete, so the delegate is not asked. the request
@@ -775,7 +789,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         if item is None and not selected_items:
             return True
         selected_items = selected_items if item is None or item in selected_items else [item]
-        if self.__delegate.delete_event(GridFlowCanvasItemDeleteEvent(item, selected_items)):
+        if self.__delegate.delete_event(GridFlowCanvasItemDeleteEvent(item, selected_items, invoked_from)):
             return True
         return False
 

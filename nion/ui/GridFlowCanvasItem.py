@@ -201,6 +201,11 @@ class GridFlowItemCanvasItem(CanvasItem.CanvasItemComposition):
 
 @dataclasses.dataclass
 class GridFlowCanvasItemKeyPressedEvent:
+    """A key pressed in a grid which the grid itself did not handle.
+
+    selected_items are the selected items in index order, and are empty when nothing is selected. item is the
+    selection's anchor item when it is selected, or None otherwise.
+    """
     item: typing.Any
     selected_items: typing.Sequence[typing.Any]
     key: UserInterface.Key
@@ -239,6 +244,11 @@ class GridFlowCanvasItemDeleteEvent:
 
 @dataclasses.dataclass
 class GridFlowCanvasItemSelectEvent:
+    """A request from a grid to its delegate to act on the selected items, as Return does.
+
+    selected_items are the selected items in index order, and are never empty. item is the selection's anchor item when
+    it is selected, or None otherwise.
+    """
     item: typing.Any
     selected_items: typing.Sequence[typing.Any]
 
@@ -646,9 +656,7 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         if key.is_right_arrow:
             if self._handle_right_arrow(key):
                 return True
-        item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
+        item, selected_items = self.__get_anchor_item_and_selected_items()
         if self.__delegate.key_pressed_event(GridFlowCanvasItemKeyPressedEvent(item, selected_items, key)):
             return True
         return super().key_pressed(key)
@@ -808,9 +816,13 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         return item, [items[index] for index in selected_indexes]
 
     def handle_select(self) -> bool:
-        item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
+        """Ask the delegate to act on the selected items, as Return does, and return whether it handled the request.
+
+        The delegate is not asked when nothing is selected, and False is returned.
+        """
+        item, selected_items = self.__get_anchor_item_and_selected_items()
+        if not selected_items:
+            return False
         if self.__delegate.select_event(GridFlowCanvasItemSelectEvent(item, selected_items)):
             return True
         return False

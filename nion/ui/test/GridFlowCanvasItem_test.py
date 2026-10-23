@@ -445,6 +445,45 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         self.assertEqual([[1]], [list(delete_event.selected_items) for delete_event in delete_events])
         list_canvas_item.close()
 
+    def test_return_with_nothing_selected_does_not_ask_the_delegate_to_select(self) -> None:
+        select_events = list[GridFlowCanvasItem.GridFlowCanvasItemSelectEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def select_event(self, select_event: GridFlowCanvasItem.GridFlowCanvasItemSelectEvent) -> bool:
+                select_events.append(select_event)
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        list_canvas_item.key_pressed(TestUI.Key(str(), "return", CanvasItem.KeyboardModifiers()))
+        self.assertEqual([], select_events)
+        list_canvas_item.close()
+
+    def test_letter_key_after_the_selected_last_item_is_removed_gives_the_delegate_no_items(self) -> None:
+        # a grid with its own selection, as a list view has, removes the index of an item removed from its list. the
+        # anchor can then be past the end of the list.
+        key_events = list[GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def key_pressed_event(self, key_event: GridFlowCanvasItem.GridFlowCanvasItemKeyPressedEvent) -> bool:
+                key_events.append(key_event)
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=190, x=50))
+        list_model.remove_item(9)
+        list_canvas_item.key_pressed(TestUI.Key("v", "v", CanvasItem.KeyboardModifiers()))
+        self.assertEqual([(None, [])], [(key_event.item, list(key_event.selected_items)) for key_event in key_events])
+        list_canvas_item.close()
+
     def test_closed_list_releases_its_scroll_area(self) -> None:
         # a closed list which is still referenced must not keep its scroll area alive.
         list_model = ListModel.ListModel[int]("items", items=list(range(100)))

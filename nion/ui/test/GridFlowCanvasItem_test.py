@@ -422,6 +422,29 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         window.perform_action("window.delete")
         self.assertEqual([Window.ActionOrigin.KEY, None], [delete_event.invoked_from for delete_event in delete_events])
 
+    def test_delete_key_after_command_clicking_the_anchor_item_off_deletes_only_the_item_still_selected(self) -> None:
+        # command-clicking the anchor item off leaves the selection's anchor on it, but it is no longer selected.
+        delete_events = list[GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                delete_events.append(delete_event)
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        command_modifiers = CanvasItem.KeyboardModifiers(control=True)
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=50))
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=50), command_modifiers)
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=50), command_modifiers)
+        list_canvas_item.key_pressed(TestUI.Key(str(), "delete", CanvasItem.KeyboardModifiers()))
+        self.assertEqual([[1]], [list(delete_event.selected_items) for delete_event in delete_events])
+        list_canvas_item.close()
+
     def test_closed_list_releases_its_scroll_area(self) -> None:
         # a closed list which is still referenced must not keep its scroll area alive.
         list_model = ListModel.ListModel[int]("items", items=list(range(100)))

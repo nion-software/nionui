@@ -857,9 +857,7 @@ class Window:
         item_parameters = dict(parameters) if parameters else dict()
 
         def perform_menu_item_action() -> None:
-            action_context = self._get_action_context()
-            action_context.parameters.update(item_parameters)
-            self.perform_action_in_context(action_id, action_context, invoked_from=ActionOrigin.MENU)
+            self.perform_action(action_id, parameters=item_parameters, invoked_from=ActionOrigin.MENU)
 
         # _menu_about_to_show applies the action's title, enabled and checked state to every item which carries an action
         # id. that is right for an item which stands for the action, and wrong for one of several items running the action,
@@ -879,8 +877,12 @@ class Window:
             return self.app._run_action(action, context, user_interaction=False)
         return action.execute(context)
 
-    def perform_action(self, action: typing.Union[Action, str], *, invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+    # the parameter values are typed as Any, as the context's parameters are, since an action's parameters may be of any type.
+    def perform_action(self, action: Action | str, *, parameters: typing.Mapping[str, typing.Any] | None = None,
+                       invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         """Run the action, given by the action or its id, in a new context for the window.
+
+        A shallow copy of parameters, if given, is added to the context's parameters before the action runs.
 
         An action a person invokes passes invoked_from, naming the kind of user interface element they used.
         Code, such as a script, passes neither invoked_from nor invoked_from_id, so the action has no origin.
@@ -888,7 +890,10 @@ class Window:
         invoked_from_id names which panel or dialog the action was invoked from, using the id the panel or dialog is registered or persisted under,
         never its translated title.
         """
-        self.perform_action_in_context(action, self._get_action_context(), invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+        action_context = self._get_action_context()
+        if parameters:
+            action_context.parameters.update(parameters)
+        self.perform_action_in_context(action, action_context, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
 
     def perform_action_in_context(self, action_or_action_id: typing.Union[Action, str], action_context: ActionContext, *,
                                   invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:

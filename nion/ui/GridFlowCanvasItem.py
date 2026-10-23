@@ -226,7 +226,8 @@ class GridFlowCanvasItemContextMenuEvent:
 class GridFlowCanvasItemDeleteEvent:
     """A request from a grid to its delegate to delete items.
 
-    item is the selection's anchor item, or None when there is no anchor, and selected_items are the items to delete.
+    selected_items are the items to delete, which are the selected items in index order. item is the selection's anchor
+    item when it is selected, or None otherwise, so item is always None or one of selected_items.
 
     invoked_from is where a person asked for the delete: ActionOrigin.KEY for the grid's Delete key. It is None when the
     delete came from elsewhere, such as the window's Delete action, whose action context carries its own origin.
@@ -780,18 +781,31 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
 
         invoked_from is where a person asked for the delete, and is passed to the delegate in the delete event. The
         window's Delete action calls this with no arguments, so its event has no origin.
+
+        When nothing is selected, the delegate is not asked and True is returned, so that the request stops at the grid.
+        Otherwise the window's Delete action would go on to the window's own handle_delete, which can delete something
+        the grid doesn't show.
         """
-        item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-        selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        # with neither an anchor nor a selection there is nothing to delete, so the delegate is not asked. the request
-        # is still taken, so that the window's Delete action stops at the grid rather than going on to the window's own
-        # handle_delete, which can delete something the grid doesn't show.
-        if item is None and not selected_items:
+        item, selected_items = self.__get_anchor_item_and_selected_items()
+        if not selected_items:
             return True
-        selected_items = selected_items if item is None or item in selected_items else [item]
         if self.__delegate.delete_event(GridFlowCanvasItemDeleteEvent(item, selected_items, invoked_from)):
             return True
         return False
+
+    def __get_anchor_item_and_selected_items(self) -> tuple[typing.Any, typing.Sequence[typing.Any]]:
+        """Return the anchor item and the selected items, for an event about the selection.
+
+        The selected items are in index order. The anchor can be an item which is no longer selected, so the anchor item
+        is None when the anchor isn't one of the selected items, and an event never names an unselected item.
+
+        The two values are returned as a tuple, since they differ in kind.
+        """
+        items = self.__list_model.items
+        selected_indexes = sorted(self.__selection.indexes)
+        anchor_index = self.__selection.anchor_index
+        item = items[anchor_index] if anchor_index is not None and self.__selection.contains(anchor_index) else None
+        return item, [items[index] for index in selected_indexes]
 
     def handle_select(self) -> bool:
         item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None

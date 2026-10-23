@@ -213,6 +213,12 @@ class GridFlowCanvasItemKeyPressedEvent:
 
 @dataclasses.dataclass
 class GridFlowCanvasItemDoubleClickedEvent:
+    """A double click on an item in a grid.
+
+    item is the item double clicked, which is always selected by then. selected_items are the selected items in index
+    order, so they always include item. p is the position of the double click in the grid and modifiers are the keyboard
+    modifiers held during it.
+    """
     item: typing.Any
     selected_items: typing.Sequence[typing.Any]
     p: Geometry.IntPoint
@@ -526,17 +532,15 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         return canvas_items
 
     def mouse_double_clicked(self, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> bool:
-        # sets the selection to the item if there is no selection and returns True.
-        # otherwise returns False. False means there was an existing selection.
+        # a double click on an unselected item first selects only that item, so the item double clicked is always
+        # selected when the delegate is told about it. returns True when the double click is on an item.
         canvas_item = self.__grid_flow_item_at_point(Geometry.IntPoint(x=x, y=y))
         if canvas_item:
             mouse_index = self.__grid_flow_item_canvas_items.index(canvas_item)
             if not self.__selection.contains(mouse_index):
                 self.__selection.set(mouse_index)
                 self.handle_select()
-            item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
-            selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-            selected_items = selected_items if item in selected_items else [item]
+            _, selected_items = self.__get_anchor_item_and_selected_items()
             self.__delegate.mouse_double_clicked_event(GridFlowCanvasItemDoubleClickedEvent(canvas_item.item, selected_items, Geometry.IntPoint(x=x, y=y), modifiers))
             return True
         return super().mouse_double_clicked(x, y, modifiers)

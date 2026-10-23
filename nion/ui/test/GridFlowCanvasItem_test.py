@@ -484,6 +484,32 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         self.assertEqual([(None, [])], [(key_event.item, list(key_event.selected_items)) for key_event in key_events])
         list_canvas_item.close()
 
+    def test_command_double_click_after_command_clicking_the_anchor_item_off_gives_the_delegate_only_selected_items(self) -> None:
+        # command-clicking the anchor item off leaves the selection's anchor on it, and command-clicking another item
+        # adds it without moving the anchor. a double click arrives as a click followed by a double click.
+        double_clicked_events = list[GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def mouse_double_clicked_event(self, double_clicked_event: GridFlowCanvasItem.GridFlowCanvasItemDoubleClickedEvent) -> bool:
+                double_clicked_events.append(double_clicked_event)
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        list_canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        command_modifiers = CanvasItem.KeyboardModifiers(control=True)
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=50))
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=30, x=50), command_modifiers)
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=10, x=50), command_modifiers)
+        list_canvas_item.simulate_click(Geometry.IntPoint(y=50, x=50), command_modifiers)
+        list_canvas_item.mouse_double_clicked(50, 50, command_modifiers)
+        list_canvas_item.mouse_released(50, 50, command_modifiers)
+        self.assertEqual([(2, [1, 2])], [(double_clicked_event.item, list(double_clicked_event.selected_items)) for double_clicked_event in double_clicked_events])
+        list_canvas_item.close()
+
     def test_closed_list_releases_its_scroll_area(self) -> None:
         # a closed list which is still referenced must not keep its scroll area alive.
         list_model = ListModel.ListModel[int]("items", items=list(range(100)))

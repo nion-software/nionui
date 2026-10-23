@@ -8,10 +8,13 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import GridCanvasItem
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
+from nion.ui import TestUI
+from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Selection
@@ -347,6 +350,43 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         self.assertLess(0, fired_count)
         self.assertEqual(10, len(list_canvas_item.item_canvas_items_in_view))
         scroll_area_canvas_item.close()
+
+    def test_window_delete_with_a_grid_focused_and_nothing_selected_stops_at_the_grid(self) -> None:
+        # Edit > Delete goes on to the window's own handle_delete when the focused grid declines it. in nionswift that
+        # deletes something which the grid doesn't show, so a grid with nothing selected must take the request itself.
+        delete_events = list[GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent]()
+        window_delete_count = 0
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                delete_events.append(delete_event)
+                return True
+
+        class RecordingWindow(Window.Window):
+            # the window's Delete action is enabled only for a window which handles delete.
+            def handle_delete(self) -> bool:
+                nonlocal window_delete_count
+                window_delete_count += 1
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = RecordingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        list_canvas_item = ListCanvasItem.ListCanvasItem2(list_model, Selection.IndexedSelection(), item_factory, RecordingDelegate(), item_height=20, key="items")
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(list_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        canvas_widget.focused = True
+        window.perform_action("window.delete")
+        self.assertEqual([], delete_events)
+        self.assertEqual(0, window_delete_count)
 
     def test_closed_list_releases_its_scroll_area(self) -> None:
         # a closed list which is still referenced must not keep its scroll area alive.

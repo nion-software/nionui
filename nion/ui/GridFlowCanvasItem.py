@@ -769,7 +769,12 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
     def handle_delete(self) -> bool:
         item = self.__list_model.items[self.__selection.anchor_index] if self.__selection.anchor_index is not None else None
         selected_items = [self.__list_model.items[index] for index in self.__selection.indexes]
-        selected_items = selected_items if item in selected_items else [item]
+        # with neither an anchor nor a selection there is nothing to delete, so the delegate is not asked. the request
+        # is still taken, so that the window's Delete action stops at the grid rather than going on to the window's own
+        # handle_delete, which can delete something the grid doesn't show.
+        if item is None and not selected_items:
+            return True
+        selected_items = selected_items if item is None or item in selected_items else [item]
         if self.__delegate.delete_event(GridFlowCanvasItemDeleteEvent(item, selected_items)):
             return True
         return False

@@ -322,7 +322,7 @@ class BaseApplication:
 
     def show_ok_dialog(self, title: str, message: str, *, completion_fn: typing.Optional[typing.Callable[[], None]] = None) -> None:
         u = Declarative.DeclarativeUI()
-        error_message = u.create_label(text=message)
+        error_message = u.create_label(text=message, word_wrap=True)
         button_row = u.create_row(u.create_stretch(), u.create_push_button(text=_("OK"), on_clicked="close_window"))
         main_column = u.create_column(error_message, button_row, spacing=8, width=300)
         window = u.create_window(main_column, title=title, margin=12, window_style="tool")
@@ -332,7 +332,7 @@ class BaseApplication:
                               cancel_text: typing.Optional[str] = None,
                               completion_fn: typing.Optional[typing.Callable[[bool], None]] = None) -> None:
         u = Declarative.DeclarativeUI()
-        error_message = u.create_label(text=message)
+        error_message = u.create_label(text=message, word_wrap=True)
         button_row = u.create_row(u.create_stretch(),
                                   u.create_push_button(text=cancel_text or _("Cancel"), on_clicked="handle_reject"),
                                   u.create_push_button(text=ok_text or _("OK"), on_clicked="handle_accept"),

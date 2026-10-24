@@ -40,6 +40,8 @@ from nion.utils import Model
 
 if typing.TYPE_CHECKING:
     from nion.ui import Application
+    # UserInterface defines its own Window class.
+    from nion.ui import Window as WindowModule
 
 
 def notnone(s: typing.Any) -> str:
@@ -956,6 +958,13 @@ class Widget:
                 return menu_item_state
         if hasattr(self, handle_method):
             return MenuItemState(title=None, enabled=True, checked=False)
+        return None
+
+    def _get_action(self, command_id: str) -> WindowModule.BoundAction | None:
+        # return the action this widget provides for the command, through a method get_<command_id>_action, if it has one.
+        action_method = "get_" + command_id + "_action"
+        if hasattr(self, action_method):
+            return typing.cast("WindowModule.BoundAction | None", getattr(self, action_method)())
         return None
 
     def bind_enabled(self, binding: Binding.Binding) -> None:
@@ -2698,9 +2707,14 @@ class CanvasWidget(Widget):
     def __init__(self, widget_behavior: CanvasWidgetBehavior, *, layout_render: typing.Optional[str] = None) -> None:
         super().__init__(widget_behavior)
         self.on_periodic: typing.Optional[typing.Callable[[], None]] = None
+
+        # the root canvas item answers these queries for its canvas widget. they are direct callbacks because each returns a
+        # value to the widget and has that one client.
         self.on_dispatch_any: typing.Optional[typing.Callable[..., typing.Any]] = None
         self.on_can_dispatch_any: typing.Optional[typing.Callable[[str], bool]] = None
         self.on_get_menu_item_state: typing.Optional[typing.Callable[[str], typing.Optional[MenuItemState]]] = None
+        self.on_get_action: typing.Callable[[str], WindowModule.BoundAction | None] | None = None
+
         self.on_mouse_entered: typing.Optional[typing.Callable[[], None]] = None
         self.on_mouse_exited: typing.Optional[typing.Callable[[], None]] = None
         self.on_mouse_clicked: typing.Optional[typing.Callable[[int, int, KeyboardModifiers], bool]] = None
@@ -2859,6 +2873,7 @@ class CanvasWidget(Widget):
         self.on_dispatch_any = None
         self.on_can_dispatch_any = None
         self.on_get_menu_item_state = None
+        self.on_get_action = None
         # messages passed on from the behavior
         self.on_mouse_entered = None
         self.on_mouse_exited = None
@@ -2958,6 +2973,11 @@ class CanvasWidget(Widget):
             menu_item_state = self.on_get_menu_item_state(command_id)
             if menu_item_state:
                 return menu_item_state
+        return None
+
+    def _get_action(self, command_id: str) -> WindowModule.BoundAction | None:
+        if callable(self.on_get_action):
+            return self.on_get_action(command_id)
         return None
 
 

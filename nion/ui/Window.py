@@ -211,6 +211,31 @@ class Action:
         context.parameters[name] = value
 
 
+class BoundAction:
+    """An action and the context it will run in.
+
+    The context doesn't say where the action is invoked from. Whoever runs the action supplies that, such as the menu or a key.
+
+    A focused widget or canvas item returns one from get_<command>_action, such as get_delete_action, to provide the
+    action an edit command runs.
+
+    The action is normally the instance registered under its action id, so that it can be logged, tracked when modal, and
+    later replayed.
+    """
+
+    def __init__(self, action: Action, action_context: ActionContext) -> None:
+        self.__action = action
+        self.__action_context = action_context
+
+    @property
+    def action(self) -> Action:
+        return self.__action
+
+    @property
+    def action_context(self) -> ActionContext:
+        return self.__action_context
+
+
 actions: typing.Mapping[str, Action] = dict()
 
 
@@ -958,6 +983,19 @@ class Window:
             if menu_item_state:
                 return menu_item_state
         return self._get_menu_item_state(command_id)
+
+    def _get_focus_widget_action(self, command_id: str) -> BoundAction | None:
+        """Return the action the focus widget provides for the command, such as "delete".
+
+        It asks only the focus chain, so a focused item which handles the command with handle_<command> still comes before
+        the window, as it does when the command is dispatched.
+
+        Returns None when the focus widget provides no action.
+        """
+        focus_widget = self.focus_widget
+        if focus_widget:
+            return focus_widget._get_action(command_id)
+        return None
 
     # standard menu items
 

@@ -140,6 +140,7 @@ from nion.utils import Stream
 
 if typing.TYPE_CHECKING:
     from nion.ui import UserInterface
+    from nion.ui import Window
 
 
 MAX_VALUE = sys.maxsize
@@ -1718,6 +1719,13 @@ class AbstractCanvasItem:
                 return typing.cast(UserInterface.MenuItemState, menu_item_state)
         if hasattr(self, handle_method):
             return UserInterface.MenuItemState(title=None, enabled=True, checked=False)
+        return None
+
+    def _get_action(self, command_id: str) -> Window.BoundAction | None:
+        # return the action this canvas item provides for the command, through a method get_<command_id>_action, if it has one.
+        action_method = "get_" + command_id + "_action"
+        if hasattr(self, action_method):
+            return typing.cast("Window.BoundAction | None", getattr(self, action_method)())
         return None
 
     def simulate_click(self, p: Geometry.IntPointTuple, modifiers: typing.Optional[UserInterface.KeyboardModifiers] = None) -> None:
@@ -4268,6 +4276,9 @@ class ThreadedCanvasItem(AbstractCanvasItem):
     def _get_menu_item_state(self, command_id: str) -> UserInterface.MenuItemState | None:
         return self.__get_menu_item_state(command_id)
 
+    def _get_action(self, command_id: str) -> Window.BoundAction | None:
+        return self.__get_action(command_id)
+
     def __mouse_entered(self) -> None:
         self.__mouse_tracking = True
 
@@ -4529,6 +4540,12 @@ class ThreadedCanvasItem(AbstractCanvasItem):
                 return menu_item_state
         return None
 
+    def __get_action(self, command_id: str) -> Window.BoundAction | None:
+        focused_item = self.focused_item
+        if focused_item:
+            return focused_item._get_action(command_id)
+        return None
+
     def __drag_enter(self, mime_data: UserInterface.MimeData) -> str:
         self.__drag_tracking = True
         return "accept"
@@ -4625,6 +4642,7 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
         self.__canvas_widget.on_dispatch_any = self.__dispatch_any
         self.__canvas_widget.on_can_dispatch_any = self.__can_dispatch_any
         self.__canvas_widget.on_get_menu_item_state = self.__get_menu_item_state
+        self.__canvas_widget.on_get_action = self.__get_action
         setattr(self.__canvas_widget, "_root_canvas_item", weakref.ref(self))  # for debugging
         self.__drawing_context_updated = False
         self.__interaction_count = 0
@@ -4863,6 +4881,12 @@ class RootCanvasItem(CanvasWidgetCanvasItem):
             menu_item_state = focused_item._get_menu_item_state(command_id)
             if menu_item_state:
                 return menu_item_state
+        return None
+
+    def __get_action(self, command_id: str) -> Window.BoundAction | None:
+        focused_item = self.focused_item
+        if focused_item:
+            return focused_item._get_action(command_id)
         return None
 
     def _cursor_shape_changed(self, item: AbstractCanvasItem) -> None:

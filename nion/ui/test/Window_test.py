@@ -5,6 +5,7 @@ import unittest
 
 # local libraries
 from nion.ui import Application
+from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.ui import Window
@@ -22,6 +23,14 @@ def window_context() -> typing.Iterator[Window.Window]:
         window.periodic()
         window.close()
         app.deinitialize()
+
+
+def focus_canvas_item(window: Window.Window, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
+    """Attach the canvas item to the window in a canvas widget and give it the focus."""
+    canvas_widget = window.ui.create_canvas_widget()
+    canvas_widget.canvas_item.add_canvas_item(canvas_item)
+    window.attach_widget(canvas_widget)
+    canvas_item.request_focus()
 
 
 class TestWindowActionsClass(unittest.TestCase):
@@ -274,3 +283,102 @@ class TestWindowActionsClass(unittest.TestCase):
         window.close()
         app.perform_action_in_context("window_test.closed_dialog", action_context, invoked_from=Window.ActionOrigin.DIALOG, invoked_from_id="test-dialog")
         self.assertEqual([(Window.ActionOrigin.DIALOG, "test-dialog")], invoked_from_list, "a command a dialog runs after closing itself is not run as a person's or not recorded with the dialog's id")
+
+    def test_edit_commands_run_the_handler_of_the_focused_canvas_item(self) -> None:
+        handled_commands: list[str] = list()
+
+        class EditingCanvasItem(CanvasItem.EmptyCanvasItem):
+            def __init__(self) -> None:
+                super().__init__()
+                self.focusable = True
+
+            def handle_undo(self) -> bool:
+                handled_commands.append("undo")
+                return True
+
+            def handle_redo(self) -> bool:
+                handled_commands.append("redo")
+                return True
+
+            def handle_cut(self) -> bool:
+                handled_commands.append("cut")
+                return True
+
+            def handle_copy(self) -> bool:
+                handled_commands.append("copy")
+                return True
+
+            def handle_paste(self) -> bool:
+                handled_commands.append("paste")
+                return True
+
+            def handle_delete(self) -> bool:
+                handled_commands.append("delete")
+                return True
+
+            def handle_select_all(self) -> bool:
+                handled_commands.append("select_all")
+                return True
+
+        class EditingWindow(Window.Window):
+            # the window's edit commands are enabled only for a window which handles them, and the window handles them
+            # itself only when the focused item doesn't.
+            def handle_undo(self) -> bool:
+                handled_commands.append("window undo")
+                return True
+
+            def handle_redo(self) -> bool:
+                handled_commands.append("window redo")
+                return True
+
+            def handle_cut(self) -> bool:
+                handled_commands.append("window cut")
+                return True
+
+            def handle_copy(self) -> bool:
+                handled_commands.append("window copy")
+                return True
+
+            def handle_paste(self) -> bool:
+                handled_commands.append("window paste")
+                return True
+
+            def handle_delete(self) -> bool:
+                handled_commands.append("window delete")
+                return True
+
+            def handle_select_all(self) -> bool:
+                handled_commands.append("window select_all")
+                return True
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = EditingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window._create_menus()
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, EditingCanvasItem())
+        for menu_action in menu.get_menu_actions():
+            menu_action.trigger()
+        self.assertEqual(["undo", "redo", "cut", "copy", "paste", "delete", "select_all"], handled_commands, "an edit command does not run the focused item's handler, once")
+
+    def test_select_all_is_enabled_for_a_focused_canvas_item_which_handles_it_in_a_window_which_does_not(self) -> None:
+        # select all is enabled whenever something in the focus chain handles it.
+        class SelectingCanvasItem(CanvasItem.EmptyCanvasItem):
+            def __init__(self) -> None:
+                super().__init__()
+                self.focusable = True
+
+            def handle_select_all(self) -> bool:
+                return True
+
+        with window_context() as window:
+            window._create_menus()
+            # build_menu publishes each top level menu as an attribute named after its menu id.
+            menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+            focus_canvas_item(window, SelectingCanvasItem())
+            menu.about_to_show()
+            select_all_menu_action = menu.get_menu_actions()[-1]
+            self.assertEqual(("Select All", True), (select_all_menu_action.title, select_all_menu_action.enabled), "Select All is disabled although the focused item handles it")

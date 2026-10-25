@@ -545,3 +545,56 @@ class TestWindowActionsClass(unittest.TestCase):
         assert menu_action
         menu_action.trigger()
         self.assertEqual((0, []), (handle_delete_count, provided_actions_run), "Delete runs something when the action the focused item provides is disabled")
+
+    def test_delete_menu_item_shows_the_title_and_enabled_state_of_the_action_the_focused_canvas_item_provides(self) -> None:
+        class DisabledProvidedDeleteTestAction(Window.Action):
+            action_id = "window_test.disabled_provided_delete"
+            action_name = "Provided Delete Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+            def get_action_name(self, context: Window.ActionContext) -> str:
+                return "Delete Provided Items"
+
+            def is_enabled(self, context: Window.ActionContext) -> bool:
+                return False
+
+        class DeletingWindow(Window.Window):
+            # the window handles delete, so the edit command alone would show Delete enabled.
+            def handle_delete(self) -> bool:
+                return True
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = DeletingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "delete"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, _ActionProvidingCanvasItem(Window.BoundAction(DisabledProvidedDeleteTestAction(), window._get_action_context())))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertEqual(("Delete Provided Items", False), (menu_action.title, menu_action.enabled), "the Delete menu item does not show the title and enabled state of the action it runs")
+
+    def test_delete_menu_item_without_a_provided_action_shows_the_delete_command(self) -> None:
+        class DeletingWindow(Window.Window):
+            # the delete edit command is enabled only for a window which handles delete.
+            def handle_delete(self) -> bool:
+                return True
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = DeletingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "delete"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, _ActionProvidingCanvasItem(None))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertEqual(("Delete", True), (menu_action.title, menu_action.enabled), "the Delete menu item changes its title or enabled state when nothing provides an action")

@@ -3164,6 +3164,10 @@ class MenuAction:
 
     def __init__(self, action_id: typing.Optional[str] = None) -> None:
         self.action_id = action_id
+
+        # the edit command the item runs, such as "cut", for an item made by Window.add_edit_command_to_main_menu.
+        self.edit_command_id: str | None = None
+
         self.on_triggered: typing.Optional[typing.Callable[[], None]] = None
         self.on_ui_activity: typing.Optional[typing.Callable[[], None]] = None
 

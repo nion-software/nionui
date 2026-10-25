@@ -192,6 +192,18 @@ class BaseApplication:
             return action.invoke(action_context)
         return action.execute(action_context)
 
+    def _run_edit_command(self, window: Window.Window, edit_command: Window.EditCommand, dispatch: typing.Callable[[], None], *,
+                          invoked_from: Window.ActionOrigin | None, invoked_from_id: str | None) -> None:
+        """Run the dispatch of an edit command, such as Cut, to the focus widget of the window.
+
+        Every edit command a window dispatches runs through this method. A subclass overrides it to observe or record each
+        edit command, and calls the base method to run the dispatch.
+
+        invoked_from and invoked_from_id say where a person invoked the edit command, as for an action. Both are None when
+        code ran it.
+        """
+        dispatch()
+
     @property
     def windows(self) -> typing.List[Window.Window]:
         return copy.copy(self.__windows)

@@ -196,8 +196,9 @@ class BaseApplication:
                           invoked_from: Window.ActionOrigin | None, invoked_from_id: str | None) -> None:
         """Run the dispatch of an edit command, such as Cut, to the focus widget of the window.
 
-        Every edit command a window dispatches runs through this method. A subclass overrides it to observe or record each
-        edit command, and calls the base method to run the dispatch.
+        Every edit command a window dispatches runs through this method. An edit command which runs an action the focus
+        widget provides doesn't come here; the action runs through _run_action. A subclass overrides it to observe or
+        record each edit command, and calls the base method to run the dispatch.
 
         invoked_from and invoked_from_id say where a person invoked the edit command, as for an action. Both are None when
         code ran it.

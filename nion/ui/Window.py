@@ -242,6 +242,9 @@ class BoundAction:
 class EditCommand:
     """An edit command, such as Cut, which a window dispatches to its focus widget as handle_<edit_command_id>.
 
+    When the focus widget provides an action for the edit command through get_<edit_command_id>_action, the window runs
+    that action and doesn't dispatch the edit command.
+
     A menu description adds one to a menu with an item of type "edit_command" and its edit_command_id.
     """
 
@@ -1005,14 +1008,24 @@ class Window:
     def perform_edit_command(self, edit_command_id: str, *, invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
         """Run the edit command, such as "cut", as its menu item does.
 
-        When the edit command is enabled, the window dispatches handle_<edit_command_id> to its focus widget, and then to
-        itself if the focus widget doesn't handle it. The application runs the dispatch, so that it can record the edit
-        command with invoked_from and invoked_from_id, which say where a person invoked it, as for an action.
+        When the focus widget provides an action for the edit command through get_<edit_command_id>_action, the window runs
+        that action in the context provided with it, with invoked_from and invoked_from_id, as perform_action_in_context
+        does. Nothing runs when that action is disabled.
+
+        Otherwise, when the edit command is enabled, the window dispatches handle_<edit_command_id> to its focus widget,
+        and then to itself if the focus widget doesn't handle it. The application runs the dispatch, so that it can record
+        the edit command with invoked_from and invoked_from_id, which say where a person invoked it, as for an action.
 
         An unknown edit command id does nothing.
         """
         edit_command = edit_commands.get(edit_command_id)
-        if not edit_command or not self.__is_edit_command_enabled(edit_command):
+        if not edit_command:
+            return
+        # if the focused item provides an action for this command, run that action.
+        if bound_action := self._get_focus_widget_action(edit_command_id):
+            self.perform_action_in_context(bound_action.action, bound_action.action_context, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+            return
+        if not self.__is_edit_command_enabled(edit_command):
             return
 
         def dispatch() -> None:

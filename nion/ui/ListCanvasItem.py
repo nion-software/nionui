@@ -26,10 +26,10 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import ReferenceCounting
+from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.ui import DrawingContext
-    from nion.utils import Selection
 
 
 class ListCanvasItemDelegate(typing.Protocol):
@@ -401,9 +401,24 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
                 return delegate.item_drop_mime_data(mime_data, "move", drop_index)
         return "ignore"
 
+    def _can_dispatch_any(self, method: str) -> bool:
+        # a list whose selection allows at most one item does not handle Select All, so the window's Select All action is
+        # disabled for it.
+        if method == "handle_select_all" and self.__selection.selection_style != Selection.Style.multiple:
+            return False
+        return super()._can_dispatch_any(method)
+
+    def get_select_all_menu_item_state(self) -> UserInterface.MenuItemState | None:
+        # disable the Select All edit command for a list whose selection allows at most one item.
+        if self.__selection.selection_style != Selection.Style.multiple:
+            return UserInterface.MenuItemState(title=None, enabled=False, checked=False)
+        return None
+
     def handle_select_all(self) -> bool:
+        # select every item, unless the selection allows at most one item, since giving such a selection several items
+        # clears it.
         delegate = self.__delegate
-        if delegate:
+        if delegate and self.__selection.selection_style == Selection.Style.multiple:
             self.__selection.set_multiple(set(range(delegate.item_count)))
             return True
         return False

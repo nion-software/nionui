@@ -1711,6 +1711,7 @@ class AbstractCanvasItem:
         return hasattr(self, method)
 
     def _get_menu_item_state(self, command_id: str) -> typing.Optional[UserInterface.MenuItemState]:
+        from nion.ui import UserInterface  # avoid circular reference
         handle_method = "handle_" + command_id
         menu_item_state_method = "get_" + command_id + "_menu_item_state"
         if hasattr(self, menu_item_state_method):

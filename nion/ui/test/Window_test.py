@@ -598,3 +598,17 @@ class TestWindowActionsClass(unittest.TestCase):
         menu_action = menu.items[0].action
         assert menu_action
         self.assertEqual(("Delete", True), (menu_action.title, menu_action.enabled), "the Delete menu item changes its title or enabled state when nothing provides an action")
+
+    def test_menu_item_state_of_a_focused_canvas_item_which_handles_a_command_is_enabled(self) -> None:
+        class CuttingCanvasItem(CanvasItem.EmptyCanvasItem):
+            def __init__(self) -> None:
+                super().__init__()
+                self.focusable = True
+
+            def handle_cut(self) -> bool:
+                return True
+
+        with window_context() as window:
+            focus_canvas_item(window, CuttingCanvasItem())
+            menu_item_state = window._get_focus_widget_menu_item_state("cut")
+            self.assertTrue(menu_item_state and menu_item_state.enabled, "the menu item state of a focused item which handles cut is not enabled")

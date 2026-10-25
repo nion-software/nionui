@@ -4241,6 +4241,11 @@ class PyQtProxy:
         assert app.thread() == QtCore.QThread.currentThread()
         assert text_edit is not None
         text_edit.setTextColor(QtGui.QColor(r, g, b))
+        # Qt 6.12 draws the text cursor in the palette's text color, so set it too, or the cursor is invisible on a
+        # background close to the default text color.
+        palette = text_edit.palette()
+        palette.setColor(QtGui.QPalette.ColorRole.Text, QtGui.QColor(r, g, b))
+        text_edit.setPalette(palette)
 
     def TextEdit_setTextFont(self, text_edit: PyTextEdit, font_str: str) -> None:
         global app

@@ -241,7 +241,8 @@ class GridFlowCanvasItemDeleteEvent:
     item when it is selected, or None otherwise, so item is always None or one of selected_items.
 
     invoked_from is where a person asked for the delete: ActionOrigin.KEY for the grid's Delete key. It is None when the
-    delete came from elsewhere, such as the window's Delete action, whose action context carries its own origin.
+    delete came from elsewhere, such as the window's Delete action, whose action context carries its own invoked_from.
+    It is also None in the event passed to get_delete_action, since whoever runs the action supplies invoked_from.
     """
     item: typing.Any
     selected_items: typing.Sequence[typing.Any]
@@ -283,6 +284,14 @@ class GridFlowCanvasItemDelegate:
 
     def delete_event(self, delete_event: GridFlowCanvasItemDeleteEvent) -> bool:
         return False
+
+    def get_delete_action(self, delete_event: GridFlowCanvasItemDeleteEvent) -> Window.BoundAction | None:
+        """Return the action which deletes the items of the delete event, for the Delete edit command.
+
+        The grid asks this when it is focused and has a selection. When it returns None, the grid calls delete_event for
+        the Delete edit command.
+        """
+        return None
 
     def drag_started_event(self, event: GridFlowCanvasItemDragStartedEvent) -> bool:
         return False
@@ -804,6 +813,16 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
         if self.__delegate.delete_event(GridFlowCanvasItemDeleteEvent(item, selected_items, invoked_from)):
             return True
         return False
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        """Return the action the delegate provides for the Delete edit command, or None.
+
+        The delegate is not asked when nothing is selected, and None is returned.
+        """
+        item, selected_items = self.__get_anchor_item_and_selected_items()
+        if not selected_items:
+            return None
+        return self.__delegate.get_delete_action(GridFlowCanvasItemDeleteEvent(item, selected_items))
 
     def __get_anchor_item_and_selected_items(self) -> tuple[typing.Any, typing.Sequence[typing.Any]]:
         """Return the anchor item and the selected items, for an event about the selection.

@@ -422,6 +422,77 @@ class TestGridFlowCanvasItemClass(unittest.TestCase):
         window.perform_action("window.delete")
         self.assertEqual([Window.ActionOrigin.KEY, None], [delete_event.invoked_from for delete_event in delete_events])
 
+    def test_delete_edit_command_runs_the_action_the_delegate_of_a_focused_grid_provides(self) -> None:
+        # the delete event must not run as well, or the items are deleted twice.
+        calls = list[str]()
+
+        class DeleteItemsTestAction(Window.Action):
+            action_id = "grid_flow_canvas_item_test.delete_items"
+            action_name = "Delete Items Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                calls.append("action")
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        class ActionProvidingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def __init__(self, window: Window.Window) -> None:
+                self.__window = window
+
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                calls.append("delete_event")
+                return True
+
+            def get_delete_action(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> Window.BoundAction | None:
+                return Window.BoundAction(DeleteItemsTestAction(), self.__window._get_action_context())
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        selection = Selection.IndexedSelection()
+        grid_canvas_item = GridCanvasItem.GridCanvasItem2(list_model, selection, item_factory, ActionProvidingDelegate(window), item_size=Geometry.IntSize(40, 40))
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(grid_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        grid_canvas_item.request_focus()
+        selection.set(3)
+        window.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual(["action"], calls, "Delete does not run the action the grid's delegate provides once, in place of its delete event")
+
+    def test_delete_edit_command_gives_the_delete_event_to_a_delegate_of_a_focused_grid_which_provides_no_action(self) -> None:
+        delete_events = list[GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent]()
+
+        class RecordingDelegate(GridFlowCanvasItem.GridFlowCanvasItemDelegate):
+            def delete_event(self, delete_event: GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent) -> bool:
+                delete_events.append(delete_event)
+                return True
+
+        def item_factory(item: typing.Any, is_selected_model: typing.Any) -> CanvasItem.AbstractCanvasItem:
+            return CanvasItem.EmptyCanvasItem()
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_model = ListModel.ListModel[int]("items", items=list(range(10)))
+        selection = Selection.IndexedSelection()
+        grid_canvas_item = GridCanvasItem.GridCanvasItem2(list_model, selection, item_factory, RecordingDelegate(), item_size=Geometry.IntSize(40, 40))
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(grid_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=300, height=200))
+        grid_canvas_item.request_focus()
+        selection.set(3)
+        window.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual([[3]], [list(delete_event.selected_items) for delete_event in delete_events], "Delete does not give the selected item to the grid's delete event once")
+
     def test_delete_key_after_command_clicking_the_anchor_item_off_deletes_only_the_item_still_selected(self) -> None:
         # command-clicking the anchor item off leaves the selection's anchor on it, but it is no longer selected.
         delete_events = list[GridFlowCanvasItem.GridFlowCanvasItemDeleteEvent]()

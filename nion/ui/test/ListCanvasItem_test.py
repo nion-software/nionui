@@ -6,11 +6,14 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
+from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Selection
@@ -125,6 +128,79 @@ class TestListCanvasItemClass(unittest.TestCase):
         self.assertEqual(selection.indexes, set())
         canvas_item.simulate_drag(Geometry.IntPoint(y=120, x=50), Geometry.IntPoint(y=120, x=500))
         self.assertEqual(selection.indexes, set())
+
+    def test_select_all_edit_command_is_disabled_and_keeps_the_selection_of_a_focused_list_which_allows_one_selected_item(self) -> None:
+        # the list's selection allows one item, and giving it every item clears it.
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "select_all"}]}])
+        selection = Selection.IndexedSelection(Selection.Style.single_or_none)
+        list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(), selection)
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(list_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=400))
+        list_canvas_item.request_focus()
+        selection.set(2)
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertFalse(menu_action.enabled, "Select All is enabled for a list which allows one selected item")
+        menu_action.trigger()
+        self.assertEqual({2}, selection.indexes, "Select All changes the selection of a list which allows one selected item")
+
+    def test_select_all_action_is_disabled_and_keeps_the_selection_of_a_focused_list_which_allows_one_selected_item(self) -> None:
+        # a menu, such as nionswift's Edit menu, can run Select All through the window.select_all action.
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "item", "action_id": "window.select_all"}]}])
+        selection = Selection.IndexedSelection(Selection.Style.single_or_none)
+        list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(), selection)
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(list_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=400))
+        list_canvas_item.request_focus()
+        selection.set(2)
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertFalse(menu_action.enabled, "Select All is enabled for a list which allows one selected item")
+        window.perform_action("window.select_all", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual({2}, selection.indexes, "Select All changes the selection of a list which allows one selected item")
+
+    def test_select_all_edit_command_selects_every_item_of_a_focused_list_which_allows_several_selected_items(self) -> None:
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "select_all"}]}])
+        selection = Selection.IndexedSelection(Selection.Style.multiple)
+        list_canvas_item = ListCanvasItem.ListCanvasItem(ListCanvasItemDelegate(), selection)
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(list_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=400))
+        list_canvas_item.request_focus()
+        selection.set(2)
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        menu_action.trigger()
+        self.assertEqual({0, 1, 2, 3}, selection.indexes, "Select All does not select every item of a list which allows several selected items")
 
     def test_list_canvas_item_paints_only_the_rows_within_the_viewport(self) -> None:
         # the canvas rect of a list inside a scroll area spans every row of the model, so the rows to paint can only

@@ -8,10 +8,13 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import DrawingContext
 from nion.ui import GridCanvasItem
+from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import Selection
 
@@ -144,3 +147,28 @@ class TestGridCanvasItemClass(unittest.TestCase):
         canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize.make((40, 500)))
         canvas_bounds = canvas_item.canvas_bounds or Geometry.IntRect.empty_rect()
         self.assertEqual(canvas_bounds.height, 40)
+
+    def test_select_all_edit_command_is_disabled_and_keeps_the_selection_of_a_focused_grid_which_allows_one_selected_item(self) -> None:
+        # giving the selection of such a grid every item clears it.
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "select_all"}]}])
+        selection = Selection.IndexedSelection(Selection.Style.single_or_none)
+        grid_canvas_item = GridCanvasItem.GridCanvasItem(GridCanvasItemDelegate(), selection)
+        canvas_widget = app.ui.create_canvas_widget()
+        canvas_widget.canvas_item.add_canvas_item(grid_canvas_item)
+        window.attach_widget(canvas_widget)
+        canvas_widget.canvas_item.update_layout(Geometry.IntPoint(), Geometry.IntSize(width=320, height=400))
+        grid_canvas_item.request_focus()
+        selection.set(2)
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertFalse(menu_action.enabled, "Select All is enabled for a grid which allows one selected item")
+        menu_action.trigger()
+        self.assertEqual({2}, selection.indexes, "Select All changes the selection of a grid which allows one selected item")

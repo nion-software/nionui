@@ -19,10 +19,10 @@ from nion.utils import Geometry
 from nion.utils import ListModel
 from nion.utils import Model
 from nion.utils import ReferenceCounting
+from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.ui import DrawingContext
-    from nion.utils import Selection
 
 
 class GridFlowItemAdornmentsCanvasItemComposer(CanvasItem.BaseComposer):
@@ -793,9 +793,26 @@ class GridFlowCanvasItem(CanvasItem.CanvasItemComposition):
                 return "accept"
         return "ignore"
 
+    def _can_dispatch_any(self, method: str) -> bool:
+        # a grid whose selection allows at most one item does not handle Select All, so the window's Select All action is
+        # disabled for it.
+        if method == "handle_select_all" and self.__selection.selection_style != Selection.Style.multiple:
+            return False
+        return super()._can_dispatch_any(method)
+
+    def get_select_all_menu_item_state(self) -> UserInterface.MenuItemState | None:
+        # disable the Select All edit command for a grid whose selection allows at most one item.
+        if self.__selection.selection_style != Selection.Style.multiple:
+            return UserInterface.MenuItemState(title=None, enabled=False, checked=False)
+        return None
+
     def handle_select_all(self) -> bool:
-        self.__selection.set_multiple(set(range(len(self.__list_model.items))))
-        return True
+        # select every item, unless the selection allows at most one item, since giving such a selection several items
+        # clears it.
+        if self.__selection.selection_style == Selection.Style.multiple:
+            self.__selection.set_multiple(set(range(len(self.__list_model.items))))
+            return True
+        return False
 
     def handle_delete(self, *, invoked_from: Window.ActionOrigin | None = None) -> bool:
         """Ask the delegate to delete the selected items, and return whether it handled the request.

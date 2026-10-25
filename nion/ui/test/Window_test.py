@@ -333,8 +333,7 @@ class TestWindowActionsClass(unittest.TestCase):
                 return True
 
         class EditingWindow(Window.Window):
-            # the window's edit commands are enabled only for a window which handles them, and the window handles them
-            # itself only when the focused item doesn't.
+            # the window handles every edit command too, and runs its handler only when the focused item doesn't handle the command.
             def handle_undo(self) -> bool:
                 handled_commands.append("window undo")
                 return True
@@ -406,7 +405,7 @@ class TestWindowActionsClass(unittest.TestCase):
                 super()._run_edit_command(window, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
 
         class CopyingWindow(Window.Window):
-            # the window's Copy is enabled only for a window which handles copy.
+            # Copy is enabled because the window handles it.
             def handle_copy(self) -> bool:
                 return True
 
@@ -483,7 +482,7 @@ class TestWindowActionsClass(unittest.TestCase):
                 return Window.ActionResult(Window.ActionStatus.FINISHED)
 
         class DeletingWindow(Window.Window):
-            # the delete edit command is enabled only for a window which handles delete.
+            # the window handles delete and provides an action for it, and neither takes Delete away from the focused item.
             def handle_delete(self) -> bool:
                 return True
 
@@ -527,7 +526,7 @@ class TestWindowActionsClass(unittest.TestCase):
                 return True
 
         class DeletingWindow(Window.Window):
-            # the delete edit command is enabled only for a window which handles delete.
+            # the window handles delete too, so only the disabled action keeps Delete from running.
             def handle_delete(self) -> bool:
                 return True
 
@@ -581,7 +580,7 @@ class TestWindowActionsClass(unittest.TestCase):
 
     def test_delete_menu_item_without_a_provided_action_shows_the_delete_command(self) -> None:
         class DeletingWindow(Window.Window):
-            # the delete edit command is enabled only for a window which handles delete.
+            # Delete is enabled because the window handles it.
             def handle_delete(self) -> bool:
                 return True
 
@@ -612,3 +611,58 @@ class TestWindowActionsClass(unittest.TestCase):
             focus_canvas_item(window, CuttingCanvasItem())
             menu_item_state = window._get_focus_widget_menu_item_state("cut")
             self.assertTrue(menu_item_state and menu_item_state.enabled, "the menu item state of a focused item which handles cut is not enabled")
+
+    def test_undo_menu_item_shows_the_undo_title_the_window_gives(self) -> None:
+        class UndoingWindow(Window.Window):
+            def handle_undo(self) -> bool:
+                return True
+
+            def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
+                # the window gives the title of the change an undo reverts, as a document window does.
+                return UserInterface.MenuItemState(title="Undo Insert Item", enabled=True, checked=False)
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = UndoingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "undo"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        self.assertEqual(("Undo Insert Item", True), (menu_action.title, menu_action.enabled), "the Undo menu item does not show the undo title the window gives")
+
+    def test_undo_menu_item_is_disabled_and_runs_nothing_when_the_window_says_there_is_nothing_to_undo(self) -> None:
+        run_commands: list[str] = list()
+
+        class RecordingApplication(Application.BaseApplication):
+            def _run_edit_command(self, window: Window.Window, edit_command: Window.EditCommand, dispatch: typing.Callable[[], None], *,
+                                  invoked_from: Window.ActionOrigin | None, invoked_from_id: str | None) -> None:
+                run_commands.append("run " + edit_command.edit_command_id)
+                super()._run_edit_command(window, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+
+        class UndoingWindow(Window.Window):
+            def handle_undo(self) -> bool:
+                run_commands.append("handle undo")
+                return True
+
+            def get_undo_menu_item_state(self) -> UserInterface.MenuItemState:
+                # the window has nothing to undo, as a document window does when its undo stack is empty.
+                return UserInterface.MenuItemState(title="Undo", enabled=False, checked=False)
+
+        app = RecordingApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = UndoingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "undo"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        # a key shortcut can trigger the item when the state it shows is stale, so triggering it must run nothing either.
+        menu_action.trigger()
+        self.assertEqual((False, []), (menu_action.enabled, run_commands), "Undo is enabled or runs something although the window has nothing to undo")

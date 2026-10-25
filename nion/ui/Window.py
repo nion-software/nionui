@@ -257,9 +257,6 @@ class EditCommand:
     # the standard key sequence of the command's menu item, such as "cut".
     key_sequence: str
 
-    # whether the command is enabled when the focus widget handles it, as well as when the window handles it.
-    enabled_by_focus_widget: bool = False
-
 
 # the edit commands a menu can hold, by edit command id.
 edit_commands: typing.Mapping[str, EditCommand] = types.MappingProxyType({edit_command.edit_command_id: edit_command for edit_command in (
@@ -269,7 +266,7 @@ edit_commands: typing.Mapping[str, EditCommand] = types.MappingProxyType({edit_c
     EditCommand("copy", _("Copy"), "copy"),
     EditCommand("paste", _("Paste"), "paste"),
     EditCommand("delete", _("Delete"), "delete"),
-    EditCommand("select_all", _("Select All"), "select-all", enabled_by_focus_widget=True),
+    EditCommand("select_all", _("Select All"), "select-all"),
 )})
 
 
@@ -936,7 +933,9 @@ class Window:
         The item has the edit command's title and standard key sequence. When the item is in a menu made by the window's
         add_menu, insert_menu or build_menu, the window updates its title and enabled state whenever the menu is shown. When
         the focus widget provides an action for the edit command, the item takes that action's title, enabled and checked
-        state, since that is the action the item runs.
+        state, since that is the action the item runs. Otherwise it takes the state the focused item and the window give
+        through get_<edit_command_id>_menu_item_state, such as an undo title, and is enabled when the focused item or the
+        window handles the edit command.
 
         Returns the menu action of the new item, or None if there is no edit command with the id.
         """
@@ -1014,9 +1013,10 @@ class Window:
         that action in the context provided with it, with invoked_from and invoked_from_id, as perform_action_in_context
         does. Nothing runs when that action is disabled.
 
-        Otherwise, when the edit command is enabled, the window dispatches handle_<edit_command_id> to its focus widget,
-        and then to itself if the focus widget doesn't handle it. The application runs the dispatch, so that it can record
-        the edit command with invoked_from and invoked_from_id, which say where a person invoked it, as for an action.
+        Otherwise, when the edit command is enabled, as its menu item shows, the window dispatches handle_<edit_command_id>
+        to its focus widget, and then to itself if the focus widget doesn't handle it. The application runs the dispatch, so
+        that it can record the edit command with invoked_from and invoked_from_id, which say where a person invoked it, as
+        for an action.
 
         An unknown edit command id does nothing.
         """
@@ -1027,7 +1027,7 @@ class Window:
         if bound_action := self._get_focus_widget_action(edit_command_id):
             self.perform_action_in_context(bound_action.action, bound_action.action_context, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
             return
-        if not self.__is_edit_command_enabled(edit_command):
+        if not self.__get_edit_command_handler_menu_item_state(edit_command).enabled:
             return
 
         def dispatch() -> None:
@@ -1078,13 +1078,14 @@ class Window:
                 return menu_item_state
         return self._get_menu_item_state(command_id)
 
-    def __is_edit_command_enabled(self, edit_command: EditCommand) -> bool:
-        # an edit command is enabled when the window handles it, and one which is enabled_by_focus_widget also when the
-        # focus widget handles it.
-        handle_method = "handle_" + edit_command.edit_command_id
-        if edit_command.enabled_by_focus_widget:
-            return self._can_dispatch_to_focus_widget(handle_method)
-        return hasattr(self, handle_method)
+    def __get_edit_command_handler_menu_item_state(self, edit_command: EditCommand) -> UserInterface.MenuItemState:
+        # return the menu item state of the edit command when it is dispatched to a handler: the state the focused item and
+        # the window give for it, such as an undo title, with the edit command's own title when that state has none. the
+        # edit command is disabled when neither the focused item nor the window handles it.
+        menu_item_state = self._get_focus_widget_menu_item_state(edit_command.edit_command_id)
+        if menu_item_state:
+            return UserInterface.MenuItemState(title=menu_item_state.title or edit_command.title, enabled=bool(menu_item_state.enabled), checked=bool(menu_item_state.checked))
+        return UserInterface.MenuItemState(title=edit_command.title, enabled=False, checked=False)
 
     def __get_edit_command_menu_item_state(self, edit_command: EditCommand) -> UserInterface.MenuItemState:
         # return the title, enabled and checked state of the edit command's menu item. when the focus widget provides an
@@ -1094,7 +1095,7 @@ class Window:
             action = bound_action.action
             action_context = bound_action.action_context
             return UserInterface.MenuItemState(title=action.get_action_name(action_context), enabled=action.is_enabled(action_context), checked=action.is_checked(action_context))
-        return UserInterface.MenuItemState(title=edit_command.title, enabled=self.__is_edit_command_enabled(edit_command), checked=False)
+        return self.__get_edit_command_handler_menu_item_state(edit_command)
 
     def _get_focus_widget_action(self, command_id: str) -> BoundAction | None:
         """Return the action the focus widget provides for the command, such as "delete".

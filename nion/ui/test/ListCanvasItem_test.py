@@ -13,6 +13,7 @@ from nion.ui import GridFlowCanvasItem
 from nion.ui import ListCanvasItem
 from nion.ui import TestUI
 from nion.ui import UserInterface
+from nion.ui import Widgets
 from nion.ui import Window
 from nion.utils import Geometry
 from nion.utils import ListModel
@@ -320,3 +321,22 @@ class TestListCanvasItemClass(unittest.TestCase):
         list_model.append_item(2)
         self.assertEqual([True, True, True], [item_canvas_item.is_focused for item_canvas_item in list_canvas_item._grid_flow_item_canvas_items])
         list_canvas_item.close()
+
+    def test_delete_edit_command_calls_delete_pressed_of_the_delegate_of_a_focused_list(self) -> None:
+        delete_pressed_selections = list[set[int]]()
+
+        class RecordingDelegate(Widgets.ListCanvasItemDelegate):
+            def delete_pressed(self) -> None:
+                delete_pressed_selections.append(set(list_widget.selected_items))
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_widget = Widgets.ListWidget(app.ui, RecordingDelegate(), items=["a", "b", "c"], selection_style=Selection.Style.single_or_none)
+        window.attach_widget(list_widget)
+        list_widget.focused = True
+        list_widget.set_selected_index(1)
+        window.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual([{1}], delete_pressed_selections, "Delete does not call the list's delete_pressed once, with the item selected")

@@ -8,11 +8,14 @@ import unittest
 # None
 
 # local libraries
+from nion.ui import Application
 from nion.ui import CanvasItem
 from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.ui import Window
 from nion.utils import Geometry
+from nion.utils import Selection
 
 
 class TestCanvasItemClass(unittest.TestCase):
@@ -49,6 +52,19 @@ class TestCanvasItemClass(unittest.TestCase):
             scroll_content_rect = scroll_content.canvas_rect or Geometry.IntRect.empty_rect()
             self.assertEqual(scroll_canvas_rect.height, 200)
             self.assertEqual(scroll_content_rect.height, 20)
+
+    def test_select_all_edit_command_selects_every_item_of_a_focused_list_widget(self) -> None:
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_widget = Widgets.StringListWidget(app.ui, items=["a", "b", "c"], selection_style=Selection.Style.multiple)
+        window.attach_widget(list_widget)
+        list_widget.focused = True
+        list_widget.set_selected_index(1)
+        window.perform_edit_command("select_all", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual({0, 1, 2}, set(list_widget.selected_items), "Select All does not select every item of a focused list widget")
 
     def test_a_disabled_push_button_is_not_pressed_by_the_keyboard(self) -> None:
         # the button reaches the keyboard through the focus, which a disabled button can still hold if it was

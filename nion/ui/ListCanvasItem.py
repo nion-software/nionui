@@ -30,6 +30,7 @@ from nion.utils import Selection
 
 if typing.TYPE_CHECKING:
     from nion.ui import DrawingContext
+    from nion.ui import Window
 
 
 class ListCanvasItemDelegate(typing.Protocol):
@@ -76,6 +77,14 @@ class ListCanvasItemDelegate(typing.Protocol):
 
     def delete_pressed(self) -> None:
         return  # required to avoid being recognized as abstract by mypy
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        """Return the action which deletes the selected items, for the Delete edit command.
+
+        The list asks this when it is focused and has a selection. When it returns None, the list calls delete_pressed
+        for the Delete edit command.
+        """
+        return None
 
     def drag_started(self, index: int, x: int, y: int, modifiers: UserInterface.KeyboardModifiers) -> None:
         return  # required to avoid being recognized as abstract by mypy
@@ -165,6 +174,7 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         content_menu_event(index, x, y, gx, gy): called when user wants context menu for given index
         key_pressed(key): called when user presses a key
         delete_pressed(): called when user presses delete key
+        get_delete_action(): called for the action the Delete edit command runs when there is a selection
         drag_started(index, x, y, modifiers): called when user begins drag with given index
     """
 
@@ -428,6 +438,16 @@ class ListCanvasItem(CanvasItem.AbstractCanvasItem):
         if delegate:
             delegate.delete_pressed()
         return True
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        """Return the action the delegate provides for the Delete edit command, or None.
+
+        The delegate is not asked when nothing is selected, and None is returned.
+        """
+        delegate = self.__delegate
+        if delegate and self.__selection.indexes:
+            return delegate.get_delete_action()
+        return None
 
     def size_to_content(self) -> None:
         """Size the canvas item to the height of the items."""

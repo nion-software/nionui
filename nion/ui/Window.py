@@ -7,11 +7,13 @@ import abc
 # standard libraries
 import asyncio
 import copy
+import dataclasses
 import enum
 import functools
 import gettext
 import logging
 import pathlib
+import types
 import typing
 import weakref
 
@@ -236,6 +238,38 @@ class BoundAction:
         return self.__action_context
 
 
+@dataclasses.dataclass(frozen=True)
+class EditCommand:
+    """An edit command, such as Cut, which a window dispatches to its focus widget as handle_<edit_command_id>.
+
+    A menu description adds one to a menu with an item of type "edit_command" and its edit_command_id.
+    """
+
+    # the command, such as "cut", which the window dispatches as handle_cut.
+    edit_command_id: str
+
+    # the translated title of the command's menu item.
+    title: str
+
+    # the standard key sequence of the command's menu item, such as "cut".
+    key_sequence: str
+
+    # whether the command is enabled when the focus widget handles it, as well as when the window handles it.
+    enabled_by_focus_widget: bool = False
+
+
+# the edit commands a menu can hold, by edit command id.
+edit_commands: typing.Mapping[str, EditCommand] = types.MappingProxyType({edit_command.edit_command_id: edit_command for edit_command in (
+    EditCommand("undo", _("Undo"), "undo"),
+    EditCommand("redo", _("Redo"), "redo"),
+    EditCommand("cut", _("Cut"), "cut"),
+    EditCommand("copy", _("Copy"), "copy"),
+    EditCommand("paste", _("Paste"), "paste"),
+    EditCommand("delete", _("Delete"), "delete"),
+    EditCommand("select_all", _("Select All"), "select-all", enabled_by_focus_widget=True),
+)})
+
+
 actions: typing.Mapping[str, Action] = dict()
 
 
@@ -434,14 +468,14 @@ class Window:
              },
             {"type": "menu", "menu_id": "edit", "title": _("Edit"), "items":
                 [
-                    {"type": "item", "action_id": "window.undo"},
-                    {"type": "item", "action_id": "window.redo"},
+                    {"type": "edit_command", "edit_command_id": "undo"},
+                    {"type": "edit_command", "edit_command_id": "redo"},
                     {"type": "separator"},
-                    {"type": "item", "action_id": "window.cut"},
-                    {"type": "item", "action_id": "window.copy"},
-                    {"type": "item", "action_id": "window.paste"},
-                    {"type": "item", "action_id": "window.delete"},
-                    {"type": "item", "action_id": "window.select_all"},
+                    {"type": "edit_command", "edit_command_id": "cut"},
+                    {"type": "edit_command", "edit_command_id": "copy"},
+                    {"type": "edit_command", "edit_command_id": "paste"},
+                    {"type": "edit_command", "edit_command_id": "delete"},
+                    {"type": "edit_command", "edit_command_id": "select_all"},
                 ]
              },
             {"type": "menu", "menu_id": "window", "title": _("Window"), "items":
@@ -787,6 +821,9 @@ class Window:
                 role = getattr(action, "about_role", None)
                 assert menu is not None
                 self.add_action_to_main_menu(menu, action_id, key_sequence=key_sequence, role=role)
+            elif item_type == "edit_command":
+                assert menu is not None
+                self.add_edit_command_to_main_menu(menu, item_d["edit_command_id"])
             elif item_type == "separator":
                 assert menu is not None
                 menu.add_separator()
@@ -890,6 +927,26 @@ class Window:
         item_action_id = action_id if title is None and not parameters else None
         return menu.add_menu_item(title if title is not None else action.action_name, perform_menu_item_action, key_sequence=key_sequence, role=role, action_id=item_action_id)
 
+    def add_edit_command_to_main_menu(self, menu: UserInterface.Menu, edit_command_id: str) -> UserInterface.MenuAction | None:
+        """Add an item to a main menu of the window, which runs the edit command, such as "cut", invoked from the menu.
+
+        The item has the edit command's title and standard key sequence. When the item is in a menu made by the window's
+        add_menu, insert_menu or build_menu, the window updates its title and enabled state whenever the menu is shown.
+
+        Returns the menu action of the new item, or None if there is no edit command with the id.
+        """
+        edit_command = edit_commands.get(edit_command_id)
+        if not edit_command:
+            logging.debug(f"Unknown edit command {edit_command_id}")
+            return None
+
+        def perform_menu_item_edit_command() -> None:
+            self.perform_edit_command(edit_command_id, invoked_from=ActionOrigin.MENU)
+
+        menu_action = menu.add_menu_item(edit_command.title, perform_menu_item_edit_command, key_sequence=edit_command.key_sequence)
+        menu_action.edit_command_id = edit_command_id
+        return menu_action
+
     def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None,
                        parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> ActionResult:
         context = action_context or self._get_action_context()
@@ -945,6 +1002,28 @@ class Window:
             for report in action.reports:
                 self.display_report(report)
 
+    def perform_edit_command(self, edit_command_id: str, *, invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> None:
+        """Run the edit command, such as "cut", as its menu item does.
+
+        When the edit command is enabled, the window dispatches handle_<edit_command_id> to its focus widget, and then to
+        itself if the focus widget doesn't handle it. The application runs the dispatch, so that it can record the edit
+        command with invoked_from and invoked_from_id, which say where a person invoked it, as for an action.
+
+        An unknown edit command id does nothing.
+        """
+        edit_command = edit_commands.get(edit_command_id)
+        if not edit_command or not self.__is_edit_command_enabled(edit_command):
+            return
+
+        def dispatch() -> None:
+            self._dispatch_any_to_focus_widget("handle_" + edit_command_id)
+
+        # the application runs the dispatch so that it can observe every edit command; see execute_action.
+        if self.app:
+            self.app._run_edit_command(self, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+        else:
+            dispatch()
+
     def _invoke_action_with_context(self, action: Action, action_context: ActionContext) -> ActionResult:
         # the application runs the action so that it can observe every action; see execute_action.
         if self.app:
@@ -984,6 +1063,18 @@ class Window:
                 return menu_item_state
         return self._get_menu_item_state(command_id)
 
+    def __is_edit_command_enabled(self, edit_command: EditCommand) -> bool:
+        # an edit command is enabled when the window handles it, and one which is enabled_by_focus_widget also when the
+        # focus widget handles it.
+        handle_method = "handle_" + edit_command.edit_command_id
+        if edit_command.enabled_by_focus_widget:
+            return self._can_dispatch_to_focus_widget(handle_method)
+        return hasattr(self, handle_method)
+
+    def __get_edit_command_menu_item_state(self, edit_command: EditCommand) -> UserInterface.MenuItemState:
+        # return the title and enabled state of the edit command's menu item.
+        return UserInterface.MenuItemState(title=edit_command.title, enabled=self.__is_edit_command_enabled(edit_command), checked=False)
+
     def _get_focus_widget_action(self, command_id: str) -> BoundAction | None:
         """Return the action the focus widget provides for the command, such as "delete".
 
@@ -1018,6 +1109,9 @@ class Window:
                     enabled = action and action.is_enabled(action_context)
                     checked = action and action.is_checked(action_context)
                     menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+            elif menu_action.edit_command_id:
+                if edit_command := edit_commands.get(menu_action.edit_command_id):
+                    menu_action.apply_state(self.__get_edit_command_menu_item_state(edit_command))
 
     def _file_menu_about_to_show(self) -> None:
         action_context = self._get_action_context()

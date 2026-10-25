@@ -382,3 +382,31 @@ class TestWindowActionsClass(unittest.TestCase):
             menu.about_to_show()
             select_all_menu_action = menu.get_menu_actions()[-1]
             self.assertEqual(("Select All", True), (select_all_menu_action.title, select_all_menu_action.enabled), "Select All is disabled although the focused item handles it")
+
+    def test_edit_command_chosen_from_the_menu_is_run_by_the_application_once_from_the_menu(self) -> None:
+        # the command log records each edit command the application runs.
+        run_edit_commands: list[tuple[str, Window.ActionOrigin | None]] = list()
+
+        class RecordingApplication(Application.BaseApplication):
+            def _run_edit_command(self, window: Window.Window, edit_command: Window.EditCommand, dispatch: typing.Callable[[], None], *,
+                                  invoked_from: Window.ActionOrigin | None, invoked_from_id: str | None) -> None:
+                run_edit_commands.append((edit_command.edit_command_id, invoked_from))
+                super()._run_edit_command(window, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+
+        class CopyingWindow(Window.Window):
+            # the window's Copy is enabled only for a window which handles copy.
+            def handle_copy(self) -> bool:
+                return True
+
+        app = RecordingApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = CopyingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "copy"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        menu_action = menu.items[0].action
+        assert menu_action
+        menu_action.trigger()
+        self.assertEqual([("copy", Window.ActionOrigin.MENU)], run_edit_commands, "Copy chosen from the menu is not run by the application once, from the menu")

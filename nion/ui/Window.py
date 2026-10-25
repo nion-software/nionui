@@ -934,7 +934,9 @@ class Window:
         """Add an item to a main menu of the window, which runs the edit command, such as "cut", invoked from the menu.
 
         The item has the edit command's title and standard key sequence. When the item is in a menu made by the window's
-        add_menu, insert_menu or build_menu, the window updates its title and enabled state whenever the menu is shown.
+        add_menu, insert_menu or build_menu, the window updates its title and enabled state whenever the menu is shown. When
+        the focus widget provides an action for the edit command, the item takes that action's title, enabled and checked
+        state, since that is the action the item runs.
 
         Returns the menu action of the new item, or None if there is no edit command with the id.
         """
@@ -1085,7 +1087,13 @@ class Window:
         return hasattr(self, handle_method)
 
     def __get_edit_command_menu_item_state(self, edit_command: EditCommand) -> UserInterface.MenuItemState:
-        # return the title and enabled state of the edit command's menu item.
+        # return the title, enabled and checked state of the edit command's menu item. when the focus widget provides an
+        # action for the edit command, return the state of that action in the context provided with it, since that is the
+        # action the item runs.
+        if bound_action := self._get_focus_widget_action(edit_command.edit_command_id):
+            action = bound_action.action
+            action_context = bound_action.action_context
+            return UserInterface.MenuItemState(title=action.get_action_name(action_context), enabled=action.is_enabled(action_context), checked=action.is_checked(action_context))
         return UserInterface.MenuItemState(title=edit_command.title, enabled=self.__is_edit_command_enabled(edit_command), checked=False)
 
     def _get_focus_widget_action(self, command_id: str) -> BoundAction | None:

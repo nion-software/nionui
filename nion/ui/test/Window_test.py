@@ -25,6 +25,18 @@ def window_context() -> typing.Iterator[Window.Window]:
         app.deinitialize()
 
 
+class _ActionProvidingCanvasItem(CanvasItem.EmptyCanvasItem):
+    """A focusable canvas item which provides the bound action, if any, for the delete command."""
+
+    def __init__(self, bound_action: Window.BoundAction | None) -> None:
+        super().__init__()
+        self.focusable = True
+        self.__bound_action = bound_action
+
+    def get_delete_action(self) -> Window.BoundAction | None:
+        return self.__bound_action
+
+
 def focus_canvas_item(window: Window.Window, canvas_item: CanvasItem.AbstractCanvasItem) -> None:
     """Attach the canvas item to the window in a canvas widget and give it the focus."""
     canvas_widget = window.ui.create_canvas_widget()
@@ -410,3 +422,126 @@ class TestWindowActionsClass(unittest.TestCase):
         assert menu_action
         menu_action.trigger()
         self.assertEqual([("copy", Window.ActionOrigin.MENU)], run_edit_commands, "Copy chosen from the menu is not run by the application once, from the menu")
+
+    def test_delete_runs_the_action_the_focused_canvas_item_provides_once_from_the_menu(self) -> None:
+        # the command log records each action and edit command the application runs, so the delete edit command must not run as well.
+        run_commands: list[tuple[str, Window.ActionOrigin | None]] = list()
+
+        class RecordingApplication(Application.BaseApplication):
+            def _run_action(self, action: Window.Action, action_context: Window.ActionContext, *, user_interaction: bool) -> Window.ActionResult:
+                run_commands.append((action.action_id, action_context.invoked_from))
+                return super()._run_action(action, action_context, user_interaction=user_interaction)
+
+            def _run_edit_command(self, window: Window.Window, edit_command: Window.EditCommand, dispatch: typing.Callable[[], None], *,
+                                  invoked_from: Window.ActionOrigin | None, invoked_from_id: str | None) -> None:
+                run_commands.append((edit_command.edit_command_id, invoked_from))
+                super()._run_edit_command(window, edit_command, dispatch, invoked_from=invoked_from, invoked_from_id=invoked_from_id)
+
+        class ProvidedDeleteTestAction(Window.Action):
+            action_id = "window_test.provided_delete"
+            action_name = "Provided Delete Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        app = RecordingApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "delete"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, _ActionProvidingCanvasItem(Window.BoundAction(ProvidedDeleteTestAction(), window._get_action_context())))
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        menu_action.trigger()
+        self.assertEqual([("window_test.provided_delete", Window.ActionOrigin.MENU)], run_commands, "Delete does not run only the action the focused item provides, once, from the menu")
+
+    def test_delete_dispatches_delete_to_a_focused_canvas_item_which_handles_it_before_an_action_the_window_provides(self) -> None:
+        # an action the window provides never takes Delete away from a focused item that handles it itself.
+        handle_delete_count = 0
+        window_actions_run: list[str] = list()
+
+        class DeletingCanvasItem(CanvasItem.EmptyCanvasItem):
+            def __init__(self) -> None:
+                super().__init__()
+                self.focusable = True
+
+            def handle_delete(self) -> bool:
+                nonlocal handle_delete_count
+                handle_delete_count += 1
+                return True
+
+        class WindowDeleteTestAction(Window.Action):
+            action_id = "window_test.window_delete"
+            action_name = "Window Delete Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                window_actions_run.append(self.action_id)
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        class DeletingWindow(Window.Window):
+            # the delete edit command is enabled only for a window which handles delete.
+            def handle_delete(self) -> bool:
+                return True
+
+            def get_delete_action(self) -> Window.BoundAction | None:
+                return Window.BoundAction(WindowDeleteTestAction(), self._get_action_context())
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = DeletingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "delete"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, DeletingCanvasItem())
+        menu.about_to_show()
+        menu_action = menu.items[0].action
+        assert menu_action
+        menu_action.trigger()
+        self.assertEqual((1, []), (handle_delete_count, window_actions_run), "Delete runs an action the window provides in place of the focused item which handles delete")
+
+    def test_delete_runs_nothing_when_the_action_the_focused_canvas_item_provides_is_disabled(self) -> None:
+        handle_delete_count = 0
+        provided_actions_run: list[str] = list()
+
+        class DisabledProvidedDeleteTestAction(Window.Action):
+            action_id = "window_test.disabled_provided_delete"
+            action_name = "Disabled Provided Delete Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                provided_actions_run.append(self.action_id)
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+            def is_enabled(self, context: Window.ActionContext) -> bool:
+                return False
+
+        class DeletingCanvasItem(_ActionProvidingCanvasItem):
+            def handle_delete(self) -> bool:
+                nonlocal handle_delete_count
+                handle_delete_count += 1
+                return True
+
+        class DeletingWindow(Window.Window):
+            # the delete edit command is enabled only for a window which handles delete.
+            def handle_delete(self) -> bool:
+                return True
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = DeletingWindow(app.ui, app=app)
+        self.addCleanup(window.close)
+        window.build_menu(None, [{"type": "menu", "menu_id": "edit", "title": "Edit", "items": [{"type": "edit_command", "edit_command_id": "delete"}]}])
+        # build_menu publishes each top level menu as an attribute named after its menu id.
+        menu = typing.cast(UserInterface.Menu, getattr(window, "_edit_menu"))
+        focus_canvas_item(window, DeletingCanvasItem(Window.BoundAction(DisabledProvidedDeleteTestAction(), window._get_action_context())))
+        # the item is triggered without showing the menu first, as its key shortcut triggers it.
+        menu_action = menu.items[0].action
+        assert menu_action
+        menu_action.trigger()
+        self.assertEqual((0, []), (handle_delete_count, provided_actions_run), "Delete runs something when the action the focused item provides is disabled")

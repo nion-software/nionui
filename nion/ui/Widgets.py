@@ -1288,6 +1288,21 @@ class ListWidget(UserInterface.Widget):
     def focused(self, focused: bool) -> None:
         self.__list_canvas_item.request_focus()
 
+    # the window sends edit commands, such as Delete and Select All, to its focus widget, which is this widget when its
+    # list has the focus. each query goes on to the canvas widget holding the list, so that the list and its delegate
+    # answer, and then to this widget, for a subclass with its own handler.
+    def _dispatch_any(self, method: str, *args: typing.Any, **kwargs: typing.Any) -> bool:
+        return self.__canvas_widget._dispatch_any(method, *args, **kwargs) or super()._dispatch_any(method, *args, **kwargs)
+
+    def _can_dispatch_any(self, method: str) -> bool:
+        return self.__canvas_widget._can_dispatch_any(method) or super()._can_dispatch_any(method)
+
+    def _get_menu_item_state(self, command_id: str) -> UserInterface.MenuItemState | None:
+        return self.__canvas_widget._get_menu_item_state(command_id) or super()._get_menu_item_state(command_id)
+
+    def _get_action(self, command_id: str) -> Window.BoundAction | None:
+        return self.__canvas_widget._get_action(command_id) or super()._get_action(command_id)
+
     @property
     def wants_drag_events(self) -> bool:
         return self.__list_canvas_item.wants_drag_events

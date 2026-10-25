@@ -322,6 +322,41 @@ class TestListCanvasItemClass(unittest.TestCase):
         self.assertEqual([True, True, True], [item_canvas_item.is_focused for item_canvas_item in list_canvas_item._grid_flow_item_canvas_items])
         list_canvas_item.close()
 
+    def test_delete_edit_command_runs_the_action_the_delegate_of_a_focused_list_provides(self) -> None:
+        # delete_pressed must not run as well, or the item is removed twice.
+        calls = list[str]()
+
+        class DeleteItemsTestAction(Window.Action):
+            action_id = "list_canvas_item_test.delete_items"
+            action_name = "Delete Items Test"
+
+            def execute(self, context: Window.ActionContext) -> Window.ActionResult:
+                calls.append("action")
+                return Window.ActionResult(Window.ActionStatus.FINISHED)
+
+        class ActionProvidingDelegate(Widgets.ListCanvasItemDelegate):
+            def __init__(self, window: Window.Window) -> None:
+                super().__init__()
+                self.__window = window
+
+            def delete_pressed(self) -> None:
+                calls.append("delete_pressed")
+
+            def get_delete_action(self) -> Window.BoundAction | None:
+                return Window.BoundAction(DeleteItemsTestAction(), self.__window._get_action_context())
+
+        app = Application.BaseApplication(TestUI.UserInterface())
+        app.initialize()
+        self.addCleanup(app.deinitialize)
+        window = Window.Window(app.ui, app=app)
+        self.addCleanup(window.close)
+        list_widget = Widgets.ListWidget(app.ui, ActionProvidingDelegate(window), items=["a", "b", "c"], selection_style=Selection.Style.single_or_none)
+        window.attach_widget(list_widget)
+        list_widget.focused = True
+        list_widget.set_selected_index(1)
+        window.perform_edit_command("delete", invoked_from=Window.ActionOrigin.MENU)
+        self.assertEqual(["action"], calls, "Delete does not run the action the list's delegate provides once, in place of delete_pressed")
+
     def test_delete_edit_command_calls_delete_pressed_of_the_delegate_of_a_focused_list(self) -> None:
         delete_pressed_selections = list[set[int]]()
 

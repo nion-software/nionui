@@ -147,6 +147,15 @@ class TestCanvasItemClass(unittest.TestCase):
         controller.set_text("-")
         self.assertEqual(Geometry.IntSize(height=20, width=20), sizes[-1])
 
+    def test_list_widget_selection_holds_no_index_past_the_end_after_its_items_are_replaced_with_fewer(self) -> None:
+        # a delegate which reads the selected item, such as one deleting it, reads past the end of the items otherwise.
+        ui = TestUI.UserInterface()
+        list_widget = Widgets.StringListWidget(ui, items=["a", "b", "c", "d", "e"])
+        self.addCleanup(list_widget.close)
+        list_widget.set_selected_index(4)
+        list_widget.items = ["a", "b", "c"]
+        self.assertEqual(set(), {index for index in list_widget.selected_items if index >= 3}, "the list widget keeps a selection past the end of its items")
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.DEBUG)

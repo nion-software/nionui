@@ -1307,6 +1307,12 @@ class ListWidget(UserInterface.Widget):
     def __set_items(self, items: typing.Sequence[typing.Any]) -> None:
         self.__items = list(items)
 
+        # drop each selected index past the end of the new items, as the selection drops the index of an item removed
+        # from a list model. the highest index goes first, since removing an index moves the indexes above it down.
+        for index in sorted(self.__selection.indexes, reverse=True):
+            if index >= len(self.__items):
+                self.__selection.remove_index(index)
+
         self.__list_canvas_item_delegate.items = self.__items
         self.__list_canvas_item.size_to_content()  # this will only configure the sizing, not actual size (until next layout)
         self.__list_canvas_item.update()

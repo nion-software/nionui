@@ -189,7 +189,8 @@ class MimeData(UserInterfaceModule.MimeData):
 class MenuItem(UserInterfaceModule.MenuAction):
     def __init__(self, title: str, action_id: str, callback: typing.Optional[typing.Callable[[], None]],
                  key_sequence: typing.Optional[str], role: typing.Optional[str],
-                 menu: typing.Optional[UserInterfaceModule.Menu], is_separator: bool, checked: bool) -> None:
+                 menu: typing.Optional[UserInterfaceModule.Menu], is_separator: bool,
+                 checked: bool, tool_tip: str | None = None) -> None:
         super().__init__(action_id)
         self.__title = title
         self.callback = callback
@@ -199,6 +200,7 @@ class MenuItem(UserInterfaceModule.MenuAction):
         self.is_separator = is_separator
         self.__checked = checked
         self.__enabled = True
+        self.__tool_tip = tool_tip
 
     def close(self) -> None:
         self.callback = None
@@ -217,6 +219,14 @@ class MenuItem(UserInterfaceModule.MenuAction):
     @title.setter
     def title(self, value: str) -> None:
         self.__title = value
+
+    @property
+    def tool_tip(self) -> str | None:
+        return self.__tool_tip
+
+    @tool_tip.setter
+    def tool_tip(self, value: str | None) -> None:
+        self.__tool_tip = value
 
     @property
     def checked(self) -> bool:
@@ -243,8 +253,8 @@ class Menu(UserInterfaceModule.Menu):
 
     def add_menu_item(self, title: str, callback: typing.Callable[[], None], key_sequence: typing.Optional[str] = None,
                       role: typing.Optional[str] = None,
-                      action_id: typing.Optional[str] = None) -> UserInterfaceModule.MenuAction:
-        menu_item = MenuItem(title, action_id or str(), callback, key_sequence, role, None, False, False)
+                      action_id: typing.Optional[str] = None, tool_tip: str | None = None) -> UserInterfaceModule.MenuAction:
+        menu_item = MenuItem(title, action_id or str(), callback, key_sequence, role, None, False, False, tool_tip)
         self._prepare_action(menu_item, title, action_id or str(), callback, key_sequence, role)
         self._item_added(action=menu_item)
         return menu_item

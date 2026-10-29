@@ -1890,7 +1890,7 @@ class QtAction(UserInterface.MenuAction):
         return self.__tool_tip
 
     @tool_tip.setter
-    def tool_tip(self, value: str) -> None:
+    def tool_tip(self, value: str | None) -> None:
         if value != self.__tool_tip:
             self.proxy.Action_setToolTip(self.native_action, notnone(value) if value else str())
             self.__tool_tip = value

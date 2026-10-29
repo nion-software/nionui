@@ -3195,7 +3195,7 @@ class MenuAction:
         raise NotImplementedError()
 
     @tool_tip.setter
-    def tool_tip(self, value: str) -> None:
+    def tool_tip(self, value: str | None) -> None:
         raise NotImplementedError()
 
     @property

@@ -188,6 +188,9 @@ class Action:
     def is_enabled(self, context: ActionContext) -> bool:
         return True
 
+    def tool_tip(self, context: ActionContext) -> str | None:
+        return None
+
     def get_action_name(self, context: ActionContext) -> str:
         return self.action_name
 
@@ -851,7 +854,8 @@ class Window:
                 title = action.get_action_name(action_context)
                 enabled = action and action.is_enabled(action_context)
                 checked = action and action.is_checked(action_context)
-                menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+                tool_tip = action.tool_tip(action_context)
+                menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked, tool_tip=tool_tip))
 
     def is_action_enabled(self, action_id: str, action_context: ActionContext) -> bool:
         action = actions.get(action_id)
@@ -885,7 +889,8 @@ class Window:
             title = action.get_action_name(action_context)
             enabled = action and action.is_enabled(action_context)
             checked = action and action.is_checked(action_context)
-            menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+            tool_tip = action.tool_tip(action_context)
+            menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked, tool_tip=tool_tip))
         return action
 
     # the parameter values are typed as Any, as the context's parameters are, since an action's parameters may be of any type.
@@ -1130,7 +1135,8 @@ class Window:
                     title = action.get_action_name(action_context)
                     enabled = action and action.is_enabled(action_context)
                     checked = action and action.is_checked(action_context)
-                    menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked))
+                    tool_tip = action.tool_tip(action_context)
+                    menu_action.apply_state(UserInterface.MenuItemState(title=title, enabled=enabled, checked=checked, tool_tip=tool_tip))
             elif menu_action.edit_command_id:
                 if edit_command := edit_commands.get(menu_action.edit_command_id):
                     menu_action.apply_state(self.__get_edit_command_menu_item_state(edit_command))

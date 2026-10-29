@@ -52,7 +52,7 @@ FontMetrics = collections.namedtuple("FontMetrics", ["width", "height", "ascent"
 
 MeasureTextFn = typing.Callable[[str, str], FontMetrics]
 
-MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked"])
+MenuItemState = collections.namedtuple("MenuItemState", ["title", "enabled", "checked", "tool_tip"], defaults=[None])
 
 
 class KeyboardModifiers(typing.Protocol):
@@ -3191,6 +3191,14 @@ class MenuAction:
         raise NotImplementedError()
 
     @property
+    def tool_tip(self) -> str | None:
+        raise NotImplementedError()
+
+    @tool_tip.setter
+    def tool_tip(self, value: str) -> None:
+        raise NotImplementedError()
+
+    @property
     def checked(self) -> bool:
         raise NotImplementedError()
 
@@ -3232,6 +3240,10 @@ class MenuAction:
             self.enabled = menu_item_state.enabled
         else:
             self.enabled = False
+        if menu_item_state and menu_item_state.tool_tip is not None:
+            self.tool_tip = menu_item_state.tool_tip
+        else:
+            self.tool_tip = self.tool_tip
 
 
 class MenuItem:

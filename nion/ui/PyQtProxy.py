@@ -271,6 +271,7 @@ class PyMenu(QtWidgets.QMenu):
         self.object = None
         self.aboutToShow.connect(self.__about_to_show)
         self.aboutToHide.connect(self.__about_to_hide)
+        self.setToolTipsVisible(True)
 
     def __about_to_show(self):
         if self.object:

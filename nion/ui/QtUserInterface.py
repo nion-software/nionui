@@ -1864,6 +1864,7 @@ class QtAction(UserInterface.MenuAction):
         self.proxy = proxy
         self.native_action = native_action  # action is not connected since native_action will not by PyAction
         self.__title = str()
+        self.__tool_tip: str | None = None
 
     def close(self) -> None:
         self.proxy = None
@@ -1883,6 +1884,16 @@ class QtAction(UserInterface.MenuAction):
     def title(self, value: str) -> None:
         self.proxy.Action_setTitle(self.native_action, value)
         self.__title = value
+
+    @property
+    def tool_tip(self) -> str | None:
+        return self.__tool_tip
+
+    @tool_tip.setter
+    def tool_tip(self, value: str) -> None:
+        if value != self.__tool_tip:
+            self.proxy.Action_setToolTip(self.native_action, notnone(value) if value else str())
+            self.__tool_tip = value
 
     @property
     def checked(self) -> bool:

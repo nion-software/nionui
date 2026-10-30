@@ -1584,6 +1584,9 @@ class PushButtonWidget(Widget):
         self.on_clicked: typing.Optional[typing.Callable[[], None]] = None
 
         def handle_clicked() -> None:
+            # ensure an edit in the focused line edit is complete before the handler runs.
+            if (root_container := self.root_container) and isinstance(focus_widget := root_container.focus_widget, LineEditWidget):
+                focus_widget._finish_editing()
             if callable(self.on_clicked):
                 self.on_clicked()
 
@@ -2298,6 +2301,12 @@ class LineEditWidget(Widget):
 
     def refocus(self) -> None:
         self.select_all()
+
+    def _finish_editing(self) -> None:
+        # finish an edit in progress, as losing the focus does, if the text changed since the last edit finished.
+        text = self.text or str()
+        if text != self.__last_text and callable(on_editing_finished := self._behavior.on_editing_finished):
+            on_editing_finished(text)
 
     def bind_text(self, binding: Binding.Binding) -> None:
         self.__text_binding_helper.bind_value(binding)

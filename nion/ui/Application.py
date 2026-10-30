@@ -148,11 +148,18 @@ class BaseApplication:
     def _get_action_context(self) -> Window.ActionContext:
         return Window.ActionContext(self, None, None)
 
-    def execute_action(self, action_id: str, action_context: typing.Optional[Window.ActionContext] = None,
-                       parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> Window.ActionResult:
+    def execute_action(self, action_id: str, action_context: Window.ActionContext | None = None,
+                       parameters: dict[str, typing.Any] | None = None, *,
+                       invoked_from: Window.ActionOrigin | None = None, invoked_from_id: str | None = None) -> Window.ActionResult:
+        """Run the action with the id without user interaction, and return its result.
+
+        invoked_from and invoked_from_id say where a person invoked the action, as for perform_action_in_context, such as
+        a dialog's button which finishes the action. Both are None when code runs it.
+        """
         context = action_context or self._get_action_context()
         if parameters:
             context.parameters.update(parameters)
+        context = Window._action_context_with_origin(context, invoked_from, invoked_from_id)
         action = Window.actions[action_id]
         return self._run_action(action, context, user_interaction=False)
 

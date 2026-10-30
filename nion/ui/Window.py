@@ -951,11 +951,18 @@ class Window:
         menu_action.edit_command_id = edit_command_id
         return menu_action
 
-    def execute_action(self, action_id: str, action_context: typing.Optional[ActionContext] = None,
-                       parameters: typing.Optional[typing.Dict[str, typing.Any]] = None) -> ActionResult:
+    def execute_action(self, action_id: str, action_context: ActionContext | None = None,
+                       parameters: dict[str, typing.Any] | None = None, *,
+                       invoked_from: ActionOrigin | None = None, invoked_from_id: str | None = None) -> ActionResult:
+        """Run the action with the id without user interaction, and return its result.
+
+        invoked_from and invoked_from_id say where a person invoked the action, as for perform_action_in_context, such as
+        a dialog's button which finishes the action. Both are None when code runs it.
+        """
         context = action_context or self._get_action_context()
         if parameters:
             context.parameters.update(parameters)
+        context = _action_context_with_origin(context, invoked_from, invoked_from_id)
         action = actions[action_id]
         # the application runs the action so that it can observe every action. Window and BaseApplication are written to
         # work together, so the window calls the application's protected method.

@@ -1,4 +1,5 @@
 # standard libraries
+import asyncio
 import contextlib
 import typing
 import unittest
@@ -10,6 +11,8 @@ import unittest
 from nion.ui import TestUI
 from nion.ui import UserInterface
 from nion.ui import Widgets
+from nion.utils import Binding
+from nion.utils import Model
 
 
 class PeriodicCountingWidget(UserInterface.Widget):
@@ -278,6 +281,36 @@ class TestUserInterfacePeriodicClass(unittest.TestCase):
             window._handle_periodic()
             self.assertEqual(1, first_widget.periodic_count)
             self.assertEqual(1, second_widget.periodic_count)
+
+
+class TestUserInterfaceLineEditClass(unittest.TestCase):
+
+    def test_clicking_a_button_while_typing_in_a_line_edit_finishes_the_edit_first(self) -> None:
+        # a binding needs an event loop.
+        event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(event_loop)
+        self.addCleanup(event_loop.close)
+        self.addCleanup(asyncio.set_event_loop, None)
+        ui = TestUI.UserInterface()
+        window = TestUI.DocumentWindow()
+        with contextlib.closing(window):
+            name_model = Model.PropertyModel("old")
+            column = ui.create_column_widget()
+            line_edit = ui.create_line_edit_widget()
+            line_edit.bind_text(Binding.PropertyBinding(name_model, "value"))
+            button = ui.create_push_button_widget("OK")
+            names_when_clicked = list[str | None]()
+            button.on_clicked = lambda: names_when_clicked.append(name_model.value)
+            column.add(line_edit)
+            column.add(button)
+            window.attach(column)
+            line_edit.focused = True
+            # typing changes the text and doesn't finish editing; the click arrives as a real one does, through the button.
+            line_edit._behavior.text = "new"
+            button_clicked = button._behavior.on_clicked
+            assert button_clicked
+            button_clicked()
+            self.assertEqual(["new"], names_when_clicked)
 
 
 if __name__ == '__main__':

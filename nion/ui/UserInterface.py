@@ -3511,6 +3511,13 @@ class DockWidget:
     def toggle_action(self) -> MenuAction:
         raise NotImplementedError()
 
+    def set_floating(self, is_floating: bool) -> None:
+        """Float the dock widget in a window of its own, or dock it in its document window again.
+
+        A user interface which can't float a dock widget leaves it where it is.
+        """
+        pass
+
     @property
     def visible(self) -> bool:
         return False

@@ -2210,6 +2210,11 @@ class QtDockWidget(UserInterface.DockWidget):
         is_checked = bool(self.proxy.Action_getChecked(self.proxy.DockWidget_getToggleAction(self.native_dock_widget)))
         return is_checked or bool(self.proxy.Widget_isVisible(self.native_dock_widget))
 
+    def set_floating(self, is_floating: bool) -> None:
+        # an older nionui-tool can't float a dock widget, so the dock widget stays where it is.
+        if self.proxy.has_method("DockWidget_setFloating"):
+            self.proxy.DockWidget_setFloating(self.native_dock_widget, is_floating)
+
     def show(self) -> None:
         self.proxy.Widget_show(self.native_dock_widget)
         self._register_ui_activity()

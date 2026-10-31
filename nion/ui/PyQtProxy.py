@@ -3282,6 +3282,12 @@ class PyQtProxy:
         assert dock_widget is not None
         return dock_widget.toggleViewAction()
 
+    def DockWidget_setFloating(self, dock_widget: DockWidget, floating: bool) -> None:
+        global app
+        assert app.thread() == QtCore.QThread.currentThread()
+        assert dock_widget is not None
+        dock_widget.setFloating(floating)
+
     def DocumentWindow_activate(self, document_window: PyDocumentWindow) -> None:
         assert document_window is not None
         document_window.activateWindow()

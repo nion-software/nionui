@@ -11,6 +11,7 @@ import logging
 import os
 import pathlib
 import pickle
+import re
 import sys
 import time
 import typing
@@ -37,6 +38,23 @@ _QtObject = typing.Any
 
 def notnone(s: typing.Any) -> str:
     return str(s) if s is not None else str()
+
+
+# Qt's color dialog reads and writes hex with alpha as #aarrggbb, with the alpha first where CSS puts it last. it doesn't
+# read rgb() or rgba().
+def _get_qt_color_str_from_css(color_str: typing.Optional[str]) -> typing.Optional[str]:
+    if not color_str:
+        return color_str
+    red, green, blue, alpha = Color.Color(color_str).to_rgba()
+    alpha_255 = round(alpha * 255)
+    return f"#{red:02x}{green:02x}{blue:02x}" if alpha_255 == 255 else f"#{alpha_255:02x}{red:02x}{green:02x}{blue:02x}"
+
+
+def _get_css_color_str_from_qt(color_str: typing.Optional[str]) -> typing.Optional[str]:
+    if color_str and re.fullmatch(r"#[0-9a-fA-F]{8}", color_str):
+        return "#" + color_str[3:] + color_str[1:3]
+    return color_str
+
 
 
 class QtKeyboardModifiers(UserInterface.KeyboardModifiers):
@@ -585,7 +603,8 @@ class QtWidgetBehavior:  # cannot subclass UserInterface.WidgetBehavior until my
     def set_background_color(self, color: typing.Optional[typing.Union[str, DrawingContext.LinearGradient]]) -> None:
         if color:
             assert isinstance(color, str)
-            self.proxy.Widget_setPaletteColor(self.widget, "background", *(Color.Color(color or str()).to_rgba_255()))
+            red, green, blue, alpha = Color.Color(color).to_rgba()
+            self.proxy.Widget_setPaletteColor(self.widget, "background", red, green, blue, round(alpha * 255))
         else:
             self.proxy.Widget_setPaletteColor(self.widget, "background", 0, 0, 0, 0)
 
@@ -2017,7 +2036,10 @@ class QtWindow(UserInterface.Window):
         return file_path, filter, directory
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
-        return typing.cast(typing.Optional[str], self.proxy.DocumentWindow_getColorDialog(self.native_document_window, color, show_alpha))
+        qt_color = _get_qt_color_str_from_css(color)
+        result = typing.cast(typing.Optional[str], self.proxy.DocumentWindow_getColorDialog(self.native_document_window, qt_color, show_alpha))
+        # a cancelled dialog gives back the color it was given, so the caller gets its own color back.
+        return color if result == qt_color else _get_css_color_str_from_qt(result)
 
     def create_dock_widget(self, widget: UserInterface.Widget, panel_id: str, title: str, positions: typing.Sequence[str], position: str) -> UserInterface.DockWidget:
         return QtDockWidget(self.proxy, self, widget, panel_id, title, positions, position)
@@ -2561,7 +2583,10 @@ class QtUserInterface(UserInterface.UserInterface):
 
     def get_color_dialog(self, title: str, color: typing.Optional[str], show_alpha: bool) -> typing.Optional[str]:
         if self.proxy.has_method("DocumentWindow_getColorDialog"):
-            return typing.cast(str, self.proxy.DocumentWindow_getColorDialog(None, color, show_alpha))
+            qt_color = _get_qt_color_str_from_css(color)
+            result = typing.cast(typing.Optional[str], self.proxy.DocumentWindow_getColorDialog(None, qt_color, show_alpha))
+            # a cancelled dialog gives back the color it was given, so the caller gets its own color back.
+            return color if result == qt_color else _get_css_color_str_from_qt(result)
         return color
 
     def get_keyboard_modifiers(self, query: bool = False) -> UserInterface.KeyboardModifiers:

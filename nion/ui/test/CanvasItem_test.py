@@ -2543,6 +2543,9 @@ class TestCanvasItemClass(unittest.TestCase):
                 assert canvas_rect
                 self.assertEqual(20, canvas_rect.center.x)
 
+    def test_color_overlay_is_blended_over_a_translucent_background(self) -> None:
+        # a white overlay at half alpha over a half transparent blue background.
+        self.assertEqual("rgba(170, 170, 255, 0.751)", CanvasItem.blend_color_overlay("#0000ff80", "#ffffff", 0.5))
 
 
 if __name__ == '__main__':

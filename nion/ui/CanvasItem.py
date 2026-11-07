@@ -5434,12 +5434,11 @@ def blend_color_overlay(base_color: typing.Optional[typing.Union[str, DrawingCon
         return base_color
     base = Color.Color(base_color) if base_color else None
     if base and base.is_valid:
-        base_r, base_g, base_b, base_a255 = base.to_rgba_255()
-        base_a = base_a255 / 255.0
+        base_r, base_g, base_b, base_a = base.to_rgba()
     else:
         base_r, base_g, base_b, base_a = 0, 0, 0, 0.0
     overlay = Color.Color(overlay_color)
-    overlay_r, overlay_g, overlay_b, _ = overlay.to_rgba_255()
+    overlay_r, overlay_g, overlay_b = overlay.to_rgb_255()
     out_a = overlay_alpha + base_a * (1.0 - overlay_alpha)
     if out_a <= 0.0:
         return None

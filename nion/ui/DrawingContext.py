@@ -111,7 +111,7 @@ class LinearGradient:
         LinearGradient.next += 1
 
     def add_color_stop(self, x: float, color: typing.Optional[str]) -> None:
-        color = color or "#0000"
+        color = _get_rgba_color_str(color or "transparent")
         self.commands.append(("colorStop", self.command_var, float(x), str(color)))
         color_encoded = color.encode("utf-8")
         self.binary_commands.extend(struct.pack("4sifi{}s0i".format(len(color_encoded)), b"grcs", self.command_var, float(x), len(color_encoded), color_encoded))
@@ -274,6 +274,8 @@ class DrawingContext:
             if color_str.startswith("rgba"):
                 c = re.split(r"rgba\((\d+),(\d+),(\d+),([\d.]+)\)", color_str)
                 return f"rgb({c[1]}, {c[2]}, {c[3]})", float(c[4])
+            if color_str == "transparent":
+                return "rgb(0, 0, 0)", 0.0
             return color_str, 1.0
 
         for command in self.commands:
@@ -690,13 +692,14 @@ class DrawingContext:
 
     @fill_style.setter
     def fill_style(self, a: typing.Optional[typing.Union[str, LinearGradient]]) -> None:
-        a = a or "rgba(0, 0, 0, 0.0)"
+        a = a or "transparent"
         if isinstance(a, LinearGradient):
             self.commands.extend(a.commands)
             self.commands.append(("fillStyleGradient", int(a.command_var)))
             self.binary_commands.extend(a.binary_commands)
             self.binary_commands.extend(struct.pack("4si", b"flsg", int(a.command_var)))
         else:
+            a = _get_rgba_color_str(a)
             self.commands.append(("fillStyle", str(a)))
             a_encoded = a.encode("utf-8")
             self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"flst", len(a_encoded), a_encoded))
@@ -757,7 +760,7 @@ class DrawingContext:
 
     @stroke_style.setter
     def stroke_style(self, a: typing.Optional[str]) -> None:
-        a = a or "rgba(0, 0, 0, 0.0)"
+        a = _get_rgba_color_str(a or "transparent")
         self.commands.append(("strokeStyle", str(a)))
         a_encoded = a.encode("utf-8")
         self.binary_commands.extend(struct.pack("4si{}s0i".format(len(a_encoded)), b"stst", len(a_encoded), a_encoded))
@@ -848,3 +851,20 @@ def named_color_without_alpha(color: str) -> typing.Optional[str]:
 
 def hex_color(color: typing.Union[str, Color.Color]) -> typing.Optional[str]:
     return Color.Color(color).hex_color_str
+
+
+def _get_rgba_color_str(color_str: str) -> str:
+    """Return the color, with hex with alpha (#rgba or #rrggbbaa) rewritten as rgba(r, g, b, a).
+
+    Every host reads rgba() as CSS does, while a host may read hex with alpha in another order.
+    """
+    # a quick check skips the regular expression for most colors, which aren't hex with alpha.
+    if not (color_str.startswith("#") and len(color_str) in (5, 9) and re.fullmatch(r"#[0-9a-fA-F]{4}|#[0-9a-fA-F]{8}", color_str)):
+        return color_str
+    red, green, blue, alpha = Color.Color(color_str).to_rgba()
+    alpha_255 = round(alpha * 255)
+    # half a step up from an alpha of 1 would be above 1 for a reader which doesn't truncate, such as the SVG export.
+    if alpha_255 == 255:
+        return f"rgba({red}, {green}, {blue}, 1.0)"
+    # a host may truncate the alpha times 255, so it is written half a step up to give back the same value.
+    return f"rgba({red}, {green}, {blue}, {(alpha_255 + 0.5) / 255:.6f})"

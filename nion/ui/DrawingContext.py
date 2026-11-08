@@ -268,7 +268,8 @@ class DrawingContext:
         gradient_start: typing.Optional[str] = None
         gradient_stops: typing.List[str] = list()
 
-        # make a SVG 1.1 compatible color, opacity tuple
+        # the export writes SVG 1.1, which takes a color without alpha and the alpha as a separate fill, stroke or stop
+        # opacity, so this splits rgba() and transparent into the two.
         def parse_color(color_str: str) -> typing.Tuple[str, float]:
             color_str = ''.join(color_str.split())
             if color_str.startswith("rgba"):
@@ -498,7 +499,8 @@ class DrawingContext:
                                                                                                         float(y2 / h))
             elif command_id == "colorStop":
                 command_var, x, color = command_args
-                gradient_stops.append("<stop offset='{0}%' stop-color='{1}' />".format(int(x * 100), color))
+                stop_color, stop_opacity = parse_color(color)
+                gradient_stops.append("<stop offset='{0}%' stop-color='{1}' stop-opacity='{2}' />".format(int(x * 100), stop_color, stop_opacity))
             else:
                 logging.debug("Unknown command %s", command)
         xmlns = "xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'"

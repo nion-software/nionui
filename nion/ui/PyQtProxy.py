@@ -8,6 +8,7 @@ import logging
 import math
 import numpy
 import pkgutil
+import re
 import sys
 import time
 import typing
@@ -1470,19 +1471,17 @@ def ParseFontString(font_string: str, display_scaling: float = 1.0) -> QtGui.QFo
     return font
 
 
+# the expressions are compiled once, rather than for each color, and can be shared by the threads which draw.
+_RGBA_PATTERN = re.compile(r"rgba\((\d+),\s*(\d+),\s*(\d+),\s*(\d+\.\d+)\)", re.ASCII)
+_RGB_PATTERN = re.compile(r"rgb\((\d+),\s*(\d+),\s*(\d+)\)", re.ASCII)
+
+
 def ParseColorString(color_string: str) -> QtGui.QColor:
-    color = QtGui.QColor()
-    re1 = QtCore.QRegularExpression("^rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d+\\.\\d+)\\)$")
-    re2 = QtCore.QRegularExpression("^rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)$")
-    match1 = re1.match(color_string)
-    match2 = re2.match(color_string)
-    if match1.hasMatch():
-        color = QtGui.QColor(int(match1.captured(1)), int(match1.captured(2)), int(match1.captured(3)), int(float(match1.captured(4)) * 255))
-    elif match2.hasMatch():
-        color = QtGui.QColor(int(match2.captured(1)), int(match2.captured(2)), int(match2.captured(3)))
-    else:
-        color = QtGui.QColor(color_string)
-    return color
+    if match := _RGBA_PATTERN.fullmatch(color_string):
+        return QtGui.QColor(int(match[1]), int(match[2]), int(match[3]), int(float(match[4]) * 255))
+    if match := _RGB_PATTERN.fullmatch(color_string):
+        return QtGui.QColor(int(match[1]), int(match[2]), int(match[3]))
+    return QtGui.QColor(color_string)
 
 
 def imageFromRGBA(array: numpy.ndarray) -> QtGui.QImage:

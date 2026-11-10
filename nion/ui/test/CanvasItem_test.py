@@ -2543,6 +2543,26 @@ class TestCanvasItemClass(unittest.TestCase):
                 assert canvas_rect
                 self.assertEqual(20, canvas_rect.center.x)
 
+    def test_composer_cache_gives_items_of_different_types_with_equal_keys_their_own_values(self) -> None:
+        class SquareCacheItem:
+            def key(self) -> int:
+                return 3
+
+            def calculate(self) -> int:
+                return 9
+
+        class CubeCacheItem:
+            def key(self) -> int:
+                return 3
+
+            def calculate(self) -> int:
+                return 27
+
+        composer_cache = CanvasItem.ComposerCache()
+        square_cache_value = composer_cache.get_cache_value(SquareCacheItem())
+        cube_cache_value = composer_cache.get_cache_value(CubeCacheItem())
+        self.assertEqual((9, 27), (square_cache_value.value, cube_cache_value.value))
+
     def test_color_overlay_is_blended_over_a_translucent_background(self) -> None:
         # a white overlay at half alpha over a half transparent blue background.
         self.assertEqual("rgba(170, 170, 255, 0.751)", CanvasItem.blend_color_overlay("#0000ff80", "#ffffff", 0.5))

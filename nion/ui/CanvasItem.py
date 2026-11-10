@@ -690,7 +690,8 @@ class ComposerCache:
         self.__cache = dict[typing.Any, weakref.ReferenceType[CacheValue]]()
 
     def get_cache_value(self, cache_item: ComposerCacheItem) -> CacheValue:
-        cache_item_key = cache_item.key()
+        # items of different types may give equal keys, so the type is part of the key.
+        cache_item_key = (type(cache_item), cache_item.key())
         cache_value_ref = self.__cache.get(cache_item_key)
         cache_value = cache_value_ref() if cache_value_ref else None
         if cache_value is None:

@@ -3986,6 +3986,27 @@ class ToleranceType(enum.IntEnum):
     CURSOR = 1
 
 
+@dataclasses.dataclass(frozen=True)
+class LocaleInfo:
+    """Locale data for formatting dates and times.
+
+    The patterns use the notation of Unicode Technical Standard #35, Part 4: Dates, section "Date Format Patterns"
+    (https://www.unicode.org/reports/tr35/tr35-dates.html). The names are tuples so that the dataclass stays immutable.
+    """
+    short_time_pattern: str  # the hour and minute, such as "h:mm a" or "HH:mm".
+    short_date_pattern: str  # the numeric date, such as "M/d/yy" or "dd.MM.yy".
+    long_date_pattern: str  # the date with the month and weekday by name, such as "EEEE, MMMM d, y".
+    month_names: tuple[str, ...]  # the full names of the months, January first.
+    month_abbreviations: tuple[str, ...]  # the abbreviated names of the months, January first.
+    standalone_month_names: tuple[str, ...]  # the full names of the months as written without a day, January first.
+    standalone_month_abbreviations: tuple[str, ...]  # the abbreviated names of the months as written without a day, January first.
+    day_names: tuple[str, ...]  # the full names of the weekdays, Monday first.
+    day_abbreviations: tuple[str, ...]  # the abbreviated names of the weekdays, Monday first.
+    am_text: str  # the AM marker of a 12-hour clock, such as "AM".
+    pm_text: str  # the PM marker of a 12-hour clock, such as "PM".
+    zero_digit: str  # the locale's digit zero; its digits one to nine follow it in Unicode.
+
+
 class TruncateModeType(enum.IntEnum):
     LEFT = 0
     RIGHT = 1
@@ -4343,6 +4364,10 @@ class UserInterface(abc.ABC):
     @abc.abstractmethod
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: TruncateModeType) -> str:
         ...
+
+    def get_locale_info(self) -> LocaleInfo | None:
+        """Return the user's locale data, or None if this user interface has none."""
+        return None
 
     @abc.abstractmethod
     def get_qt_version(self) -> str:

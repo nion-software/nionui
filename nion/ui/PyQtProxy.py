@@ -3164,6 +3164,35 @@ class PyQtProxy:
     def Core_getQtVersion(self) -> str:
         return QtCore.qVersion()
 
+    def Core_getLocaleInfo(self) -> dict[str, typing.Any]:
+        # the system locale's data, keyed by QLocale method name, matching the launcher. formats and names have long and
+        # short forms, and weekdays start on Monday. the first day of the week and the measurement system are Qt enum
+        # values, such as 1 for Monday and 0 for metric. some keys are unused; they are included because adding a key
+        # needs a new launcher. the values are of mixed types, so they are typed as Any.
+        locale = QtCore.QLocale.system()
+        format_types = {"long": QtCore.QLocale.FormatType.LongFormat, "short": QtCore.QLocale.FormatType.ShortFormat}
+        return {
+            "timeFormat": {name: locale.timeFormat(format_type) for name, format_type in format_types.items()},
+            "dateFormat": {name: locale.dateFormat(format_type) for name, format_type in format_types.items()},
+            "dateTimeFormat": {name: locale.dateTimeFormat(format_type) for name, format_type in format_types.items()},
+            "monthName": {name: [locale.monthName(month, format_type) for month in range(1, 13)] for name, format_type in format_types.items()},
+            "standaloneMonthName": {name: [locale.standaloneMonthName(month, format_type) for month in range(1, 13)] for name, format_type in format_types.items()},
+            "dayName": {name: [locale.dayName(day, format_type) for day in range(1, 8)] for name, format_type in format_types.items()},
+            "standaloneDayName": {name: [locale.standaloneDayName(day, format_type) for day in range(1, 8)] for name, format_type in format_types.items()},
+            "amText": locale.amText(),
+            "pmText": locale.pmText(),
+            "zeroDigit": locale.zeroDigit(),
+            "name": locale.name(),
+            "bcp47Name": locale.bcp47Name(),
+            "decimalPoint": locale.decimalPoint(),
+            "groupSeparator": locale.groupSeparator(),
+            "negativeSign": locale.negativeSign(),
+            "exponential": locale.exponential(),
+            "uiLanguages": locale.uiLanguages(),
+            "firstDayOfWeek": locale.firstDayOfWeek().value,
+            "measurementSystem": locale.measurementSystem().value,
+        }
+
     def Core_getBuildVersion(self) -> typing.Dict[str, str]:
         # no build-time git info is available in the pure Python path.
         return dict()

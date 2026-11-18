@@ -16,16 +16,20 @@ import collections
 import concurrent.futures
 import copy
 import dataclasses
+import datetime
 import enum
 import functools
+import itertools
 import logging
 import numbers
 import operator
 import pathlib
+import re
 import threading
 import traceback
 import types
 import typing
+import unicodedata
 import weakref
 
 # local libraries
@@ -4007,6 +4011,112 @@ class LocaleInfo:
     zero_digit: str  # the locale's digit zero; its digits one to nine follow it in Unicode.
 
 
+# the date and time when the user interface has no locale data: numeric, in year-month-day order, with a 24-hour clock.
+_fixed_locale_info = LocaleInfo(
+    short_time_pattern="HH:mm", short_date_pattern="y-MM-dd", long_date_pattern="EEE y-MM-dd",
+    month_names=tuple(), month_abbreviations=tuple(), standalone_month_names=tuple(), standalone_month_abbreviations=tuple(),  # the fixed date has a numeric month.
+    day_names=("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+    day_abbreviations=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    am_text="AM", pm_text="PM", zero_digit="0")
+
+
+def _get_pattern_fields(pattern: str, letters: typing.Collection[str]) -> list[tuple[str, str]]:
+    """Return the fields of a date or time pattern whose letter is in letters, each with the literal text after it.
+
+    Leaving out a field also leaves out the text after it. When the pattern's last field is left out, the text after
+    the new last field is cut at its first space or punctuation other than a period, which keeps a suffix such as the
+    "日" of "d日" or the "." of "d., ". Text before the first field, such as "Kl. " in "'Kl'. HH.mm", is kept with an
+    empty field when that first field is kept.
+    """
+    fields = list[tuple[str, str]]()
+    leading_text = str()
+    is_first_field = True
+    is_last_kept = False
+    for match in re.finditer(r"'(?:[^']|'')*'|([A-Za-z])\1*|[^'A-Za-z]+", pattern):
+        if match.group(1):
+            is_last_kept = match.group(1) in letters
+            if is_last_kept and is_first_field and leading_text:
+                fields.append((str(), leading_text))
+            if is_last_kept:
+                fields.append((match.group(0), str()))
+            is_first_field = False
+        elif is_first_field:
+            leading_text += match.group(0)
+        elif fields and is_last_kept:
+            fields[-1] = (fields[-1][0], fields[-1][1] + match.group(0))
+    if fields and not is_last_kept:
+        fields[-1] = (fields[-1][0], "".join(itertools.takewhile(lambda character: character == "." or unicodedata.category(character)[0] not in "PZ", fields[-1][1])))
+    return fields
+
+
+@functools.lru_cache(maxsize=64)
+def _get_date_time_fields(skeleton: str, locale_info: LocaleInfo) -> tuple[tuple[str, str], ...]:
+    """Return the pattern fields of a skeleton in a locale, each with the literal text after it.
+
+    Unsupported fields fall back as format_date_time describes. A date comes from the locale's long date pattern when
+    the skeleton has a month name or a weekday, and from its short date pattern otherwise. A time comes from its short
+    time pattern, and a date and a time are joined by a space.
+    """
+    # the other letters are left out, since a locale's pattern may hold a field which _get_date_time_text cannot write.
+    skeleton = re.sub("[^yMdEjms]", str(), re.sub("[hH]", "j", skeleton))
+    if "j" in skeleton and "m" not in skeleton:
+        skeleton += "m"
+    if "E" in skeleton and 0 < skeleton.count("M") < 3:
+        skeleton = skeleton.replace("M", str()) + "MMM"
+    counts = collections.Counter(skeleton)
+    fields = list[tuple[str, str]]()
+    if any(letter in counts for letter in "yMdE"):
+        date_pattern = locale_info.long_date_pattern if counts["M"] >= 3 or "E" in counts else locale_info.short_date_pattern
+        for field, literal in _get_pattern_fields(date_pattern, counts):
+            # a year, weekday or month name takes the skeleton's width. a month which the locale writes as a number, as
+            # Japanese does in its long date, stays a number.
+            if field.startswith(("y", "E", "MMM")):
+                field = field[0] * counts[field[0]]
+            # a month name without a day takes its standalone form, which some languages, such as Russian, inflect differently.
+            if field.startswith("MMM") and "d" not in counts:
+                field = "L" * len(field)
+            fields.append((field, literal))
+    if any(letter in counts for letter in "jms"):
+        time_pattern = locale_info.short_time_pattern
+        if "s" in counts and "s" not in time_pattern:
+            # a separator with a word in it, such as the Dzongkha word for minute, becomes a colon for the seconds.
+            separator_match = re.search(r"[hH]+([^hHm']*)m", time_pattern)
+            separator = separator_match.group(1) if separator_match and not any(character.isalpha() for character in separator_match.group(1)) else ":"
+            time_pattern = re.sub("m+", lambda match: match.group(0) + separator + "ss", time_pattern, count=1)
+        # the hour of the locale's clock comes with its AM or PM, if it has one.
+        time_fields = _get_pattern_fields(time_pattern, set(counts) | ({"h", "H", "a"} if "j" in counts else set()))
+        if fields:
+            fields[-1] = (fields[-1][0], fields[-1][1] + " ")
+        fields.extend(time_fields)
+    return tuple(fields)
+
+
+def _get_date_time_text(local_datetime: datetime.datetime, fields: typing.Sequence[tuple[str, str]], locale_info: LocaleInfo) -> str:
+    """Return a local date and time written with fields, each with the literal text after it, in a locale."""
+    field_values = {"y": local_datetime.year, "M": local_datetime.month, "d": local_datetime.day, "H": local_datetime.hour,
+                    "h": local_datetime.hour % 12 or 12, "m": local_datetime.minute, "s": local_datetime.second}
+
+    def get_number(value: int, width: int) -> str:
+        return "".join(chr(ord(locale_info.zero_digit) + int(digit)) for digit in str(value).zfill(width))
+
+    def get_field_text(field: str) -> str:
+        if not field:
+            return str()
+        letter, width = field[0], len(field)
+        if letter == "E":
+            return (locale_info.day_names if width >= 4 else locale_info.day_abbreviations)[local_datetime.weekday()]
+        if letter == "M" and width >= 3:
+            return (locale_info.month_names if width >= 4 else locale_info.month_abbreviations)[local_datetime.month - 1]
+        if letter == "L":
+            return (locale_info.standalone_month_names if width >= 4 else locale_info.standalone_month_abbreviations)[local_datetime.month - 1]
+        if letter == "a":
+            return locale_info.am_text if local_datetime.hour < 12 else locale_info.pm_text
+        return get_number(field_values[letter], width)
+
+    # a quoted literal is written without its quotes, and two quotes are written as one.
+    return "".join(get_field_text(field) + re.sub("'((?:[^']|'')*)'", lambda match: match.group(1).replace("''", "'") or "'", literal) for field, literal in fields)
+
+
 class TruncateModeType(enum.IntEnum):
     LEFT = 0
     RIGHT = 1
@@ -4364,6 +4474,25 @@ class UserInterface(abc.ABC):
     @abc.abstractmethod
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: TruncateModeType) -> str:
         ...
+
+    def format_date_time(self, local_datetime: datetime.datetime, skeleton: str) -> str:
+        """Return a local date and time written in the user's locale with the fields of a skeleton.
+
+        A skeleton lists the fields to show, and the locale decides their order and punctuation. For example, "jm" is
+        the hour and minute, "jms" adds the seconds, "MMMd" is the abbreviated month and day, and "yMM" is the year and
+        numeric month. Skeletons are defined in Unicode Technical Standard #35, Part 4: Dates, sections
+        "availableFormats, appendItems" and "Date Field Symbol Table" (https://www.unicode.org/reports/tr35/tr35-dates.html).
+
+        Supported fields: y (year), M to MMMM (month), d (day), E to EEEE (weekday), j (hour), m (minute) and s
+        (second). Numeric fields have the locale's widths, and a month name without a day has the locale's standalone
+        form. h and H fall back to the locale's clock and yy to the full year. An hour without a minute gets the minute,
+        and a weekday with a numeric month gets the abbreviated month name. Other fields, such as an era or a time zone,
+        are left out.
+
+        Without locale data, the date is numeric in year-month-day order and the time has a 24-hour clock.
+        """
+        locale_info = self.get_locale_info() or _fixed_locale_info
+        return _get_date_time_text(local_datetime, _get_date_time_fields(skeleton, locale_info), locale_info)
 
     def get_locale_info(self) -> LocaleInfo | None:
         """Return the user's locale data, or None if this user interface has none."""

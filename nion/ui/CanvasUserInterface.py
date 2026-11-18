@@ -3236,6 +3236,9 @@ class CanvasUserInterface(UserInterface.UserInterface):
     def truncate_string_to_width(self, font_str: str, text: str, pixel_width: int, mode: UserInterface.TruncateModeType) -> str:
         return self.__ui.truncate_string_to_width(font_str, text, pixel_width, mode)
 
+    def get_locale_info(self) -> UserInterface.LocaleInfo | None:
+        return self.__ui.get_locale_info()
+
     def get_qt_version(self) -> str:
         return self.__ui.get_qt_version()
 

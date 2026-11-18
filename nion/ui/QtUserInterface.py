@@ -2284,6 +2284,27 @@ class QtDockWidget(UserInterface.DockWidget):
         self._handle_focus_out()
 
 
+def get_date_time_pattern_from_qt_format(qt_format: str) -> str:
+    """Return a Qt date and time format in the pattern notation of UserInterface.LocaleInfo.
+
+    Qt writes AM or PM as AP, ap, A or a, the weekday as ddd or dddd, and the hour of a 24-hour clock as h when the
+    format has no AM or PM. The other letters in Qt's locale formats have the same meaning.
+    """
+    is_12_hour = re.search("[Aa]", re.sub("'(?:[^']|'')*'", str(), qt_format)) is not None
+
+    def get_pattern(match: re.Match[str]) -> str:
+        token = match.group(0)
+        if token[0] in "Aa":
+            return "a"
+        if token[0] == "d":
+            return "EEEE" if len(token) >= 4 else "EEE" if len(token) == 3 else token
+        if token[0] == "h" and not is_12_hour:
+            return "H" * len(token)
+        return token
+
+    return re.sub(r"'(?:[^']|'')*'|[Aa][Pp]?|d+|h+", get_pattern, qt_format)
+
+
 class QtUserInterface(UserInterface.UserInterface):
 
     def __init__(self, proxy: _QtProxy) -> None:
@@ -2291,6 +2312,10 @@ class QtUserInterface(UserInterface.UserInterface):
         self.persistence_root = "0"
         self.persistence_handler: typing.Optional[UserInterface.PersistenceHandler] = None
         self.proxy.Core_syncLatencyTimer(time.perf_counter())
+
+        # the locale data, read from the proxy on first use.
+        self.__locale_info: UserInterface.LocaleInfo | None = None
+        self.__is_locale_info_read = False
 
     def close(self) -> None:
         # this message is received from the application stop method, which gets called when the host Qt application
@@ -2554,6 +2579,25 @@ class QtUserInterface(UserInterface.UserInterface):
         if self.proxy.has_method("Core_truncateToWidth"):
             return typing.cast(str, self.proxy.Core_truncateToWidth(font_str, text, pixel_width, int(mode)))
         return text
+
+    def get_locale_info(self) -> UserInterface.LocaleInfo | None:
+        # an older launcher has no locale data. the values are of mixed types, so they are typed as Any.
+        if not self.__is_locale_info_read and self.proxy.has_method("Core_getLocaleInfo"):
+            locale_info = typing.cast(typing.Mapping[str, typing.Any], self.proxy.Core_getLocaleInfo())
+            self.__locale_info = UserInterface.LocaleInfo(short_time_pattern=get_date_time_pattern_from_qt_format(locale_info["timeFormat"]["short"]),
+                                                          short_date_pattern=get_date_time_pattern_from_qt_format(locale_info["dateFormat"]["short"]),
+                                                          long_date_pattern=get_date_time_pattern_from_qt_format(locale_info["dateFormat"]["long"]),
+                                                          month_names=tuple(locale_info["monthName"]["long"]),
+                                                          month_abbreviations=tuple(locale_info["monthName"]["short"]),
+                                                          standalone_month_names=tuple(locale_info["standaloneMonthName"]["long"]),
+                                                          standalone_month_abbreviations=tuple(locale_info["standaloneMonthName"]["short"]),
+                                                          day_names=tuple(locale_info["dayName"]["long"]),
+                                                          day_abbreviations=tuple(locale_info["dayName"]["short"]),
+                                                          am_text=locale_info["amText"],
+                                                          pm_text=locale_info["pmText"],
+                                                          zero_digit=locale_info["zeroDigit"])
+        self.__is_locale_info_read = True
+        return self.__locale_info
 
     def get_qt_version(self) -> str:
         return typing.cast(str, self.proxy.Core_getQtVersion())
